@@ -1,0 +1,29 @@
+# Netlify Configuration for Potomac Basin Forecaster
+
+[build]
+  # Directory containing the site files
+  publish = "."
+
+  # Functions directory
+  functions = "netlify/functions"
+
+  # Install dependencies
+  command = "npm install"
+
+[functions]
+  # Use Node.js 18 for serverless functions
+  node_bundler = "esbuild"
+
+# Headers for security
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Redirect API calls to serverless function
+[[redirects]]
+  from = "/api/sync"
+  to = "/.netlify/functions/sync-learning"
+  status = 200

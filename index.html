@@ -1,0 +1,3235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Potomac Pulse v17</title>
+    <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
+
+    <!-- Open Graph / Social Sharing -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Potomac Pulse - River Flow Tracker">
+    <meta property="og:description" content="Real-time Potomac River flow tracking and Great Falls predictions for paddlers. Know what's coming before you go.">
+    <meta property="og:image" content="gs-logo.png">
+    <meta name="twitter:card" content="summary">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="app-icon.svg">
+
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌊</text></svg>">
+
+    <!-- GoatCounter Analytics -->
+    <script data-goatcounter="https://potomacpulse.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; }
+        #app { display: flex; flex-direction: column; height: 100vh; }
+        
+        header {
+            background: #1e293b;
+            padding: 8px 16px;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header h1 { font-size: 1rem; color: #60a5fa; }
+        .hdr-right { display: flex; align-items: center; gap: 10px; font-size: 0.7rem; color: #64748b; }
+        .last-update { font-size: 0.6rem; padding: 2px 6px; border-radius: 3px; background: rgba(0,0,0,0.2); }
+        .last-update.fresh { color: #4ade80; }
+        .last-update.recent { color: #fbbf24; }
+        .last-update.old { color: #f97316; }
+        .last-update.stale { color: #ef4444; }
+        .dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; }
+        .dot.loading { background: #f59e0b; animation: pulse 1s infinite; }
+        .dot.cached { background: #f59e0b; }
+        .dot.error { background: #ef4444; }
+        @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .btn { background: #334155; border: none; color: #94a3b8; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; }
+        .btn:hover { background: #475569; }
+        .btn.active { background: #3b82f6; color: white; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn.loading { animation: spin 1s linear infinite; }
+        
+        main { display: flex; flex: 1; overflow: hidden; }
+        #map { flex: 1; background: #e8e8e8; }
+        
+        #sidebar {
+            width: 360px;
+            background: #1e293b;
+            border-left: 1px solid #334155;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        @media (max-width: 768px) {
+            main { flex-direction: column; }
+            #sidebar { width: 100%; max-height: 45vh; }
+        }
+        
+        .target {
+            padding: 10px 12px;
+            background: #0f172a;
+            border-bottom: 2px solid #f97316;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .target-icon { font-size: 1.2rem; }
+        .target-info { flex: 1; }
+        .target-name { font-weight: 600; color: #f97316; font-size: 0.85rem; }
+        .target-sub { font-size: 0.6rem; color: #64748b; }
+        .target-vals { display: flex; gap: 10px; text-align: right; }
+        .target-num { font-size: 1.1rem; font-weight: 600; }
+        .target-num.q { color: #60a5fa; }
+        .target-num.h { color: #4ade80; }
+        .target-unit { font-size: 0.5rem; color: #64748b; }
+        .target-trend { font-size: 0.9rem; margin-left: 2px; }
+        
+        .flow-indicator {
+            padding: 6px 12px;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid #334155;
+            font-size: 0.65rem;
+            color: #94a3b8;
+            display: flex;
+            justify-content: space-between;
+        }
+        .flow-indicator .mult { color: #fbbf24; font-weight: 600; }
+        
+        .learning-bar {
+            padding: 5px 12px;
+            background: rgba(139, 92, 246, 0.1);
+            border-bottom: 1px solid #334155;
+            font-size: 0.6rem;
+            color: #a78bfa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .learning-bar .obs-count { font-weight: 600; }
+        .learning-bar .accuracy { color: #4ade80; }
+        
+        .tabs {
+            display: flex;
+            background: rgba(0,0,0,0.2);
+            border-bottom: 1px solid #334155;
+        }
+        .tab {
+            flex: 1;
+            padding: 6px 8px;
+            text-align: center;
+            font-size: 0.65rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: #64748b;
+        }
+        .tab:hover { background: rgba(255,255,255,0.02); }
+        .tab.active { color: #60a5fa; border-bottom-color: #3b82f6; }
+        
+        .tab-content { display: none; flex: 1; overflow-y: auto; }
+        .tab-content.active { display: block; }
+        
+        .branch { border-bottom: 1px solid #0f172a; }
+        .branch-hd {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 10px; background: rgba(0,0,0,0.15);
+            cursor: pointer; font-size: 0.72rem;
+        }
+        .branch-hd:hover { background: rgba(255,255,255,0.02); }
+        .branch-clr { width: 12px; height: 3px; border-radius: 2px; }
+        .branch-nm { flex: 1; font-weight: 500; }
+        .branch-arr { font-size: 0.5rem; color: #64748b; transition: transform 0.15s; }
+        .branch.open .branch-arr { transform: rotate(180deg); }
+        .branch-list { display: none; padding: 2px 6px 6px; }
+        .branch.open .branch-list { display: block; }
+        
+        .gauge {
+            display: grid;
+            grid-template-columns: 6px 1fr 22px 38px 32px 42px;
+            align-items: center; gap: 4px;
+            padding: 4px 5px; margin: 1px 0;
+            border-radius: 3px; cursor: pointer; font-size: 0.68rem;
+        }
+        .gauge:hover { background: rgba(96,165,250,0.08); }
+        .gauge-dot { width: 5px; height: 5px; border-radius: 50%; }
+        .gauge-nm { color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .gauge-trend { font-size: 0.75rem; text-align: center; }
+        .gauge-pct { color: #a78bfa; text-align: right; font-size: 0.58rem; }
+        .gauge-q { color: #60a5fa; text-align: right; font-size: 0.65rem; }
+        .gauge-t { color: #fbbf24; text-align: right; font-size: 0.62rem; }
+        
+        .trend-up { color: #ef4444; }
+        .trend-down { color: #22c55e; }
+        .trend-stable { color: #64748b; }
+
+        /* Documentation panel */
+        .docs-panel {
+            padding: 12px;
+            font-size: 0.68rem;
+            line-height: 1.5;
+        }
+        .docs-panel h3 { color: #60a5fa; font-size: 0.8rem; margin: 10px 0 6px; }
+        .docs-panel h3:first-child { margin-top: 0; }
+        .docs-panel p { margin-bottom: 8px; color: #94a3b8; }
+        .docs-panel .formula { 
+            background: rgba(0,0,0,0.3); 
+            padding: 6px 10px; 
+            border-radius: 4px; 
+            font-family: monospace;
+            margin: 6px 0;
+            color: #fbbf24;
+        }
+        .docs-panel table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 0.62rem; }
+        .docs-panel th, .docs-panel td { padding: 4px 6px; text-align: left; border-bottom: 1px solid #334155; }
+        .docs-panel th { color: #60a5fa; }
+        .docs-panel .source { color: #4ade80; font-style: italic; }
+        
+        /* Learning panel */
+        .learn-panel { padding: 12px; font-size: 0.68rem; }
+        .learn-stat { 
+            display: flex; justify-content: space-between; 
+            padding: 6px 0; border-bottom: 1px solid #334155;
+        }
+        .learn-stat .label { color: #94a3b8; }
+        .learn-stat .value { color: #60a5fa; font-weight: 600; }
+        .learn-btn { 
+            width: 100%; margin-top: 10px; padding: 8px;
+            background: #dc2626; border: none; color: white;
+            border-radius: 4px; cursor: pointer; font-size: 0.65rem;
+        }
+        .learn-btn:hover { background: #b91c1c; }
+        .correction-list { margin-top: 10px; }
+        .correction-item {
+            display: flex; justify-content: space-between;
+            padding: 4px 6px; background: rgba(0,0,0,0.2);
+            border-radius: 3px; margin: 2px 0; font-size: 0.6rem;
+        }
+        .correction-item .gauge-name { color: #cbd5e1; }
+        .correction-item .factor { color: #fbbf24; }
+        
+        footer {
+            background: #0f172a;
+            border-top: 1px solid #334155;
+            padding: 8px 12px;
+            font-size: 0.55rem;
+            color: #475569;
+            text-align: center;
+        }
+        footer a { color: #64748b; }
+        
+        .leaflet-popup-content-wrapper { background: #1e293b; color: #e2e8f0; border-radius: 6px; border: 1px solid #3b82f6; }
+        .leaflet-popup-tip { background: #1e293b; }
+        .leaflet-popup-content { margin: 10px 12px; min-width: 200px; font-size: 14px; }
+        .pop-nm { font-weight: 600; color: #60a5fa; font-size: 1rem; }
+        .pop-area { font-size: 0.75rem; color: #94a3b8; margin-bottom: 8px; }
+        .pop-row { display: flex; gap: 8px; margin-bottom: 6px; }
+        .pop-cell { background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; text-align: center; flex: 1; }
+        .pop-val { font-size: 1.1rem; font-weight: 600; }
+        .pop-val.blue { color: #60a5fa; }
+        .pop-val.green { color: #4ade80; }
+        .pop-val.yellow { color: #fbbf24; }
+        .pop-val.purple { color: #a78bfa; }
+        .pop-lbl { font-size: 0.65rem; color: #94a3b8; margin-top: 2px; }
+        .pop-arr { margin-top: 6px; padding: 6px 8px; background: rgba(251,191,36,0.1); border-left: 2px solid #fbbf24; font-size: 0.8rem; border-radius: 0 4px 4px 0; }
+        .pop-trend { margin-top: 6px; padding: 6px 8px; background: rgba(96,165,250,0.1); border-radius: 4px; font-size: 0.75rem; }
+        .pop-trend-title { color: #60a5fa; font-weight: 600; margin-bottom: 4px; font-size: 0.8rem; }
+        .pop-note { margin-top: 5px; padding: 5px 6px; background: rgba(167,139,250,0.1); border-radius: 3px; font-size: 0.7rem; color: #c4b5fd; }
+        .pop-warn { margin-top: 5px; padding: 5px 6px; background: rgba(239,68,68,0.1); border-radius: 3px; font-size: 0.75rem; color: #fca5a5; }
+        .pop-learn { margin-top: 5px; padding: 5px 6px; background: rgba(139,92,246,0.1); border-radius: 3px; font-size: 0.7rem; color: #c4b5fd; }
+
+        /* Map legend - compact for mobile */
+        .map-legend {
+            background: rgba(30, 41, 59, 0.9);
+            padding: 5px 8px;
+            border-radius: 4px;
+            border: 1px solid #334155;
+            font-size: 0.5rem;
+            color: #e2e8f0;
+            line-height: 1.4;
+            max-width: 100px;
+        }
+        .map-legend-title {
+            font-weight: 600;
+            color: #60a5fa;
+            margin-bottom: 4px;
+            font-size: 0.55rem;
+        }
+        .map-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin: 2px 0;
+        }
+        .map-legend-line {
+            width: 12px;
+            height: 2px;
+            border-radius: 1px;
+        }
+        .map-legend-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            border: 1px solid white;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        .map-legend-dot.target {
+            width: 8px;
+            height: 8px;
+        }
+        @media (min-width: 768px) {
+            .map-legend {
+                padding: 8px 10px;
+                font-size: 0.6rem;
+                max-width: none;
+            }
+            .map-legend-title { font-size: 0.65rem; margin-bottom: 6px; }
+            .map-legend-item { gap: 6px; margin: 3px 0; }
+            .map-legend-line { width: 16px; height: 3px; }
+            .map-legend-dot { width: 8px; height: 8px; border: 2px solid white; }
+            .map-legend-dot.target { width: 10px; height: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>🌊 Potomac Pulse <span id="about-btn" style="font-size:0.6rem;cursor:pointer;opacity:0.6;vertical-align:middle;" title="About this app">ⓘ</span></h1>
+            <div id="about-tooltip" style="display:none;position:absolute;top:45px;left:60px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:12px 16px;max-width:360px;font-size:0.65rem;color:#94a3b8;line-height:1.5;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+                <div style="margin-bottom:8px;color:#e2e8f0;">This app tracks water moving through the Potomac basin — every gauge, with travel times to Little Falls. And since Great Falls has no gauge, it estimates that too.</div>
+                <div style="color:#64748b;">Built by Gordon Shumway for paddling the Po' with Toby Woby and Tim Slim. Toby is "working on it." Tim is already wet.</div>
+            </div>
+            <div class="hdr-right">
+                <span class="dot loading" id="dot"></span>
+                <span id="status">Loading...</span>
+                <span id="syncStatus" style="font-size:0.6rem;margin-left:6px;">☁️</span>
+                <span id="lastUpdate" class="last-update"></span>
+                <button class="btn" id="refreshBtn" onclick="fetchData()">↻</button>
+            </div>
+        </header>
+        <main>
+            <div id="map"></div>
+            <div id="sidebar">
+                <div class="target">
+                    <div class="target-icon">🎯</div>
+                    <div class="target-info">
+                        <div class="target-name">Little Falls</div>
+                        <div class="target-sub">11,560 sq mi • Target gauge</div>
+                    </div>
+                    <div class="target-vals">
+                        <div>
+                            <div class="target-num q"><span id="lfQ">--</span><span class="target-trend" id="lfTrend"></span></div>
+                            <div class="target-unit">cfs</div>
+                        </div>
+                        <div>
+                            <div class="target-num h" id="lfH">--</div>
+                            <div class="target-unit">ft</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flow-indicator">
+                    <span>Travel Multiplier: <span class="mult" id="multVal">--</span></span>
+                </div>
+                <div class="tabs">
+                    <div class="tab active" data-tab="gauges">📊 All Gauges</div>
+                    <div class="tab" data-tab="greatfalls">🌊 Great Falls</div>
+                    <div class="tab" data-tab="docs">📖 How It Works</div>
+                    <div class="tab" data-tab="learn" id="learnTab">🔒 Learning</div>
+                </div>
+                <div id="tab-gauges" class="tab-content active">
+                    <div id="branches"></div>
+                </div>
+                <div id="tab-greatfalls" class="tab-content">
+                    <div class="docs-panel" style="max-height:calc(100vh - 280px);overflow-y:auto;">
+                        <div style="text-align:center;padding:10px 0 15px;border-bottom:1px solid #334155;margin-bottom:15px;">
+                            <div style="font-size:0.6rem;color:#64748b;margin-bottom:5px;">ESTIMATED CONDITIONS AT</div>
+                            <div style="font-size:1.1rem;color:#60a5fa;font-weight:600;">Great Falls</div>
+                            <div style="font-size:0.5rem;color:#64748b;">Above the aqueduct • No USGS gauge</div>
+                        </div>
+
+                        <div id="gf-estimate-display" style="text-align:center;padding:15px 0;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:15px;">
+                            <div id="gf-estimate-label" style="font-size:0.6rem;color:#64748b;margin-bottom:8px;">ESTIMATED NOW</div>
+                            <div style="display:flex;justify-content:center;gap:30px;">
+                                <div>
+                                    <div id="gf-cfs" style="font-size:1.8rem;font-weight:700;color:#60a5fa;">--</div>
+                                    <div style="font-size:0.55rem;color:#64748b;">cfs (LF scale)</div>
+                                </div>
+                                <div>
+                                    <div id="gf-stage" style="font-size:1.8rem;font-weight:700;color:#4ade80;">--</div>
+                                    <div style="font-size:0.55rem;color:#64748b;">ft (LF scale)</div>
+                                </div>
+                            </div>
+                            <div id="gf-trend" style="margin-top:10px;font-size:0.8rem;color:#64748b;">--</div>
+                            <div id="gf-data-source" style="margin-top:5px;font-size:0.55rem;color:#94a3b8;">Based on PoR from -- hrs ago</div>
+                            <div id="gf-confidence" style="margin-top:5px;font-size:0.55rem;color:#a78bfa;">Confidence: --</div>
+                        </div>
+
+                        <div id="gf-forecast-display" style="text-align:center;padding:12px 0;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:8px;margin-bottom:15px;">
+                            <div style="font-size:0.55rem;color:#fbbf24;margin-bottom:6px;">FORECAST: ARRIVING IN <span id="gf-forecast-hrs">--</span> HRS</div>
+                            <div style="display:flex;justify-content:center;gap:20px;">
+                                <div>
+                                    <span id="gf-forecast-cfs" style="font-size:1.2rem;font-weight:600;color:#60a5fa;">--</span>
+                                    <span style="font-size:0.5rem;color:#64748b;"> cfs</span>
+                                </div>
+                                <div>
+                                    <span id="gf-forecast-stage" style="font-size:1.2rem;font-weight:600;color:#4ade80;">--</span>
+                                    <span style="font-size:0.5rem;color:#64748b;"> ft</span>
+                                </div>
+                            </div>
+                            <div style="font-size:0.5rem;color:#94a3b8;margin-top:4px;">Based on current PoR reading</div>
+                        </div>
+
+                        <h3 style="font-size:0.75rem;">📥 Estimation Inputs</h3>
+                        <div style="background:rgba(0,0,0,0.15);padding:10px;border-radius:6px;margin:8px 0 15px;">
+                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                <span style="color:#94a3b8;">Point of Rocks (83.5%)</span>
+                                <span id="gf-input-por" style="color:#60a5fa;">-- cfs</span>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                <span style="color:#94a3b8;">+ Monocacy (7.1%)</span>
+                                <span id="gf-input-monocacy" style="color:#4ade80;">+ -- cfs</span>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                <span style="color:#94a3b8;">+ Goose Creek (3.0%)</span>
+                                <span id="gf-input-goose" style="color:#4ade80;">+ -- cfs</span>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                <span style="color:#94a3b8;">Travel time PoR→GF</span>
+                                <span id="gf-input-travel" style="color:#fbbf24;">-- hrs</span>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                <span style="color:#94a3b8;">Flow bin</span>
+                                <span id="gf-input-flowbin" style="color:#94a3b8;">--</span>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                <span style="color:#94a3b8;">Learned correction</span>
+                                <span id="gf-input-correction" style="color:#a78bfa;">± -- cfs</span>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                <span style="color:#94a3b8;">Uncertainty (±1σ)</span>
+                                <span id="gf-input-uncertainty" style="color:#fbbf24;">--</span>
+                            </div>
+                            <div id="gf-ef-crosscheck" style="display:none;padding:4px 0;font-size:0.6rem;">
+                                <div style="display:flex;justify-content:space-between;">
+                                    <span style="color:#06b6d4;">Cross-check</span>
+                                    <span id="gf-ef-estimate" style="color:#06b6d4;">--</span>
+                                </div>
+                                <div style="font-size:0.5rem;color:#64748b;margin-top:2px;">via nearby gauge correlation</div>
+                            </div>
+                        </div>
+
+                        <h3 style="font-size:0.75rem;">🔄 Validation Status</h3>
+                        <div id="gf-validation" style="background:rgba(0,0,0,0.15);padding:10px;border-radius:6px;margin:8px 0 15px;font-size:0.6rem;">
+                            <div style="color:#94a3b8;">Next validation in <span id="gf-val-countdown" style="color:#fbbf24;">--</span></div>
+                            <div style="margin-top:8px;padding-top:8px;border-top:1px solid #334155;">
+                                <div style="color:#64748b;font-size:0.55rem;">Last validation:</div>
+                                <div id="gf-val-last" style="color:#94a3b8;margin-top:3px;">No validations yet</div>
+                            </div>
+                        </div>
+
+                        <h3 style="font-size:0.75rem;">📊 How It Works</h3>
+                        <p style="font-size:0.55rem;color:#94a3b8;line-height:1.5;">
+                            <b>Prediction Path:</b> Point of Rocks flow (83.5%) is time-shifted by ~8.5 hrs (at median flow), then Monocacy (7.1%) and Goose Creek (3.0%) are added to estimate current Great Falls conditions.<br><br>
+                            <b>Validation Path:</b> Little Falls readings reveal what Great Falls was ~3.5 hrs earlier. Comparing predictions to validations allows the system to learn and improve.<br><br>
+                            <b>Flow-Binned Learning:</b> Corrections are tracked separately for different flow levels and rising/falling conditions, since the underlying Searcy model was calibrated only on falling hydrographs.
+                        </p>
+
+                        <h3 style="font-size:0.75rem;">⚠️ Limitations</h3>
+                        <p style="font-size:0.55rem;color:#f59e0b;line-height:1.5;">
+                            This is an <b>estimate</b>, not a measurement. Accuracy depends on:<br>
+                            • Monocacy + Goose Creek contributions (~10% of flow)<br>
+                            • Travel time model accuracy at current flow<br>
+                            • Accumulated learning observations<br>
+                            • Absence of localized storm events between PoR and GF<br>
+                            • Water withdrawals (DC Aqueduct, WSSC, Fairfax Water) - can reduce flow 5-15% at low flows; learning system corrects for this over time
+                        </p>
+                    </div>
+                </div>
+                <div id="tab-docs" class="tab-content">
+                    <div class="docs-panel" style="max-height:calc(100vh - 280px);overflow-y:auto;">
+                        <h3>What This App Does</h3>
+                        <p style="font-size:0.6rem;color:#94a3b8;">
+                        This app tracks water levels across the Potomac River basin and predicts when water from upstream will arrive at downstream locations. It's designed for paddlers who want to know conditions at Great Falls and Little Falls.
+                        </p>
+
+                        <h3>How Travel Times Work</h3>
+                        <p style="font-size:0.6rem;color:#94a3b8;">
+                        Water takes time to flow downstream. The speed depends on how much water is in the river:
+                        </p>
+                        <table style="font-size:0.55rem;margin:8px 0;">
+                            <tr><th>Condition</th><th>Point of Rocks to Little Falls</th><th>River Speed</th></tr>
+                            <tr><td>Low flow</td><td>~2 days</td><td>~1 mph</td></tr>
+                            <tr style="background:#1e3a5f;"><td><b>Typical</b></td><td><b>~32 hours</b></td><td><b>~1.3 mph</b></td></tr>
+                            <tr><td>High flow</td><td>~12 hours</td><td>~3.5 mph</td></tr>
+                            <tr><td>Flood</td><td>~7 hours</td><td>~6 mph</td></tr>
+                        </table>
+                        <p style="font-size:0.5rem;color:#64748b;">
+                        Based on USGS Circular 438 (Searcy, 1961) which measured actual water velocities at different flow levels.
+                        </p>
+
+                        <h3>Great Falls Estimation</h3>
+                        <p style="font-size:0.6rem;color:#94a3b8;">
+                        There's no gauge at Great Falls, so we estimate it by combining upstream gauges:
+                        </p>
+                        <p style="font-size:0.55rem;color:#60a5fa;margin:6px 0;">
+                        <b>Great Falls = Point of Rocks + Monocacy + Goose Creek</b>
+                        </p>
+                        <p style="font-size:0.55rem;color:#94a3b8;">
+                        We use the Point of Rocks reading from ~8 hours ago (the time it takes water to travel from there to Great Falls). The Monocacy and Goose Creek tributaries add about 10% more flow.
+                        </p>
+                        <p style="font-size:0.55rem;color:#94a3b8;margin-top:6px;">
+                        <b>Validation:</b> Every estimate gets checked ~3.5 hours later when that water reaches the Little Falls gauge. Over time, the system learns correction factors to improve accuracy.
+                        </p>
+                        <p style="font-size:0.55rem;color:#fbbf24;margin-top:6px;">
+                        <b>Uncertainty range:</b> Once we have enough validation data (5+ observations per flow bin), the app shows a range (e.g., "3.2 ft (3.0-3.4)") representing ±1 standard deviation based on historical prediction errors.
+                        </p>
+                        <p style="font-size:0.55rem;color:#06b6d4;margin-top:6px;">
+                        <b>Cross-check:</b> A nearby gauge just above Great Falls provides an independent estimate. Once enough correlation data accumulates (10+ observations), a "Cross-check" value appears showing this second estimate with an agreement indicator (✓ good / ⚠ moderate / ✗ large difference).
+                        </p>
+
+                        <h3>The Gauges</h3>
+                        <p style="font-size:0.55rem;color:#94a3b8;">
+                        Each gauge shows the % of the total basin it drains. Point of Rocks (83.5%) captures most of the flow; the remaining 16.5% enters below via tributaries.
+                        </p>
+                        <table style="font-size:0.5rem;margin:8px 0;">
+                            <tr><th>Gauge</th><th>% of Basin</th><th>Travel to LF</th></tr>
+                            <tr><td>Point of Rocks</td><td>83.5%</td><td>~32 hrs</td></tr>
+                            <tr><td>Monocacy</td><td>7.1%</td><td>~18 hrs</td></tr>
+                            <tr><td>Goose Creek</td><td>3.0%</td><td>~12 hrs</td></tr>
+                            <tr><td>Hancock</td><td>35.2%</td><td>~6 days</td></tr>
+                            <tr><td>Cumberland</td><td>7.6%</td><td>~9 days</td></tr>
+                        </table>
+
+                        <h3>Data Sources</h3>
+                        <p style="font-size:0.55rem;color:#94a3b8;">
+                        <b>Real-time data:</b> USGS Water Services (updates every 15 minutes)<br>
+                        <b>Forecasts:</b> National Weather Service river predictions<br>
+                        <b>Travel time model:</b> USGS Circular 438 (Searcy & Davis, 1961)
+                        </p>
+
+                        <h3>Accuracy & Limitations</h3>
+                        <p style="font-size:0.55rem;color:#94a3b8;">
+                        <b>Point of Rocks to Little Falls:</b> ±10% at normal flows, ±17% at flood stage<br>
+                        <b>Upstream gauges (Hancock, Cumberland):</b> ±10-20% - useful for "pulse is coming" awareness, not precise timing<br>
+                        <b>Great Falls estimate:</b> Depends on learned corrections; accuracy improves over time<br>
+                        <b>Rapid changes:</b> Model assumes steady flow; fast-moving flood waves may arrive sooner than predicted
+                        </p>
+
+                        <div style="margin-top:15px;padding:10px;background:#0f172a;border-radius:6px;text-align:center;">
+                            <p style="font-size:0.6rem;color:#94a3b8;margin-bottom:8px;">Detailed derivation, validation data, and references (Markdown format)</p>
+                            <button onclick="downloadTechAppendix()" style="background:#2563eb;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;font-size:0.65rem;">
+                                📄 Download Technical Appendix (.md)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div id="tab-learn" class="tab-content">
+                    <div id="learnLocked" class="learn-panel" style="text-align:center;padding:40px 20px;">
+                        <h3 style="color:#a78bfa;font-size:0.9rem;margin-bottom:15px;">🔒 Protected Section</h3>
+                        <p style="font-size:0.65rem;color:#94a3b8;margin-bottom:20px;">
+                            The adaptive learning system is restricted to the model administrator.<br>
+                            Enter PIN to access learning data and corrections.
+                        </p>
+                        <input type="password" id="learnPIN" placeholder="Enter PIN" maxlength="6"
+                               style="background:#1e293b;border:1px solid #334155;color:white;padding:10px;border-radius:4px;width:120px;text-align:center;font-size:1rem;letter-spacing:4px;">
+                        <br><br>
+                        <button onclick="checkLearnAccess()" style="background:#7c3aed;color:white;border:none;padding:8px 20px;border-radius:4px;cursor:pointer;font-size:0.7rem;">
+                            Unlock
+                        </button>
+                        <p id="pinError" style="color:#ef4444;font-size:0.6rem;margin-top:10px;display:none;">Incorrect PIN</p>
+                    </div>
+                    <div id="learnUnlocked" class="learn-panel" style="display:none;">
+                        <h3 style="color:#a78bfa;font-size:0.8rem;margin-bottom:10px;">📈 Learning Statistics</h3>
+                        <div class="learn-stat">
+                            <span class="label">Total Observations</span>
+                            <span class="value" id="learnTotal">0</span>
+                        </div>
+                        <div class="learn-stat">
+                            <span class="label">Learning Since</span>
+                            <span class="value" id="learnSince">--</span>
+                        </div>
+                        <div class="learn-stat">
+                            <span class="label">Model Accuracy</span>
+                            <span class="value" id="learnAccuracy">Gathering data...</span>
+                        </div>
+                        <div class="learn-stat">
+                            <span class="label">Gauges with Corrections</span>
+                            <span class="value" id="learnGauges">0 / 18</span>
+                        </div>
+
+                        <h3 style="color:#a78bfa;font-size:0.75rem;margin:15px 0 8px;">Gauge Corrections</h3>
+                        <div class="correction-list" id="correctionList">
+                            <p style="color:#64748b;font-size:0.6rem;">Corrections appear after ~30 observations per gauge</p>
+                        </div>
+
+                        <button class="learn-btn" onclick="resetLearning()">🗑️ Reset All Learning Data</button>
+                        <button class="learn-btn" style="background:#475569;margin-top:5px;" onclick="lockLearning()">🔒 Lock Section</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+        <footer>
+            <span style="display:inline-flex;align-items:center;gap:6px;">
+                <img src="gs-logo.png" alt="GS" style="height:14px;opacity:0.6;" onerror="this.style.display='none'">
+                © 2026 <span id="gs-credit" style="cursor:pointer;" title="Click me!">Gordon Shumway</span>
+            </span> • Licensed under <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank">CC BY-NC 4.0</a> •
+            Data: USGS • Model: USGS Circular 438 • <span id="toby-egg" style="cursor:help;" title="Toby Woby is working on it...">Not for navigation or life-safety decisions</span>
+        </footer>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+    // =====================================================
+    // POTOMAC PULSE v17
+    // ADAPTIVE LEARNING MODEL WITH TREND PREDICTIONS
+    //
+    // © 2026 Gordon Shumway - CC BY-NC 4.0
+    // =====================================================
+
+    const LF = { id: "01646500", name: "Little Falls", lat: 38.9498, lon: -77.1278, area: 11560 };
+    const STORAGE_KEY = "potomac_learning_v17";
+    const CACHE_KEY = "potomac_cached_data";
+    const CACHE_MAX_AGE = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
+
+    // PoR history for Great Falls time-shifting
+    const POR_HISTORY_KEY = "potomac_por_history";
+    const POR_HISTORY_MAX_AGE = 24 * 60 * 60 * 1000; // Keep 24 hours of history
+    let porHistory = []; // Array of { timestamp, cfs, stage }
+
+    let dataSource = "loading"; // "live", "cached", "estimated"
+    let lastFetchTime = null;
+    
+    // ==================== CLOUD SYNC VIA SERVERLESS ====================
+    // Credentials are now securely stored in Netlify environment variables
+    // All cloud operations go through /.netlify/functions/sync-learning
+
+    const SYNC_API = '/api/sync';
+    let cloudSyncEnabled = true;  // Enable by default, will fallback gracefully
+    let lastSyncTime = null;
+
+    function initCloudSync() {
+        // Cloud sync is always attempted via serverless function
+        // Will gracefully fallback to localStorage if unavailable
+        cloudSyncEnabled = true;
+        console.log('☁️ Cloud sync enabled via serverless function');
+        return true;
+    }
+    const MIN_OBS_FOR_CORRECTION = 30;
+
+    // GAUGES with baseline hours from USGS Circular 438 / dye tracer studies
+    // Baselines calibrated at median flow conditions (~6,500 cfs at Little Falls)
+    // Flow-based multiplier adjusts for current conditions
+    const GAUGES = {
+        "01646500": { name: "Little Falls", lat: 38.9498, lon: -77.1278, area: 11560, pctLF: 100, baseHrs: 0, branch: "target" },
+        "01638500": { name: "Point of Rocks", lat: 39.2726, lon: -77.5405, area: 9651, pctLF: 83.5, baseHrs: 32, branch: "mainstem" },
+        "01620000": { name: "Harpers Ferry", lat: 39.3226, lon: -77.7291, area: 9367, pctLF: 81.0, baseHrs: 45, branch: "mainstem" },
+        "01618000": { name: "Shepherdstown", lat: 39.4309, lon: -77.8033, area: 5955, pctLF: 51.5, baseHrs: 63, branch: "mainstem" },
+        "01613000": { name: "Hancock", lat: 39.6987, lon: -78.1789, area: 4073, pctLF: 35.2, baseHrs: 150, branch: "mainstem" },
+        "01610000": { name: "Paw Paw", lat: 39.5320, lon: -78.4578, area: 3109, pctLF: 26.9, baseHrs: 176, branch: "mainstem" },
+        "01603000": { name: "Cumberland", lat: 39.6218, lon: -78.7622, area: 877, pctLF: 7.6, baseHrs: 226, branch: "northBranch" },
+        "01595500": { name: "Kitzmiller", lat: 39.3892, lon: -79.1817, area: 247, pctLF: 2.1, baseHrs: 238, branch: "northBranch" },
+        "01608500": { name: "Springfield", lat: 39.4454, lon: -78.6545, area: 1486, pctLF: 12.7, baseHrs: 220, branch: "southBranch" },
+        "01606500": { name: "Petersburg", lat: 38.9926, lon: -79.1239, area: 642, pctLF: 5.6, baseHrs: 234, branch: "southBranch" },
+        "01604500": { name: "Franklin", lat: 38.6428, lon: -79.3306, area: 179, pctLF: 1.5, baseHrs: 250, branch: "southBranch" },
+        "01636500": { name: "Millville", lat: 39.2743, lon: -77.7850, area: 3041, pctLF: 26.3, baseHrs: 48, branch: "shenandoah" },
+        "01631000": { name: "Front Royal", lat: 38.9140, lon: -78.2117, area: 1642, pctLF: 14.2, baseHrs: 80, branch: "shenandoah" },
+        "01643000": { name: "Monocacy", lat: 39.4143, lon: -77.4080, area: 817, pctLF: 7.1, baseHrs: 18, branch: "belowPtR" },
+        "01644000": { name: "Goose Creek", lat: 39.0559, lon: -77.5191, area: 332, pctLF: 3.0, baseHrs: 12, branch: "belowPtR" },
+        "01645000": { name: "Seneca Creek", lat: 39.1273, lon: -77.3386, area: 101, pctLF: 0.9, baseHrs: 6, branch: "belowPtR" },
+        "01611500": { name: "Cacapon", lat: 39.5832, lon: -78.3011, area: 675, pctLF: 5.8, baseHrs: 160, branch: "tribs" },
+        "01614500": { name: "Conococheague", lat: 39.6510, lon: -77.9239, area: 494, pctLF: 4.9, baseHrs: 140, branch: "tribs" },
+        "01619500": { name: "Antietam", lat: 39.4487, lon: -77.7389, area: 281, pctLF: 2.4, baseHrs: 66, branch: "tribs" }
+    };
+
+    // Great Falls virtual gauge (estimated, no USGS gauge exists)
+    const GREAT_FALLS = {
+        id: "GF_VIRTUAL",
+        name: "Great Falls",
+        lat: 38.9985,
+        lon: -77.2519,
+        area: 10000,  // Approx drainage area at GF (PoR + Goose - some ungauged)
+        pctLF: 86.5,  // PoR (83.5%) + Goose (3%)
+        estimated: true
+    };
+
+    // Edwards Ferry - hidden gauge just above Great Falls for backend validation
+    // Stage-only (no discharge), but ~2-3 miles upstream of GF - perfect for validation
+    // Drainage area: 11,130 mi² (96.3% of LF) - just below Goose Creek confluence
+    const EDWARDS_FERRY = {
+        id: "01644148",
+        name: "Edwards Ferry",
+        lat: 39.0986,
+        lon: -77.4711,
+        area: 11130,
+        pctLF: 96.3,
+        hidden: true  // Not shown in UI, used internally for GF validation
+    };
+
+    // Edwards Ferry data storage
+    let edwardsFerryData = {
+        current: null,      // Current stage reading
+        history: [],        // Recent readings for trend analysis
+        correlation: null   // Learned EF stage → GF CFS relationship
+    };
+    const EF_HISTORY_MAX = 48;  // Keep ~12 hours of readings at 15-min intervals
+
+    const BRANCHES = {
+        mainstem: { name: "Mainstem", color: "#2563eb", ids: ["01638500","01620000","01618000","01613000","01610000"] },
+        northBranch: { name: "North Branch", color: "#0891b2", ids: ["01603000","01595500"] },
+        southBranch: { name: "South Branch", color: "#7c3aed", ids: ["01608500","01606500","01604500"] },
+        shenandoah: { name: "Shenandoah", color: "#c026d3", ids: ["01636500","01631000"] },
+        belowPtR: { name: "Below Pt Rocks ⚠️", color: "#dc2626", warn: true, ids: ["01643000","01644000","01645000"] },
+        tribs: { name: "Tributaries", color: "#059669", ids: ["01611500","01614500","01619500"] }
+    };
+
+    // ==================== TRAVEL TIME MODEL ====================
+    // Based on Searcy & Davis 1961 (USGS Circular 438) - Figure 3
+    // Power law fit to mean velocity vs discharge relationship
+    //
+    // Searcy's methodology:
+    //   1. V = f(Q) relationship at each control point (Figure 3)
+    //   2. Average velocity in subreach = mean of endpoint velocities
+    //   3. Travel time = Distance / Average velocity
+    //
+    // Fitted power law for Pt Rocks → Little Falls (41 miles):
+    //   V_avg = 0.0116 × Q^0.5963 (fps)
+    //   T = 5174 × Q^(-0.5963) (hours, Q = LF flow in cfs)
+    //
+    // At median flow (4,940 cfs): T = 32.4 hrs (matches Table 2)
+    //
+    const TRAVEL_COEF = 5174;       // Coefficient from Searcy fit
+    const TRAVEL_EXP = -0.5963;     // Exponent from Searcy fit
+    const MEDIAN_FLOW = 4940;       // Median flow at Little Falls (cfs)
+    const MEDIAN_TRAVEL = 32.3;     // Travel time at median (hrs)
+
+    // Great Falls travel time constants
+    // PoR→GF: ~20 miles, ~8.5 hrs at median flow
+    // GF→LF: ~11 miles, ~3.5 hrs at median flow (faster due to falls/rapids)
+    const TRAVEL_POR_GF_BASELINE = 8.5;   // hours at median flow
+    const TRAVEL_GF_LF_BASELINE = 3.5;    // hours at median flow
+    const GOOSE_CREEK_PCT = 0.03;         // Goose Creek contribution (~3% of LF drainage)
+    
+    // Flow condition labels based on LF flow
+    function getFlowCondition(flow) {
+        if (flow < 2000) return "Extreme Low";
+        if (flow < 3500) return "Low";
+        if (flow < 4500) return "Below Normal";
+        if (flow < 6000) return "Normal";
+        if (flow < 10000) return "Above Normal";
+        if (flow < 17000) return "Elevated";
+        if (flow < 27000) return "High";
+        if (flow < 50000) return "Very High";
+        if (flow < 80000) return "Minor Flood";
+        return "Major Flood";
+    }
+    
+    // Calculate travel time multiplier using Searcy power law
+    function getFlowMultiplier(lfFlow) {
+        // Clamp flow to reasonable range
+        const flow = Math.max(lfFlow, 1000);
+        
+        // Searcy power law: T = 5174 × Q^(-0.5963)
+        const travelHrs = TRAVEL_COEF * Math.pow(flow, TRAVEL_EXP);
+        
+        // Multiplier relative to median conditions
+        const mult = travelHrs / MEDIAN_TRAVEL;
+        const cond = getFlowCondition(flow);
+        
+        return { flow, mult, cond, travelHrs };
+    }
+
+    // ==================== GREAT FALLS ESTIMATION ====================
+    // Estimates flow at Great Falls using Point of Rocks + Goose Creek
+    // Validation via back-calculation from Little Falls
+
+    let gfEstimate = null;  // Current Great Falls estimate
+    let gfLearningData = null;  // GF correction bins and metadata
+    let lastGFPredictionTime = 0;  // Throttle prediction storage
+    let lastGFValidationCheck = 0;  // Throttle validation checks
+    let gfPredictionRetryQueue = [];  // Queue for failed prediction stores
+    const GF_PREDICTION_INTERVAL = 30 * 60 * 1000;  // Store prediction every 30 mins
+    const GF_VALIDATION_CHECK_INTERVAL = 60 * 1000;  // Check validations every 1 min
+    const GF_MIN_VALIDATION_TIME = 2 * 60 * 60 * 1000;  // Minimum 2 hours before validation
+    const GF_EMA_ALPHA = 0.3;  // Exponential moving average weight (higher = more recent bias)
+    const GF_OUTLIER_THRESHOLD = 3;  // Standard deviations for outlier detection
+
+    // Flow bins for GF learning (single source of truth - server uses same bins)
+    const GF_FLOW_BINS = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
+
+    function getGFFlowBin(cfs) {
+        if (cfs < 3000) return '0-3000';
+        if (cfs < 6000) return '3000-6000';
+        if (cfs < 12000) return '6000-12000';
+        if (cfs < 25000) return '12000-25000';
+        if (cfs < 50000) return '25000-50000';
+        return '50000+';
+    }
+
+    // Load GF learning data from cloud
+    async function loadGFLearningData() {
+        // Default empty structure
+        const emptyData = {
+            correctionBins: {},
+            pendingPredictions: [],
+            metadata: { totalValidations: 0, totalPredictions: 0, avgErrorPercent: null },
+            efCorrelation: null
+        };
+
+        try {
+            const response = await fetch(SYNC_API + '?endpoint=gf');
+            if (response.ok) {
+                gfLearningData = await response.json();
+                console.log('🌊 GF learning data loaded:', gfLearningData.metadata);
+
+                // Store EF correlation for use in estimation
+                if (gfLearningData.efCorrelation?.slope) {
+                    edwardsFerryData.correlation = gfLearningData.efCorrelation;
+                    console.log(`📍 EF correlation loaded: CFS = ${gfLearningData.efCorrelation.slope.toFixed(0)} × stage + ${gfLearningData.efCorrelation.intercept.toFixed(0)}`);
+                }
+            } else {
+                console.warn('GF learning API returned:', response.status);
+                gfLearningData = emptyData;
+            }
+        } catch (e) {
+            console.warn('Failed to load GF learning data:', e);
+            gfLearningData = emptyData;
+        }
+    }
+
+    // Store a GF prediction for later validation
+    async function storeGFPrediction(estimate) {
+        const now = Date.now();
+
+        // Throttle: only store every 30 minutes
+        if (now - lastGFPredictionTime < GF_PREDICTION_INTERVAL) {
+            // Process retry queue if any
+            processGFRetryQueue();
+            return;
+        }
+
+        if (!estimate?.cfs) return;
+
+        // Use flow bin from estimate (based on estimated GF flow)
+        const flowBin = estimate.inputs.flowBin;
+
+        // Ensure minimum validation time (prevents validating same water parcel)
+        const minValidationHours = GF_MIN_VALIDATION_TIME / (60 * 60 * 1000);
+        const actualValidationHours = Math.max(estimate.validationCountdown, minValidationHours);
+        const validationDue = new Date(now + actualValidationHours * 60 * 60 * 1000).toISOString();
+
+        // Include Edwards Ferry stage for correlation learning
+        const efStage = edwardsFerryData.current?.stage || null;
+
+        const predictionData = {
+            timestamp: new Date().toISOString(),
+            predictedCFS: estimate.cfs,
+            porCFS: estimate.inputs.historicPorCFS || estimate.inputs.porCFS,
+            monocacyCFS: estimate.inputs.monocacyCFS,
+            gooseCFS: estimate.inputs.gooseCFS,
+            flowBin: flowBin,
+            flowState: estimate.flowState,
+            travelTimeGFtoLF: actualValidationHours,
+            validationDue: validationDue,
+            efStage: efStage  // Edwards Ferry stage at prediction time
+        };
+
+        const success = await sendGFPrediction(predictionData);
+
+        if (success) {
+            lastGFPredictionTime = now;  // Only advance timer on success
+            console.log('🌊 GF prediction stored for validation');
+        } else {
+            // Add to retry queue (max 5 retries)
+            if (gfPredictionRetryQueue.length < 5) {
+                gfPredictionRetryQueue.push({ data: predictionData, retries: 0 });
+                console.warn('🌊 GF prediction queued for retry');
+            }
+        }
+    }
+
+    // Send prediction to server (returns success boolean)
+    async function sendGFPrediction(predictionData) {
+        try {
+            const response = await fetch(SYNC_API + '?endpoint=gf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'storePrediction',
+                    prediction: predictionData
+                })
+            });
+            return response.ok;
+        } catch (e) {
+            console.warn('Failed to store GF prediction:', e);
+            return false;
+        }
+    }
+
+    // Process retry queue for failed predictions
+    async function processGFRetryQueue() {
+        if (gfPredictionRetryQueue.length === 0) return;
+
+        const item = gfPredictionRetryQueue[0];
+        const success = await sendGFPrediction(item.data);
+
+        if (success) {
+            gfPredictionRetryQueue.shift();  // Remove from queue
+            console.log('🌊 GF prediction retry succeeded');
+        } else {
+            item.retries++;
+            if (item.retries >= 3) {
+                gfPredictionRetryQueue.shift();  // Give up after 3 retries
+                console.warn('🌊 GF prediction retry failed, giving up');
+            }
+        }
+    }
+
+    // Check if any pending predictions are ready for validation (debounced)
+    async function checkGFValidations() {
+        const now = Date.now();
+
+        // Debounce: only check every minute
+        if (now - lastGFValidationCheck < GF_VALIDATION_CHECK_INTERVAL) return;
+        lastGFValidationCheck = now;
+
+        if (!gfLearningData?.pendingPredictions?.length) return;
+
+        const lf = data[LF.id];
+        const seneca = data["01645000"];
+        if (!lf?.q) return;
+
+        const nowDate = new Date();
+
+        for (const pred of gfLearningData.pendingPredictions) {
+            // Validate date parsing
+            let validationDue;
+            try {
+                validationDue = new Date(pred.validationDue);
+                if (isNaN(validationDue.getTime())) {
+                    console.warn('Invalid validationDue date:', pred.validationDue);
+                    continue;
+                }
+            } catch (e) {
+                console.warn('Failed to parse validationDue:', e);
+                continue;
+            }
+
+            // Check if this prediction is ready for validation (due time has passed)
+            if (nowDate >= validationDue) {
+                // Back-calculate what GF was based on current LF
+                // GF_actual = LF - Seneca (roughly)
+                const senecaFlow = seneca?.q || (lf.q * 0.01);  // 1% estimate if no data
+                const actualGFCFS = lf.q - senecaFlow;
+
+                const success = await sendGFValidation(actualGFCFS, lf.q, senecaFlow);
+
+                if (success) {
+                    // Reload learning data to get updated corrections
+                    await loadGFLearningData();
+                    updateGFLearningUI();
+                }
+
+                // Only process one validation per cycle
+                break;
+            }
+        }
+    }
+
+    // Send validation to server with retry logic
+    async function sendGFValidation(actualCFS, lfCFS, senecaCFS, retries = 0) {
+        try {
+            const response = await fetch(SYNC_API + '?endpoint=gf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'recordValidation',
+                    actualCFS: actualCFS,
+                    lfCFS: lfCFS,
+                    senecaCFS: senecaCFS
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('🌊 GF validation recorded:', result);
+                return true;
+            } else if (retries < 2) {
+                // Retry up to 2 times
+                console.warn('GF validation failed, retrying...');
+                await new Promise(r => setTimeout(r, 1000));  // Wait 1 second
+                return sendGFValidation(actualCFS, lfCFS, senecaCFS, retries + 1);
+            }
+            return false;
+        } catch (e) {
+            if (retries < 2) {
+                console.warn('GF validation error, retrying...', e);
+                await new Promise(r => setTimeout(r, 1000));
+                return sendGFValidation(actualCFS, lfCFS, senecaCFS, retries + 1);
+            }
+            console.warn('Failed to record GF validation after retries:', e);
+            return false;
+        }
+    }
+
+    // Manual validation trigger (for testing)
+    window.triggerGFValidation = async function() {
+        lastGFValidationCheck = 0;  // Reset debounce
+        await checkGFValidations();
+        console.log('🌊 Manual GF validation check triggered');
+    };
+
+    // Get learned correction for current conditions
+    // Uses EMA-weighted mean and filters outliers
+    function getGFCorrection(flowBin, flowState) {
+        if (!gfLearningData?.correctionBins) return 0;
+
+        const bin = gfLearningData.correctionBins[flowBin];
+        if (!bin) return 0;
+
+        const stateData = bin[flowState] || bin['steady'];
+        if (!stateData || stateData.count < 5) return 0;  // Need at least 5 observations
+
+        // Use EMA-weighted mean if available, else fall back to simple mean
+        if (stateData.emaMeanError !== undefined) {
+            return stateData.emaMeanError;
+        }
+
+        return stateData.meanError || 0;
+    }
+
+    // Get uncertainty range (standard deviation) for a flow bin
+    function getGFUncertainty(flowBin, flowState) {
+        if (!gfLearningData?.correctionBins) return null;
+
+        const bin = gfLearningData.correctionBins[flowBin];
+        if (!bin) return null;
+
+        const stateData = bin[flowState] || bin['steady'];
+        if (!stateData || stateData.count < 5) return null;  // Need at least 5 observations
+
+        // Calculate standard deviation from sumErrorSq
+        const mean = stateData.meanError || 0;
+        const variance = (stateData.sumErrorSq / stateData.count) - (mean * mean);
+        const stdDev = Math.sqrt(Math.max(0, variance));
+
+        // Return null if std dev is unreasonably small (not enough variation)
+        if (stdDev < 10) return null;
+
+        return {
+            stdDev: stdDev,
+            count: stateData.count
+        };
+    }
+
+    // Check if a new error value is an outlier (for server-side use info)
+    function isGFOutlier(errorCFS, binData) {
+        if (!binData || binData.count < 10) return false;  // Need enough data for outlier detection
+
+        const mean = binData.meanError || 0;
+        const variance = (binData.sumErrorSq / binData.count) - (mean * mean);
+        const stdDev = Math.sqrt(Math.max(0, variance));
+
+        if (stdDev === 0) return false;
+
+        const zScore = Math.abs((errorCFS - mean) / stdDev);
+        return zScore > GF_OUTLIER_THRESHOLD;
+    }
+
+    // Update GF learning status in UI
+    function updateGFLearningUI() {
+        if (!gfLearningData?.metadata) return;
+
+        const meta = gfLearningData.metadata;
+        const valLast = document.getElementById('gf-val-last');
+        const pendingCount = gfLearningData.pendingPredictions?.length || 0;
+
+        if (valLast) {
+            let html = '';
+
+            // Show pending predictions count
+            if (pendingCount > 0) {
+                html += `<span style="color:#fbbf24;">${pendingCount} pending</span> | `;
+            }
+
+            if (meta.totalValidations > 0) {
+                const avgErr = meta.avgErrorPercent ? meta.avgErrorPercent.toFixed(1) : '--';
+                const lastVal = meta.lastValidation ? new Date(meta.lastValidation).toLocaleString() : '--';
+                html += `${meta.totalValidations} validated | Avg err: ${avgErr}%`;
+                html += `<br><span style="color:#64748b;font-size:0.5rem;">Last: ${lastVal}</span>`;
+            } else {
+                html += 'No validations yet - collecting data';
+            }
+
+            valLast.innerHTML = html;
+        }
+    }
+
+    // ==================== PoR HISTORY MANAGEMENT ====================
+    // Store PoR readings over time to enable proper time-shifting
+
+    function loadPoRHistory() {
+        try {
+            const stored = localStorage.getItem(POR_HISTORY_KEY);
+            if (stored) {
+                porHistory = JSON.parse(stored);
+                // Clean up old entries
+                const cutoff = Date.now() - POR_HISTORY_MAX_AGE;
+                porHistory = porHistory.filter(entry => entry.timestamp > cutoff);
+                console.log(`📊 Loaded ${porHistory.length} PoR history entries`);
+            }
+        } catch (e) {
+            console.warn('Failed to load PoR history:', e);
+            porHistory = [];
+        }
+    }
+
+    function savePoRHistory() {
+        try {
+            localStorage.setItem(POR_HISTORY_KEY, JSON.stringify(porHistory));
+        } catch (e) {
+            console.warn('Failed to save PoR history:', e);
+        }
+    }
+
+    function recordPoRReading(cfs, stage) {
+        if (!cfs || cfs <= 0) return;
+
+        const now = Date.now();
+
+        // Don't record if we have a recent entry (within 10 minutes)
+        const recentEntry = porHistory.find(e => (now - e.timestamp) < 10 * 60 * 1000);
+        if (recentEntry) return;
+
+        porHistory.push({
+            timestamp: now,
+            cfs: cfs,
+            stage: stage || null
+        });
+
+        // Keep only last 24 hours
+        const cutoff = now - POR_HISTORY_MAX_AGE;
+        porHistory = porHistory.filter(entry => entry.timestamp > cutoff);
+
+        savePoRHistory();
+        console.log(`📊 Recorded PoR: ${cfs} cfs, history has ${porHistory.length} entries`);
+    }
+
+    // Get PoR reading from X hours ago (for time-shifted GF estimate)
+    function getPoRFromHoursAgo(hoursAgo) {
+        if (porHistory.length === 0) return null;
+
+        const targetTime = Date.now() - (hoursAgo * 60 * 60 * 1000);
+
+        // Find the closest entry to target time
+        let closest = null;
+        let closestDiff = Infinity;
+
+        for (const entry of porHistory) {
+            const diff = Math.abs(entry.timestamp - targetTime);
+            if (diff < closestDiff) {
+                closestDiff = diff;
+                closest = entry;
+            }
+        }
+
+        // Only return if within 1 hour of target
+        if (closest && closestDiff < 60 * 60 * 1000) {
+            return {
+                cfs: closest.cfs,
+                stage: closest.stage,
+                actualHoursAgo: (Date.now() - closest.timestamp) / (60 * 60 * 1000),
+                timestamp: closest.timestamp
+            };
+        }
+
+        return null;
+    }
+
+    // Calculate travel time PoR → Great Falls (scales with flow multiplier)
+    function getPoRtoGFTravelTime(mult) {
+        return TRAVEL_POR_GF_BASELINE * mult;
+    }
+
+    // Calculate travel time Great Falls → Little Falls (scales with flow multiplier)
+    function getGFtoLFTravelTime(mult) {
+        return TRAVEL_GF_LF_BASELINE * mult;
+    }
+
+    // Determine if flow is rising, falling, or steady based on trend data
+    function getFlowState(trend) {
+        if (!trend) return 'steady';
+        // Use 24h trend as primary indicator
+        const pct24 = trend.pct24 || 0;
+        if (pct24 > 5) return 'rising';
+        if (pct24 < -5) return 'falling';
+        return 'steady';
+    }
+
+    // Estimate Great Falls flow from upstream gauges
+    // GF = PoR (time-shifted) + Monocacy + Goose Creek
+    // All three confluences are ABOVE Great Falls
+    function estimateGreatFalls() {
+        const por = data["01638500"];      // Point of Rocks (83.5% of LF)
+        const monocacy = data["01643000"]; // Monocacy (7.1% of LF) - joins 6mi below PoR
+        const goose = data["01644000"];    // Goose Creek (3.0% of LF) - joins 12mi below PoR
+        const lf = data[LF.id];            // Little Falls
+
+        if (!por?.q || !lf?.q) {
+            return null;
+        }
+
+        // Record current PoR reading to history for future time-shifting
+        recordPoRReading(por.q, por.h);
+
+        // Get current flow multiplier
+        const mult = data._mult?.mult || 1.0;
+
+        // Calculate travel times
+        const travelPoRtoGF = getPoRtoGFTravelTime(mult);
+        const travelGFtoLF = getGFtoLFTravelTime(mult);
+
+        // Tributary contributions (use actual if available, else estimate from LF %)
+        const monocacyFlow = monocacy?.q || (lf.q * 0.071);  // 7.1% of LF
+        const gooseFlow = goose?.q || (lf.q * GOOSE_CREEK_PCT);  // 3.0% of LF
+
+        // Try to get time-shifted PoR data (what left PoR ~travelPoRtoGF hours ago)
+        const historicPoR = getPoRFromHoursAgo(travelPoRtoGF);
+
+        let estimatedCFS, useTimeShifted = false, timeShiftedHoursAgo = null;
+
+        if (historicPoR) {
+            // We have historic data - use time-shifted estimate for "GF now"
+            // PoR is time-shifted; tributaries use current values (smaller contribution, shorter distance)
+            estimatedCFS = historicPoR.cfs + monocacyFlow + gooseFlow;
+            useTimeShifted = true;
+            timeShiftedHoursAgo = historicPoR.actualHoursAgo;
+        } else {
+            // No historic data yet - use current PoR as forecast
+            // This represents "what's arriving at GF in ~travelPoRtoGF hours"
+            estimatedCFS = por.q + monocacyFlow + gooseFlow;
+        }
+
+        // Flow state (must be computed before correction lookup)
+        const flowState = getFlowState(por.trend);
+
+        // Apply learned correction based on flow bin and rising/falling state
+        const flowBin = getGFFlowBin(estimatedCFS);
+        const correction = getGFCorrection(flowBin, flowState);
+        const uncertainty = getGFUncertainty(flowBin, flowState);
+        estimatedCFS = estimatedCFS - correction;
+
+        // Estimate stage using Little Falls equivalent (what paddlers know)
+        const estimatedStage = estimateLFStage(estimatedCFS);
+
+        // Calculate uncertainty range if we have enough data
+        let uncertaintyRange = null;
+        if (uncertainty) {
+            // Use 1 standard deviation for the range (~68% confidence)
+            const lowCFS = Math.max(0, estimatedCFS - uncertainty.stdDev);
+            const highCFS = estimatedCFS + uncertainty.stdDev;
+            uncertaintyRange = {
+                lowCFS: Math.round(lowCFS),
+                highCFS: Math.round(highCFS),
+                lowStage: estimateLFStage(lowCFS),
+                highStage: estimateLFStage(highCFS),
+                stdDevCFS: Math.round(uncertainty.stdDev),
+                observations: uncertainty.count
+            };
+        }
+
+        // Confidence based on data quality
+        let confidence = 'medium';
+        const hasActualTribs = !!(monocacy?.q && goose?.q);
+        if (hasActualTribs && useTimeShifted) confidence = 'high';
+        if (hasActualTribs && !useTimeShifted) confidence = 'medium';
+        if (!hasActualTribs && !useTimeShifted) confidence = 'low';
+        if (!por.trend) confidence = 'low';
+
+        // Edwards Ferry cross-check (hidden gauge just above GF)
+        // If EF trend disagrees with our estimate's flow state, reduce confidence
+        const efTrend = getEdwardsFerryTrend();
+        let efAgreement = null;
+        if (efTrend) {
+            efAgreement = (efTrend === flowState) || (efTrend === 'steady' && flowState === 'steady');
+            if (!efAgreement && confidence === 'high') {
+                confidence = 'medium';  // Downgrade if EF disagrees
+                console.log(`⚠️ EF trend (${efTrend}) disagrees with GF estimate (${flowState})`);
+            } else if (efAgreement && confidence === 'medium' && hasActualTribs) {
+                confidence = 'high';  // Upgrade if EF confirms and we have good trib data
+            }
+        }
+
+        // Calculate forecast (current readings arriving at GF)
+        const forecastTotal = por.q + monocacyFlow + gooseFlow;
+
+        return {
+            cfs: Math.round(estimatedCFS),
+            stage: estimatedStage,
+            flowState: flowState,
+            confidence: confidence,
+            useTimeShifted: useTimeShifted,
+            timeShiftedHoursAgo: timeShiftedHoursAgo,
+            // Also provide forecast (current PoR + tributaries arriving at GF)
+            forecastCFS: Math.round(forecastTotal),
+            forecastStage: estimateLFStage(forecastTotal),
+            inputs: {
+                porCFS: Math.round(por.q),
+                historicPorCFS: historicPoR ? Math.round(historicPoR.cfs) : null,
+                monocacyCFS: Math.round(monocacyFlow),
+                monocacyActual: !!monocacy?.q,
+                gooseCFS: Math.round(gooseFlow),
+                gooseActual: !!goose?.q,
+                travelPoRtoGF: travelPoRtoGF,
+                travelGFtoLF: travelGFtoLF,
+                correction: correction,
+                flowBin: flowBin
+            },
+            uncertaintyRange: uncertaintyRange,  // Range based on historical prediction error
+            efEstimate: estimateGFFromEdwardsFerry(),  // Alternative estimate from Edwards Ferry (hidden gauge)
+            validationCountdown: travelGFtoLF  // Hours until we can validate this estimate
+        };
+    }
+
+    // Estimate LF-equivalent stage from flow
+    // Based on USGS field measurements at Little Falls (01646500), 2015-2025
+    function estimateLFStage(cfs) {
+        // Calibration points from recent USGS field measurements:
+        //   617 cfs = 2.46 ft    1,310 cfs = 2.69 ft    1,930 cfs = 2.83 ft
+        //   2,610 cfs = 2.96 ft  3,170 cfs = 3.09 ft    3,610 cfs = 3.16 ft
+        //   4,220 cfs = 3.23 ft  4,950 cfs = 3.35 ft    5,740 cfs = 3.46 ft
+        //   7,480 cfs = 3.67 ft  10,200 cfs = 3.95 ft   13,200 cfs = 4.29 ft
+        //   28,000 cfs = 5.50 ft 49,300 cfs = 6.79 ft   78,100 cfs = 8.36 ft
+        //   150,000 cfs = 10.93 ft
+
+        if (cfs < 600) return 2.40 + (cfs / 600) * 0.06;            // 0-600 → 2.40-2.46 ft
+        if (cfs < 1300) return 2.46 + ((cfs - 600) / 700) * 0.23;   // 600-1300 → 2.46-2.69 ft
+        if (cfs < 2000) return 2.69 + ((cfs - 1300) / 700) * 0.14;  // 1300-2000 → 2.69-2.83 ft
+        if (cfs < 2600) return 2.83 + ((cfs - 2000) / 600) * 0.13;  // 2000-2600 → 2.83-2.96 ft
+        if (cfs < 3200) return 2.96 + ((cfs - 2600) / 600) * 0.13;  // 2600-3200 → 2.96-3.09 ft
+        if (cfs < 3600) return 3.09 + ((cfs - 3200) / 400) * 0.07;  // 3200-3600 → 3.09-3.16 ft
+        if (cfs < 4200) return 3.16 + ((cfs - 3600) / 600) * 0.07;  // 3600-4200 → 3.16-3.23 ft
+        if (cfs < 5000) return 3.23 + ((cfs - 4200) / 800) * 0.12;  // 4200-5000 → 3.23-3.35 ft
+        if (cfs < 5700) return 3.35 + ((cfs - 5000) / 700) * 0.11;  // 5000-5700 → 3.35-3.46 ft
+        if (cfs < 7500) return 3.46 + ((cfs - 5700) / 1800) * 0.21; // 5700-7500 → 3.46-3.67 ft
+        if (cfs < 10000) return 3.67 + ((cfs - 7500) / 2500) * 0.28;// 7500-10000 → 3.67-3.95 ft
+        if (cfs < 13000) return 3.95 + ((cfs - 10000) / 3000) * 0.34;// 10000-13000 → 3.95-4.29 ft
+        if (cfs < 28000) return 4.29 + ((cfs - 13000) / 15000) * 1.21;// 13000-28000 → 4.29-5.50 ft
+        if (cfs < 50000) return 5.50 + ((cfs - 28000) / 22000) * 1.29;// 28000-50000 → 5.50-6.79 ft
+        if (cfs < 80000) return 6.79 + ((cfs - 50000) / 30000) * 1.57;// 50000-80000 → 6.79-8.36 ft
+        if (cfs < 150000) return 8.36 + ((cfs - 80000) / 70000) * 2.57;// 80000-150000 → 8.36-10.93 ft
+        return 10.93 + ((cfs - 150000) / 100000) * 2.5;             // 150000+ → 10.93+ ft
+    }
+
+    // Update Great Falls display in UI
+    function updateGreatFallsUI() {
+        gfEstimate = estimateGreatFalls();
+
+        if (!gfEstimate) {
+            document.getElementById("gf-cfs").textContent = "--";
+            document.getElementById("gf-stage").textContent = "--";
+            document.getElementById("gf-trend").textContent = "Waiting for data...";
+            document.getElementById("gf-data-source").textContent = "Waiting for data...";
+            document.getElementById("gf-confidence").textContent = "Confidence: --";
+            document.getElementById("gf-forecast-cfs").textContent = "--";
+            document.getElementById("gf-forecast-stage").textContent = "--";
+            document.getElementById("gf-forecast-hrs").textContent = "--";
+            return;
+        }
+
+        // Main display - "ESTIMATED NOW" section
+        document.getElementById("gf-cfs").textContent = gfEstimate.cfs.toLocaleString();
+
+        // Show stage with uncertainty range if available
+        if (gfEstimate.uncertaintyRange) {
+            const range = gfEstimate.uncertaintyRange;
+            document.getElementById("gf-stage").innerHTML =
+                `${gfEstimate.stage.toFixed(2)} <span style="color:#64748b;font-size:0.7em;">(${range.lowStage.toFixed(2)}-${range.highStage.toFixed(2)})</span>`;
+        } else {
+            document.getElementById("gf-stage").textContent = gfEstimate.stage.toFixed(2);
+        }
+
+        // Update label and data source based on whether we have time-shifted data
+        if (gfEstimate.useTimeShifted) {
+            document.getElementById("gf-estimate-label").textContent = "ESTIMATED NOW";
+            document.getElementById("gf-estimate-label").style.color = "#4ade80";
+            document.getElementById("gf-data-source").textContent =
+                `Based on PoR from ${gfEstimate.timeShiftedHoursAgo.toFixed(1)} hrs ago`;
+        } else {
+            document.getElementById("gf-estimate-label").textContent = "FORECAST (no history yet)";
+            document.getElementById("gf-estimate-label").style.color = "#fbbf24";
+            document.getElementById("gf-data-source").textContent =
+                `Using current PoR (need ${gfEstimate.inputs.travelPoRtoGF.toFixed(0)}+ hrs of history)`;
+        }
+
+        // Flow state with icon
+        const stateIcons = { rising: '▲ RISING', falling: '▼ FALLING', steady: '● STEADY' };
+        const stateColors = { rising: '#ef4444', falling: '#22c55e', steady: '#64748b' };
+        document.getElementById("gf-trend").innerHTML =
+            `<span style="color:${stateColors[gfEstimate.flowState]}">${stateIcons[gfEstimate.flowState]}</span>`;
+
+        // Confidence
+        const confColors = { high: '#4ade80', medium: '#fbbf24', low: '#f87171' };
+        document.getElementById("gf-confidence").innerHTML =
+            `Confidence: <span style="color:${confColors[gfEstimate.confidence]}">${gfEstimate.confidence.toUpperCase()}</span>`;
+
+        // Forecast section - always shows current PoR arriving at GF
+        document.getElementById("gf-forecast-cfs").textContent = gfEstimate.forecastCFS.toLocaleString();
+        document.getElementById("gf-forecast-stage").textContent = gfEstimate.forecastStage.toFixed(2);
+        document.getElementById("gf-forecast-hrs").textContent = gfEstimate.inputs.travelPoRtoGF.toFixed(1);
+
+        // Inputs section
+        if (gfEstimate.inputs.historicPorCFS) {
+            document.getElementById("gf-input-por").innerHTML =
+                `<span style="color:#4ade80;">${gfEstimate.inputs.historicPorCFS.toLocaleString()} cfs</span> <span style="color:#64748b;font-size:0.5rem;">(${gfEstimate.timeShiftedHoursAgo.toFixed(1)}h ago)</span>`;
+        } else {
+            document.getElementById("gf-input-por").textContent = gfEstimate.inputs.porCFS.toLocaleString() + " cfs (current)";
+        }
+        document.getElementById("gf-input-monocacy").textContent =
+            (gfEstimate.inputs.monocacyActual ? "+ " : "~+ ") + gfEstimate.inputs.monocacyCFS.toLocaleString() + " cfs";
+        document.getElementById("gf-input-goose").textContent =
+            (gfEstimate.inputs.gooseActual ? "+ " : "~+ ") + gfEstimate.inputs.gooseCFS.toLocaleString() + " cfs";
+        document.getElementById("gf-input-travel").textContent = gfEstimate.inputs.travelPoRtoGF.toFixed(1) + " hrs";
+
+        // Display flow bin with observation count if available
+        const binData = gfLearningData?.correctionBins?.[gfEstimate.inputs.flowBin]?.[gfEstimate.flowState];
+        const binCount = binData?.count || 0;
+        document.getElementById("gf-input-flowbin").textContent =
+            gfEstimate.inputs.flowBin + (binCount > 0 ? ` (${binCount} obs)` : '');
+
+        document.getElementById("gf-input-correction").textContent =
+            gfEstimate.inputs.correction === 0 ? "none yet" : (gfEstimate.inputs.correction > 0 ? "-" : "+") + Math.abs(Math.round(gfEstimate.inputs.correction)) + " cfs";
+
+        // Display uncertainty range
+        if (gfEstimate.uncertaintyRange) {
+            document.getElementById("gf-input-uncertainty").textContent =
+                `± ${gfEstimate.uncertaintyRange.stdDevCFS.toLocaleString()} cfs`;
+        } else {
+            document.getElementById("gf-input-uncertainty").textContent = "need 5+ obs";
+        }
+
+        // Display Edwards Ferry cross-check (only if we have enough correlation data)
+        const efCrosscheck = document.getElementById("gf-ef-crosscheck");
+        const efEstimateEl = document.getElementById("gf-ef-estimate");
+        if (gfEstimate.efEstimate && gfEstimate.efEstimate.correlationCount >= 10) {
+            const efEst = gfEstimate.efEstimate;
+            const efStage = estimateLFStage(efEst.cfs);
+            const diff = efEst.cfs - gfEstimate.cfs;
+            const diffPct = Math.abs((diff / gfEstimate.cfs) * 100);
+
+            // Show cross-check with agreement indicator
+            let agreementIcon = '✓';
+            let agreementColor = '#4ade80';  // green
+            if (diffPct > 15) {
+                agreementIcon = '⚠';
+                agreementColor = '#f59e0b';  // amber
+            }
+            if (diffPct > 25) {
+                agreementIcon = '✗';
+                agreementColor = '#ef4444';  // red
+            }
+
+            efEstimateEl.innerHTML = `${efEst.cfs.toLocaleString()} cfs / ${efStage.toFixed(1)} ft <span style="color:${agreementColor}">${agreementIcon}</span>`;
+            efCrosscheck.style.display = 'block';
+        } else {
+            efCrosscheck.style.display = 'none';
+        }
+
+        // Validation countdown
+        document.getElementById("gf-val-countdown").textContent = gfEstimate.validationCountdown.toFixed(1) + " hrs";
+
+        // Update map popup values
+        const popupCFS = document.getElementById("gf-popup-cfs");
+        const popupStage = document.getElementById("gf-popup-stage");
+        if (popupCFS) popupCFS.textContent = gfEstimate.cfs.toLocaleString() + " cfs";
+        if (popupStage) {
+            if (gfEstimate.uncertaintyRange) {
+                const range = gfEstimate.uncertaintyRange;
+                popupStage.innerHTML = `${gfEstimate.stage.toFixed(2)} ft <span style="color:#94a3b8;font-size:0.8em;">(${range.lowStage.toFixed(2)}-${range.highStage.toFixed(2)})</span>`;
+            } else {
+                popupStage.textContent = gfEstimate.stage.toFixed(2) + " ft (LF scale)";
+            }
+        }
+
+        // GF Learning: Run async operations in parallel (fire-and-forget)
+        // Both are independent and don't need to block UI
+        Promise.all([
+            storeGFPrediction(gfEstimate),
+            checkGFValidations()
+        ]).catch(e => console.warn('GF learning error:', e));
+
+        // Update GF learning status display (sync, runs immediately)
+        updateGFLearningUI();
+    }
+
+    const RIVERS = [
+        // Potomac Mainstem - follows actual river path, ends at Little Falls
+        { name: "Potomac Mainstem", color: "#2563eb", weight: 3, coords: [
+            [39.62, -78.76],     // Cumberland
+            [39.53, -78.46],     // South Branch confluence
+            [39.697, -78.182],   // Hancock (Little Tonoloway)
+            [39.626, -78.017],   // Big Pool
+            [39.606, -78.011],   // Fort Frederick
+            [39.608, -77.969],   // McCoys Ferry
+            [39.45, -77.82],     // Shepherdstown area
+            [39.323, -77.730],   // Harpers Ferry
+            [39.273, -77.541],   // Point of Rocks
+            [39.224, -77.452],   // Monocacy Aqueduct
+            [39.154, -77.520],   // Whites Ferry
+            [39.103, -77.474],   // Edwards Ferry
+            [39.071, -77.341],   // Seneca Landing
+            [39.018, -77.245],   // Riverbend Park
+            [38.998, -77.252],   // Great Falls
+            [38.975, -77.228],   // Mather Gorge
+            [38.962, -77.197],   // Widewater
+            [38.955, -77.160],   // Cabin John Creek area
+            [38.950, -77.128]    // Little Falls (terminus)
+        ]},
+        // North Branch - Kitzmiller to Cumberland
+        { name: "North Branch", color: "#0891b2", weight: 2, coords: [
+            [39.394, -79.182],   // Kitzmiller
+            [39.445, -79.111],   // Barnum
+            [39.479, -79.065],   // Luke
+            [39.62, -78.76]      // Cumberland (confluence)
+        ]},
+        // South Branch - Franklin gauge to confluence
+        { name: "South Branch", color: "#7c3aed", weight: 2, coords: [
+            [38.6428, -79.3306], // Franklin (gauge)
+            [38.755, -79.260],   // Upper Tract
+            [38.860, -79.195],   // Smoke Hole area
+            [38.9926, -79.1239], // Petersburg (gauge)
+            [39.120, -78.980],   // Moorefield
+            [39.280, -78.780],   // Junction area
+            [39.45, -78.65],     // Romney area
+            [39.53, -78.46]      // Confluence with mainstem
+        ]},
+        // Shenandoah - Front Royal gauge to Harpers Ferry
+        { name: "Shenandoah", color: "#c026d3", weight: 2, coords: [
+            [38.914, -78.211],   // Front Royal (gauge)
+            [38.983, -78.101],   // Bentonville
+            [39.063, -78.030],   // Overall Run
+            [39.134, -77.962],   // Compton Rapids area
+            [39.200, -77.870],   // Berryville area
+            [39.282, -77.789],   // Millville (gauge)
+            [39.310, -77.756],   // Bloomery
+            [39.323, -77.730]    // Harpers Ferry (confluence)
+        ]},
+        // Monocacy - Jug Bridge gauge to Potomac
+        { name: "Monocacy", color: "#dc2626", weight: 1.5, coords: [
+            [39.403, -77.366],   // Jug Bridge (gauge)
+            [39.224, -77.452]    // Confluence at Monocacy Aqueduct
+        ]},
+        // Cacapon - Great Cacapon to confluence
+        { name: "Cacapon", color: "#059669", weight: 1.5, coords: [
+            [39.582, -78.305],   // Great Cacapon
+            [39.53, -78.46]      // Confluence
+        ]},
+        // Conococheague - gauge to Potomac
+        { name: "Conococheague", color: "#059669", weight: 1.5, coords: [
+            [39.6510, -77.9239], // Conococheague gauge
+            [39.60, -77.92]      // Confluence near Williamsport
+        ]},
+        // Antietam Creek - Sharpsburg to Potomac
+        { name: "Antietam", color: "#f59e0b", weight: 1.5, coords: [
+            [39.450, -77.730],   // Sharpsburg
+            [39.45, -77.82]      // Confluence near Shepherdstown
+        ]},
+        // Goose Creek - gauge to confluence
+        { name: "Goose Creek", color: "#10b981", weight: 1.5, coords: [
+            [39.0559, -77.5191], // Goose Creek gauge
+            [39.103, -77.474]    // Confluence near Edwards Ferry
+        ]},
+        // Seneca Creek - Dawsonville to Potomac
+        { name: "Seneca Creek", color: "#6366f1", weight: 1.5, coords: [
+            [39.128, -77.336],   // Dawsonville
+            [39.071, -77.341]    // Confluence at Seneca Landing
+        ]}
+    ];
+
+    const PROXIES = [
+        "https://api.allorigins.win/raw?url=",
+        "https://corsproxy.io/?"
+    ];
+
+    let map, data = {}, markers = {}, learningEnabled = true;
+    let learningData = null; // Will be loaded async
+
+    // ==================== LEARNING SYSTEM ====================
+    
+    async function loadLearning() {
+        // First try localStorage for immediate data
+        let localData = loadLocalLearning();
+        
+        // If cloud sync is enabled, try to merge cloud data
+        if (cloudSyncEnabled) {
+            try {
+                const cloudData = await loadCloudLearning();
+                if (cloudData) {
+                    // Merge: cloud data takes precedence for corrections, combine observations
+                    localData = mergeLearningData(localData, cloudData);
+                    console.log('☁️ Loaded and merged cloud learning data');
+                    updateSyncStatus('synced');
+                }
+            } catch(e) {
+                console.log('Cloud load failed, using local:', e);
+                updateSyncStatus('error');
+            }
+        }
+        
+        return localData;
+    }
+    
+    function loadLocalLearning() {
+        try {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (parsed.observations && parsed.startDate) {
+                    return parsed;
+                }
+            }
+        } catch(e) {
+            console.log("Local learning data reset:", e);
+        }
+        return createEmptyLearning();
+    }
+    
+    async function loadCloudLearning() {
+        try {
+            const response = await fetch(SYNC_API, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const cloudLearning = await response.json();
+            return cloudLearning;
+        } catch(e) {
+            console.log('Cloud learning load error:', e);
+            return null;
+        }
+    }
+    
+    function mergeLearningData(local, cloud) {
+        if (!cloud) return local;
+        
+        const merged = createEmptyLearning();
+        
+        // Use earlier start date
+        merged.startDate = new Date(local.startDate) < new Date(cloud.startDate) 
+            ? local.startDate : cloud.startDate;
+        
+        // Merge corrections (cloud takes precedence)
+        merged.corrections = { ...local.corrections, ...cloud.corrections };
+        
+        // Merge observations (dedupe by timestamp)
+        const allGauges = new Set([
+            ...Object.keys(local.observations),
+            ...Object.keys(cloud.observations)
+        ]);
+        
+        for (const gaugeId of allGauges) {
+            const localObs = local.observations[gaugeId] || [];
+            const cloudObs = cloud.observations[gaugeId] || [];
+            
+            // Combine and dedupe by timestamp
+            const combined = [...localObs, ...cloudObs];
+            const seen = new Set();
+            merged.observations[gaugeId] = combined.filter(o => {
+                const key = o.timestamp || o.created_at;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            }).slice(-500); // Keep last 500
+        }
+        
+        // Sum total obs
+        merged.totalObs = Math.max(local.totalObs, cloud.totalObs);
+        
+        return merged;
+    }
+    
+    function createEmptyLearning() {
+        return {
+            startDate: new Date().toISOString(),
+            observations: {},
+            corrections: {},
+            totalObs: 0
+        };
+    }
+    
+    async function saveLearning() {
+        // Always save locally first (fast)
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(learningData));
+        } catch(e) {
+            console.log("Failed to save local learning:", e);
+        }
+        
+        // Then sync to cloud if enabled (async, don't block)
+        if (cloudSyncEnabled) {
+            syncToCloud();
+        }
+    }
+    
+    let syncPending = false;
+    let syncTimeout = null;
+    
+    async function syncToCloud() {
+        // Debounce: wait 30 seconds after last change before syncing
+        if (syncTimeout) clearTimeout(syncTimeout);
+
+        syncTimeout = setTimeout(async () => {
+            if (syncPending) return;
+            syncPending = true;
+            updateSyncStatus('syncing');
+
+            try {
+                // Prepare data for sync
+                const metadata = {
+                    startDate: learningData.startDate,
+                    totalObs: learningData.totalObs
+                };
+
+                // Collect recent observations (only new ones)
+                const recentObs = [];
+                for (const [gaugeId, obs] of Object.entries(learningData.observations)) {
+                    const recent = obs.slice(-10);
+                    for (const o of recent) {
+                        if (o.timestamp > (lastSyncTime || 0)) {
+                            recentObs.push({
+                                gauge_id: gaugeId,
+                                data: o
+                            });
+                        }
+                    }
+                }
+
+                // Send to serverless function
+                const response = await fetch(SYNC_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        metadata,
+                        corrections: learningData.corrections,
+                        observations: recentObs,
+                        lastSyncTime
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                lastSyncTime = Date.now();
+                updateSyncStatus('synced');
+                console.log(`☁️ Synced to cloud (${result.savedCount} items)`);
+
+            } catch(e) {
+                console.log('Cloud sync error:', e);
+                updateSyncStatus('error');
+            }
+
+            syncPending = false;
+        }, 30000); // 30 second debounce
+    }
+    
+    function updateSyncStatus(status) {
+        const el = document.getElementById('syncStatus');
+        if (!el) return;
+
+        if (status === 'synced') {
+            el.innerHTML = '<span style="color:#4ade80;" title="Cloud synced">☁️</span>';
+        } else if (status === 'syncing') {
+            el.innerHTML = '<span style="color:#fbbf24;" title="Syncing...">☁️</span>';
+        } else if (status === 'error') {
+            el.innerHTML = '<span style="color:#f87171;" title="Sync error">⚠️</span>';
+        } else {
+            el.innerHTML = '<span style="color:#64748b;" title="Local only">💾</span>';
+        }
+    }
+    
+    function recordObservation() {
+        if (!learningEnabled || !learningData || !data[LF.id]) return;
+        
+        const now = Date.now();
+        const lfQ = data[LF.id].q;
+        const lfH = data[LF.id].h;
+        
+        // Track significant rises for arrival verification
+        const lfObs = learningData.observations[LF.id] || [];
+        const lastLfQ = lfObs[lfObs.length - 1]?.q || lfQ;
+        const lfRising = lfQ > lastLfQ * 1.1; // 10% rise at LF
+        
+        for (const [id, g] of Object.entries(GAUGES)) {
+            if (id === LF.id) continue;
+            const d = data[id];
+            if (!d || !d.q || !d.h) continue;
+            
+            // Store observation
+            if (!learningData.observations[id]) {
+                learningData.observations[id] = [];
+            }
+            
+            const obs = learningData.observations[id];
+            const last = obs[obs.length - 1];
+            
+            // Skip if <1hr since last observation
+            if (last && (now - last.timestamp) < 3600000) continue;
+            
+            // Detect significant rise at this gauge (potential wave start)
+            const isRising = last && d.q > last.q * 1.15; // 15% rise
+            
+            obs.push({
+                timestamp: now,
+                q: d.q,
+                h: d.h,
+                lfQ: lfQ,
+                lfH: lfH,
+                predictedHrs: d.travelHrs,
+                rising: isRising,
+                lfRising: lfRising
+            });
+            
+            // Keep only last 500 observations per gauge
+            if (obs.length > 500) obs.shift();
+            
+            learningData.totalObs++;
+        }
+        
+        // Store LF observations for tracking arrivals
+        if (!learningData.observations[LF.id]) {
+            learningData.observations[LF.id] = [];
+        }
+        const lfObsList = learningData.observations[LF.id];
+        const lastLfObs = lfObsList[lfObsList.length - 1];
+        if (!lastLfObs || (now - lastLfObs.timestamp) >= 3600000) {
+            lfObsList.push({ timestamp: now, q: lfQ, h: lfH });
+            if (lfObsList.length > 500) lfObsList.shift();
+        }
+        
+        // Calculate corrections based on observed arrivals
+        calculateCorrections();
+        saveLearning();
+    }
+    
+    function calculateCorrections() {
+        // Match upstream rises with downstream arrivals at Little Falls
+        const lfObs = learningData.observations[LF.id] || [];
+        if (lfObs.length < 10) return;
+        
+        for (const [id, obs] of Object.entries(learningData.observations)) {
+            if (id === LF.id || obs.length < MIN_OBS_FOR_CORRECTION) continue;
+            
+            const g = GAUGES[id];
+            if (!g) continue;
+            
+            // Find rise events at this gauge
+            const riseEvents = obs.filter(o => o.rising);
+            if (riseEvents.length < 3) continue;
+            
+            let totalRatio = 0;
+            let matchCount = 0;
+            
+            for (const rise of riseEvents) {
+                // Expected arrival time at LF
+                const expectedArrival = rise.timestamp + (rise.predictedHrs * 3600000);
+                
+                // Look for corresponding rise at LF within ±50% of predicted time
+                const windowStart = rise.timestamp + (rise.predictedHrs * 1800000); // 0.5x
+                const windowEnd = rise.timestamp + (rise.predictedHrs * 5400000);   // 1.5x
+                
+                // Find LF rise in that window
+                const lfRise = lfObs.find(lf => 
+                    lf.timestamp > windowStart && 
+                    lf.timestamp < windowEnd &&
+                    lf.q > rise.lfQ * 1.08 // 8% rise
+                );
+                
+                if (lfRise) {
+                    const actualHrs = (lfRise.timestamp - rise.timestamp) / 3600000;
+                    const ratio = actualHrs / rise.predictedHrs;
+                    
+                    // Only count reasonable ratios (0.3x to 3x)
+                    if (ratio > 0.3 && ratio < 3.0) {
+                        totalRatio += ratio;
+                        matchCount++;
+                    }
+                }
+            }
+            
+            // Calculate correction factor (weighted toward 1.0 with few observations)
+            if (matchCount >= 2) {
+                const avgRatio = totalRatio / matchCount;
+                // Blend with 1.0 based on confidence (more matches = more weight)
+                const confidence = Math.min(matchCount / 10, 1.0);
+                learningData.corrections[id] = (avgRatio * confidence) + (1.0 * (1 - confidence));
+            }
+        }
+    }
+    
+    function getCorrectionFactor(gaugeId) {
+        if (!learningData) return 1.0;
+        return learningData.corrections[gaugeId] || 1.0;
+    }
+    
+    function resetLearning() {
+        if (!confirm("Reset all learning data? This cannot be undone.")) return;
+        learningData = {
+            startDate: new Date().toISOString(),
+            observations: {},
+            corrections: {},
+            totalObs: 0
+        };
+        saveLearning();
+        updateLearningUI();
+        alert("Learning data reset. The model will begin gathering new observations.");
+    }
+    
+    function toggleLearning() {
+        learningEnabled = !learningEnabled;
+        const btn = document.getElementById("learnBtn");
+        if (btn) btn.classList.toggle("active", learningEnabled);
+    }
+    
+    function updateLearningUI() {
+        if (!learningData) return;
+
+        const gaugesWithCorrections = Object.keys(learningData.corrections).length;
+        
+        // Update learning tab
+        document.getElementById("learnTotal").textContent = learningData.totalObs.toLocaleString();
+        
+        const startDate = new Date(learningData.startDate);
+        const daysSince = Math.floor((Date.now() - startDate) / 86400000);
+        document.getElementById("learnSince").textContent = daysSince > 0 ? `${daysSince} days ago` : "Today";
+        
+        document.getElementById("learnAccuracy").textContent = 
+            gaugesWithCorrections === 0 ? "Waiting for rise events..." :
+            gaugesWithCorrections < 5 ? `Calibrating (${gaugesWithCorrections} gauges)` :
+            "Model calibrated";
+        
+        document.getElementById("learnGauges").textContent = 
+            `${gaugesWithCorrections} / ${Object.keys(GAUGES).length - 1}`;
+        
+        // Update correction list
+        const list = document.getElementById("correctionList");
+        const corrections = Object.entries(learningData.corrections);
+        if (corrections.length === 0) {
+            list.innerHTML = '<p style="color:#64748b;font-size:0.6rem;">Corrections calculated after detecting rise events at gauges and matching arrivals at Little Falls</p>';
+        } else {
+            list.innerHTML = corrections.map(([id, factor]) => {
+                const g = GAUGES[id];
+                const obs = learningData.observations[id] || [];
+                const rises = obs.filter(o => o.rising).length;
+                const diff = ((factor - 1) * 100).toFixed(1);
+                const sign = factor >= 1 ? "+" : "";
+                return `<div class="correction-item">
+                    <span class="gauge-name">${g?.name || id}</span>
+                    <span class="factor">${factor.toFixed(3)}× (${sign}${diff}%) • ${rises} rises</span>
+                </div>`;
+            }).join("");
+        }
+    }
+
+    // ==================== NWS FORECAST INTEGRATION ====================
+    
+    // NWS Location IDs (LIDs) for each USGS gauge
+    // Found at: https://water.noaa.gov/gauges/{LID}
+    const NWS_LIDS = {
+        "01646500": "BRKM2",  // Little Falls (Brookmont)
+        "01638500": "PORM2",  // Point of Rocks
+        "01620000": "HFEW2",  // Harpers Ferry
+        "01618000": "SHEW2",  // Shepherdstown
+        "01613000": "HNKM2",  // Hancock
+        "01610000": "PAWW2",  // Paw Paw
+        "01603000": "CBEM2",  // Cumberland
+        "01595500": "KITM2",  // Kitzmiller
+        "01608500": "SPRW2",  // Springfield (South Branch)
+        "01606500": "PETW2",  // Petersburg (South Branch)
+        "01636500": "MILW2",  // Millville (Shenandoah)
+        "01631000": "FROV2",  // Front Royal (S Fork Shenandoah)
+        "01643000": "FDKM2",  // Monocacy near Frederick (I-70)
+        "01644000": "LEEV2",  // Goose Creek near Leesburg
+        "01645000": "DAWM2",  // Seneca Creek at Dawsonville
+        "01611500": "GCPW2",  // Cacapon River (Great Cacapon)
+        "01614500": "FAVM2",  // Conococheague Creek (Fairview)
+        "01619500": "SACM2",  // Antietam Creek (Sharpsburg)
+    };
+    
+    async function fetchNWSForecasts() {
+        const forecasts = {};
+        console.log("=== Starting NWS forecast fetch ===");
+        
+        // Fetch forecasts for key gauges
+        for (const [usgsId, nwsLid] of Object.entries(NWS_LIDS)) {
+            try {
+                // Try multiple endpoint variations
+                const endpoints = [
+                    `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid}/stageflow`,  // Original case
+                    `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid.toLowerCase()}/stageflow`,  // Lowercase
+                    `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid}/stageflow/forecast`,  // Forecast-specific
+                    `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid.toLowerCase()}/stageflow/forecast`
+                ];
+                
+                let success = false;
+                for (const url of endpoints) {
+                    if (success) break;
+                    
+                    console.log(`Trying ${usgsId}: ${url}`);
+                    
+                    try {
+                        const response = await fetch(url);
+                        console.log(`Response: status=${response.status}, ok=${response.ok}`);
+                        
+                        if (response.ok) {
+                            const text = await response.text();
+                            console.log(`Raw text length: ${text.length}`);
+                            if (text.length > 100) {
+                                console.log(`Raw text preview: ${text.substring(0, 1500)}`);
+                            }
+                            
+                            try {
+                                const json = JSON.parse(text);
+                                const forecast = parseNWSForecast(json, usgsId, nwsLid);
+                                if (forecast) {
+                                    forecasts[usgsId] = forecast;
+                                    success = true;
+                                    console.log(`Got forecast for ${usgsId} from ${url}`);
+                                }
+                            } catch(parseErr) {
+                                console.log(`JSON parse error:`, parseErr.message);
+                            }
+                        } else if (response.status !== 404) {
+                            // Log non-404 errors
+                            const errText = await response.text();
+                            console.log(`Error response (${response.status}):`, errText.substring(0, 300));
+                        }
+                    } catch(fetchErr) {
+                        console.log(`Fetch failed for ${url}:`, fetchErr.message);
+                    }
+                }
+                
+                if (!success) {
+                    console.log(`No forecast found for ${usgsId} (${nwsLid})`);
+                }
+            } catch(e) {
+                console.log(`Error processing ${nwsLid}:`, e.message);
+            }
+        }
+        
+        console.log("=== All parsed forecasts ===", forecasts);
+        
+        // Apply forecasts to data
+        for (const [id, forecast] of Object.entries(forecasts)) {
+            console.log(`Applying forecast to gauge ${id}:`, forecast);
+            if (data[id]) {
+                data[id].forecast = forecast;
+                // Update trend from forecast
+                if (forecast.forecast24 || forecast.forecast48) {
+                    const currentFlow = data[id].q;  // Current flow in cfs
+                    const futureFlow = forecast.forecast48 || forecast.forecast24;  // Future flow in cfs
+                    
+                    let direction = "stable";
+                    let rate = 0;
+                    
+                    if (currentFlow && futureFlow && currentFlow > 0) {
+                        rate = (futureFlow - currentFlow) / currentFlow;
+                        // Use 2% threshold for direction
+                        if (rate > 0.02) {
+                            direction = "up";
+                        } else if (rate < -0.02) {
+                            direction = "down";
+                        }
+                        console.log(`  Current: ${currentFlow} cfs, Future: ${futureFlow} cfs, Change: ${(rate*100).toFixed(1)}%, Direction: ${direction}`);
+                    }
+                    
+                    data[id].trend = {
+                        direction,
+                        rate,
+                        source: "NWS",
+                        forecast24: forecast.forecast24,
+                        forecast48: forecast.forecast48
+                    };
+                }
+            } else {
+                console.log(`  No data entry for gauge ${id}`);
+            }
+        }
+        
+        updateUI();
+    }
+    
+    function parseNWSForecast(json, usgsId, nwsLid) {
+        try {
+            console.log(`=== Parsing NWS for ${nwsLid} (${usgsId}) ===`);
+            
+            // Check for units - API returns kcfs (thousands of cfs)
+            let flowMultiplier = 1;
+            const secondaryUnits = json?.secondaryUnits || json?.forecast?.secondaryUnits;
+            if (secondaryUnits === 'kcfs') {
+                flowMultiplier = 1000;  // Convert kcfs to cfs
+                console.log(`Flow units: kcfs, multiplier: 1000`);
+            }
+            
+            // Find forecast data array
+            let forecastData = null;
+            const paths = [
+                json?.forecast?.data,
+                json?.data,  // Direct data array for /forecast endpoint
+                json?.forecast,
+                json?.data?.forecast?.data,
+                json?.data?.forecast,
+                json?.stageflow?.forecast?.data,
+                json?.stageflow?.forecast
+            ];
+            
+            for (const p of paths) {
+                if (Array.isArray(p) && p.length > 0) {
+                    forecastData = p;
+                    break;
+                }
+            }
+            
+            if (!forecastData || forecastData.length === 0) {
+                console.log(`No forecast array found for ${nwsLid}`);
+                return null;
+            }
+            
+            console.log(`Found ${forecastData.length} forecast points, flowMultiplier=${flowMultiplier}`);
+            
+            const now = Date.now();
+            let forecast24 = null, forecast48 = null;
+            let time24 = null, time48 = null;
+            
+            for (const point of forecastData) {
+                // Parse time
+                let timeStr = point.validTime || point.time || point.dateTime || point.valid || point.timestamp;
+                if (!timeStr) continue;
+                
+                const validTime = new Date(timeStr).getTime();
+                if (isNaN(validTime)) continue;
+                
+                const hoursAhead = (validTime - now) / 3600000;
+                if (hoursAhead < 0 || hoursAhead > 72) continue;
+                
+                // Get secondary (flow) value and convert to cfs
+                const rawFlow = parseFloat(point.secondary);
+                if (isNaN(rawFlow) || rawFlow <= 0) continue;
+                
+                const cfs = rawFlow * flowMultiplier;
+                
+                // Find 24h and 48h forecasts
+                if (hoursAhead >= 18 && hoursAhead <= 30 && !forecast24) {
+                    forecast24 = cfs;
+                    time24 = validTime;
+                    console.log(`24h forecast: ${rawFlow} kcfs = ${cfs} cfs at ${hoursAhead.toFixed(1)}h`);
+                }
+                if (hoursAhead >= 42 && hoursAhead <= 54 && !forecast48) {
+                    forecast48 = cfs;
+                    time48 = validTime;
+                    console.log(`48h forecast: ${rawFlow} kcfs = ${cfs} cfs at ${hoursAhead.toFixed(1)}h`);
+                }
+                
+                if (forecast24 && forecast48) break;
+            }
+            
+            // Widen search if needed
+            if (!forecast24 || !forecast48) {
+                for (const point of forecastData) {
+                    let timeStr = point.validTime || point.time || point.dateTime || point.valid || point.timestamp;
+                    if (!timeStr) continue;
+                    
+                    const validTime = new Date(timeStr).getTime();
+                    if (isNaN(validTime)) continue;
+                    
+                    const hoursAhead = (validTime - now) / 3600000;
+                    if (hoursAhead < 0 || hoursAhead > 96) continue;
+                    
+                    const rawFlow = parseFloat(point.secondary);
+                    if (isNaN(rawFlow) || rawFlow <= 0) continue;
+                    
+                    const cfs = rawFlow * flowMultiplier;
+                    
+                    if (!forecast24 && hoursAhead >= 12 && hoursAhead <= 36) {
+                        forecast24 = cfs;
+                        time24 = validTime;
+                    }
+                    if (!forecast48 && hoursAhead >= 36 && hoursAhead <= 72) {
+                        forecast48 = cfs;
+                        time48 = validTime;
+                    }
+                    
+                    if (forecast24 && forecast48) break;
+                }
+            }
+            
+            // If no cfs data available, return null
+            if (!forecast24 && !forecast48) {
+                console.log(`No valid cfs forecast data for ${nwsLid}`);
+                return null;
+            }
+            
+            console.log(`SUCCESS: ${nwsLid} -> 24h=${forecast24} cfs, 48h=${forecast48} cfs`);
+            
+            return {
+                forecast24,
+                forecast48,
+                time24,
+                time48,
+                source: "NWS"
+            };
+        } catch(e) {
+            console.log("Error parsing NWS for", nwsLid, ":", e.message);
+            return null;
+        }
+    }
+
+    // ==================== FORECAST DISPLAY ====================
+    
+    function getTrendIcon(trend, showMagnitude = false) {
+        if (!trend || trend.source !== "NWS") return "";
+
+        let icon, color;
+        switch(trend.direction) {
+            case "up":
+                icon = "↑";
+                color = "#f59e0b"; // Orange - rising
+                break;
+            case "down":
+                icon = "↓";
+                color = "#3b82f6"; // Blue - falling
+                break;
+            default:
+                icon = "→";
+                color = "#6b7280"; // Gray - stable
+        }
+
+        // Add magnitude percentage if requested and available
+        let magnitude = "";
+        if (showMagnitude && trend.rate !== undefined && trend.rate !== 0) {
+            const pct = Math.round(trend.rate * 100);
+            const sign = pct > 0 ? "+" : "";
+            magnitude = ` <span style="font-size:0.55rem;">${sign}${pct}%</span>`;
+        }
+
+        return `<span style="color:${color};font-weight:bold;">${icon}${magnitude}</span>`;
+    }
+    
+    function getTrendText(trend, current) {
+        // Only show NWS forecasts in cfs
+        if (!trend || trend.source !== "NWS") {
+            return `<span style="color:#94a3b8;">n/a</span>`;
+        }
+        
+        let html = `<b style="color:#60a5fa;">NWS Forecast</b><br>`;
+        if (trend.forecast24) {
+            html += `24h: ${Math.round(trend.forecast24).toLocaleString()} cfs<br>`;
+        } else {
+            html += `24h: n/a<br>`;
+        }
+        if (trend.forecast48) {
+            html += `48h: ${Math.round(trend.forecast48).toLocaleString()} cfs`;
+        } else {
+            html += `48h: n/a`;
+        }
+        return html;
+    }
+
+    // ==================== CORE FUNCTIONS ====================
+    
+    function calcTravelTimes() {
+        // Use Little Falls FLOW for multiplier (Searcy power law)
+        const lfFlow = data[LF.id]?.q || MEDIAN_FLOW;
+        const multInfo = getFlowMultiplier(lfFlow);
+        data._mult = multInfo;
+        
+        for (const [id, g] of Object.entries(GAUGES)) {
+            if (id === LF.id) continue;
+            
+            const d = data[id];
+            if (!d) continue;
+            
+            // Base calculation using flow-based multiplier
+            let travelHrs = g.baseHrs * multInfo.mult;
+            
+            // Apply learning correction
+            const correction = getCorrectionFactor(id);
+            travelHrs *= correction;
+            
+            d.travelHrs = travelHrs;
+            d.baseHrs = g.baseHrs;
+            d.mult = multInfo.mult;
+            d.correction = correction;
+            d.arrival = new Date(Date.now() + travelHrs * 3600000);
+            d.pctLF = g.pctLF;
+        }
+        
+        // Record observation for learning
+        recordObservation();
+    }
+
+    // ==================== DATA CACHING ====================
+
+    function saveToCache(json) {
+        try {
+            const cacheData = {
+                timestamp: Date.now(),
+                data: json
+            };
+            localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+            console.log('💾 Saved data to cache');
+        } catch(e) {
+            console.log('Cache save failed:', e);
+        }
+    }
+
+    function loadFromCache() {
+        try {
+            const cached = localStorage.getItem(CACHE_KEY);
+            if (!cached) return null;
+
+            const { timestamp, data } = JSON.parse(cached);
+            const age = Date.now() - timestamp;
+
+            const isStale = age > CACHE_MAX_AGE;
+            if (isStale) {
+                console.log('💾 Cache is stale (>6 hours old)');
+            }
+
+            console.log(`💾 Using cached data (${Math.round(age / 60000)} min old)`);
+            return { data, timestamp, age, stale: isStale };
+        } catch(e) {
+            console.log('Cache load failed:', e);
+            return null;
+        }
+    }
+
+    async function fetchData() {
+        setStatus("loading");
+        const sites = Object.keys(GAUGES).join(",");
+        const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${sites}&parameterCd=00060,00065&period=P2D&format=json`;
+
+        // Try live USGS first
+        try {
+            let r = await fetch(url);
+            if (r.ok) {
+                const json = await r.json();
+                saveToCache(json);
+                lastFetchTime = Date.now();
+                dataSource = "live";
+                process(json);
+                setStatus("ok");
+                fetchNWSForecasts();
+                fetchEdwardsFerry();  // Hidden gauge for GF validation
+                return;
+            }
+        } catch(e) {
+            console.log('Direct USGS fetch failed:', e);
+        }
+
+        // Try CORS proxies
+        for (const p of PROXIES) {
+            try {
+                let r = await fetch(p + encodeURIComponent(url));
+                if (r.ok) {
+                    const json = await r.json();
+                    saveToCache(json);
+                    lastFetchTime = Date.now();
+                    dataSource = "live";
+                    process(json);
+                    setStatus("ok");
+                    fetchNWSForecasts();
+                    fetchEdwardsFerry();  // Hidden gauge for GF validation
+                    return;
+                }
+            } catch(e) {
+                console.log('Proxy fetch failed:', e);
+            }
+        }
+
+        // Use cached data (any age - never use estimates)
+        const cached = loadFromCache();
+        if (cached) {
+            lastFetchTime = cached.timestamp;
+            dataSource = cached.stale ? "stale" : "cached";
+            process(cached.data);
+            setStatus(cached.stale ? "stale" : "cached");
+            fetchNWSForecasts();
+            fetchEdwardsFerry();  // Hidden gauge for GF validation
+            return;
+        }
+
+        // No data available at all
+        console.log('⚠️ No data available - no cache exists');
+        lastFetchTime = null;
+        dataSource = "unavailable";
+        setStatus("error");
+        updateUI();
+    }
+
+    // Fetch Edwards Ferry data (hidden gauge for GF validation)
+    // Stage-only gauge just above Great Falls
+    async function fetchEdwardsFerry() {
+        const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${EDWARDS_FERRY.id}&parameterCd=00065&period=P1D&format=json`;
+
+        try {
+            const r = await fetch(url);
+            if (!r.ok) return;
+
+            const json = await r.json();
+            if (!json?.value?.timeSeries?.[0]?.values?.[0]?.value) return;
+
+            const values = json.value.timeSeries[0].values[0].value;
+            if (!values.length) return;
+
+            // Get current reading
+            const latest = values[values.length - 1];
+            const stage = parseFloat(latest.value);
+            const timestamp = new Date(latest.dateTime).getTime();
+
+            if (stage > 0 && stage < 100) {
+                edwardsFerryData.current = { stage, timestamp };
+
+                // Add to history (avoid duplicates)
+                const lastHistory = edwardsFerryData.history[edwardsFerryData.history.length - 1];
+                if (!lastHistory || lastHistory.timestamp !== timestamp) {
+                    edwardsFerryData.history.push({ stage, timestamp });
+
+                    // Trim to max size
+                    if (edwardsFerryData.history.length > EF_HISTORY_MAX) {
+                        edwardsFerryData.history = edwardsFerryData.history.slice(-EF_HISTORY_MAX);
+                    }
+                }
+
+                console.log(`📍 Edwards Ferry: ${stage.toFixed(2)} ft`);
+            }
+        } catch(e) {
+            console.warn('Edwards Ferry fetch failed:', e);
+        }
+    }
+
+    // Get Edwards Ferry trend (rising/falling/steady)
+    function getEdwardsFerryTrend() {
+        const history = edwardsFerryData.history;
+        if (history.length < 4) return null;  // Need at least 1 hour of data
+
+        // Compare current to 1 hour ago
+        const current = history[history.length - 1].stage;
+        const oneHourAgo = history[Math.max(0, history.length - 5)].stage;  // ~4-5 readings = 1 hour
+
+        const change = current - oneHourAgo;
+        const pctChange = (change / oneHourAgo) * 100;
+
+        if (pctChange > 2) return 'rising';
+        if (pctChange < -2) return 'falling';
+        return 'steady';
+    }
+
+    // Estimate GF CFS directly from Edwards Ferry stage using learned correlation
+    // Returns null if correlation not available or EF data missing
+    function estimateGFFromEdwardsFerry() {
+        const ef = edwardsFerryData;
+        if (!ef.current?.stage || !ef.correlation?.slope) return null;
+
+        // Linear regression: CFS = slope * stage + intercept
+        const estimatedCFS = ef.correlation.slope * ef.current.stage + ef.correlation.intercept;
+
+        // Sanity check - should be positive and reasonable
+        if (estimatedCFS < 500 || estimatedCFS > 500000) return null;
+
+        return {
+            cfs: Math.round(estimatedCFS),
+            stage: ef.current.stage,
+            correlationCount: ef.correlation.count || 0
+        };
+    }
+
+    function process(json) {
+        data = {};
+        if (!json?.value?.timeSeries) { updateUI(); return; }
+        
+        for (const ts of json.value.timeSeries) {
+            const s = ts.sourceInfo.siteCode[0].value;
+            const p = ts.variable.variableCode[0].value;
+            const values = ts.values[0]?.value;
+            if (!data[s]) data[s] = {};
+            
+            if (values?.length) {
+                // Get current value (most recent)
+                const n = parseFloat(values[values.length-1].value);
+                if (n > 0 && n < 9999999) {
+                    if (p === "00060") data[s].q = n;
+                    if (p === "00065") data[s].h = n;
+                }
+            }
+        }
+        
+        // Fill in missing gauges with estimates
+        // Harpers Ferry (01620000) is stage-only and often doesn't report at low flows
+        fillMissingData();
+        
+        calcTravelTimes();
+        updateUI();
+        updateLearningUI();
+    }
+    
+    function fillMissingData() {
+        // Get Little Falls and Point of Rocks as reference
+        const lfQ = data[LF.id]?.q;
+        const ptRocksQ = data["01638500"]?.q;
+        const ptRocksH = data["01638500"]?.h;
+        
+        for (const [id, g] of Object.entries(GAUGES)) {
+            if (id === LF.id) continue;
+            if (!data[id]) data[id] = {};
+            
+            // Estimate missing discharge from drainage area ratio
+            if (!data[id].q && lfQ) {
+                data[id].q = Math.round(lfQ * (g.area / 11560));
+                data[id].estimated = true;
+            }
+            
+            // Estimate missing stage from Point of Rocks (rough approximation)
+            if (!data[id].h && ptRocksH) {
+                // Assume similar stage with small adjustment for position
+                data[id].h = ptRocksH;
+                data[id].estimated = true;
+            }
+        }
+    }
+
+    function useEst() {
+        data = { [LF.id]: { q: 7500, h: 3.5 } };
+        for (const [id, g] of Object.entries(GAUGES)) {
+            if (id !== LF.id) {
+                data[id] = { q: Math.round((g.area/11560)*7500), h: 3.0 };
+            }
+        }
+        
+        calcTravelTimes();
+    }
+
+    function setStatus(s) {
+        const dot = document.getElementById("dot");
+        const st = document.getElementById("status");
+        const refreshBtn = document.getElementById("refreshBtn");
+
+        // Update refresh button state
+        if (refreshBtn) {
+            if (s === "loading") {
+                refreshBtn.disabled = true;
+                refreshBtn.classList.add("loading");
+            } else {
+                refreshBtn.disabled = false;
+                refreshBtn.classList.remove("loading");
+            }
+        }
+
+        if (s === "loading") {
+            dot.className = "dot loading";
+            st.textContent = "Loading...";
+        } else if (s === "ok") {
+            dot.className = "dot";
+            st.textContent = "Live";
+        } else if (s === "cached") {
+            dot.className = "dot cached";
+            st.textContent = "Cached";
+        } else if (s === "stale") {
+            dot.className = "dot error";
+            st.textContent = "Stale";
+        } else if (s === "error") {
+            dot.className = "dot error";
+            st.textContent = "No Data";
+        }
+
+        // Update staleness display
+        updateStalenessDisplay();
+    }
+
+    function updateStalenessDisplay() {
+        const el = document.getElementById("lastUpdate");
+        if (!el) return;
+
+        if (!lastFetchTime) {
+            el.textContent = "";
+            el.className = "last-update";
+            return;
+        }
+
+        const age = Date.now() - lastFetchTime;
+        const mins = Math.floor(age / 60000);
+        const hours = Math.floor(age / 3600000);
+
+        let text, className;
+
+        if (mins < 5) {
+            text = "just now";
+            className = "fresh";
+        } else if (mins < 30) {
+            text = `${mins}m ago`;
+            className = "fresh";
+        } else if (mins < 60) {
+            text = `${mins}m ago`;
+            className = "recent";
+        } else if (hours < 6) {
+            text = `${hours}h ago`;
+            className = "old";
+        } else {
+            text = `${hours}h ago`;
+            className = "stale";
+        }
+
+        el.textContent = text;
+        el.className = `last-update ${className}`;
+        el.title = new Date(lastFetchTime).toLocaleString();
+    }
+
+    // Update staleness display every minute
+    setInterval(updateStalenessDisplay, 60000);
+
+    function fmt(h) {
+        if (h < 1) return Math.round(h*60) + "m";
+        if (h < 48) return Math.round(h) + "h";
+        return (h/24).toFixed(1) + "d";
+    }
+
+    function updateUI() {
+        const lf = data[LF.id];
+        document.getElementById("lfQ").textContent = lf?.q ? Math.round(lf.q).toLocaleString() : "--";
+        document.getElementById("lfH").textContent = lf?.h ? lf.h.toFixed(2) : "--";
+        document.getElementById("lfTrend").innerHTML = getTrendIcon(lf?.trend);
+        
+        const mult = data._mult;
+        if (mult) {
+            document.getElementById("multVal").textContent = mult.mult.toFixed(2) + "×";
+        }
+        
+        for (const b of Object.values(BRANCHES)) {
+            for (const id of b.ids) {
+                const d = data[id];
+                const qe = document.getElementById(`q-${id}`);
+                const te = document.getElementById(`t-${id}`);
+                const tre = document.getElementById(`trend-${id}`);
+
+                if (qe) qe.textContent = d?.q ? Math.round(d.q).toLocaleString() : "n/a";
+                if (te) te.textContent = d?.travelHrs ? fmt(d.travelHrs) : "--";
+                if (tre) tre.innerHTML = getTrendIcon(d?.trend, true); // Show magnitude in sidebar
+            }
+        }
+        
+        // Update markers
+        for (const [id, marker] of Object.entries(markers)) {
+            const g = GAUGES[id];
+            const d = data[id];
+            if (!g || !d) continue;
+            
+            const bk = Object.entries(BRANCHES).find(([k,v]) => v.ids?.includes(id))?.[0];
+            const color = BRANCHES[bk]?.color || "#60a5fa";
+            marker.bindPopup(popup(id, g, color, bk));
+        }
+
+        // Update Great Falls estimate
+        updateGreatFallsUI();
+    }
+
+    function popup(id, g, color, bk) {
+        const d = data[id] || {};
+        const isTarget = id === LF.id;
+        let html = `<div class="pop-nm" style="color:${color}">${g.name}</div>
+            <div class="pop-area">${g.area?.toLocaleString()} sq mi${g.pctLF ? ' • ' + g.pctLF + '% of LF basin' : ''}</div>
+            <div class="pop-row">
+                <div class="pop-cell"><div class="pop-val blue">${d.q ? Math.round(d.q).toLocaleString() : "n/a"}</div><div class="pop-lbl">cfs</div></div>
+                <div class="pop-cell"><div class="pop-val green">${d.h ? d.h.toFixed(2) : "n/a"}</div><div class="pop-lbl">ft stage</div></div>
+            </div>`;
+        
+        // Trend prediction
+        html += `<div class="pop-trend">
+            <div class="pop-trend-title">📈 48-Hour Trend ${getTrendIcon(d.trend)}</div>
+            ${getTrendText(d.trend, d.q)}
+        </div>`;
+        
+        if (!isTarget && d.travelHrs) {
+            html += `<div class="pop-row">
+                <div class="pop-cell"><div class="pop-val yellow">${fmt(d.travelHrs)}</div><div class="pop-lbl">travel time</div></div>
+                <div class="pop-cell"><div class="pop-val purple">${g.pctLF}%</div><div class="pop-lbl">of LF drainage</div></div>
+            </div>
+            <div class="pop-arr"><b>Arrival:</b> ${d.arrival?.toLocaleString("en-US",{weekday:"short",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>`;
+            
+            html += `<div class="pop-note">Calculation: ${g.baseHrs}h × ${d.mult?.toFixed(2) || "1.00"} mult`;
+            if (d.correction && d.correction !== 1.0) {
+                html += ` × ${d.correction.toFixed(3)} learned`;
+            }
+            html += `</div>`;
+            
+            // Learning status
+            const obs = learningData.observations[id]?.length || 0;
+            if (obs > 0) {
+                html += `<div class="pop-learn">🧠 ${obs} observations recorded</div>`;
+            }
+            
+            if (bk === "belowPtR") {
+                html += `<div class="pop-warn">⚠️ Below Point of Rocks — can raise LF before upstream signal</div>`;
+            }
+        }
+        return html;
+    }
+
+    function buildBranches() {
+        // Column header to explain what each number means (matches .gauge grid layout)
+        let html = `<div class="gauge-header" style="display:grid;grid-template-columns:6px 1fr 22px 38px 32px 42px;align-items:center;gap:4px;padding:4px 5px 6px;margin-bottom:4px;border-bottom:1px solid #334155;font-size:0.5rem;color:#64748b;">
+            <div></div>
+            <div>Gauge</div>
+            <div style="text-align:center;">Trend</div>
+            <div style="text-align:right;">Basin</div>
+            <div style="text-align:right;">CFS</div>
+            <div style="text-align:right;">Hrs→LF</div>
+        </div>`;
+        for (const [bk, b] of Object.entries(BRANCHES)) {
+            const open = bk === "mainstem" ? "open" : "";
+            const gaugeRows = b.ids.map(id => {
+                const g = GAUGES[id];
+                return `<div class="gauge" id="gauge-${id}" onclick="panTo('${id}')">
+                    <div class="gauge-dot" style="background:${b.color}"></div>
+                    <div class="gauge-nm">${g.name}</div>
+                    <div class="gauge-trend" id="trend-${id}"></div>
+                    <div class="gauge-pct" id="pct-${id}">${g.pctLF}%</div>
+                    <div class="gauge-q" id="q-${id}">--</div>
+                    <div class="gauge-t" id="t-${id}">--</div>
+                </div>`;
+            }).join("");
+            
+            html += `<div class="branch ${open}" id="b-${bk}">
+                <div class="branch-hd" onclick="document.getElementById('b-${bk}').classList.toggle('open')">
+                    <div class="branch-clr" style="background:${b.color}"></div>
+                    <div class="branch-nm">${b.name}</div>
+                    <div class="branch-arr">▼</div>
+                </div>
+                <div class="branch-list">${gaugeRows}</div>
+            </div>`;
+        }
+        document.getElementById("branches").innerHTML = html;
+    }
+
+    function panTo(id) {
+        const g = GAUGES[id];
+        if (g && map) {
+            map.setView([g.lat, g.lon], 10);
+            if (markers[id]) markers[id].openPopup();
+        }
+    }
+
+    function initMap() {
+        map = L.map("map").setView([39.2, -77.8], 8);
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap © CARTO'
+        }).addTo(map);
+
+        // Rivers
+        for (const r of RIVERS) {
+            L.polyline(r.coords, { color: r.color, weight: r.weight, opacity: 0.7 }).addTo(map);
+        }
+
+        // Gauges
+        for (const [id, g] of Object.entries(GAUGES)) {
+            const bk = Object.entries(BRANCHES).find(([k,v]) => v.ids?.includes(id))?.[0] || "target";
+            const color = bk === "target" ? "#f97316" : BRANCHES[bk]?.color || "#60a5fa";
+            const size = id === LF.id ? 12 : 8;
+            
+            const icon = L.divIcon({
+                className: "",
+                html: `<div style="width:${size}px;height:${size}px;background:${color};border-radius:50%;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>`,
+                iconSize: [size, size],
+                iconAnchor: [size/2, size/2]
+            });
+            
+            markers[id] = L.marker([g.lat, g.lon], { icon }).addTo(map);
+            markers[id].bindPopup(popup(id, g, color, bk));
+        }
+
+        // Target marker special
+        markers[LF.id].setZIndexOffset(1000);
+
+        // Great Falls virtual marker (estimated gauge - dashed border style)
+        const gfIcon = L.divIcon({
+            className: "",
+            html: `<div style="width:10px;height:10px;background:#06b6d4;border-radius:50%;border:2px dashed white;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>`,
+            iconSize: [10, 10],
+            iconAnchor: [5, 5]
+        });
+        markers[GREAT_FALLS.id] = L.marker([GREAT_FALLS.lat, GREAT_FALLS.lon], { icon: gfIcon }).addTo(map);
+        markers[GREAT_FALLS.id].bindPopup(`
+            <div style="min-width:180px;">
+                <div style="font-weight:600;color:#06b6d4;border-bottom:2px solid #06b6d4;padding-bottom:4px;margin-bottom:6px;">
+                    🌊 ${GREAT_FALLS.name}
+                </div>
+                <div style="font-size:0.7rem;color:#64748b;margin-bottom:8px;">
+                    <em>Estimated (No USGS gauge)</em>
+                </div>
+                <div id="gf-popup-values" style="font-size:0.85rem;">
+                    <span style="color:#60a5fa;font-weight:600;" id="gf-popup-cfs">-- cfs</span>
+                    <span style="color:#64748b;margin:0 5px;">|</span>
+                    <span style="color:#4ade80;font-weight:600;" id="gf-popup-stage">-- ft</span>
+                </div>
+                <div style="font-size:0.65rem;color:#94a3b8;margin-top:6px;">
+                    Based on Point of Rocks + Goose Creek
+                </div>
+            </div>
+        `);
+
+        // Add legend
+        const legend = L.control({ position: 'bottomleft' });
+        legend.onAdd = function() {
+            const div = L.DomUtil.create('div', 'map-legend');
+            div.innerHTML = `
+                <div class="map-legend-title">Legend</div>
+                <div class="map-legend-item">
+                    <div class="map-legend-dot target" style="background:#f97316;"></div>
+                    <span>Little Falls (Target)</span>
+                </div>
+                <div class="map-legend-item">
+                    <div class="map-legend-dot" style="background:#06b6d4;border:1px dashed #fff;"></div>
+                    <span>Great Falls (Est.)</span>
+                </div>
+                <div class="map-legend-item">
+                    <div class="map-legend-line" style="background:#2563eb;"></div>
+                    <span>Mainstem</span>
+                </div>
+                <div class="map-legend-item">
+                    <div class="map-legend-line" style="background:#0891b2;"></div>
+                    <span>North Branch</span>
+                </div>
+                <div class="map-legend-item">
+                    <div class="map-legend-line" style="background:#7c3aed;"></div>
+                    <span>South Branch</span>
+                </div>
+                <div class="map-legend-item">
+                    <div class="map-legend-line" style="background:#c026d3;"></div>
+                    <span>Shenandoah</span>
+                </div>
+                <div class="map-legend-item">
+                    <div class="map-legend-line" style="background:#dc2626;"></div>
+                    <span>Below Pt Rocks</span>
+                </div>
+                <div class="map-legend-item">
+                    <div class="map-legend-line" style="background:#059669;"></div>
+                    <span>Tributaries</span>
+                </div>
+            `;
+            return div;
+        };
+        legend.addTo(map);
+    }
+
+    // Tab switching
+    document.querySelectorAll(".tab").forEach(tab => {
+        tab.addEventListener("click", () => {
+            document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+            document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+            tab.classList.add("active");
+            document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
+        });
+    });
+
+    // Initialize
+    async function init() {
+        try {
+            // Initialize cloud sync via serverless function
+            initCloudSync();
+            updateSyncStatus('syncing');
+
+            // Load PoR history for Great Falls time-shifting
+            loadPoRHistory();
+
+            // Load learning data (from cloud + local)
+            learningData = await loadLearning();
+
+            // Load GF learning data for Great Falls corrections
+            await loadGFLearningData();
+
+            // Initialize UI
+            initMap();
+            buildBranches();
+            updateLearningUI();
+            
+            // Fetch current data
+            await fetchData();
+        } catch(e) {
+            console.error('Init error:', e);
+            // Fallback: at least show the map
+            learningData = createEmptyLearning();
+            initMap();
+            buildBranches();
+            fetchData();
+        }
+    }
+    
+    // ==================== PIN PROTECTION ====================
+    // To change your PIN: 
+    // 1. Pick a PIN (e.g., "mypin123")
+    // 2. Generate SHA-256 hash at: https://emn178.github.io/online-tools/sha256.html
+    // 3. Replace the hash below with your new hash
+    //
+    const LEARN_PIN_HASH = "e97776493f213d50b346f81e3f93a78aad1fd0f19c051a38bd8f88b43e46e5b5";
+    
+    async function hashPIN(pin) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(pin);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    
+    async function checkLearnAccess() {
+        const pin = document.getElementById('learnPIN').value;
+        const hash = await hashPIN(pin);
+        
+        if (hash === LEARN_PIN_HASH) {
+            document.getElementById('learnLocked').style.display = 'none';
+            document.getElementById('learnUnlocked').style.display = 'block';
+            document.getElementById('pinError').style.display = 'none';
+            document.getElementById('learnTab').innerHTML = '🧠 Learning';
+            sessionStorage.setItem('learnUnlocked', 'true');
+        } else {
+            document.getElementById('pinError').style.display = 'block';
+            document.getElementById('learnPIN').value = '';
+        }
+    }
+    
+    function lockLearning() {
+        document.getElementById('learnLocked').style.display = 'block';
+        document.getElementById('learnUnlocked').style.display = 'none';
+        document.getElementById('learnTab').innerHTML = '🔒 Learning';
+        document.getElementById('learnPIN').value = '';
+        sessionStorage.removeItem('learnUnlocked');
+    }
+    
+    // Check if already unlocked in this session
+    if (sessionStorage.getItem('learnUnlocked') === 'true') {
+        document.getElementById('learnLocked').style.display = 'none';
+        document.getElementById('learnUnlocked').style.display = 'block';
+        document.getElementById('learnTab').innerHTML = '🧠 Learning';
+    }
+    
+    // Allow Enter key to submit PIN
+    document.getElementById('learnPIN')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') checkLearnAccess();
+    });
+    
+    // ==================== TECHNICAL APPENDIX DOWNLOAD ====================
+    function downloadTechAppendix() {
+        const content = `# Potomac Pulse - Technical Appendix
+
+**Version:** 17.0
+**Date:** January 2026
+
+---
+
+## 1. Overview
+
+This app predicts water arrival times at Little Falls and estimates conditions at Great Falls (which has no gauge). The travel time model uses a power law derived from USGS Circular 438 (Searcy & Davis, 1961).
+
+---
+
+## 2. Travel Time Model
+
+### 2.1 Core Formula
+
+For the Point of Rocks to Little Falls reach (41 miles):
+
+\`\`\`
+T = 5174 × Q^(-0.5963)
+\`\`\`
+
+Where:
+- T = travel time (hours)
+- Q = Little Falls discharge (cfs)
+
+### 2.2 How It Was Derived
+
+Searcy measured mean water velocity vs. discharge at Point of Rocks and Little Falls, then fit a power law:
+
+\`\`\`
+V_avg = 0.0116 × Q^0.5963  (R² = 0.99)
+\`\`\`
+
+Travel time = Distance / Velocity:
+\`\`\`
+T = (41 miles × 5280 ft/mi) / (V_avg ft/s × 3600 s/hr)
+T = 5174 × Q^(-0.5963)
+\`\`\`
+
+### 2.3 Model Accuracy
+
+| LF Flow (cfs) | Searcy Measured | Model Predicted | Error |
+|---------------|-----------------|-----------------|-------|
+| 1,810 | 63.3 hrs | 59.1 hrs | -6.7% |
+| 4,940 | 32.3 hrs | 32.5 hrs | +0.5% |
+| 10,300 | 19.3 hrs | 20.9 hrs | +8.5% |
+| 26,400 | 10.2 hrs | 11.9 hrs | +17% |
+| 63,200 | 7.3 hrs | 7.1 hrs | -2.8% |
+
+**Accuracy by flow range:**
+- Normal flows (3,000-10,000 cfs): ±10%
+- High flows (>25,000 cfs): ±17%
+
+### 2.4 Upstream Gauge Travel Times
+
+For gauges upstream of Point of Rocks (Hancock, Cumberland, etc.), baseline travel times are from Searcy Table 2. These are scaled by the same flow multiplier used for PoR→LF.
+
+**Important limitation:** The Searcy power law was calibrated specifically for the PoR→LF reach. Upstream reaches have different channel characteristics, so using the same multiplier introduces ±10-20% additional uncertainty for distant gauges.
+
+| Gauge | Baseline (median flow) | Uncertainty |
+|-------|------------------------|-------------|
+| Point of Rocks | 32 hrs | ±10% |
+| Shepherdstown | 63 hrs | ±15% |
+| Hancock | 150 hrs (~6 days) | ±15-20% |
+| Cumberland | 226 hrs (~9 days) | ±15-20% |
+
+For upstream gauges, travel times are best used for "pulse is coming" awareness rather than precise arrival timing.
+
+---
+
+## 3. Great Falls Estimation
+
+### 3.1 The Problem
+
+No USGS gauge exists at Great Falls. We estimate it by combining upstream gauge readings.
+
+### 3.2 Estimation Formula
+
+\`\`\`
+GF_estimated = PoR(t - 8.5h) + Monocacy + Goose Creek - Correction
+\`\`\`
+
+Where:
+- PoR(t - 8.5h) = Point of Rocks reading from ~8.5 hours ago (time-shifted)
+- Monocacy = current Monocacy reading (joins 6mi below PoR)
+- Goose Creek = current Goose Creek reading (joins 12mi below PoR)
+- Correction = learned correction factor for current flow bin
+
+### 3.3 Time Shifting
+
+We use the PoR reading from when that water was at Great Falls, not the current reading:
+
+| Flow Condition | PoR → GF Travel Time |
+|----------------|----------------------|
+| Low (<3,000 cfs) | ~11-16 hrs |
+| Median (~5,000 cfs) | ~8.5 hrs |
+| High (>15,000 cfs) | ~3 hrs |
+
+### 3.4 Validation & Learning
+
+Each GF estimate is validated ~3.5 hours later when that water reaches Little Falls:
+
+1. Store prediction with timestamp, flow bin, and rising/falling state
+2. When water arrives at LF, calculate what GF actually was
+3. Compare prediction to actual, compute error
+4. Update correction factor using exponential moving average (α=0.3)
+
+**Outlier filtering:** Errors >3 standard deviations from the mean are discarded to prevent bad data from corrupting learned corrections.
+
+### 3.5 Uncertainty Display
+
+Once 5+ validations exist for a flow bin, the app displays an uncertainty range:
+
+\`\`\`
+Stage: 3.2 ft (3.0 - 3.4 ft)
+\`\`\`
+
+The range represents ±1 standard deviation based on historical prediction errors for that flow bin and rising/falling state.
+
+### 3.6 Edwards Ferry Cross-Check
+
+A hidden gauge at Edwards Ferry (USGS 01644148) sits just ~2-3 miles upstream of Great Falls, draining 96.3% of the basin. This gauge provides stage data only (no discharge), but we use it to:
+
+1. **Trend validation:** If Edwards Ferry is rising but our GF estimate shows falling (or vice versa), confidence is reduced.
+
+2. **Correlation learning:** Each validated GF prediction that includes EF stage adds a data point. Over time, we build a linear regression: \`CFS = slope × EF_stage + intercept\`
+
+3. **Cross-check display:** Once 10+ correlation points exist, a "Cross-check" appears showing an independent GF estimate derived directly from Edwards Ferry stage, with agreement indicators:
+   - ✓ (green): <15% difference
+   - ⚠ (amber): 15-25% difference
+   - ✗ (red): >25% difference
+
+This provides users confidence when both methods agree, and flags potential issues when they diverge.
+
+---
+
+## 4. Gauge Network
+
+### 4.1 Basin Coverage
+
+| Gauge | USGS ID | Drainage (mi²) | % of LF Basin | Travel to LF |
+|-------|---------|----------------|---------------|--------------|
+| Little Falls | 01646500 | 11,560 | 100% | — |
+| Point of Rocks | 01638500 | 9,651 | 83.5% | 32 hrs |
+| Monocacy | 01643000 | 817 | 7.1% | 18 hrs |
+| Goose Creek | 01644000 | 332 | 3.0% | 12 hrs |
+| Seneca Creek | 01645000 | 101 | 0.9% | 6 hrs |
+| Hancock | 01613000 | 4,073 | 35.2% | 150 hrs |
+| Cumberland | 01603000 | 877 | 7.6% | 226 hrs |
+
+### 4.2 Below Point of Rocks
+
+16.5% of Little Falls' drainage enters below Point of Rocks:
+- Monocacy: 7.1% (gauged)
+- Goose Creek: 3.0% (gauged)
+- Seneca Creek: 0.9% (gauged)
+- Ungauged streams: 5.5% (~640 mi²)
+
+This means PoR can't predict everything - local storms below PoR can raise LF independently.
+
+---
+
+## 5. Limitations & Uncertainties
+
+### 5.1 Model Limitations
+
+| Factor | Impact | Notes |
+|--------|--------|-------|
+| Steady-state assumption | High during floods | Model assumes quasi-steady flow; rapid flood waves travel faster than predicted |
+| Single flow multiplier | ±10-20% for upstream | Same scaling applied to all reaches, though channel characteristics vary |
+| Ungauged tributaries | ~5.5% unmonitored | Local storms in ungauged areas can cause unexpected rises |
+
+### 5.2 Great Falls Estimation Uncertainties
+
+| Factor | Impact |
+|--------|--------|
+| Tributary timing | Monocacy/Goose readings are current, not time-shifted |
+| Water withdrawals | DC Aqueduct, WSSC, Fairfax Water remove 5-15% at low flows |
+| Rising vs falling | Model was calibrated on falling hydrographs only |
+
+The learning system corrects for systematic errors over time.
+
+---
+
+## 6. Data Sources & Acknowledgments
+
+This application relies entirely on public data from U.S. government agencies:
+
+### 6.1 Real-Time Streamflow Data
+- **Source:** U.S. Geological Survey (USGS) National Water Information System (NWIS)
+- **API:** USGS Water Services REST API (https://waterservices.usgs.gov)
+- **Parameters:** Discharge (00060) in cubic feet per second, Gage height (00065) in feet
+- **Update frequency:** 15-minute intervals
+- **Gauges used:** 01646500 (Little Falls), 01638500 (Point of Rocks), 01643000 (Monocacy), 01644000 (Goose Creek), 01645000 (Seneca Creek), 01644148 (Edwards Ferry - stage only), and others
+
+### 6.2 River Forecasts
+- **Source:** National Weather Service (NWS) / National Oceanic and Atmospheric Administration (NOAA)
+- **Service:** National Water Prediction Service (NWPS), formerly Advanced Hydrologic Prediction Service (AHPS)
+- **API:** NWPS REST API (https://api.water.noaa.gov/nwps/v1/)
+- **Forecast point:** BRKM2 (Little Falls / Brookmont)
+
+### 6.3 Historical & Reference Data
+- **Travel time model:** USGS Circular 438 (Searcy & Davis, 1961)
+- **Validation data:** USGS Water-Supply Paper 2257 (Taylor et al., 1985)
+- **Drainage areas:** USGS StreamStats and gauge metadata
+
+### 6.4 Disclaimer
+This application is not affiliated with, endorsed by, or connected to the USGS, NWS, NOAA, or any government agency. Data is provided "as-is" from public APIs. For official river information and flood warnings, always consult official NWS sources at https://water.weather.gov.
+
+---
+
+## 7. References
+
+1. **Searcy, J.K. and Davis, L.C., Jr. (1961).** "Time of Travel of Water in the Potomac River, Cumberland to Washington." USGS Circular 438. U.S. Geological Survey. [PRIMARY SOURCE FOR TRAVEL TIME MODEL]
+
+2. **Taylor, K.R., James, R.W., and Helinsky, B.M. (1985).** "Traveltime and Dispersion in the Potomac River, Cumberland, Maryland, to Washington, D.C." USGS Water-Supply Paper 2257. [VALIDATION OF TRAVEL TIMES]
+
+3. **MWCOG (1984).** "Potomac River Hydraulic Survey." Metropolitan Washington Council of Governments.
+
+4. **ICPRB (2002).** "Source Water Assessment for the Potomac River, Chapter 3: Hydrology." Interstate Commission on the Potomac River Basin.
+
+5. **USGS (ongoing).** National Water Information System: Web Interface. https://waterdata.usgs.gov/nwis
+
+6. **NWS (ongoing).** National Water Prediction Service. https://water.weather.gov
+
+---
+
+## 8. License & Copyright
+
+**© 2026 Gordon Shumway. All rights reserved.**
+
+This work is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)**.
+
+You are free to:
+- **Share** — copy and redistribute the material in any medium or format
+- **Adapt** — remix, transform, and build upon the material for any purpose
+
+Under the following terms:
+- **Attribution** — You must give appropriate credit, provide a link to the license, and indicate if changes were made.
+- **NonCommercial** — You may not use the material for commercial purposes.
+
+Full license text: https://creativecommons.org/licenses/by-nc/4.0/
+
+---
+
+*Generated by Potomac Pulse v17*
+`;
+
+        // Download as Markdown file
+        const blob = new Blob([content], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Potomac_Pulse_Technical_Appendix.md';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+    
+    init().catch(e => console.error('Init failed:', e));
+
+    // Refresh every 15 minutes
+    setInterval(fetchData, 900000);
+
+    // ==================== ABOUT TOOLTIP ====================
+    const aboutBtn = document.getElementById('about-btn');
+    const aboutTooltip = document.getElementById('about-tooltip');
+    aboutBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        aboutTooltip.style.display = aboutTooltip.style.display === 'none' ? 'block' : 'none';
+    });
+    document.addEventListener('click', (e) => {
+        if (!aboutTooltip?.contains(e.target) && e.target !== aboutBtn) {
+            aboutTooltip.style.display = 'none';
+        }
+    });
+
+    // ==================== EASTER EGGS ====================
+    // Toby Woby easter egg - click the disclaimer text
+    let tobyClicks = 0;
+    document.getElementById('toby-egg')?.addEventListener('click', () => {
+        tobyClicks++;
+        const messages = [
+            "Toby Woby is working on it...",
+            "Still working on it...",
+            "Toby says: 'Almost there!'",
+            "Toby Woby: 'Just one more thing...'",
+            "🐕 Toby Woby has been working on it since 2019",
+            "Legend has it, Toby is STILL working on it",
+            "Toby Woby status: perpetually 'working on it'"
+        ];
+        const msg = messages[Math.min(tobyClicks - 1, messages.length - 1)];
+        document.getElementById('toby-egg').title = msg;
+        if (tobyClicks >= 5) {
+            document.getElementById('toby-egg').textContent = "Toby Woby is working on it";
+            document.getElementById('toby-egg').style.color = "#fbbf24";
+        }
+    });
+    </script>
+</body>
+</html>
