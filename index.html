@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v18</title>
+    <title>Potomac Pulse v19</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -27,88 +27,150 @@
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
+        /* ==================== BASE & RESET ==================== */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; }
         #app { display: flex; flex-direction: column; height: 100vh; }
-        
+
+        /* Skip link for accessibility */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: #3b82f6;
+            color: white;
+            padding: 8px 16px;
+            z-index: 100;
+            transition: top 0.3s;
+        }
+        .skip-link:focus { top: 0; }
+
+        /* ==================== HEADER ==================== */
         header {
             background: #1e293b;
-            padding: 8px 16px;
+            padding: 10px 16px;
             border-bottom: 1px solid #334155;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        header h1 { font-size: 1rem; color: #60a5fa; }
-        .hdr-right { display: flex; align-items: center; gap: 10px; font-size: 0.7rem; color: #64748b; }
-        .last-update { font-size: 0.6rem; padding: 2px 6px; border-radius: 3px; background: rgba(0,0,0,0.2); }
+        header h1 { font-size: 1.1rem; color: #60a5fa; }
+        .hdr-right { display: flex; align-items: center; gap: 12px; font-size: 0.8rem; color: #94a3b8; }
+        .last-update {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: rgba(0,0,0,0.3);
+            font-weight: 500;
+        }
         .last-update.fresh { color: #4ade80; }
         .last-update.recent { color: #fbbf24; }
         .last-update.old { color: #f97316; }
         .last-update.stale { color: #ef4444; }
-        .dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
         .dot.loading { background: #f59e0b; animation: pulse 1s infinite; }
         .dot.cached { background: #f59e0b; }
         .dot.error { background: #ef4444; }
         @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .btn { background: #334155; border: none; color: #94a3b8; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        .btn {
+            background: #334155;
+            border: none;
+            color: #e2e8f0;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            min-width: 44px;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s;
+        }
         .btn:hover { background: #475569; }
+        .btn:focus { outline: 2px solid #60a5fa; outline-offset: 2px; }
         .btn.active { background: #3b82f6; color: white; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn.loading { animation: spin 1s linear infinite; }
-        
+
+        /* Loading skeleton */
+        .skeleton {
+            background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 4px;
+        }
+
+        /* ==================== MAIN LAYOUT ==================== */
         main { display: flex; flex: 1; overflow: hidden; }
         #map { flex: 1; background: #e8e8e8; }
-        
+
         #sidebar {
-            width: 360px;
+            width: 380px;
             background: #1e293b;
             border-left: 1px solid #334155;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
         }
+
+        /* ==================== MOBILE RESPONSIVE ==================== */
         @media (max-width: 768px) {
             main { flex-direction: column; }
-            #sidebar { width: 100%; max-height: 45vh; }
+            #sidebar {
+                width: 100%;
+                max-height: 38vh;
+                border-radius: 16px 16px 0 0;
+                border-left: none;
+                border-top: 1px solid #334155;
+            }
+            header { padding: 8px 12px; }
+            header h1 { font-size: 1rem; }
+            .hdr-right { gap: 8px; font-size: 0.75rem; }
+            .last-update { font-size: 0.7rem; padding: 3px 8px; }
+            .btn { padding: 6px 10px; min-width: 40px; min-height: 40px; }
         }
-        
+
+        /* ==================== TARGET GAUGE (Little Falls) ==================== */
         .target {
-            padding: 10px 12px;
+            padding: 12px 14px;
             background: #0f172a;
             border-bottom: 2px solid #f97316;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
         }
-        .target-icon { font-size: 1.2rem; }
+        .target-icon { font-size: 1.3rem; }
         .target-info { flex: 1; }
-        .target-name { font-weight: 600; color: #f97316; font-size: 0.85rem; }
-        .target-sub { font-size: 0.6rem; color: #64748b; }
-        .target-vals { display: flex; gap: 10px; text-align: right; }
-        .target-num { font-size: 1.1rem; font-weight: 600; }
+        .target-name { font-weight: 600; color: #f97316; font-size: 0.95rem; }
+        .target-sub { font-size: 0.75rem; color: #94a3b8; margin-top: 2px; }
+        .target-vals { display: flex; gap: 12px; text-align: right; }
+        .target-num { font-size: 1.2rem; font-weight: 600; }
         .target-num.q { color: #60a5fa; }
         .target-num.h { color: #4ade80; }
-        .target-unit { font-size: 0.5rem; color: #64748b; }
-        .target-trend { font-size: 0.9rem; margin-left: 2px; }
-        
+        .target-unit { font-size: 0.65rem; color: #94a3b8; }
+        .target-trend { font-size: 1rem; margin-left: 2px; }
+
+        /* ==================== FLOW INDICATOR BAR ==================== */
         .flow-indicator {
-            padding: 6px 12px;
+            padding: 8px 14px;
             background: rgba(0,0,0,0.3);
             border-bottom: 1px solid #334155;
-            font-size: 0.65rem;
+            font-size: 0.8rem;
             color: #94a3b8;
             display: flex;
             justify-content: space-between;
         }
         .flow-indicator .mult { color: #fbbf24; font-weight: 600; }
-        
+
+        /* ==================== LEARNING BAR ==================== */
         .learning-bar {
-            padding: 5px 12px;
+            padding: 6px 14px;
             background: rgba(139, 92, 246, 0.1);
             border-bottom: 1px solid #334155;
-            font-size: 0.6rem;
+            font-size: 0.75rem;
             color: #a78bfa;
             display: flex;
             justify-content: space-between;
@@ -116,7 +178,8 @@
         }
         .learning-bar .obs-count { font-weight: 600; }
         .learning-bar .accuracy { color: #4ade80; }
-        
+
+        /* ==================== TABS ==================== */
         .tabs {
             display: flex;
             background: rgba(0,0,0,0.2);
@@ -124,106 +187,146 @@
         }
         .tab {
             flex: 1;
-            padding: 6px 8px;
+            padding: 10px 8px;
             text-align: center;
-            font-size: 0.65rem;
+            font-size: 0.8rem;
             cursor: pointer;
             border-bottom: 2px solid transparent;
-            color: #64748b;
+            color: #94a3b8;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s, color 0.15s;
         }
-        .tab:hover { background: rgba(255,255,255,0.02); }
-        .tab.active { color: #60a5fa; border-bottom-color: #3b82f6; }
-        
+        .tab:hover { background: rgba(255,255,255,0.03); }
+        .tab:focus { outline: 2px solid #60a5fa; outline-offset: -2px; }
+        .tab.active { color: #60a5fa; border-bottom-color: #3b82f6; font-weight: 500; }
+
+        @media (max-width: 768px) {
+            .tab { font-size: 0.75rem; padding: 8px 4px; }
+        }
+
         .tab-content { display: none; flex: 1; overflow-y: auto; }
         .tab-content.active { display: block; }
-        
+
+        /* ==================== BRANCH GROUPS ==================== */
         .branch { border-bottom: 1px solid #0f172a; }
         .branch-hd {
-            display: flex; align-items: center; gap: 6px;
-            padding: 6px 10px; background: rgba(0,0,0,0.15);
-            cursor: pointer; font-size: 0.72rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            background: rgba(0,0,0,0.15);
+            cursor: pointer;
+            font-size: 0.85rem;
+            min-height: 44px;
         }
-        .branch-hd:hover { background: rgba(255,255,255,0.02); }
-        .branch-clr { width: 12px; height: 3px; border-radius: 2px; }
-        .branch-nm { flex: 1; font-weight: 500; }
-        .branch-arr { font-size: 0.5rem; color: #64748b; transition: transform 0.15s; }
+        .branch-hd:hover { background: rgba(255,255,255,0.03); }
+        .branch-hd:focus { outline: 2px solid #60a5fa; outline-offset: -2px; }
+        .branch-clr { width: 14px; height: 4px; border-radius: 2px; }
+        .branch-nm { flex: 1; font-weight: 500; color: #e2e8f0; }
+        .branch-arr { font-size: 0.6rem; color: #94a3b8; transition: transform 0.15s; }
         .branch.open .branch-arr { transform: rotate(180deg); }
-        .branch-list { display: none; padding: 2px 6px 6px; }
+        .branch-list { display: none; padding: 4px 8px 8px; }
         .branch.open .branch-list { display: block; }
-        
+
+        /* ==================== GAUGE ROWS ==================== */
         .gauge {
             display: grid;
-            grid-template-columns: 6px 1fr 22px 38px 32px 42px;
-            align-items: center; gap: 4px;
-            padding: 4px 5px; margin: 1px 0;
-            border-radius: 3px; cursor: pointer; font-size: 0.68rem;
+            grid-template-columns: 8px 1fr 26px 50px 40px 55px;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 10px;
+            margin: 2px 0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            min-height: 40px;
+            transition: background 0.15s;
         }
-        .gauge:hover { background: rgba(96,165,250,0.08); }
-        .gauge-dot { width: 5px; height: 5px; border-radius: 50%; }
-        .gauge-nm { color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .gauge-trend { font-size: 0.75rem; text-align: center; }
-        .gauge-pct { color: #a78bfa; text-align: right; font-size: 0.58rem; }
-        .gauge-q { color: #60a5fa; text-align: right; font-size: 0.65rem; }
-        .gauge-t { color: #fbbf24; text-align: right; font-size: 0.62rem; }
-        
+        .gauge:hover { background: rgba(96,165,250,0.1); }
+        .gauge:focus { outline: 2px solid #60a5fa; outline-offset: -2px; }
+        .gauge-dot { width: 6px; height: 6px; border-radius: 50%; }
+        .gauge-nm { color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .gauge-trend { font-size: 0.9rem; text-align: center; }
+        .gauge-pct { color: #a78bfa; text-align: right; font-size: 0.7rem; }
+        .gauge-q { color: #60a5fa; text-align: right; font-size: 0.8rem; font-weight: 500; }
+        .gauge-t { color: #fbbf24; text-align: right; font-size: 0.75rem; }
+
+        @media (max-width: 768px) {
+            .gauge {
+                grid-template-columns: 8px 1fr 26px 55px;
+                font-size: 0.85rem;
+                padding: 10px 12px;
+            }
+            .gauge-pct, .gauge-t { display: none; }
+            .gauge-q { font-size: 0.9rem; }
+        }
+
         .trend-up { color: #ef4444; }
         .trend-down { color: #22c55e; }
-        .trend-stable { color: #64748b; }
+        .trend-stable { color: #94a3b8; }
 
-        /* Documentation panel */
+        /* ==================== DOCUMENTATION PANEL ==================== */
         .docs-panel {
-            padding: 12px;
-            font-size: 0.68rem;
-            line-height: 1.5;
+            padding: 14px;
+            font-size: 0.8rem;
+            line-height: 1.6;
         }
-        .docs-panel h3 { color: #60a5fa; font-size: 0.8rem; margin: 10px 0 6px; }
+        .docs-panel h3 { color: #60a5fa; font-size: 0.95rem; margin: 14px 0 8px; }
         .docs-panel h3:first-child { margin-top: 0; }
-        .docs-panel p { margin-bottom: 8px; color: #94a3b8; }
-        .docs-panel .formula { 
-            background: rgba(0,0,0,0.3); 
-            padding: 6px 10px; 
-            border-radius: 4px; 
+        .docs-panel p { margin-bottom: 10px; color: #cbd5e1; }
+        .docs-panel .formula {
+            background: rgba(0,0,0,0.3);
+            padding: 8px 12px;
+            border-radius: 6px;
             font-family: monospace;
-            margin: 6px 0;
+            margin: 8px 0;
             color: #fbbf24;
+            font-size: 0.85rem;
         }
-        .docs-panel table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 0.62rem; }
-        .docs-panel th, .docs-panel td { padding: 4px 6px; text-align: left; border-bottom: 1px solid #334155; }
+        .docs-panel table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.75rem; }
+        .docs-panel th, .docs-panel td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #334155; }
         .docs-panel th { color: #60a5fa; }
         .docs-panel .source { color: #4ade80; font-style: italic; }
-        
-        /* Learning panel */
-        .learn-panel { padding: 12px; font-size: 0.68rem; }
-        .learn-stat { 
-            display: flex; justify-content: space-between; 
-            padding: 6px 0; border-bottom: 1px solid #334155;
+
+        /* ==================== LEARNING PANEL ==================== */
+        .learn-panel { padding: 14px; font-size: 0.8rem; }
+        .learn-stat {
+            display: flex; justify-content: space-between;
+            padding: 8px 0; border-bottom: 1px solid #334155;
         }
-        .learn-stat .label { color: #94a3b8; }
+        .learn-stat .label { color: #cbd5e1; }
         .learn-stat .value { color: #60a5fa; font-weight: 600; }
-        .learn-btn { 
-            width: 100%; margin-top: 10px; padding: 8px;
+        .learn-btn {
+            width: 100%; margin-top: 12px; padding: 10px;
             background: #dc2626; border: none; color: white;
-            border-radius: 4px; cursor: pointer; font-size: 0.65rem;
+            border-radius: 6px; cursor: pointer; font-size: 0.8rem;
+            min-height: 44px;
+            transition: background 0.15s;
         }
         .learn-btn:hover { background: #b91c1c; }
-        .correction-list { margin-top: 10px; }
+        .learn-btn:focus { outline: 2px solid #fca5a5; outline-offset: 2px; }
+        .correction-list { margin-top: 12px; }
         .correction-item {
             display: flex; justify-content: space-between;
-            padding: 4px 6px; background: rgba(0,0,0,0.2);
-            border-radius: 3px; margin: 2px 0; font-size: 0.6rem;
+            padding: 6px 8px; background: rgba(0,0,0,0.2);
+            border-radius: 4px; margin: 3px 0; font-size: 0.75rem;
         }
-        .correction-item .gauge-name { color: #cbd5e1; }
+        .correction-item .gauge-name { color: #e2e8f0; }
         .correction-item .factor { color: #fbbf24; }
-        
+
+        /* ==================== FOOTER ==================== */
         footer {
             background: #0f172a;
             border-top: 1px solid #334155;
-            padding: 8px 12px;
-            font-size: 0.55rem;
-            color: #475569;
+            padding: 10px 14px;
+            font-size: 0.7rem;
+            color: #64748b;
             text-align: center;
         }
-        footer a { color: #64748b; }
+        footer a { color: #94a3b8; }
         
         .leaflet-popup-content-wrapper { background: #1e293b; color: #e2e8f0; border-radius: 6px; border: 1px solid #3b82f6; }
         .leaflet-popup-tip { background: #1e293b; }
@@ -299,49 +402,52 @@
     </style>
 </head>
 <body>
+    <!-- Skip link for keyboard accessibility -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
     <div id="app">
-        <header>
-            <h1>🌊 Potomac Pulse <span id="about-btn" style="font-size:0.6rem;cursor:pointer;opacity:0.6;vertical-align:middle;" title="About this app">ⓘ</span></h1>
-            <div id="about-tooltip" style="display:none;position:absolute;top:45px;left:60px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:12px 16px;max-width:360px;font-size:0.65rem;color:#94a3b8;line-height:1.5;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
-                <div style="margin-bottom:8px;color:#e2e8f0;">This app tracks water moving through the Potomac basin — every gauge, with travel times to Little Falls. And since Great Falls has no gauge, it estimates that too.</div>
-                <div style="color:#64748b;">Built by Gordon Shumway for paddling the Po' with Toby Woby and Tim Slim. Toby is "working on it." Tim is already wet.</div>
+        <header role="banner">
+            <h1>🌊 Potomac Pulse <span id="about-btn" style="font-size:0.7rem;cursor:pointer;opacity:0.7;vertical-align:middle;" title="About this app" role="button" aria-label="About this app" tabindex="0">ⓘ</span></h1>
+            <div id="about-tooltip" role="tooltip" style="display:none;position:absolute;top:45px;left:60px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:14px 18px;max-width:360px;font-size:0.8rem;color:#cbd5e1;line-height:1.6;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+                <div style="margin-bottom:10px;color:#e2e8f0;">This app tracks water moving through the Potomac basin — every gauge, with travel times to Little Falls. And since Great Falls has no gauge, it estimates that too.</div>
+                <div style="color:#94a3b8;">Built by Gordon Shumway for paddling the Po' with Toby Woby and Tim Slim. Toby is "working on it." Tim is already wet.</div>
             </div>
             <div class="hdr-right">
-                <span class="dot loading" id="dot"></span>
-                <span id="status">Loading...</span>
-                <span id="syncStatus" style="font-size:0.6rem;margin-left:6px;">☁️</span>
-                <span id="lastUpdate" class="last-update"></span>
-                <button class="btn" id="refreshBtn" onclick="fetchData()">↻</button>
+                <span class="dot loading" id="dot" role="status" aria-label="Data status"></span>
+                <span id="status" aria-live="polite">Loading...</span>
+                <span id="syncStatus" style="font-size:0.7rem;margin-left:6px;" aria-label="Cloud sync status">☁️</span>
+                <span id="lastUpdate" class="last-update" aria-live="polite"></span>
+                <button class="btn" id="refreshBtn" onclick="fetchData()" aria-label="Refresh data">↻</button>
             </div>
         </header>
-        <main>
-            <div id="map"></div>
-            <div id="sidebar">
-                <div class="target">
-                    <div class="target-icon">🎯</div>
+        <main id="main-content" role="main">
+            <div id="map" role="application" aria-label="River gauge map"></div>
+            <div id="sidebar" role="complementary" aria-label="Gauge data sidebar">
+                <div class="target" role="region" aria-label="Target gauge: Little Falls">
+                    <div class="target-icon" aria-hidden="true">🎯</div>
                     <div class="target-info">
                         <div class="target-name">Little Falls</div>
                         <div class="target-sub">11,560 sq mi • Target gauge</div>
                     </div>
                     <div class="target-vals">
                         <div>
-                            <div class="target-num q"><span id="lfQ">--</span><span class="target-trend" id="lfTrend"></span></div>
-                            <div class="target-unit">cfs</div>
+                            <div class="target-num q"><span id="lfQ" aria-label="Flow rate">--</span><span class="target-trend" id="lfTrend" aria-label="Trend"></span></div>
+                            <div class="target-unit" title="cubic feet per second">cfs</div>
                         </div>
                         <div>
-                            <div class="target-num h" id="lfH">--</div>
-                            <div class="target-unit">ft</div>
+                            <div class="target-num h" id="lfH" aria-label="Stage height">--</div>
+                            <div class="target-unit" title="feet">ft</div>
                         </div>
                     </div>
                 </div>
                 <div class="flow-indicator">
-                    <span>Travel Multiplier: <span class="mult" id="multVal">--</span></span>
+                    <span>Travel Multiplier: <span class="mult" id="multVal" aria-label="Travel time multiplier">--</span></span>
                 </div>
-                <div class="tabs">
-                    <div class="tab active" data-tab="gauges">📊 All Gauges</div>
-                    <div class="tab" data-tab="greatfalls">🌊 Great Falls</div>
-                    <div class="tab" data-tab="docs">📖 How It Works</div>
-                    <div class="tab" data-tab="learn" id="learnTab">🔒 Learning</div>
+                <div class="tabs" role="tablist" aria-label="Data views">
+                    <div class="tab active" data-tab="gauges" role="tab" aria-selected="true" aria-controls="tab-gauges" tabindex="0">📊 All Gauges</div>
+                    <div class="tab" data-tab="greatfalls" role="tab" aria-selected="false" aria-controls="tab-greatfalls" tabindex="-1">🌊 Great Falls</div>
+                    <div class="tab" data-tab="docs" role="tab" aria-selected="false" aria-controls="tab-docs" tabindex="-1">📖 How It Works</div>
+                    <div class="tab" data-tab="learn" id="learnTab" role="tab" aria-selected="false" aria-controls="tab-learn" tabindex="-1">🔒 Learning</div>
                 </div>
                 <div id="tab-gauges" class="tab-content active">
                     <div id="branches"></div>
@@ -372,7 +478,8 @@
                         </div>
 
                         <div id="gf-forecast-display" style="text-align:center;padding:12px 0;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:8px;margin-bottom:15px;">
-                            <div style="font-size:0.55rem;color:#fbbf24;margin-bottom:6px;">FORECAST: ARRIVING IN <span id="gf-forecast-hrs">--</span> HRS</div>
+                            <div style="font-size:0.7rem;color:#fbbf24;margin-bottom:6px;">FORECAST: <span id="gf-forecast-arrival">--</span></div>
+                            <div style="font-size:0.6rem;color:#94a3b8;margin-bottom:8px;">(in <span id="gf-forecast-hrs">--</span> hrs)</div>
                             <div style="display:flex;justify-content:center;gap:20px;">
                                 <div>
                                     <span id="gf-forecast-cfs" style="font-size:1.2rem;font-weight:600;color:#60a5fa;">--</span>
@@ -587,14 +694,14 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
     // =====================================================
-    // POTOMAC PULSE v18
+    // POTOMAC PULSE v19
     // ADAPTIVE LEARNING MODEL WITH TREND PREDICTIONS
     //
     // © 2026 Gordon Shumway - CC BY-NC 4.0
     // =====================================================
 
     const LF = { id: "01646500", name: "Little Falls", lat: 38.9498, lon: -77.1278, area: 11560 };
-    const STORAGE_KEY = "potomac_learning_v18";
+    const STORAGE_KEY = "potomac_learning_v19";
     const CACHE_KEY = "potomac_cached_data";
     const CACHE_MAX_AGE = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
 
@@ -1383,6 +1490,7 @@
         document.getElementById("gf-forecast-cfs").textContent = gfEstimate.forecastCFS.toLocaleString();
         document.getElementById("gf-forecast-stage").textContent = gfEstimate.forecastStage.toFixed(2);
         document.getElementById("gf-forecast-hrs").textContent = gfEstimate.inputs.travelPoRtoGF.toFixed(1);
+        document.getElementById("gf-forecast-arrival").textContent = fmtArrival(gfEstimate.inputs.travelPoRtoGF);
 
         // Inputs section
         if (gfEstimate.inputs.historicPorCFS) {
@@ -2538,19 +2646,24 @@
 
         if (s === "loading") {
             dot.className = "dot loading";
-            st.textContent = "Loading...";
+            st.textContent = "Fetching data...";
+            st.title = "Connecting to USGS water services";
         } else if (s === "ok") {
             dot.className = "dot";
             st.textContent = "Live";
+            st.title = "Connected to USGS - data is current";
         } else if (s === "cached") {
             dot.className = "dot cached";
             st.textContent = "Cached";
+            st.title = "Using cached data - may be slightly outdated";
         } else if (s === "stale") {
             dot.className = "dot error";
-            st.textContent = "Stale";
+            st.textContent = "Offline";
+            st.title = "Cannot reach USGS - using old cached data";
         } else if (s === "error") {
             dot.className = "dot error";
             st.textContent = "No Data";
+            st.title = "Cannot connect to USGS and no cached data available";
         }
 
         // Update staleness display
@@ -2562,8 +2675,9 @@
         if (!el) return;
 
         if (!lastFetchTime) {
-            el.textContent = "";
-            el.className = "last-update";
+            el.textContent = "No data";
+            el.className = "last-update stale";
+            el.title = "Unable to fetch data";
             return;
         }
 
@@ -2571,28 +2685,41 @@
         const mins = Math.floor(age / 60000);
         const hours = Math.floor(age / 3600000);
 
-        let text, className;
+        let text, className, titleText;
 
-        if (mins < 5) {
-            text = "just now";
+        if (mins < 2) {
+            text = "Updated just now";
             className = "fresh";
+            titleText = "Data is current";
+        } else if (mins < 15) {
+            text = `Updated ${mins}m ago`;
+            className = "fresh";
+            titleText = "Data is current";
         } else if (mins < 30) {
             text = `${mins}m ago`;
             className = "fresh";
+            titleText = "Data is recent";
         } else if (mins < 60) {
             text = `${mins}m ago`;
             className = "recent";
+            titleText = "Data may be slightly outdated";
+        } else if (hours < 3) {
+            text = `${hours}h ago`;
+            className = "old";
+            titleText = "Consider refreshing for latest data";
         } else if (hours < 6) {
             text = `${hours}h ago`;
             className = "old";
+            titleText = "Data is getting stale - refresh recommended";
         } else {
-            text = `${hours}h ago`;
+            text = `${hours}h+ ago`;
             className = "stale";
+            titleText = "Data is stale - refresh when connection available";
         }
 
         el.textContent = text;
         el.className = `last-update ${className}`;
-        el.title = new Date(lastFetchTime).toLocaleString();
+        el.title = `Last fetched: ${new Date(lastFetchTime).toLocaleString()}\n${titleText}`;
     }
 
     // Update staleness display every minute
@@ -2602,6 +2729,28 @@
         if (h < 1) return Math.round(h*60) + "m";
         if (h < 48) return Math.round(h) + "h";
         return (h/24).toFixed(1) + "d";
+    }
+
+    // Format arrival time as human-readable datetime
+    function fmtArrival(hrs) {
+        if (!hrs || hrs <= 0) return "";
+        const arrival = new Date(Date.now() + hrs * 3600000);
+        const now = new Date();
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        // Format time as "3pm" or "10am"
+        const timeStr = arrival.toLocaleTimeString("en-US", { hour: "numeric", hour12: true }).toLowerCase();
+
+        // Determine day label
+        if (arrival.toDateString() === now.toDateString()) {
+            return `Today ${timeStr}`;
+        } else if (arrival.toDateString() === tomorrow.toDateString()) {
+            return `Tomorrow ${timeStr}`;
+        } else {
+            const dayStr = arrival.toLocaleDateString("en-US", { weekday: "short" });
+            return `${dayStr} ${timeStr}`;
+        }
     }
 
     function updateUI() {
@@ -2623,7 +2772,15 @@
                 const tre = document.getElementById(`trend-${id}`);
 
                 if (qe) qe.textContent = d?.q ? Math.round(d.q).toLocaleString() : "n/a";
-                if (te) te.textContent = d?.travelHrs ? fmt(d.travelHrs) : "--";
+                if (te) {
+                    if (d?.travelHrs) {
+                        te.textContent = fmt(d.travelHrs);
+                        te.title = `Arrives: ${fmtArrival(d.travelHrs)}`;
+                    } else {
+                        te.textContent = "--";
+                        te.title = "";
+                    }
+                }
                 if (tre) tre.innerHTML = getTrendIcon(d?.trend, true); // Show magnitude in sidebar
             }
         }
@@ -2931,7 +3088,7 @@
     function downloadTechAppendix() {
         const content = `# Potomac Pulse - Technical Appendix
 
-**Version:** 18.0
+**Version:** 19.0
 **Date:** January 2026
 
 ---
@@ -3176,7 +3333,7 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
 
 ---
 
-*Generated by Potomac Pulse v18*
+*Generated by Potomac Pulse v19*
 `;
 
         // Download as Markdown file
