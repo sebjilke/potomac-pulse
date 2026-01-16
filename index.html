@@ -413,12 +413,13 @@
                 <div style="color:#94a3b8;">Built by Gordon Shumway for paddling the Po' with Toby Woby and Tim Slim. Toby is "working on it." Tim is already wet.</div>
             </div>
             <div class="hdr-right">
-                <span class="dot loading" id="dot" role="status" aria-label="Data status"></span>
-                <span id="status" aria-live="polite">Loading...</span>
-                <span id="syncStatus" style="font-size:0.7rem;margin-left:6px;" aria-label="Cloud sync status">☁️</span>
+                <span class="dot loading" id="dot" role="status" aria-label="Data status" title="Loading..."></span>
                 <span id="lastUpdate" class="last-update" aria-live="polite"></span>
                 <button class="btn" id="refreshBtn" onclick="fetchData()" aria-label="Refresh data">↻</button>
             </div>
+            <!-- Hidden elements for sync status (not shown in header) -->
+            <span id="status" style="display:none;" aria-live="polite">Loading...</span>
+            <span id="syncStatus" style="display:none;">☁️</span>
         </header>
         <main id="main-content" role="main">
             <div id="map" role="application" aria-label="River gauge map"></div>
@@ -2646,24 +2647,24 @@
 
         if (s === "loading") {
             dot.className = "dot loading";
+            dot.title = "Fetching data from USGS...";
             st.textContent = "Fetching data...";
-            st.title = "Connecting to USGS water services";
         } else if (s === "ok") {
             dot.className = "dot";
+            dot.title = "Live - Connected to USGS";
             st.textContent = "Live";
-            st.title = "Connected to USGS - data is current";
         } else if (s === "cached") {
             dot.className = "dot cached";
+            dot.title = "Cached - Using stored data";
             st.textContent = "Cached";
-            st.title = "Using cached data - may be slightly outdated";
         } else if (s === "stale") {
             dot.className = "dot error";
+            dot.title = "Offline - Using old cached data";
             st.textContent = "Offline";
-            st.title = "Cannot reach USGS - using old cached data";
         } else if (s === "error") {
             dot.className = "dot error";
+            dot.title = "No data available";
             st.textContent = "No Data";
-            st.title = "Cannot connect to USGS and no cached data available";
         }
 
         // Update staleness display
@@ -2685,41 +2686,25 @@
         const mins = Math.floor(age / 60000);
         const hours = Math.floor(age / 3600000);
 
-        let text, className, titleText;
+        let text, className;
 
         if (mins < 2) {
-            text = "Updated just now";
+            text = "just now";
             className = "fresh";
-            titleText = "Data is current";
-        } else if (mins < 15) {
-            text = `Updated ${mins}m ago`;
-            className = "fresh";
-            titleText = "Data is current";
-        } else if (mins < 30) {
-            text = `${mins}m ago`;
-            className = "fresh";
-            titleText = "Data is recent";
         } else if (mins < 60) {
             text = `${mins}m ago`;
-            className = "recent";
-            titleText = "Data may be slightly outdated";
-        } else if (hours < 3) {
-            text = `${hours}h ago`;
-            className = "old";
-            titleText = "Consider refreshing for latest data";
+            className = mins < 30 ? "fresh" : "recent";
         } else if (hours < 6) {
             text = `${hours}h ago`;
             className = "old";
-            titleText = "Data is getting stale - refresh recommended";
         } else {
             text = `${hours}h+ ago`;
             className = "stale";
-            titleText = "Data is stale - refresh when connection available";
         }
 
         el.textContent = text;
         el.className = `last-update ${className}`;
-        el.title = `Last fetched: ${new Date(lastFetchTime).toLocaleString()}\n${titleText}`;
+        el.title = `Last updated: ${new Date(lastFetchTime).toLocaleString()}`;
     }
 
     // Update staleness display every minute
