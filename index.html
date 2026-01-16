@@ -105,7 +105,9 @@
 
         /* ==================== MAIN LAYOUT ==================== */
         main { display: flex; flex: 1; overflow: hidden; }
-        #map { flex: 1; background: #e8e8e8; }
+        #map { flex: 1; background: #e8e8e8; display: none; }
+        body.show-map #map { display: block; }
+        body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; border-left: none; }
 
         #sidebar {
             width: 380px;
@@ -125,6 +127,12 @@
                 border-radius: 16px 16px 0 0;
                 border-left: none;
                 border-top: 1px solid #334155;
+            }
+            body:not(.show-map) #sidebar {
+                max-height: none;
+                flex: 1;
+                border-radius: 0;
+                border-top: none;
             }
             header { padding: 8px 12px; }
             header h1 { font-size: 1rem; }
@@ -209,6 +217,52 @@
 
         .tab-content { display: none; flex: 1; overflow-y: auto; }
         .tab-content.active { display: block; }
+
+        /* ==================== FORECAST PERIODS ==================== */
+        .forecast-period {
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            padding: 8px 6px;
+            text-align: center;
+            border: 1px solid #334155;
+        }
+        .forecast-period.current {
+            border-color: #4ade80;
+            background: rgba(74, 222, 128, 0.1);
+        }
+        .forecast-period .fp-time {
+            font-size: 0.6rem;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+        .forecast-period .fp-stage {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #4ade80;
+        }
+        .forecast-period .fp-cfs {
+            font-size: 0.55rem;
+            color: #60a5fa;
+            margin-top: 2px;
+        }
+        .forecast-period .fp-trend {
+            font-size: 0.7rem;
+            margin-top: 2px;
+        }
+        @media (max-width: 500px) {
+            #gf-forecast-periods {
+                grid-template-columns: repeat(3, 1fr) !important;
+            }
+            .forecast-period:nth-child(4),
+            .forecast-period:nth-child(5) {
+                grid-column: auto;
+            }
+        }
+        @media (max-width: 350px) {
+            #gf-forecast-periods {
+                grid-template-columns: repeat(2, 1fr) !important;
+            }
+        }
 
         /* ==================== BRANCH GROUPS ==================== */
         .branch { border-bottom: 1px solid #0f172a; }
@@ -445,15 +499,15 @@
                     <span>Travel Multiplier: <span class="mult" id="multVal" aria-label="Travel time multiplier">--</span></span>
                 </div>
                 <div class="tabs" role="tablist" aria-label="Data views">
-                    <div class="tab active" data-tab="gauges" role="tab" aria-selected="true" aria-controls="tab-gauges" tabindex="0">📊 All Gauges</div>
-                    <div class="tab" data-tab="greatfalls" role="tab" aria-selected="false" aria-controls="tab-greatfalls" tabindex="-1">🌊 Great Falls</div>
+                    <div class="tab active" data-tab="greatfalls" role="tab" aria-selected="true" aria-controls="tab-greatfalls" tabindex="0">🌊 Great Falls</div>
+                    <div class="tab" data-tab="gauges" role="tab" aria-selected="false" aria-controls="tab-gauges" tabindex="-1">📊 All Gauges</div>
                     <div class="tab" data-tab="docs" role="tab" aria-selected="false" aria-controls="tab-docs" tabindex="-1">📖 How It Works</div>
                     <div class="tab" data-tab="learn" id="learnTab" role="tab" aria-selected="false" aria-controls="tab-learn" tabindex="-1">🔒 Learning</div>
                 </div>
-                <div id="tab-gauges" class="tab-content active">
+                <div id="tab-gauges" class="tab-content">
                     <div id="branches"></div>
                 </div>
-                <div id="tab-greatfalls" class="tab-content">
+                <div id="tab-greatfalls" class="tab-content active">
                     <div class="docs-panel" style="max-height:calc(100vh - 280px);overflow-y:auto;">
                         <div style="text-align:center;padding:10px 0 15px;border-bottom:1px solid #334155;margin-bottom:15px;">
                             <div style="font-size:0.6rem;color:#64748b;margin-bottom:5px;">ESTIMATED CONDITIONS AT</div>
@@ -478,23 +532,22 @@
                             <div id="gf-confidence" style="margin-top:5px;font-size:0.55rem;color:#a78bfa;">Confidence: --</div>
                         </div>
 
-                        <div id="gf-forecast-display" style="text-align:center;padding:12px 0;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:8px;margin-bottom:15px;">
-                            <div style="font-size:0.7rem;color:#fbbf24;margin-bottom:6px;">FORECAST: <span id="gf-forecast-arrival">--</span></div>
-                            <div style="font-size:0.6rem;color:#94a3b8;margin-bottom:8px;">(in <span id="gf-forecast-hrs">--</span> hrs)</div>
-                            <div style="display:flex;justify-content:center;gap:20px;">
-                                <div>
-                                    <span id="gf-forecast-cfs" style="font-size:1.2rem;font-weight:600;color:#60a5fa;">--</span>
-                                    <span style="font-size:0.5rem;color:#64748b;"> cfs</span>
-                                </div>
-                                <div>
-                                    <span id="gf-forecast-stage" style="font-size:1.2rem;font-weight:600;color:#4ade80;">--</span>
-                                    <span style="font-size:0.5rem;color:#64748b;"> ft</span>
-                                </div>
+                        <!-- Hidden elements for JS compatibility -->
+                        <span id="gf-forecast-cfs" style="display:none;">--</span>
+                        <span id="gf-forecast-stage" style="display:none;">--</span>
+                        <span id="gf-forecast-hrs" style="display:none;">--</span>
+                        <span id="gf-forecast-arrival" style="display:none;">--</span>
+
+                        <div id="gf-forecast-timeline" style="margin-bottom:15px;">
+                            <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:8px;text-align:center;">48-HOUR FORECAST</div>
+                            <div id="gf-forecast-periods" style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;">
+                                <!-- Forecast periods will be populated by JS -->
                             </div>
-                            <div style="font-size:0.5rem;color:#94a3b8;margin-top:4px;">Based on current PoR reading</div>
+                            <div style="font-size:0.5rem;color:#64748b;margin-top:6px;text-align:center;">Based on upstream gauge readings and travel time model</div>
                         </div>
 
-                        <h3 style="font-size:0.75rem;">📥 Estimation Inputs</h3>
+                        <details style="margin-bottom:15px;">
+                            <summary style="font-size:0.75rem;color:#60a5fa;cursor:pointer;padding:8px 0;">📥 Estimation Inputs</summary>
                         <div style="background:rgba(0,0,0,0.15);padding:10px;border-radius:6px;margin:8px 0 15px;">
                             <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
                                 <span style="color:#94a3b8;">Point of Rocks (83.5%)</span>
@@ -532,32 +585,39 @@
                                 <div style="font-size:0.5rem;color:#64748b;margin-top:2px;">via nearby gauge correlation</div>
                             </div>
                         </div>
+                        </details>
 
-                        <h3 style="font-size:0.75rem;">🔄 Validation Status</h3>
-                        <div id="gf-validation" style="background:rgba(0,0,0,0.15);padding:10px;border-radius:6px;margin:8px 0 15px;font-size:0.6rem;">
+                        <details style="margin-bottom:15px;">
+                            <summary style="font-size:0.75rem;color:#60a5fa;cursor:pointer;padding:8px 0;">🔄 Validation Status</summary>
+                        <div id="gf-validation" style="background:rgba(0,0,0,0.15);padding:10px;border-radius:6px;margin:8px 0 0;font-size:0.6rem;">
                             <div style="color:#94a3b8;">Next validation in <span id="gf-val-countdown" style="color:#fbbf24;">--</span></div>
                             <div style="margin-top:8px;padding-top:8px;border-top:1px solid #334155;">
                                 <div style="color:#64748b;font-size:0.55rem;">Last validation:</div>
                                 <div id="gf-val-last" style="color:#94a3b8;margin-top:3px;">No validations yet</div>
                             </div>
                         </div>
+                        </details>
 
-                        <h3 style="font-size:0.75rem;">📊 How It Works</h3>
-                        <p style="font-size:0.55rem;color:#94a3b8;line-height:1.5;">
-                            <b>Prediction Path:</b> Point of Rocks flow (83.5%) is time-shifted by ~8.5 hrs (at median flow), then Monocacy (7.1%) and Goose Creek (3.0%) are added to estimate current Great Falls conditions.<br><br>
-                            <b>Validation Path:</b> Little Falls readings reveal what Great Falls was ~3.5 hrs earlier. Comparing predictions to validations allows the system to learn and improve.<br><br>
-                            <b>Flow-Binned Learning:</b> Corrections are tracked separately for different flow levels and rising/falling conditions, since the underlying Searcy model was calibrated only on falling hydrographs.
-                        </p>
+                        <details style="margin-bottom:15px;">
+                            <summary style="font-size:0.75rem;color:#60a5fa;cursor:pointer;padding:8px 0;">📊 How It Works</summary>
+                            <p style="font-size:0.55rem;color:#94a3b8;line-height:1.5;margin-top:8px;">
+                                <b>Prediction Path:</b> Point of Rocks flow (83.5%) is time-shifted by ~8.5 hrs (at median flow), then Monocacy (7.1%) and Goose Creek (3.0%) are added to estimate current Great Falls conditions.<br><br>
+                                <b>Validation Path:</b> Little Falls readings reveal what Great Falls was ~3.5 hrs earlier. Comparing predictions to validations allows the system to learn and improve.<br><br>
+                                <b>Flow-Binned Learning:</b> Corrections are tracked separately for different flow levels and rising/falling conditions, since the underlying Searcy model was calibrated only on falling hydrographs.
+                            </p>
+                        </details>
 
-                        <h3 style="font-size:0.75rem;">⚠️ Limitations</h3>
-                        <p style="font-size:0.55rem;color:#f59e0b;line-height:1.5;">
-                            This is an <b>estimate</b>, not a measurement. Accuracy depends on:<br>
-                            • Monocacy + Goose Creek contributions (~10% of flow)<br>
-                            • Travel time model accuracy at current flow<br>
-                            • Accumulated learning observations<br>
-                            • Absence of localized storm events between PoR and GF<br>
-                            • Water withdrawals (DC Aqueduct, WSSC, Fairfax Water) - can reduce flow 5-15% at low flows; learning system corrects for this over time
-                        </p>
+                        <details>
+                            <summary style="font-size:0.75rem;color:#f59e0b;cursor:pointer;padding:8px 0;">⚠️ Limitations</summary>
+                            <p style="font-size:0.55rem;color:#f59e0b;line-height:1.5;margin-top:8px;">
+                                This is an <b>estimate</b>, not a measurement. Accuracy depends on:<br>
+                                • Monocacy + Goose Creek contributions (~10% of flow)<br>
+                                • Travel time model accuracy at current flow<br>
+                                • Accumulated learning observations<br>
+                                • Absence of localized storm events between PoR and GF<br>
+                                • Water withdrawals (DC Aqueduct, WSSC, Fairfax Water) - can reduce flow 5-15% at low flows; learning system corrects for this over time
+                            </p>
+                        </details>
                     </div>
                 </div>
                 <div id="tab-docs" class="tab-content">
@@ -1566,6 +1626,9 @@
             }
         }
 
+        // Update 48-hour forecast periods (6-hour intervals)
+        updateForecastPeriods(gfEstimate);
+
         // GF Learning: Run async operations in parallel (fire-and-forget)
         // Both are independent and don't need to block UI
         Promise.all([
@@ -1575,6 +1638,75 @@
 
         // Update GF learning status display (sync, runs immediately)
         updateGFLearningUI();
+    }
+
+    // Generate 48-hour forecast periods at 6-hour intervals
+    function updateForecastPeriods(gfEst) {
+        const container = document.getElementById("gf-forecast-periods");
+        if (!container || !gfEst) return;
+
+        const periods = [];
+        const now = new Date();
+        const currentCFS = gfEst.cfs;
+        const forecastCFS = gfEst.forecastCFS;
+        const travelTime = gfEst.inputs?.travelPoRtoGF || 8.5;
+
+        // Period 0: NOW (current estimate)
+        periods.push({
+            label: 'Now',
+            time: now,
+            cfs: currentCFS,
+            stage: gfEst.stage,
+            isCurrent: true
+        });
+
+        // For future periods, we extrapolate based on trend
+        // Calculate trend rate (CFS change per hour)
+        const cfsDiff = forecastCFS - currentCFS;
+        const trendPerHour = cfsDiff / travelTime;
+
+        // Periods at 6, 12, 24, 48 hours (showing key decision points)
+        const futureHours = [6, 12, 24, 48];
+        for (const hrs of futureHours) {
+            const futureTime = new Date(now.getTime() + hrs * 60 * 60 * 1000);
+            // Extrapolate CFS based on trend (with dampening for longer forecasts)
+            const dampening = Math.max(0.3, 1 - (hrs / 72)); // Less confident further out
+            const extrapolatedCFS = Math.max(0, currentCFS + (trendPerHour * hrs * dampening));
+            const extrapolatedStage = estimateLFStage(extrapolatedCFS);
+
+            periods.push({
+                label: `+${hrs}h`,
+                time: futureTime,
+                cfs: Math.round(extrapolatedCFS),
+                stage: extrapolatedStage,
+                isCurrent: false
+            });
+        }
+
+        // Render periods
+        container.innerHTML = periods.map(p => {
+            const timeStr = p.isCurrent ? 'Now' : formatForecastTime(p.time);
+            const trendIcon = p.cfs > currentCFS ? '▲' : (p.cfs < currentCFS ? '▼' : '●');
+            const trendColor = p.cfs > currentCFS ? '#ef4444' : (p.cfs < currentCFS ? '#22c55e' : '#94a3b8');
+
+            return `
+                <div class="forecast-period${p.isCurrent ? ' current' : ''}">
+                    <div class="fp-time">${p.label}<br><span style="font-size:0.5rem;">${timeStr}</span></div>
+                    <div class="fp-stage">${p.stage.toFixed(1)} ft</div>
+                    <div class="fp-cfs">${p.cfs.toLocaleString()} cfs</div>
+                    ${!p.isCurrent ? `<div class="fp-trend" style="color:${trendColor}">${trendIcon}</div>` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Format time for forecast periods
+    function formatForecastTime(date) {
+        const hours = date.getHours();
+        const ampm = hours >= 12 ? 'pm' : 'am';
+        const hour12 = hours % 12 || 12;
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        return `${days[date.getDay()]} ${hour12}${ampm}`;
     }
 
     const RIVERS = [
@@ -2974,15 +3106,28 @@
         legend.addTo(map);
     }
 
-    // Tab switching
+    // Tab switching with map visibility toggle
+    function updateMapVisibility(tabName) {
+        if (tabName === 'gauges') {
+            document.body.classList.add('show-map');
+            if (map) map.invalidateSize();
+        } else {
+            document.body.classList.remove('show-map');
+        }
+    }
+
     document.querySelectorAll(".tab").forEach(tab => {
         tab.addEventListener("click", () => {
             document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
             document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
             tab.classList.add("active");
             document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
+            updateMapVisibility(tab.dataset.tab);
         });
     });
+
+    // Initialize map visibility (map hidden by default since Great Falls is now default tab)
+    updateMapVisibility('greatfalls');
 
     // Initialize
     async function init() {
