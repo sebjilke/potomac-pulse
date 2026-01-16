@@ -2689,16 +2689,16 @@
         let text, className;
 
         if (mins < 2) {
-            text = "just now";
+            text = "Updated just now";
             className = "fresh";
         } else if (mins < 60) {
-            text = `${mins}m ago`;
+            text = `Updated ${mins}m ago`;
             className = mins < 30 ? "fresh" : "recent";
         } else if (hours < 6) {
-            text = `${hours}h ago`;
+            text = `Updated ${hours}h ago`;
             className = "old";
         } else {
-            text = `${hours}h+ ago`;
+            text = `Updated ${hours}h+ ago`;
             className = "stale";
         }
 
