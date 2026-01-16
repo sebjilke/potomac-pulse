@@ -121,7 +121,7 @@
             main { flex-direction: column; }
             #sidebar {
                 width: 100%;
-                max-height: 38vh;
+                max-height: 45vh;
                 border-radius: 16px 16px 0 0;
                 border-left: none;
                 border-top: 1px solid #334155;
@@ -687,7 +687,7 @@
                 <img src="gs-logo.png" alt="GS" style="height:14px;opacity:0.6;" onerror="this.style.display='none'">
                 © 2026 <span id="gs-credit" style="cursor:pointer;" title="Click me!">Gordon Shumway</span>
             </span> • Licensed under <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank">CC BY-NC 4.0</a> •
-            Data: USGS • Model: USGS Circular 438 • <span id="toby-egg" style="cursor:help;" title="Toby Woby is working on it...">Not for navigation or life-safety decisions</span>
+            Data: USGS • Model: USGS Circular 438 • <a href="https://github.com/sebjilke/potomac-pulse" target="_blank" style="color:#60a5fa;">Open Source</a> • <span id="toby-egg" style="cursor:help;" title="Toby Woby is working on it...">Not for navigation or life-safety decisions</span>
         </footer>
     </div>
 
@@ -2844,7 +2844,7 @@
 
     function buildBranches() {
         // Column header to explain what each number means (matches .gauge grid layout)
-        let html = `<div class="gauge-header" style="display:grid;grid-template-columns:6px 1fr 22px 38px 32px 42px;align-items:center;gap:4px;padding:4px 5px 6px;margin-bottom:4px;border-bottom:1px solid #334155;font-size:0.5rem;color:#64748b;">
+        let html = `<div class="gauge-header" style="display:grid;grid-template-columns:8px 1fr 26px 50px 40px 55px;align-items:center;gap:6px;padding:6px 10px 8px;margin-bottom:4px;border-bottom:1px solid #334155;font-size:0.65rem;color:#94a3b8;">
             <div></div>
             <div>Gauge</div>
             <div style="text-align:center;">Trend</div>
