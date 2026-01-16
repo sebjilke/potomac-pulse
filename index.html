@@ -759,7 +759,7 @@
                 <img src="gs-logo.png" alt="GS" style="height:14px;opacity:0.6;" onerror="this.style.display='none'">
                 © 2026 <span id="gs-credit" style="cursor:pointer;" title="Click me!">Gordon Shumway</span>
             </span> • Licensed under <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank">CC BY-NC 4.0</a> •
-            Data: USGS • Model: USGS Circular 438 • <a href="https://github.com/sebjilke/potomac-pulse" target="_blank" style="color:#60a5fa;">Open Source</a> • <span id="toby-egg" style="cursor:help;" title="Toby Woby is working on it...">Not for navigation or life-safety decisions</span>
+            Data: USGS • <a href="https://github.com/sebjilke/potomac-pulse" target="_blank" style="color:#60a5fa;">Open Source</a> • <span id="toby-egg" style="cursor:help;" title="Toby Woby is working on it...">Not for navigation or life-safety decisions</span>
         </footer>
     </div>
 
@@ -3636,26 +3636,35 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
     });
 
     // ==================== EASTER EGGS ====================
-    // Toby Woby easter egg - click the disclaimer text
-    let tobyClicks = 0;
-    document.getElementById('toby-egg')?.addEventListener('click', () => {
-        tobyClicks++;
-        const messages = [
-            "Toby Woby is working on it...",
-            "Still working on it...",
-            "Toby says: 'Almost there!'",
-            "Toby Woby: 'Just one more thing...'",
-            "🐕 Toby Woby has been working on it since 2019",
-            "Legend has it, Toby is STILL working on it",
-            "Toby Woby status: perpetually 'working on it'"
-        ];
-        const msg = messages[Math.min(tobyClicks - 1, messages.length - 1)];
-        document.getElementById('toby-egg').title = msg;
-        if (tobyClicks >= 5) {
-            document.getElementById('toby-egg').textContent = "Toby Woby is working on it";
-            document.getElementById('toby-egg').style.color = "#fbbf24";
-        }
-    });
+    // Toby Woby easter egg - hover to preview, double-click to activate
+    const tobyEgg = document.getElementById('toby-egg');
+    if (tobyEgg) {
+        const originalText = tobyEgg.textContent;
+        let isActivated = false;
+
+        // Hover: show preview
+        tobyEgg.addEventListener('mouseenter', () => {
+            if (!isActivated) {
+                tobyEgg.textContent = "Toby Woby is working on it...";
+                tobyEgg.style.color = "#fbbf24";
+            }
+        });
+
+        tobyEgg.addEventListener('mouseleave', () => {
+            if (!isActivated) {
+                tobyEgg.textContent = originalText;
+                tobyEgg.style.color = "";
+            }
+        });
+
+        // Double-click: activate permanently
+        tobyEgg.addEventListener('dblclick', () => {
+            isActivated = true;
+            tobyEgg.textContent = "🐕 Toby Woby is STILL working on it";
+            tobyEgg.style.color = "#fbbf24";
+            tobyEgg.title = "Legend has it, Toby has been 'working on it' since 2019...";
+        });
+    }
     </script>
 </body>
 </html>
