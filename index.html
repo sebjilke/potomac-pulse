@@ -230,6 +230,14 @@
             border-color: #4ade80;
             background: rgba(74, 222, 128, 0.1);
         }
+        .forecast-period.selected {
+            border-color: #60a5fa;
+            background: rgba(96, 165, 250, 0.2);
+            box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.3);
+        }
+        .forecast-period:hover {
+            border-color: #60a5fa;
+        }
         .forecast-period .fp-time {
             font-size: 0.6rem;
             color: #94a3b8;
@@ -759,7 +767,7 @@
                 <img src="gs-logo.png" alt="GS" style="height:14px;opacity:0.6;" onerror="this.style.display='none'">
                 © 2026 <span id="gs-credit" style="cursor:pointer;" title="Click me!">Gordon Shumway</span>
             </span> • Licensed under <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank">CC BY-NC 4.0</a> •
-            Data: USGS • <a href="https://github.com/sebjilke/potomac-pulse" target="_blank" style="color:#60a5fa;">Open Source</a> • <span id="toby-egg" style="cursor:help;" title="Toby Woby is working on it...">Not for navigation or life-safety decisions</span>
+<a href="https://github.com/sebjilke/potomac-pulse" target="_blank" style="color:#60a5fa;">Open Source</a> • <span id="toby-egg" style="cursor:help;" title="Toby Woby is working on it...">Not for navigation or life-safety decisions</span>
         </footer>
     </div>
 
@@ -1694,14 +1702,15 @@
             });
         }
 
-        // Render periods
-        container.innerHTML = periods.map(p => {
+        // Render periods with click handlers
+        const periodHours = [0, 6, 12, 24, 48];
+        container.innerHTML = periods.map((p, i) => {
             const timeStr = p.isCurrent ? 'Now' : formatForecastTime(p.time);
             const trendIcon = p.cfs > currentCFS ? '▲' : (p.cfs < currentCFS ? '▼' : '●');
             const trendColor = p.cfs > currentCFS ? '#ef4444' : (p.cfs < currentCFS ? '#22c55e' : '#94a3b8');
 
             return `
-                <div class="forecast-period${p.isCurrent ? ' current' : ''}">
+                <div class="forecast-period${p.isCurrent ? ' current' : ''}" data-hrs="${periodHours[i]}" data-stage="${p.stage.toFixed(2)}" data-cfs="${p.cfs}" style="cursor:pointer;">
                     <div class="fp-time">${p.label}<br><span style="font-size:0.5rem;">${timeStr}</span></div>
                     <div class="fp-stage">${p.stage.toFixed(2)} ft</div>
                     <div class="fp-cfs">${p.cfs.toLocaleString()} cfs</div>
@@ -1712,6 +1721,19 @@
 
         // Render interactive graph
         renderForecastGraph(periods, currentCFS, trendPerHour);
+
+        // Add click handlers to period cards
+        document.querySelectorAll('.forecast-period').forEach(card => {
+            card.addEventListener('click', () => {
+                // Remove selected from all
+                document.querySelectorAll('.forecast-period').forEach(c => c.classList.remove('selected'));
+                // Add selected to clicked
+                card.classList.add('selected');
+                // Show marker on graph
+                const hrs = parseInt(card.dataset.hrs);
+                showGraphMarker(hrs);
+            });
+        });
     }
 
     // Format time for forecast periods
@@ -1725,6 +1747,7 @@
 
     // Render interactive SVG forecast graph
     let forecastGraphData = []; // Store for tooltip lookups
+    let graphScales = {}; // Store scale functions for marker positioning
 
     function renderForecastGraph(periods, currentCFS, trendPerHour) {
         const svg = document.getElementById('gf-forecast-graph');
@@ -1757,6 +1780,9 @@
         // Scale functions
         const xScale = (hrs) => padding.left + (hrs / 48) * graphWidth;
         const yScale = (stage) => padding.top + (1 - (stage - minStage) / stageRange) * graphHeight;
+
+        // Store scales for external marker positioning
+        graphScales = { xScale, yScale, padding, graphHeight };
 
         // Build path
         const pathPoints = forecastGraphData.map(d => `${xScale(d.hrs)},${yScale(d.stage)}`);
@@ -1810,6 +1836,12 @@
 
             <!-- Invisible hover area -->
             <rect id="gf-graph-hover" x="${padding.left}" y="${padding.top}" width="${graphWidth}" height="${graphHeight}" fill="transparent"/>
+
+            <!-- Selected period marker (hidden by default) -->
+            <g id="gf-graph-marker" style="display:none;">
+                <line id="gf-marker-line" x1="0" y1="${padding.top}" x2="0" y2="${padding.top + graphHeight}" stroke="#60a5fa" stroke-width="2" stroke-dasharray="4,2"/>
+                <circle id="gf-marker-dot" cx="0" cy="0" r="6" fill="#60a5fa" stroke="#0f172a" stroke-width="2"/>
+            </g>
         `;
 
         // Add hover/touch interactions
@@ -1846,6 +1878,44 @@
         hoverRect.addEventListener('touchmove', showTooltip);
         hoverRect.addEventListener('mouseleave', hideTooltip);
         hoverRect.addEventListener('touchend', hideTooltip);
+    }
+
+    // Show marker on graph for selected forecast period
+    function showGraphMarker(hrs) {
+        const marker = document.getElementById('gf-graph-marker');
+        const markerLine = document.getElementById('gf-marker-line');
+        const markerDot = document.getElementById('gf-marker-dot');
+        const tooltip = document.getElementById('gf-graph-tooltip');
+
+        if (!marker || !graphScales.xScale || forecastGraphData.length === 0) return;
+
+        // Find the data point for this hour
+        const dataPoint = forecastGraphData.find(d => d.hrs === hrs) ||
+                          forecastGraphData.reduce((prev, curr) =>
+                              Math.abs(curr.hrs - hrs) < Math.abs(prev.hrs - hrs) ? curr : prev
+                          );
+
+        const x = graphScales.xScale(dataPoint.hrs);
+        const y = graphScales.yScale(dataPoint.stage);
+
+        // Position marker
+        markerLine.setAttribute('x1', x);
+        markerLine.setAttribute('x2', x);
+        markerDot.setAttribute('cx', x);
+        markerDot.setAttribute('cy', y);
+        marker.style.display = 'block';
+
+        // Show tooltip
+        document.getElementById('gf-tooltip-time').textContent = formatForecastTime(dataPoint.time);
+        document.getElementById('gf-tooltip-stage').textContent = dataPoint.stage.toFixed(2);
+        document.getElementById('gf-tooltip-cfs').textContent = dataPoint.cfs.toLocaleString();
+
+        const container = document.getElementById('gf-graph-container');
+        const tooltipX = Math.min(container.clientWidth - 110, Math.max(10, x - 40));
+        const tooltipY = Math.max(5, y - 55);
+        tooltip.style.left = tooltipX + 'px';
+        tooltip.style.top = tooltipY + 'px';
+        tooltip.style.display = 'block';
     }
 
     const RIVERS = [
