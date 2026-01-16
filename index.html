@@ -309,12 +309,12 @@
         .gauge-t { color: #fbbf24; text-align: right; font-size: 0.75rem; }
 
         @media (max-width: 768px) {
-            .gauge {
-                grid-template-columns: 8px 1fr 26px 55px;
+            .gauge, .gauge-header {
+                grid-template-columns: 8px 1fr 26px 55px !important;
                 font-size: 0.85rem;
                 padding: 10px 12px;
             }
-            .gauge-pct, .gauge-t { display: none; }
+            .gauge-pct, .gauge-t, .hdr-basin, .hdr-hrs { display: none !important; }
             .gauge-q { font-size: 0.9rem; }
         }
 
@@ -3104,9 +3104,9 @@
             <div></div>
             <div>Gauge</div>
             <div style="text-align:center;">Trend</div>
-            <div style="text-align:right;">Basin</div>
+            <div class="hdr-basin" style="text-align:right;">Basin</div>
             <div style="text-align:right;">CFS</div>
-            <div style="text-align:right;">Hrs→LF</div>
+            <div class="hdr-hrs" style="text-align:right;">Hrs→LF</div>
         </div>`;
         for (const [bk, b] of Object.entries(BRANCHES)) {
             const open = bk === "mainstem" ? "open" : "";
