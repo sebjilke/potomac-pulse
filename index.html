@@ -1703,7 +1703,7 @@
             return `
                 <div class="forecast-period${p.isCurrent ? ' current' : ''}">
                     <div class="fp-time">${p.label}<br><span style="font-size:0.5rem;">${timeStr}</span></div>
-                    <div class="fp-stage">${p.stage.toFixed(1)} ft</div>
+                    <div class="fp-stage">${p.stage.toFixed(2)} ft</div>
                     <div class="fp-cfs">${p.cfs.toLocaleString()} cfs</div>
                     ${!p.isCurrent ? `<div class="fp-trend" style="color:${trendColor}">${trendIcon}</div>` : ''}
                 </div>
@@ -1792,7 +1792,7 @@
             <circle cx="${xScale(0)}" cy="${yScale(forecastGraphData[0].stage)}" r="4" fill="#4ade80" stroke="#0f172a" stroke-width="2"/>
 
             <!-- Y-axis labels -->
-            ${yTicks.map(s => `<text x="${padding.left - 5}" y="${yScale(s) + 3}" fill="#94a3b8" font-size="9" text-anchor="end">${s.toFixed(1)}</text>`).join('')}
+            ${yTicks.map(s => `<text x="${padding.left - 5}" y="${yScale(s) + 3}" fill="#94a3b8" font-size="9" text-anchor="end">${s.toFixed(2)}</text>`).join('')}
 
             <!-- X-axis labels -->
             ${xLabels.map(h => `<text x="${xScale(h)}" y="${height - 5}" fill="#94a3b8" font-size="9" text-anchor="middle">${h === 0 ? 'Now' : '+' + h + 'h'}</text>`).join('')}
