@@ -540,10 +540,21 @@
 
                         <div id="gf-forecast-timeline" style="margin-bottom:15px;">
                             <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:8px;text-align:center;">48-HOUR FORECAST</div>
+
+                            <!-- Interactive Graph -->
+                            <div id="gf-graph-container" style="position:relative;background:rgba(0,0,0,0.2);border-radius:8px;padding:10px 10px 5px;margin-bottom:10px;">
+                                <div id="gf-graph-tooltip" style="display:none;position:absolute;background:#1e293b;border:1px solid #4ade80;border-radius:4px;padding:6px 10px;font-size:0.7rem;pointer-events:none;z-index:10;white-space:nowrap;">
+                                    <div id="gf-tooltip-time" style="color:#94a3b8;font-size:0.6rem;"></div>
+                                    <div><span id="gf-tooltip-stage" style="color:#4ade80;font-weight:600;"></span> ft</div>
+                                    <div style="font-size:0.55rem;color:#60a5fa;"><span id="gf-tooltip-cfs"></span> cfs</div>
+                                </div>
+                                <svg id="gf-forecast-graph" width="100%" height="120" style="display:block;cursor:crosshair;"></svg>
+                            </div>
+
                             <div id="gf-forecast-periods" style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;">
                                 <!-- Forecast periods will be populated by JS -->
                             </div>
-                            <div style="font-size:0.5rem;color:#64748b;margin-top:6px;text-align:center;">Based on upstream gauge readings and travel time model</div>
+                            <div style="font-size:0.5rem;color:#64748b;margin-top:6px;text-align:center;">Tap/hover graph for details</div>
                         </div>
 
                         <details style="margin-bottom:15px;">
@@ -1698,6 +1709,9 @@
                 </div>
             `;
         }).join('');
+
+        // Render interactive graph
+        renderForecastGraph(periods, currentCFS, trendPerHour);
     }
 
     // Format time for forecast periods
@@ -1707,6 +1721,131 @@
         const hour12 = hours % 12 || 12;
         const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         return `${days[date.getDay()]} ${hour12}${ampm}`;
+    }
+
+    // Render interactive SVG forecast graph
+    let forecastGraphData = []; // Store for tooltip lookups
+
+    function renderForecastGraph(periods, currentCFS, trendPerHour) {
+        const svg = document.getElementById('gf-forecast-graph');
+        if (!svg) return;
+
+        const container = svg.parentElement;
+        const width = container.clientWidth - 20; // Account for padding
+        const height = 120;
+        const padding = { top: 15, right: 10, bottom: 25, left: 35 };
+        const graphWidth = width - padding.left - padding.right;
+        const graphHeight = height - padding.top - padding.bottom;
+
+        // Generate more data points for smooth curve (every 2 hours for 48 hours)
+        const now = new Date();
+        forecastGraphData = [];
+        for (let hrs = 0; hrs <= 48; hrs += 2) {
+            const time = new Date(now.getTime() + hrs * 60 * 60 * 1000);
+            const dampening = Math.max(0.3, 1 - (hrs / 72));
+            const cfs = Math.max(0, currentCFS + (trendPerHour * hrs * dampening));
+            const stage = estimateLFStage(cfs);
+            forecastGraphData.push({ hrs, time, cfs: Math.round(cfs), stage });
+        }
+
+        // Find min/max for scaling
+        const stages = forecastGraphData.map(d => d.stage);
+        const minStage = Math.floor(Math.min(...stages) * 2) / 2 - 0.5;
+        const maxStage = Math.ceil(Math.max(...stages) * 2) / 2 + 0.5;
+        const stageRange = maxStage - minStage || 1;
+
+        // Scale functions
+        const xScale = (hrs) => padding.left + (hrs / 48) * graphWidth;
+        const yScale = (stage) => padding.top + (1 - (stage - minStage) / stageRange) * graphHeight;
+
+        // Build path
+        const pathPoints = forecastGraphData.map(d => `${xScale(d.hrs)},${yScale(d.stage)}`);
+        const linePath = `M ${pathPoints.join(' L ')}`;
+
+        // Area fill path (to bottom)
+        const areaPath = `M ${xScale(0)},${yScale(forecastGraphData[0].stage)} L ${pathPoints.join(' L ')} L ${xScale(48)},${padding.top + graphHeight} L ${xScale(0)},${padding.top + graphHeight} Z`;
+
+        // Y-axis labels
+        const yTicks = [];
+        const tickStep = stageRange > 3 ? 1 : 0.5;
+        for (let s = Math.ceil(minStage / tickStep) * tickStep; s <= maxStage; s += tickStep) {
+            yTicks.push(s);
+        }
+
+        // X-axis labels (0h, 12h, 24h, 36h, 48h)
+        const xLabels = [0, 12, 24, 36, 48];
+
+        svg.setAttribute('width', width);
+        svg.setAttribute('height', height);
+        svg.innerHTML = `
+            <!-- Grid lines -->
+            ${yTicks.map(s => `<line x1="${padding.left}" y1="${yScale(s)}" x2="${width - padding.right}" y2="${yScale(s)}" stroke="#334155" stroke-width="1" stroke-dasharray="2,2"/>`).join('')}
+            ${xLabels.map(h => `<line x1="${xScale(h)}" y1="${padding.top}" x2="${xScale(h)}" y2="${padding.top + graphHeight}" stroke="#334155" stroke-width="1" stroke-dasharray="2,2"/>`).join('')}
+
+            <!-- Area fill -->
+            <path d="${areaPath}" fill="url(#graphGradient)" opacity="0.3"/>
+
+            <!-- Line -->
+            <path d="${linePath}" fill="none" stroke="#4ade80" stroke-width="2"/>
+
+            <!-- Current point marker -->
+            <circle cx="${xScale(0)}" cy="${yScale(forecastGraphData[0].stage)}" r="4" fill="#4ade80" stroke="#0f172a" stroke-width="2"/>
+
+            <!-- Y-axis labels -->
+            ${yTicks.map(s => `<text x="${padding.left - 5}" y="${yScale(s) + 3}" fill="#94a3b8" font-size="9" text-anchor="end">${s.toFixed(1)}</text>`).join('')}
+
+            <!-- X-axis labels -->
+            ${xLabels.map(h => `<text x="${xScale(h)}" y="${height - 5}" fill="#94a3b8" font-size="9" text-anchor="middle">${h === 0 ? 'Now' : '+' + h + 'h'}</text>`).join('')}
+
+            <!-- Y-axis title -->
+            <text x="10" y="${padding.top + graphHeight / 2}" fill="#4ade80" font-size="9" text-anchor="middle" transform="rotate(-90, 10, ${padding.top + graphHeight / 2})">ft</text>
+
+            <!-- Gradient definition -->
+            <defs>
+                <linearGradient id="graphGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#4ade80" stop-opacity="0.4"/>
+                    <stop offset="100%" stop-color="#4ade80" stop-opacity="0"/>
+                </linearGradient>
+            </defs>
+
+            <!-- Invisible hover area -->
+            <rect id="gf-graph-hover" x="${padding.left}" y="${padding.top}" width="${graphWidth}" height="${graphHeight}" fill="transparent"/>
+        `;
+
+        // Add hover/touch interactions
+        const hoverRect = document.getElementById('gf-graph-hover');
+        const tooltip = document.getElementById('gf-graph-tooltip');
+
+        function showTooltip(e) {
+            const rect = svg.getBoundingClientRect();
+            const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+            const hrs = Math.max(0, Math.min(48, ((x - padding.left) / graphWidth) * 48));
+
+            // Find closest data point
+            const closest = forecastGraphData.reduce((prev, curr) =>
+                Math.abs(curr.hrs - hrs) < Math.abs(prev.hrs - hrs) ? curr : prev
+            );
+
+            document.getElementById('gf-tooltip-time').textContent = formatForecastTime(closest.time);
+            document.getElementById('gf-tooltip-stage').textContent = closest.stage.toFixed(2);
+            document.getElementById('gf-tooltip-cfs').textContent = closest.cfs.toLocaleString();
+
+            // Position tooltip
+            const tooltipX = Math.min(width - 100, Math.max(10, xScale(closest.hrs) - 40));
+            const tooltipY = Math.max(5, yScale(closest.stage) - 55);
+            tooltip.style.left = tooltipX + 'px';
+            tooltip.style.top = tooltipY + 'px';
+            tooltip.style.display = 'block';
+        }
+
+        function hideTooltip() {
+            tooltip.style.display = 'none';
+        }
+
+        hoverRect.addEventListener('mousemove', showTooltip);
+        hoverRect.addEventListener('touchmove', showTooltip);
+        hoverRect.addEventListener('mouseleave', hideTooltip);
+        hoverRect.addEventListener('touchend', hideTooltip);
     }
 
     const RIVERS = [
