@@ -508,7 +508,7 @@
                     </div>
                 </div>
                 <div class="flow-indicator">
-                    <span>Travel Multiplier: <span class="mult" id="multVal" aria-label="Travel time multiplier">--</span></span>
+                    <span>PoR → LF: <span class="mult" id="multVal" aria-label="Current travel time from Point of Rocks to Little Falls">--</span></span>
                 </div>
                 <div class="tabs" role="tablist" aria-label="Data views">
                     <div class="tab active" data-tab="greatfalls" role="tab" aria-selected="true" aria-controls="tab-greatfalls" tabindex="0">🌊 Great Falls</div>
@@ -3272,7 +3272,9 @@
         
         const mult = data._mult;
         if (mult) {
-            document.getElementById("multVal").textContent = mult.mult.toFixed(2) + "×";
+            // Show actual travel time in hours (more intuitive than multiplier)
+            const hrs = Math.round(mult.travelHrs);
+            document.getElementById("multVal").textContent = `~${hrs} hrs`;
         }
         
         for (const b of Object.values(BRANCHES)) {
