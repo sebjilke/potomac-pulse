@@ -1114,6 +1114,13 @@
 
             // Check if this prediction is ready for validation (due time has passed)
             if (nowDate >= validationDue) {
+                // Sanity check: Skip validation if LF reading is unrealistic
+                // (gauge malfunction, freezing, or data error)
+                if (lf.q < 500 || lf.q > 500000) {
+                    console.warn(`⚠️ Skipping GF validation: LF reading ${lf.q} cfs is outside valid range (500-500k)`);
+                    continue;
+                }
+
                 // Back-calculate what GF was based on current LF
                 // GF_actual = LF - Seneca (roughly)
                 const senecaFlow = seneca?.q || (lf.q * 0.01);  // 1% estimate if no data
@@ -3550,7 +3557,22 @@ Stage: 3.2 ft (3.0 - 3.4 ft)
 
 The range represents ±1 standard deviation based on historical prediction errors for that flow bin and rising/falling state.
 
-### 3.6 Edwards Ferry Cross-Check
+### 3.6 Confidence Indicator
+
+The confidence display (HIGH / MEDIUM / LOW) reflects **data quality**, not prediction accuracy:
+
+| Confidence | Conditions |
+|------------|------------|
+| **HIGH** | Has actual tributary data (Monocacy + Goose) AND uses time-shifted historic PoR AND Edwards Ferry trend agrees |
+| **MEDIUM** | Missing time-shifted data OR Edwards Ferry trend disagrees |
+| **LOW** | Missing tributary data OR no trend data from Point of Rocks |
+
+**Downgrades occur when:**
+- Edwards Ferry trend (rising/falling) conflicts with the estimate
+- Insufficient historical data for time-shifting
+- Tributary gauges are offline
+
+### 3.7 Edwards Ferry Cross-Check
 
 A hidden gauge at Edwards Ferry (USGS 01644148) sits just ~2-3 miles upstream of Great Falls, draining 96.3% of the basin. This gauge provides stage data only (no discharge), but we use it to:
 

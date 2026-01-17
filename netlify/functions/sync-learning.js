@@ -391,6 +391,19 @@ async function saveGFLearningData(client, data) {
         if (action === 'recordValidation') {
             const { predictionId, actualCFS, lfCFS, senecaCFS } = data;
 
+            // Sanity check: Reject validation if actualCFS is unrealistic
+            // (gauge malfunction, freezing, or data error)
+            if (!actualCFS || actualCFS < 500 || actualCFS > 500000) {
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        error: 'Invalid actualCFS value',
+                        reason: 'Outside valid range (500-500k cfs) - possible gauge malfunction'
+                    })
+                };
+            }
+
             // Get the pending prediction
             const { data: predictions, error: fetchErr } = await client
                 .from('potomac_observations')
