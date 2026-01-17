@@ -1572,10 +1572,15 @@
         document.getElementById("gf-trend").innerHTML =
             `<span style="color:${stateColors[gfEstimate.flowState]}">${stateIcons[gfEstimate.flowState]}</span>`;
 
-        // Confidence
+        // Confidence - only show once we have trend data (NWS loaded)
         const confColors = { high: '#4ade80', medium: '#fbbf24', low: '#f87171' };
-        document.getElementById("gf-confidence").innerHTML =
-            `Confidence: <span style="color:${confColors[gfEstimate.confidence]}">${gfEstimate.confidence.toUpperCase()}</span>`;
+        const por = data["01638500"];
+        if (por?.trend) {
+            document.getElementById("gf-confidence").innerHTML =
+                `Confidence: <span style="color:${confColors[gfEstimate.confidence]}">${gfEstimate.confidence.toUpperCase()}</span>`;
+        } else {
+            document.getElementById("gf-confidence").textContent = "Confidence: --";
+        }
 
         // Forecast section - always shows current PoR arriving at GF
         document.getElementById("gf-forecast-cfs").textContent = gfEstimate.forecastCFS.toLocaleString();
