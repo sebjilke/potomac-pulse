@@ -631,9 +631,10 @@
                         <details style="margin-bottom:15px;">
                             <summary style="font-size:0.75rem;color:#60a5fa;cursor:pointer;padding:8px 0;">📊 How It Works</summary>
                             <p style="font-size:0.55rem;color:#94a3b8;line-height:1.5;margin-top:8px;">
-                                <b>Prediction Path:</b> Point of Rocks flow (83.5%) is time-shifted by ~8.5 hrs (at median flow), then Monocacy (7.1%) and Goose Creek (3.0%) are added to estimate current Great Falls conditions.<br><br>
-                                <b>Validation Path:</b> Little Falls readings reveal what Great Falls was ~3.5 hrs earlier. Comparing predictions to validations allows the system to learn and improve.<br><br>
-                                <b>Flow-Binned Learning:</b> Corrections are tracked separately for different flow levels and rising/falling conditions, since the underlying Searcy model was calibrated only on falling hydrographs.
+                                <b>Prediction Path:</b> Point of Rocks flow (83.5%) is time-shifted by ~24 hrs (at median flow), then Monocacy (7.1%) and Goose Creek (3.0%) are added to estimate current Great Falls conditions.<br><br>
+                                <b>Validation Path:</b> Little Falls readings reveal what Great Falls was ~8 hrs earlier. Comparing predictions to validations allows the system to learn and improve over time.<br><br>
+                                <b>Flow-Binned Learning:</b> Corrections are tracked separately for different flow levels (0-3k, 3-6k, 6-12k, etc.) and rising/falling/steady conditions.<br><br>
+                                <b>Background Updates:</b> A scheduled job runs every 4 hours to fetch data, validate predictions, and update corrections—even when no browsers are open.
                             </p>
                         </details>
 
@@ -680,16 +681,22 @@
                         <b>Great Falls = Point of Rocks + Monocacy + Goose Creek</b>
                         </p>
                         <p style="font-size:0.55rem;color:#94a3b8;">
-                        We use the Point of Rocks reading from ~8 hours ago (the time it takes water to travel from there to Great Falls). The Monocacy and Goose Creek tributaries add about 10% more flow.
+                        We use the Point of Rocks reading from <b>~24 hours ago</b> (the time it takes water to travel from there to Great Falls at median flow). Travel times are dynamic—faster at high flows (~13 hrs), slower at low flows (~33 hrs). The Monocacy and Goose Creek tributaries add about 10% more flow.
                         </p>
                         <p style="font-size:0.55rem;color:#94a3b8;margin-top:6px;">
-                        <b>Validation:</b> Every estimate gets checked ~3.5 hours later when that water reaches the Little Falls gauge. Over time, the system learns correction factors to improve accuracy.
+                        <b>Validation:</b> Every estimate gets checked <b>~8 hours later</b> when that water reaches the Little Falls gauge. Over time, the system learns correction factors to improve accuracy.
+                        </p>
+                        <p style="font-size:0.55rem;color:#4ade80;margin-top:6px;">
+                        <b>Historical accuracy:</b> The system continuously validates predictions against actual LF readings. Current accuracy is shown in the main display (e.g., "97.2% based on 169 validations").
                         </p>
                         <p style="font-size:0.55rem;color:#fbbf24;margin-top:6px;">
                         <b>Uncertainty range:</b> Once we have enough validation data (5+ observations per flow bin), the app shows a range (e.g., "3.2 ft (3.0-3.4)") representing ±1 standard deviation based on historical prediction errors.
                         </p>
                         <p style="font-size:0.55rem;color:#06b6d4;margin-top:6px;">
-                        <b>Cross-check:</b> A nearby gauge just above Great Falls provides an independent estimate. Once enough correlation data accumulates (10+ observations), a "Cross-check" value appears showing this second estimate with an agreement indicator (✓ good / ⚠ moderate / ✗ large difference).
+                        <b>Edwards Ferry cross-check:</b> A nearby gauge (USGS 01644148) just 2-3 miles upstream of Great Falls provides an independent estimate via stage→discharge correlation. Once enough data accumulates (10+ observations), a "Cross-check" value appears with an agreement indicator.
+                        </p>
+                        <p style="font-size:0.55rem;color:#a78bfa;margin-top:6px;">
+                        <b>Background learning:</b> A scheduled job runs every 4 hours to fetch data, validate predictions, and update corrections—even when no browsers are open. This means the model continuously improves 24/7.
                         </p>
 
                         <h3>The Gauges</h3>
@@ -3606,28 +3613,31 @@ No USGS gauge exists at Great Falls. We estimate it by combining upstream gauge 
 ### 3.2 Estimation Formula
 
 \`\`\`
-GF_estimated = PoR(t - 8.5h) + Monocacy + Goose Creek - Correction
+GF_estimated = PoR(t - T_por_gf) + Monocacy + Goose Creek - Correction
 \`\`\`
 
 Where:
-- PoR(t - 8.5h) = Point of Rocks reading from ~8.5 hours ago (time-shifted)
+- PoR(t - T_por_gf) = Point of Rocks reading from ~24 hours ago at median flow (time-shifted)
 - Monocacy = current Monocacy reading (joins 6mi below PoR)
 - Goose Creek = current Goose Creek reading (joins 12mi below PoR)
-- Correction = learned correction factor for current flow bin
+- Correction = learned correction factor for current flow bin and flow state
 
-### 3.3 Time Shifting
+### 3.3 Travel Times (Dynamic)
 
-We use the PoR reading from when that water was at Great Falls, not the current reading:
+Travel times scale with flow using the Searcy power law. At median flow (~5,000 cfs), the total PoR→LF travel is 32.4 hours, split as:
+- **PoR → GF:** 75% of total = **24.3 hours** (slower pooled sections above falls)
+- **GF → LF:** 25% of total = **8.1 hours** (faster through gorge)
 
-| Flow Condition | PoR → GF Travel Time |
-|----------------|----------------------|
-| Low (<3,000 cfs) | ~11-16 hrs |
-| Median (~5,000 cfs) | ~8.5 hrs |
-| High (>15,000 cfs) | ~3 hrs |
+| Flow Condition | PoR → GF | GF → LF | Total PoR → LF |
+|----------------|----------|---------|----------------|
+| Low (<3,000 cfs) | ~33 hrs | ~11 hrs | ~44 hrs |
+| Median (~5,000 cfs) | ~24 hrs | ~8 hrs | ~32 hrs |
+| High (15,000 cfs) | ~13 hrs | ~4.5 hrs | ~18 hrs |
+| Flood (50,000 cfs) | ~7 hrs | ~2.3 hrs | ~9 hrs |
 
 ### 3.4 Validation & Learning
 
-Each GF estimate is validated ~3.5 hours later when that water reaches Little Falls:
+Each GF estimate is validated ~8 hours later when that water reaches Little Falls:
 
 1. Store prediction with timestamp, flow bin, and rising/falling state
 2. When water arrives at LF, calculate what GF actually was
@@ -3675,6 +3685,45 @@ A hidden gauge at Edwards Ferry (USGS 01644148) sits just ~2-3 miles upstream of
    - ✗ (red): >25% difference
 
 This provides users confidence when both methods agree, and flags potential issues when they diverge.
+
+### 3.8 Historical Accuracy
+
+The system tracks all validations and displays aggregate accuracy:
+
+\`\`\`
+● Historical accuracy: 97.2% based on 169 validations
+\`\`\`
+
+**How it's calculated:**
+- Each validation computes error as: (predicted - actual) / actual × 100
+- Average absolute error is tracked across all validations
+- Accuracy = 100% - average error %
+
+**Color coding:**
+- 🟢 Green (≥97%): Excellent accuracy
+- 🟡 Yellow (95-97%): Good accuracy
+- 🔴 Red (<95%): Needs more data or model refinement
+
+### 3.9 Background Learning System
+
+A scheduled serverless function runs every 4 hours to ensure continuous learning:
+
+1. **Fetch USGS data** for all gauges (PoR, LF, tributaries, Edwards Ferry)
+2. **Store PoR history** to cloud database (48-hour window)
+3. **Validate pending predictions** against actual LF readings
+4. **Update correction bins** with new error data
+5. **Update Edwards Ferry correlation** for cross-check
+6. **Make new prediction** and store for future validation
+
+This means the model improves 24/7, even when no browsers are open.
+
+### 3.10 Gauge Malfunction Protection
+
+To prevent bad data from corrupting learned corrections:
+
+- **Sanity checks:** LF readings <500 or >500,000 cfs are rejected
+- **Outlier filtering:** Errors >3 standard deviations from bin mean are discarded
+- **EMA smoothing:** Exponential moving average (α=0.3) weights recent observations more heavily
 
 ---
 
