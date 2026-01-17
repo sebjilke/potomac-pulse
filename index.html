@@ -678,32 +678,32 @@
 
                         <h3>Great Falls Estimation</h3>
                         <p style="font-size:0.6rem;color:#94a3b8;">
-                        There's no gauge at Great Falls, so we estimate it using a <b>weighted ensemble</b> of two models:
+                        There's no gauge at Great Falls, so we estimate it using a weighted ensemble of two models:
                         </p>
-                        <p style="font-size:0.55rem;color:#60a5fa;margin:6px 0;">
+                        <p style="font-size:0.55rem;color:#60a5fa;margin:8px 0;">
                         <b>GF = 60% × (PoR model) + 40% × (Edwards Ferry model)</b>
                         </p>
-                        <p style="font-size:0.55rem;color:#94a3b8;">
-                        <b>PoR Model (60%):</b> Time-shifted Point of Rocks reading from <b>~24 hours ago</b> at median flow (faster at high flows ~13 hrs, slower at low flows ~33 hrs), plus Monocacy (7.1%) and Goose Creek (3.0%) tributaries.
-                        </p>
-                        <p style="font-size:0.55rem;color:#06b6d4;margin-top:6px;">
-                        <b>Edwards Ferry Model (40%):</b> A power-law correlation built from 17,000 paired observations with R²=0.98. Edwards Ferry (USGS 01644148) is just 2-3 miles upstream of Great Falls, providing a very direct signal.<br>
-                        <span style="font-family:monospace;font-size:0.5rem;color:#4ade80;">LF_cfs = 108 × EF_stage^2.64</span>
+                        <p style="font-size:0.55rem;color:#94a3b8;margin-top:10px;">
+                        <b>PoR Model (60%):</b> Time-shifted Point of Rocks reading from ~24 hours ago at median flow (faster at high flows ~13 hrs, slower at low flows ~33 hrs), plus Monocacy (7.1%) and Goose Creek (3.0%) tributaries.
                         </p>
                         <p style="font-size:0.55rem;color:#94a3b8;margin-top:6px;">
+                        <b>Edwards Ferry Model (40%):</b> Power-law correlation from 17,000 paired observations (R²=0.98). Edwards Ferry is just 2-3 miles upstream of Great Falls.<br>
+                        <span style="font-family:monospace;font-size:0.5rem;color:#60a5fa;">LF_cfs = 108 × EF_stage^2.64</span>
+                        </p>
+                        <p style="font-size:0.55rem;color:#94a3b8;margin-top:10px;">
                         <b>Why ensemble?</b> PoR is 20+ miles upstream but has discharge data; EF is much closer but only has stage. Blending both captures distant upstream changes AND local conditions near GF.
                         </p>
+                        <p style="font-size:0.55rem;color:#94a3b8;margin-top:10px;">
+                        <b>Validation:</b> Every estimate gets checked ~8 hours later when that water reaches the Little Falls gauge. The system learns flow-binned correction factors for different conditions.
+                        </p>
                         <p style="font-size:0.55rem;color:#94a3b8;margin-top:6px;">
-                        <b>Validation:</b> Every estimate gets checked <b>~8 hours later</b> when that water reaches the Little Falls gauge. The system learns flow-binned correction factors for different conditions.
+                        <b>Accuracy:</b> Continuously validated against actual LF readings. Current accuracy shown in the main display (e.g., "97.2% based on 169 validations").
                         </p>
-                        <p style="font-size:0.55rem;color:#4ade80;margin-top:6px;">
-                        <b>Historical accuracy:</b> The system continuously validates predictions against actual LF readings. Current accuracy is shown in the main display (e.g., "97.2% based on 169 validations").
+                        <p style="font-size:0.55rem;color:#94a3b8;margin-top:6px;">
+                        <b>Uncertainty:</b> With 5+ observations per flow bin, shows a range (e.g., "3.2 ft (3.0-3.4)") representing ±1 standard deviation.
                         </p>
-                        <p style="font-size:0.55rem;color:#fbbf24;margin-top:6px;">
-                        <b>Uncertainty range:</b> Once we have enough validation data (5+ observations per flow bin), the app shows a range (e.g., "3.2 ft (3.0-3.4)") representing ±1 standard deviation based on historical prediction errors.
-                        </p>
-                        <p style="font-size:0.55rem;color:#a78bfa;margin-top:6px;">
-                        <b>Background learning:</b> A scheduled job runs every 4 hours to fetch data, validate predictions, and update corrections—even when no browsers are open. This means the model continuously improves 24/7.
+                        <p style="font-size:0.55rem;color:#94a3b8;margin-top:6px;">
+                        <b>Background learning:</b> A scheduled job runs every 4 hours to fetch data, validate predictions, and update corrections—even when no browsers are open.
                         </p>
 
                         <h3>The Gauges</h3>
