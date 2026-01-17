@@ -318,12 +318,16 @@
 
         @media (max-width: 768px) {
             .gauge, .gauge-header {
-                grid-template-columns: 8px 1fr 26px 55px !important;
-                font-size: 0.85rem;
-                padding: 10px 12px;
+                grid-template-columns: 8px 1fr 20px 36px 36px 42px !important;
+                font-size: 0.75rem;
+                padding: 8px 8px;
+                gap: 4px !important;
             }
-            .gauge-pct, .gauge-t, .hdr-basin, .hdr-hrs { display: none !important; }
-            .gauge-q { font-size: 0.9rem; }
+            .gauge-nm { font-size: 0.7rem; }
+            .gauge-trend { font-size: 0.8rem; }
+            .gauge-pct { font-size: 0.6rem; }
+            .gauge-q { font-size: 0.7rem; }
+            .gauge-t { font-size: 0.65rem; }
         }
 
         .trend-up { color: #ef4444; }
