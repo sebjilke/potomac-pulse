@@ -634,10 +634,10 @@
                         <details style="margin-bottom:15px;">
                             <summary style="font-size:0.75rem;color:#60a5fa;cursor:pointer;padding:8px 0;">📊 How It Works</summary>
                             <p style="font-size:0.55rem;color:#94a3b8;line-height:1.5;margin-top:8px;">
-                                <b>Prediction Path:</b> Point of Rocks flow (83.5%) is time-shifted by ~24 hrs (at median flow), then Monocacy (7.1%) and Goose Creek (3.0%) are added to estimate current Great Falls conditions.<br><br>
-                                <b>Validation Path:</b> Little Falls readings reveal what Great Falls was ~8 hrs earlier. Comparing predictions to validations allows the system to learn and improve over time.<br><br>
-                                <b>Flow-Binned Learning:</b> Corrections are tracked separately for different flow levels (0-3k, 3-6k, 6-12k, etc.) and rising/falling/steady conditions.<br><br>
-                                <b>Background Updates:</b> A scheduled job runs every 4 hours to fetch data, validate predictions, and update corrections—even when no browsers are open.
+                                <b>Weighted Ensemble:</b> GF estimate = 60% (PoR model) + 40% (Edwards Ferry model). The PoR model uses time-shifted upstream data + tributaries; the EF model uses a power-law correlation (R²=0.98) from a gauge just 2-3 miles upstream of GF.<br><br>
+                                <b>PoR Model:</b> Point of Rocks flow (83.5%) is time-shifted by ~24 hrs (at median flow), then Monocacy (7.1%) and Goose Creek (3.0%) are added.<br><br>
+                                <b>EF Model:</b> LF_cfs = 108 × EF_stage^2.64 — built from 17,000 paired observations with 8-hour time-shift optimization and hysteresis analysis.<br><br>
+                                <b>Validation:</b> Every estimate gets checked ~8 hrs later when water reaches Little Falls. The system learns flow-binned corrections (0-3k, 3-6k, 6-12k, etc.) for rising/falling/steady conditions.
                             </p>
                         </details>
 
@@ -678,25 +678,29 @@
 
                         <h3>Great Falls Estimation</h3>
                         <p style="font-size:0.6rem;color:#94a3b8;">
-                        There's no gauge at Great Falls, so we estimate it by combining upstream gauges:
+                        There's no gauge at Great Falls, so we estimate it using a <b>weighted ensemble</b> of two models:
                         </p>
                         <p style="font-size:0.55rem;color:#60a5fa;margin:6px 0;">
-                        <b>Great Falls = Point of Rocks + Monocacy + Goose Creek</b>
+                        <b>GF = 60% × (PoR model) + 40% × (Edwards Ferry model)</b>
                         </p>
                         <p style="font-size:0.55rem;color:#94a3b8;">
-                        We use the Point of Rocks reading from <b>~24 hours ago</b> (the time it takes water to travel from there to Great Falls at median flow). Travel times are dynamic—faster at high flows (~13 hrs), slower at low flows (~33 hrs). The Monocacy and Goose Creek tributaries add about 10% more flow.
+                        <b>PoR Model (60%):</b> Time-shifted Point of Rocks reading from <b>~24 hours ago</b> at median flow (faster at high flows ~13 hrs, slower at low flows ~33 hrs), plus Monocacy (7.1%) and Goose Creek (3.0%) tributaries.
+                        </p>
+                        <p style="font-size:0.55rem;color:#06b6d4;margin-top:6px;">
+                        <b>Edwards Ferry Model (40%):</b> A power-law correlation built from 17,000 paired observations with R²=0.98. Edwards Ferry (USGS 01644148) is just 2-3 miles upstream of Great Falls, providing a very direct signal.<br>
+                        <span style="font-family:monospace;font-size:0.5rem;color:#4ade80;">LF_cfs = 108 × EF_stage^2.64</span>
                         </p>
                         <p style="font-size:0.55rem;color:#94a3b8;margin-top:6px;">
-                        <b>Validation:</b> Every estimate gets checked <b>~8 hours later</b> when that water reaches the Little Falls gauge. Over time, the system learns correction factors to improve accuracy.
+                        <b>Why ensemble?</b> PoR is 20+ miles upstream but has discharge data; EF is much closer but only has stage. Blending both captures distant upstream changes AND local conditions near GF.
+                        </p>
+                        <p style="font-size:0.55rem;color:#94a3b8;margin-top:6px;">
+                        <b>Validation:</b> Every estimate gets checked <b>~8 hours later</b> when that water reaches the Little Falls gauge. The system learns flow-binned correction factors for different conditions.
                         </p>
                         <p style="font-size:0.55rem;color:#4ade80;margin-top:6px;">
                         <b>Historical accuracy:</b> The system continuously validates predictions against actual LF readings. Current accuracy is shown in the main display (e.g., "97.2% based on 169 validations").
                         </p>
                         <p style="font-size:0.55rem;color:#fbbf24;margin-top:6px;">
                         <b>Uncertainty range:</b> Once we have enough validation data (5+ observations per flow bin), the app shows a range (e.g., "3.2 ft (3.0-3.4)") representing ±1 standard deviation based on historical prediction errors.
-                        </p>
-                        <p style="font-size:0.55rem;color:#06b6d4;margin-top:6px;">
-                        <b>Edwards Ferry cross-check:</b> A nearby gauge (USGS 01644148) just 2-3 miles upstream of Great Falls provides an independent estimate via stage→discharge correlation. Once enough data accumulates (10+ observations), a "Cross-check" value appears with an agreement indicator.
                         </p>
                         <p style="font-size:0.55rem;color:#a78bfa;margin-top:6px;">
                         <b>Background learning:</b> A scheduled job runs every 4 hours to fetch data, validate predictions, and update corrections—even when no browsers are open. This means the model continuously improves 24/7.
@@ -3436,7 +3440,7 @@
                     <span style="color:#4ade80;font-weight:600;" id="gf-popup-stage">-- ft</span>
                 </div>
                 <div style="font-size:0.65rem;color:#94a3b8;margin-top:6px;">
-                    Based on Point of Rocks + Goose Creek
+                    60% PoR + tributaries, 40% Edwards Ferry model
                 </div>
             </div>
         `);
