@@ -589,6 +589,10 @@
                                 <span id="gf-input-travel" style="color:#fbbf24;">-- hrs</span>
                             </div>
                             <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                <span style="color:#94a3b8;">Travel time GF→LF</span>
+                                <span id="gf-input-travel-gf-lf" style="color:#fbbf24;">-- hrs</span>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
                                 <span style="color:#94a3b8;">Flow bin</span>
                                 <span id="gf-input-flowbin" style="color:#94a3b8;">--</span>
                             </div>
@@ -791,7 +795,7 @@
 
     // PoR history for Great Falls time-shifting
     const POR_HISTORY_KEY = "potomac_por_history";
-    const POR_HISTORY_MAX_AGE = 24 * 60 * 60 * 1000; // Keep 24 hours of history
+    const POR_HISTORY_MAX_AGE = 48 * 60 * 60 * 1000; // Keep 48 hours of history (matches USGS P2D)
     let porHistory = []; // Array of { timestamp, cfs, stage }
 
     let dataSource = "loading"; // "live", "cached", "estimated"
@@ -1601,6 +1605,7 @@
         document.getElementById("gf-input-goose").textContent =
             (gfEstimate.inputs.gooseActual ? "+ " : "~+ ") + gfEstimate.inputs.gooseCFS.toLocaleString() + " cfs";
         document.getElementById("gf-input-travel").textContent = gfEstimate.inputs.travelPoRtoGF.toFixed(1) + " hrs";
+        document.getElementById("gf-input-travel-gf-lf").textContent = gfEstimate.inputs.travelGFtoLF.toFixed(1) + " hrs";
 
         // Display flow bin with observation count if available
         const binData = gfLearningData?.correctionBins?.[gfEstimate.inputs.flowBin]?.[gfEstimate.flowState];
