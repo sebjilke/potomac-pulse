@@ -1653,8 +1653,14 @@
         if (gfEstimate.useTimeShifted) {
             document.getElementById("gf-estimate-label").textContent = "ESTIMATED NOW";
             document.getElementById("gf-estimate-label").style.color = "#4ade80";
-            document.getElementById("gf-data-source").textContent =
-                `Based on PoR from ${gfEstimate.timeShiftedHoursAgo.toFixed(1)} hrs ago → arrives at LF in ~${gfEstimate.inputs.travelGFtoLF.toFixed(1)} hrs`;
+            // Show ensemble info if EF model is active
+            if (gfEstimate.useEfEnsemble) {
+                document.getElementById("gf-data-source").textContent =
+                    `60% PoR (${gfEstimate.timeShiftedHoursAgo.toFixed(0)}h ago) + 40% EF model → LF in ~${gfEstimate.inputs.travelGFtoLF.toFixed(1)} hrs`;
+            } else {
+                document.getElementById("gf-data-source").textContent =
+                    `PoR from ${gfEstimate.timeShiftedHoursAgo.toFixed(1)} hrs ago → arrives at LF in ~${gfEstimate.inputs.travelGFtoLF.toFixed(1)} hrs`;
+            }
         } else {
             document.getElementById("gf-estimate-label").textContent = "FORECAST (no history yet)";
             document.getElementById("gf-estimate-label").style.color = "#fbbf24";
