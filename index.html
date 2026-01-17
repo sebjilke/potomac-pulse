@@ -2919,13 +2919,21 @@
     function process(json) {
         data = {};
         if (!json?.value?.timeSeries) { updateUI(); return; }
-        
+
+        // Track PoR time series for history backfill
+        let porTimeSeries = null;
+
         for (const ts of json.value.timeSeries) {
             const s = ts.sourceInfo.siteCode[0].value;
             const p = ts.variable.variableCode[0].value;
             const values = ts.values[0]?.value;
             if (!data[s]) data[s] = {};
-            
+
+            // Capture PoR discharge time series for history backfill
+            if (s === "01638500" && p === "00060" && values?.length) {
+                porTimeSeries = values;
+            }
+
             if (values?.length) {
                 // Get current value (most recent)
                 const n = parseFloat(values[values.length-1].value);
@@ -2935,14 +2943,57 @@
                 }
             }
         }
-        
+
+        // Backfill PoR history from USGS 2-day time series
+        // This fills gaps when browser was closed
+        if (porTimeSeries) {
+            backfillPoRHistory(porTimeSeries);
+        }
+
         // Fill in missing gauges with estimates
         // Harpers Ferry (01620000) is stage-only and often doesn't report at low flows
         fillMissingData();
-        
+
         calcTravelTimes();
         updateUI();
         updateLearningUI();
+    }
+
+    // Backfill PoR history from USGS time series data
+    // Called on startup to fill any gaps from when browser was closed
+    function backfillPoRHistory(timeSeries) {
+        if (!timeSeries?.length) return;
+
+        const existingTimestamps = new Set(porHistory.map(e => Math.floor(e.timestamp / 600000))); // 10-min buckets
+        let added = 0;
+
+        for (const reading of timeSeries) {
+            const timestamp = new Date(reading.dateTime).getTime();
+            const bucket = Math.floor(timestamp / 600000);
+
+            // Skip if we already have a reading in this 10-minute bucket
+            if (existingTimestamps.has(bucket)) continue;
+
+            const cfs = parseFloat(reading.value);
+            if (!cfs || cfs <= 0 || cfs > 500000) continue;
+
+            porHistory.push({
+                timestamp: timestamp,
+                cfs: cfs,
+                stage: null  // USGS returns discharge and stage separately
+            });
+            existingTimestamps.add(bucket);
+            added++;
+        }
+
+        if (added > 0) {
+            // Sort by timestamp and remove old entries
+            porHistory.sort((a, b) => a.timestamp - b.timestamp);
+            const cutoff = Date.now() - POR_HISTORY_MAX_AGE;
+            porHistory = porHistory.filter(entry => entry.timestamp > cutoff);
+            savePoRHistory();
+            console.log(`📊 Backfilled ${added} PoR history entries from USGS, total: ${porHistory.length}`);
+        }
     }
     
     function fillMissingData() {
