@@ -23,6 +23,17 @@ const MEDIAN_TRAVEL = 32.3;
 const TRAVEL_POR_GF_BASELINE = 24.3;
 const TRAVEL_GF_LF_BASELINE = 8.1;
 
+// Edwards Ferry → Little Falls power-law model
+// Derived from 16,971 data pairs using limnologist approach (R² = 0.98)
+// SYNC WARNING: Keep in sync with EF_MODEL in index.html
+const EF_MODEL = {
+    coef: 108,           // Coefficient (a in LF = a × stage^b)
+    exp: 2.64,           // Exponent (b)
+    weight: 0.4,         // Weight in ensemble (40% EF, 60% PoR)
+    minStage: 2.5,       // Minimum valid EF stage (ft)
+    maxStage: 20.0       // Maximum valid EF stage (ft)
+};
+
 const GF_FLOW_BINS = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
 
 function getFlowBin(cfs) {
@@ -167,6 +178,29 @@ function getPoRFromHistory(history, hoursAgo) {
     return null;
 }
 
+// Estimate LF-equivalent stage from flow
+// Based on USGS field measurements at Little Falls (01646500), 2015-2025
+// SYNC WARNING: This function is duplicated in index.html (line ~1539). Keep both in sync!
+function estimateLFStage(cfs) {
+    if (cfs < 600) return 2.40 + (cfs / 600) * 0.06;
+    if (cfs < 1300) return 2.46 + ((cfs - 600) / 700) * 0.23;
+    if (cfs < 2000) return 2.69 + ((cfs - 1300) / 700) * 0.14;
+    if (cfs < 2600) return 2.83 + ((cfs - 2000) / 600) * 0.13;
+    if (cfs < 3200) return 2.96 + ((cfs - 2600) / 600) * 0.13;
+    if (cfs < 3600) return 3.09 + ((cfs - 3200) / 400) * 0.07;
+    if (cfs < 4200) return 3.16 + ((cfs - 3600) / 600) * 0.07;
+    if (cfs < 5000) return 3.23 + ((cfs - 4200) / 800) * 0.12;
+    if (cfs < 5700) return 3.35 + ((cfs - 5000) / 700) * 0.11;
+    if (cfs < 7500) return 3.46 + ((cfs - 5700) / 1800) * 0.21;
+    if (cfs < 10000) return 3.67 + ((cfs - 7500) / 2500) * 0.28;
+    if (cfs < 13000) return 3.95 + ((cfs - 10000) / 3000) * 0.34;
+    if (cfs < 28000) return 4.29 + ((cfs - 13000) / 15000) * 1.21;
+    if (cfs < 50000) return 5.50 + ((cfs - 28000) / 22000) * 1.29;
+    if (cfs < 80000) return 6.79 + ((cfs - 50000) / 30000) * 1.57;
+    if (cfs < 150000) return 8.36 + ((cfs - 80000) / 70000) * 2.57;
+    return 10.93 + ((cfs - 150000) / 100000) * 2.5;
+}
+
 // Determine flow state from recent history
 function getFlowState(history, currentCFS) {
     if (!history?.length || history.length < 8) return 'steady';
@@ -217,14 +251,37 @@ function makeGFPrediction(usgsData, porHistory) {
     const monocacyFlow = monocacy?.q || (lf.q * 0.071);
     const gooseFlow = goose?.q || (lf.q * 0.03);
 
-    let estimatedCFS;
+    let porEstimateCFS;
     let useTimeShifted = false;
 
     if (historicPoR) {
-        estimatedCFS = historicPoR.cfs + monocacyFlow + gooseFlow;
+        porEstimateCFS = historicPoR.cfs + monocacyFlow + gooseFlow;
         useTimeShifted = true;
     } else {
-        estimatedCFS = por.q + monocacyFlow + gooseFlow;
+        porEstimateCFS = por.q + monocacyFlow + gooseFlow;
+    }
+
+    // Edwards Ferry power-law estimate: LF_cfs = 108 × EF_stage^2.64
+    let efEstimateCFS = null;
+    let useEfEnsemble = false;
+    const efStage = ef?.h || null;
+
+    if (efStage && efStage >= EF_MODEL.minStage && efStage <= EF_MODEL.maxStage) {
+        efEstimateCFS = EF_MODEL.coef * Math.pow(efStage, EF_MODEL.exp);
+        if (efEstimateCFS > 500 && efEstimateCFS < 500000) {
+            useEfEnsemble = true;
+        }
+    }
+
+    // Weighted ensemble: 60% PoR + 40% EF (when EF available)
+    let estimatedCFS;
+    if (useEfEnsemble) {
+        const porWeight = 1 - EF_MODEL.weight;  // 0.6
+        const efWeight = EF_MODEL.weight;        // 0.4
+        estimatedCFS = porWeight * porEstimateCFS + efWeight * efEstimateCFS;
+        console.log(`🔀 Ensemble: ${porWeight*100}% PoR (${Math.round(porEstimateCFS)}) + ${efWeight*100}% EF (${Math.round(efEstimateCFS)}) = ${Math.round(estimatedCFS)} cfs`);
+    } else {
+        estimatedCFS = porEstimateCFS;
     }
 
     // Flow state
@@ -234,7 +291,9 @@ function makeGFPrediction(usgsData, porHistory) {
     return {
         timestamp: new Date().toISOString(),
         predictedCFS: Math.round(estimatedCFS),
+        predictedStage: Math.round(estimateLFStage(estimatedCFS) * 100) / 100,  // Round to 2 decimal places
         porCFS: Math.round(por.q),
+        porEstimateCFS: Math.round(porEstimateCFS),  // PoR-only estimate before blending
         historicPorCFS: historicPoR ? Math.round(historicPoR.cfs) : null,
         monocacyCFS: Math.round(monocacyFlow),
         gooseCFS: Math.round(gooseFlow),
@@ -242,8 +301,10 @@ function makeGFPrediction(usgsData, porHistory) {
         flowState,
         travelTimeGFtoLF: travelGFtoLF,
         validationDue: new Date(Date.now() + travelGFtoLF * 60 * 60 * 1000).toISOString(),
-        efStage: ef?.h || null,
+        efStage,
+        efEstimateCFS: efEstimateCFS ? Math.round(efEstimateCFS) : null,
         useTimeShifted,
+        useEfEnsemble,
         lfCFS: Math.round(lf.q)
     };
 }
@@ -290,12 +351,24 @@ async function validatePendingPredictions(client, usgsData) {
             const senecaFlow = seneca?.q || (lf.q * 0.01);
             const actualCFS = lf.q - senecaFlow;
 
-            // Calculate error
+            // Calculate CFS error
             const predictedCFS = pred.data.predictedCFS;
             const errorCFS = predictedCFS - actualCFS;
             const errorPercent = (errorCFS / actualCFS) * 100;
             const flowBin = pred.data.flowBin;
             const flowState = pred.data.flowState || 'steady';
+
+            // Calculate stage error (for rating curve analysis)
+            const predictedStage = pred.data.predictedStage;
+            const actualStage = lf.h;  // LF gauge stage at validation time
+            const errorStage = (predictedStage && actualStage)
+                ? Math.round((predictedStage - actualStage) * 100) / 100
+                : null;
+
+            // Log stage error for rating curve analysis
+            if (errorStage !== null) {
+                console.log(`📊 Stage validation: predicted=${predictedStage}ft, actual=${actualStage}ft, error=${errorStage > 0 ? '+' : ''}${errorStage}ft @ ${Math.round(actualCFS)}cfs (${flowBin}, ${flowState})`);
+            }
 
             // Update correction bin
             const binKey = `${flowBin}_${flowState}`;
@@ -340,6 +413,44 @@ async function validatePendingPredictions(client, usgsData) {
                     gauge_id: binKey,
                     data: binData
                 }, { onConflict: 'observation_type,gauge_id' });
+
+                // Also update stage error statistics for rating curve analysis
+                if (errorStage !== null) {
+                    const stageBinKey = `stage_${flowBin}_${flowState}`;
+                    const { data: existingStageBin } = await client
+                        .from('potomac_observations')
+                        .select('data')
+                        .eq('observation_type', 'gf_correction_bin')
+                        .eq('gauge_id', stageBinKey)
+                        .single();
+
+                    const stageBinData = existingStageBin?.data || {
+                        count: 0, sumError: 0, sumErrorSq: 0, meanError: 0, emaMeanError: 0
+                    };
+
+                    stageBinData.count += 1;
+                    stageBinData.sumError += errorStage;
+                    stageBinData.sumErrorSq += errorStage * errorStage;
+                    stageBinData.meanError = stageBinData.sumError / stageBinData.count;
+
+                    if (stageBinData.count === 1) {
+                        stageBinData.emaMeanError = errorStage;
+                    } else {
+                        stageBinData.emaMeanError = EMA_ALPHA * errorStage + (1 - EMA_ALPHA) * (stageBinData.emaMeanError || stageBinData.meanError);
+                    }
+
+                    // Calculate standard deviation
+                    const variance = (stageBinData.sumErrorSq / stageBinData.count) - (stageBinData.meanError * stageBinData.meanError);
+                    stageBinData.stdDev = Math.round(Math.sqrt(Math.max(0, variance)) * 1000) / 1000;
+
+                    await client.from('potomac_observations').upsert({
+                        observation_type: 'gf_correction_bin',
+                        gauge_id: stageBinKey,
+                        data: stageBinData
+                    }, { onConflict: 'observation_type,gauge_id' });
+
+                    console.log(`📈 Stage bin ${stageBinKey}: n=${stageBinData.count}, mean=${stageBinData.meanError.toFixed(3)}ft, stdDev=${stageBinData.stdDev}ft`);
+                }
             }
 
             // Update EF correlation if we have EF stage
@@ -372,14 +483,32 @@ async function validatePendingPredictions(client, usgsData) {
                 corrData.sumStageCFS += efStage * actualCFS;
                 corrData.sumStageSq += efStage * efStage;
 
-                // Linear regression
+                // Linear regression with R² calculation
                 if (corrData.count >= 5) {
                     const n = corrData.count;
-                    const slope = (n * corrData.sumStageCFS - corrData.sumStage * corrData.sumCFS) /
-                                  (n * corrData.sumStageSq - corrData.sumStage * corrData.sumStage);
+                    const meanStage = corrData.sumStage / n;
+                    const meanCFS = corrData.sumCFS / n;
+
+                    // Slope and intercept
+                    const denominator = n * corrData.sumStageSq - corrData.sumStage * corrData.sumStage;
+                    const slope = (n * corrData.sumStageCFS - corrData.sumStage * corrData.sumCFS) / denominator;
                     const intercept = (corrData.sumCFS - slope * corrData.sumStage) / n;
                     corrData.slope = slope;
                     corrData.intercept = intercept;
+
+                    // R² calculation (coefficient of determination)
+                    // We need sumCFSSq for this - add it if not present
+                    if (!corrData.sumCFSSq) {
+                        // Initialize from points if available
+                        corrData.sumCFSSq = corrData.points.reduce((sum, p) => sum + p.cfs * p.cfs, 0);
+                    }
+                    corrData.sumCFSSq += actualCFS * actualCFS;
+
+                    // R² = 1 - (SS_res / SS_tot)
+                    // For simple linear regression: R² = r² where r is Pearson correlation
+                    const ssTotal = corrData.sumCFSSq - (corrData.sumCFS * corrData.sumCFS) / n;
+                    const ssReg = slope * slope * (corrData.sumStageSq - (corrData.sumStage * corrData.sumStage) / n);
+                    corrData.rSquared = ssTotal > 0 ? Math.round((ssReg / ssTotal) * 1000) / 1000 : 0;
                 }
 
                 await client.from('potomac_observations').upsert({
@@ -388,7 +517,7 @@ async function validatePendingPredictions(client, usgsData) {
                     data: corrData
                 }, { onConflict: 'observation_type,gauge_id' });
 
-                console.log(`Updated EF correlation: ${corrData.count} points`);
+                console.log(`🔗 EF correlation: n=${corrData.count}, slope=${corrData.slope?.toFixed(0)}, R²=${corrData.rSquared || 'N/A'}`);
             }
 
             // Move to validated
@@ -397,7 +526,9 @@ async function validatePendingPredictions(client, usgsData) {
                 data: {
                     ...pred.data,
                     actualCFS,
+                    actualStage,
                     errorCFS,
+                    errorStage,
                     errorPercent,
                     validatedAt: new Date().toISOString(),
                     isOutlier
@@ -417,6 +548,25 @@ async function validatePendingPredictions(client, usgsData) {
             metaData.sumAbsErrorPercent = (metaData.sumAbsErrorPercent || 0) + Math.abs(errorPercent);
             metaData.avgErrorPercent = metaData.sumAbsErrorPercent / metaData.totalValidations;
             metaData.lastValidation = new Date().toISOString();
+
+            // Track stage error in metadata
+            if (errorStage !== null) {
+                metaData.stageValidations = (metaData.stageValidations || 0) + 1;
+                metaData.sumAbsStageError = (metaData.sumAbsStageError || 0) + Math.abs(errorStage);
+                metaData.avgStageError = metaData.sumAbsStageError / metaData.stageValidations;
+            }
+
+            // Monthly summary (log on 1st of month, or every 100 validations)
+            const isFirstOfMonth = new Date().getDate() === 1;
+            const isMilestone = metaData.totalValidations % 100 === 0;
+            if ((isFirstOfMonth || isMilestone) && metaData.totalValidations > 0) {
+                console.log('📅 === MONTHLY/MILESTONE SUMMARY ===');
+                console.log(`   Total validations: ${metaData.totalValidations}`);
+                console.log(`   Avg CFS error: ${metaData.avgErrorPercent?.toFixed(1)}%`);
+                console.log(`   Stage validations: ${metaData.stageValidations || 0}`);
+                console.log(`   Avg stage error: ${metaData.avgStageError?.toFixed(3) || 'N/A'}ft`);
+                console.log('=====================================');
+            }
 
             await client.from('potomac_observations').upsert({
                 observation_type: 'gf_metadata',
