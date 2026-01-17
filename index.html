@@ -509,6 +509,9 @@
                 </div>
                 <div class="flow-indicator">
                     <span>Travel Multiplier: <span class="mult" id="multVal" aria-label="Travel time multiplier">--</span></span>
+                    <div id="gf-learning-notice-header" style="margin-top:8px;padding:6px 10px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:6px;font-size:0.65rem;color:#fbbf24;">
+                        🧪 <b>Model still learning</b> — Predictions improve as more data is collected.
+                    </div>
                 </div>
                 <div class="tabs" role="tablist" aria-label="Data views">
                     <div class="tab active" data-tab="greatfalls" role="tab" aria-selected="true" aria-controls="tab-greatfalls" tabindex="0">🌊 Great Falls</div>
@@ -1536,6 +1539,7 @@
 
     // Estimate LF-equivalent stage from flow
     // Based on USGS field measurements at Little Falls (01646500), 2015-2025
+    // SYNC WARNING: This function is duplicated in scheduled-update.js (line ~173). Keep both in sync!
     function estimateLFStage(cfs) {
         // Calibration points from recent USGS field measurements:
         //   617 cfs = 2.46 ft    1,310 cfs = 2.69 ft    1,930 cfs = 2.83 ft
