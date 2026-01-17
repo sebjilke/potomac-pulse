@@ -900,11 +900,12 @@
     const MEDIAN_FLOW = 4940;       // Median flow at Little Falls (cfs)
     const MEDIAN_TRAVEL = 32.3;     // Travel time at median (hrs)
 
-    // Great Falls travel time constants
-    // PoR→GF: ~20 miles, ~8.5 hrs at median flow
-    // GF→LF: ~11 miles, ~3.5 hrs at median flow (faster due to falls/rapids)
-    const TRAVEL_POR_GF_BASELINE = 8.5;   // hours at median flow
-    const TRAVEL_GF_LF_BASELINE = 3.5;    // hours at median flow
+    // Great Falls travel time constants (derived from Searcy PoR→LF = 32.4 hrs at median)
+    // PoR→GF: ~20 miles (49% of 41-mile PoR→LF distance)
+    // GF→LF: ~21 miles (51% of distance, but faster through gorge - use ~25%)
+    // Adjusted: PoR→GF takes ~75% of total time, GF→LF takes ~25% (gorge speeds flow)
+    const TRAVEL_POR_GF_BASELINE = 24.3;  // hours at median flow (75% of 32.4)
+    const TRAVEL_GF_LF_BASELINE = 8.1;    // hours at median flow (25% of 32.4)
     const GOOSE_CREEK_PCT = 0.03;         // Goose Creek contribution (~3% of LF drainage)
     
     // Flow condition labels based on LF flow
@@ -1558,7 +1559,7 @@
             document.getElementById("gf-estimate-label").textContent = "ESTIMATED NOW";
             document.getElementById("gf-estimate-label").style.color = "#4ade80";
             document.getElementById("gf-data-source").textContent =
-                `Based on PoR from ${gfEstimate.timeShiftedHoursAgo.toFixed(1)} hrs ago`;
+                `Based on PoR from ${gfEstimate.timeShiftedHoursAgo.toFixed(1)} hrs ago → arrives at LF in ~${gfEstimate.inputs.travelGFtoLF.toFixed(1)} hrs`;
         } else {
             document.getElementById("gf-estimate-label").textContent = "FORECAST (no history yet)";
             document.getElementById("gf-estimate-label").style.color = "#fbbf24";
