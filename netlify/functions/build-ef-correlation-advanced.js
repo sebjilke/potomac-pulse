@@ -21,7 +21,8 @@ const LITTLE_FALLS_ID = '01646500';
 
 // ==================== SEARCY TRAVEL TIME MODEL ====================
 // Based on USGS Circular 438 (Searcy & Davis, 1961)
-// Power law: T_PoR_to_LF = 5174 × Q^(-0.5963) hours
+// Original power law: T_PoR_to_LF = 5174 × Q^(-0.5963) hours
+// EMPIRICAL CORRECTION (Jan 2026): T = 4139 × Q^(-0.5963) (0.80 multiplier)
 //
 // Distance calibration:
 //   - PoR to LF: 41 miles (full Searcy model)
@@ -33,51 +34,54 @@ const LITTLE_FALLS_ID = '01646500';
 
 // ==================== SEARCY-BASED TRAVEL TIME MODEL ====================
 // Based on USGS Circular 438 (Searcy & Davis, 1961)
+// EMPIRICAL CORRECTION (Jan 2026): Cross-correlation analysis showed travel
+// times ~20% faster than the 1961 dye-tracer study. Applied 0.80 multiplier.
 //
-// Full model: T_PoR_to_LF = 5174 × Q^(-0.5963) hours (41 miles)
+// Original model: T_PoR_to_LF = 5174 × Q^(-0.5963) hours (41 miles)
+// Corrected model: T_PoR_to_LF = 4139 × Q^(-0.5963) hours
 //
 // For EF→LF (15 miles), we scale using the same power-law exponent but
 // recalibrate the coefficient for the shorter, faster gorge section.
 //
-// Derivation:
-//   - At median flow (5000 cfs), PoR→LF = 32.3 hrs for 41 miles
-//   - Average velocity = 41/32.3 = 1.27 mph
-//   - GF→LF section (gorge): ~1.5x faster due to gradient = 1.9 mph
-//   - EF→LF (~15 miles through gorge region): 15/1.9 ≈ 8 hrs at median
-//   - At flood (50000 cfs): proportionally faster → ~2.5 hrs
+// Derivation (with 0.80 correction):
+//   - At median flow (4940 cfs), PoR→LF = 25.8 hrs for 41 miles
+//   - Average velocity = 41/25.8 = 1.59 mph
+//   - GF→LF section (gorge): ~1.5x faster due to gradient = 2.4 mph
+//   - EF→LF (~15 miles through gorge region): 15/2.4 ≈ 6.3 hrs at median
+//   - At flood (50000 cfs): proportionally faster → ~2 hrs
 //
-// We use: T_EF_to_LF = 1400 × Q^(-0.5963) hours
-// This gives: 5000 cfs → 8.7 hrs, 20000 cfs → 4.6 hrs, 50000 cfs → 2.9 hrs
+// We use: T_EF_to_LF = 1120 × Q^(-0.5963) hours (1400 × 0.80)
+// This gives: 5000 cfs → 7.0 hrs, 20000 cfs → 3.7 hrs, 50000 cfs → 2.3 hrs
 //
-const SEARCY_COEF = 5174;        // Original Searcy coefficient (PoR→LF)
+const SEARCY_COEF = 4139;        // Corrected Searcy coefficient (5174 × 0.80)
 const SEARCY_EXP = -0.5963;      // Searcy exponent (velocity-flow relationship)
-const EF_LF_COEF = 1400;         // Scaled coefficient for EF→LF (15 mi gorge section)
+const EF_LF_COEF = 1120;         // Scaled coefficient for EF→LF (1400 × 0.80)
 
 function estimateTravelTimeHours(estimatedLfFlow) {
     // Clamp flow to reasonable range (avoid divide-by-zero type issues)
     const flow = Math.max(estimatedLfFlow, 1000);
 
-    // EF→LF travel time using scaled Searcy power law
+    // EF→LF travel time using scaled Searcy power law (with 0.80 correction)
     const efToLfHours = EF_LF_COEF * Math.pow(flow, SEARCY_EXP);
 
     // Sanity bounds based on physical constraints:
     // - Minimum: ~1.5 hrs (even in major flood, water needs time to traverse gorge)
-    // - Maximum: ~6 hrs (at very low flows, but river still moves through gorge)
-    return Math.max(1.5, Math.min(6.0, efToLfHours));
+    // - Maximum: ~5 hrs (at very low flows, adjusted from 6 hrs with 0.80 correction)
+    return Math.max(1.5, Math.min(5.0, efToLfHours));
 
-    // Reference values:
+    // Reference values (with 0.80 empirical correction):
     //   LF Flow     EF→LF Travel Time
-    //   2,000 cfs   15.2 hrs → capped to 6.0 hrs
-    //   3,000 cfs   11.8 hrs → capped to 6.0 hrs
-    //   5,000 cfs    8.7 hrs → capped to 6.0 hrs
-    //   7,500 cfs    6.8 hrs → capped to 6.0 hrs
-    //   10,000 cfs   6.3 hrs → capped to 6.0 hrs
-    //   15,000 cfs   5.1 hrs
-    //   20,000 cfs   4.6 hrs
-    //   30,000 cfs   3.7 hrs
-    //   50,000 cfs   2.9 hrs
-    //   75,000 cfs   2.3 hrs
-    //   100,000 cfs  2.1 hrs
+    //   2,000 cfs   12.2 hrs → capped to 5.0 hrs
+    //   3,000 cfs    9.4 hrs → capped to 5.0 hrs
+    //   5,000 cfs    7.0 hrs → capped to 5.0 hrs
+    //   7,500 cfs    5.5 hrs → capped to 5.0 hrs
+    //   10,000 cfs   4.7 hrs
+    //   15,000 cfs   4.1 hrs
+    //   20,000 cfs   3.7 hrs
+    //   30,000 cfs   3.0 hrs
+    //   50,000 cfs   2.3 hrs
+    //   75,000 cfs   1.9 hrs
+    //   100,000 cfs  1.7 hrs
 }
 
 // Determine if stage is rising, falling, or steady based on recent history

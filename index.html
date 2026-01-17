@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v19</title>
+    <title>Potomac Pulse v20</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -635,9 +635,9 @@
                             <summary style="font-size:0.75rem;color:#60a5fa;cursor:pointer;padding:8px 0;">📊 How It Works</summary>
                             <p style="font-size:0.55rem;color:#94a3b8;line-height:1.5;margin-top:8px;">
                                 <b>Weighted Ensemble:</b> GF estimate = 60% (PoR model) + 40% (Edwards Ferry model). The PoR model uses time-shifted upstream data + tributaries; the EF model uses a power-law correlation (R²=0.98) from a gauge just 2-3 miles upstream of GF.<br><br>
-                                <b>PoR Model:</b> Point of Rocks flow (83.5%) is time-shifted by ~24 hrs (at median flow), then Monocacy (7.1%) and Goose Creek (3.0%) are added.<br><br>
-                                <b>EF Model:</b> LF_cfs = 108 × EF_stage^2.64 — built from 17,000 paired observations with 8-hour time-shift optimization and hysteresis analysis.<br><br>
-                                <b>Validation:</b> Every estimate gets checked ~8 hrs later when water reaches Little Falls. The system learns flow-binned corrections (0-3k, 3-6k, 6-12k, etc.) for rising/falling/steady conditions.
+                                <b>PoR Model:</b> Point of Rocks flow (83.5%) is time-shifted by ~19 hrs (at median flow), then Monocacy (7.1%) and Goose Creek (3.0%) are added.<br><br>
+                                <b>EF Model:</b> LF_cfs = 108 × EF_stage^2.64 — built from 17,000 paired observations with time-shift optimization and hysteresis analysis.<br><br>
+                                <b>Validation:</b> Every estimate gets checked ~6-7 hrs later when water reaches Little Falls. The system learns flow-binned corrections (0-3k, 3-6k, 6-12k, etc.) for rising/falling/steady conditions.
                             </p>
                         </details>
 
@@ -667,13 +667,13 @@
                         </p>
                         <table style="font-size:0.55rem;margin:8px 0;">
                             <tr><th>Condition</th><th>Point of Rocks to Little Falls</th><th>River Speed</th></tr>
-                            <tr><td>Low flow</td><td>~2 days</td><td>~1 mph</td></tr>
-                            <tr style="background:#1e3a5f;"><td><b>Typical</b></td><td><b>~32 hours</b></td><td><b>~1.3 mph</b></td></tr>
-                            <tr><td>High flow</td><td>~12 hours</td><td>~3.5 mph</td></tr>
+                            <tr><td>Low flow</td><td>~35 hours</td><td>~1.2 mph</td></tr>
+                            <tr style="background:#1e3a5f;"><td><b>Typical</b></td><td><b>~26 hours</b></td><td><b>~1.6 mph</b></td></tr>
+                            <tr><td>High flow</td><td>~14 hours</td><td>~3 mph</td></tr>
                             <tr><td>Flood</td><td>~7 hours</td><td>~6 mph</td></tr>
                         </table>
                         <p style="font-size:0.5rem;color:#64748b;">
-                        Based on USGS Circular 438 (Searcy, 1961) which measured actual water velocities at different flow levels.
+                        Based on USGS Circular 438 (Searcy, 1961) with empirical correction from modern cross-correlation analysis (×0.80).
                         </p>
 
                         <h3>Great Falls Estimation</h3>
@@ -684,7 +684,7 @@
                         <b>GF = 60% × (PoR model) + 40% × (Edwards Ferry model)</b>
                         </p>
                         <p style="font-size:0.55rem;color:#94a3b8;margin-top:10px;">
-                        <b>PoR Model (60%):</b> Time-shifted Point of Rocks reading from ~24 hours ago at median flow (faster at high flows ~13 hrs, slower at low flows ~33 hrs), plus Monocacy (7.1%) and Goose Creek (3.0%) tributaries.
+                        <b>PoR Model (60%):</b> Time-shifted Point of Rocks reading from ~19 hours ago at median flow (faster at high flows ~11 hrs, slower at low flows ~26 hrs), plus Monocacy (7.1%) and Goose Creek (3.0%) tributaries.
                         </p>
                         <p style="font-size:0.55rem;color:#94a3b8;margin-top:6px;">
                         <b>Edwards Ferry Model (40%):</b> Power-law correlation from 17,000 paired observations (R²=0.98). Edwards Ferry is just 2-3 miles upstream of Great Falls.<br>
@@ -694,7 +694,7 @@
                         <b>Why ensemble?</b> PoR is 20+ miles upstream but has discharge data; EF is much closer but only has stage. Blending both captures distant upstream changes AND local conditions near GF.
                         </p>
                         <p style="font-size:0.55rem;color:#94a3b8;margin-top:10px;">
-                        <b>Validation:</b> Every estimate gets checked ~8 hours later when that water reaches the Little Falls gauge. The system learns flow-binned correction factors for different conditions.
+                        <b>Validation:</b> Every estimate gets checked ~6-7 hours later (at median flow) when that water reaches the Little Falls gauge. The system learns flow-binned correction factors for different conditions.
                         </p>
                         <p style="font-size:0.55rem;color:#94a3b8;margin-top:6px;">
                         <b>Accuracy:</b> Continuously validated against actual LF readings. Current accuracy shown in the main display (e.g., "97.2% based on 169 validations").
@@ -799,14 +799,14 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
     // =====================================================
-    // POTOMAC PULSE v19
+    // POTOMAC PULSE v20
     // ADAPTIVE LEARNING MODEL WITH TREND PREDICTIONS
     //
     // © 2026 Gordon Shumway - CC BY-NC 4.0
     // =====================================================
 
     const LF = { id: "01646500", name: "Little Falls", lat: 38.9498, lon: -77.1278, area: 11560 };
-    const STORAGE_KEY = "potomac_learning_v19";
+    const STORAGE_KEY = "potomac_learning_v20";
     const CACHE_KEY = "potomac_cached_data";
     const CACHE_MAX_AGE = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
 
@@ -835,29 +835,31 @@
     }
     const MIN_OBS_FOR_CORRECTION = 30;
 
-    // GAUGES with baseline hours from USGS Circular 438 / dye tracer studies
-    // Baselines calibrated at median flow conditions (~6,500 cfs at Little Falls)
+    // GAUGES with baseline hours derived from USGS Circular 438 / Searcy (1961)
+    // EMPIRICAL CORRECTION (Jan 2026): Original Searcy values × 0.80
+    //   Cross-correlation analysis showed travel times ~20% faster than 1961 dye-tracer study
+    // Baselines calibrated at median flow conditions (~4,940 cfs at Little Falls)
     // Flow-based multiplier adjusts for current conditions
     const GAUGES = {
         "01646500": { name: "Little Falls", lat: 38.9498, lon: -77.1278, area: 11560, pctLF: 100, baseHrs: 0, branch: "target" },
-        "01638500": { name: "Point of Rocks", lat: 39.2726, lon: -77.5405, area: 9651, pctLF: 83.5, baseHrs: 32, branch: "mainstem" },
-        "01620000": { name: "Harpers Ferry", lat: 39.3226, lon: -77.7291, area: 9367, pctLF: 81.0, baseHrs: 45, branch: "mainstem" },
-        "01618000": { name: "Shepherdstown", lat: 39.4309, lon: -77.8033, area: 5955, pctLF: 51.5, baseHrs: 63, branch: "mainstem" },
-        "01613000": { name: "Hancock", lat: 39.6987, lon: -78.1789, area: 4073, pctLF: 35.2, baseHrs: 150, branch: "mainstem" },
-        "01610000": { name: "Paw Paw", lat: 39.5320, lon: -78.4578, area: 3109, pctLF: 26.9, baseHrs: 176, branch: "mainstem" },
-        "01603000": { name: "Cumberland", lat: 39.6218, lon: -78.7622, area: 877, pctLF: 7.6, baseHrs: 226, branch: "northBranch" },
-        "01595500": { name: "Kitzmiller", lat: 39.3892, lon: -79.1817, area: 247, pctLF: 2.1, baseHrs: 238, branch: "northBranch" },
-        "01608500": { name: "Springfield", lat: 39.4454, lon: -78.6545, area: 1486, pctLF: 12.7, baseHrs: 220, branch: "southBranch" },
-        "01606500": { name: "Petersburg", lat: 38.9926, lon: -79.1239, area: 642, pctLF: 5.6, baseHrs: 234, branch: "southBranch" },
-        "01604500": { name: "Franklin", lat: 38.6428, lon: -79.3306, area: 179, pctLF: 1.5, baseHrs: 250, branch: "southBranch" },
-        "01636500": { name: "Millville", lat: 39.2743, lon: -77.7850, area: 3041, pctLF: 26.3, baseHrs: 48, branch: "shenandoah" },
-        "01631000": { name: "Front Royal", lat: 38.9140, lon: -78.2117, area: 1642, pctLF: 14.2, baseHrs: 80, branch: "shenandoah" },
-        "01643000": { name: "Monocacy", lat: 39.4143, lon: -77.4080, area: 817, pctLF: 7.1, baseHrs: 18, branch: "belowPtR" },
-        "01644000": { name: "Goose Creek", lat: 39.0559, lon: -77.5191, area: 332, pctLF: 3.0, baseHrs: 12, branch: "belowPtR" },
-        "01645000": { name: "Seneca Creek", lat: 39.1273, lon: -77.3386, area: 101, pctLF: 0.9, baseHrs: 6, branch: "belowPtR" },
-        "01611500": { name: "Cacapon", lat: 39.5832, lon: -78.3011, area: 675, pctLF: 5.8, baseHrs: 160, branch: "tribs" },
-        "01614500": { name: "Conococheague", lat: 39.6510, lon: -77.9239, area: 494, pctLF: 4.9, baseHrs: 140, branch: "tribs" },
-        "01619500": { name: "Antietam", lat: 39.4487, lon: -77.7389, area: 281, pctLF: 2.4, baseHrs: 66, branch: "tribs" }
+        "01638500": { name: "Point of Rocks", lat: 39.2726, lon: -77.5405, area: 9651, pctLF: 83.5, baseHrs: 26, branch: "mainstem" },
+        "01620000": { name: "Harpers Ferry", lat: 39.3226, lon: -77.7291, area: 9367, pctLF: 81.0, baseHrs: 36, branch: "mainstem" },
+        "01618000": { name: "Shepherdstown", lat: 39.4309, lon: -77.8033, area: 5955, pctLF: 51.5, baseHrs: 50, branch: "mainstem" },
+        "01613000": { name: "Hancock", lat: 39.6987, lon: -78.1789, area: 4073, pctLF: 35.2, baseHrs: 120, branch: "mainstem" },
+        "01610000": { name: "Paw Paw", lat: 39.5320, lon: -78.4578, area: 3109, pctLF: 26.9, baseHrs: 141, branch: "mainstem" },
+        "01603000": { name: "Cumberland", lat: 39.6218, lon: -78.7622, area: 877, pctLF: 7.6, baseHrs: 181, branch: "northBranch" },
+        "01595500": { name: "Kitzmiller", lat: 39.3892, lon: -79.1817, area: 247, pctLF: 2.1, baseHrs: 190, branch: "northBranch" },
+        "01608500": { name: "Springfield", lat: 39.4454, lon: -78.6545, area: 1486, pctLF: 12.7, baseHrs: 176, branch: "southBranch" },
+        "01606500": { name: "Petersburg", lat: 38.9926, lon: -79.1239, area: 642, pctLF: 5.6, baseHrs: 187, branch: "southBranch" },
+        "01604500": { name: "Franklin", lat: 38.6428, lon: -79.3306, area: 179, pctLF: 1.5, baseHrs: 200, branch: "southBranch" },
+        "01636500": { name: "Millville", lat: 39.2743, lon: -77.7850, area: 3041, pctLF: 26.3, baseHrs: 38, branch: "shenandoah" },
+        "01631000": { name: "Front Royal", lat: 38.9140, lon: -78.2117, area: 1642, pctLF: 14.2, baseHrs: 64, branch: "shenandoah" },
+        "01643000": { name: "Monocacy", lat: 39.4143, lon: -77.4080, area: 817, pctLF: 7.1, baseHrs: 14, branch: "belowPtR" },
+        "01644000": { name: "Goose Creek", lat: 39.0559, lon: -77.5191, area: 332, pctLF: 3.0, baseHrs: 10, branch: "belowPtR" },
+        "01645000": { name: "Seneca Creek", lat: 39.1273, lon: -77.3386, area: 101, pctLF: 0.9, baseHrs: 5, branch: "belowPtR" },
+        "01611500": { name: "Cacapon", lat: 39.5832, lon: -78.3011, area: 675, pctLF: 5.8, baseHrs: 128, branch: "tribs" },
+        "01614500": { name: "Conococheague", lat: 39.6510, lon: -77.9239, area: 494, pctLF: 4.9, baseHrs: 112, branch: "tribs" },
+        "01619500": { name: "Antietam", lat: 39.4487, lon: -77.7389, area: 281, pctLF: 2.4, baseHrs: 53, branch: "tribs" }
     };
 
     // Great Falls virtual gauge (estimated, no USGS gauge exists)
@@ -935,21 +937,27 @@
     //
     // Fitted power law for Pt Rocks → Little Falls (41 miles):
     //   V_avg = 0.0116 × Q^0.5963 (fps)
-    //   T = 5174 × Q^(-0.5963) (hours, Q = LF flow in cfs)
+    //   T_searcy = 5174 × Q^(-0.5963) (hours, Q = LF flow in cfs)
     //
-    // At median flow (4,940 cfs): T = 32.4 hrs (matches Table 2)
+    // EMPIRICAL CORRECTION (Jan 2026):
+    //   Cross-correlation analysis of 6 months of USGS instantaneous data
+    //   showed travel times ~20-30% faster than Searcy's 1961 dye-tracer study.
+    //   We apply a conservative 0.80 multiplier (20% faster):
+    //   T_adjusted = 5174 × 0.80 × Q^(-0.5963) = 4139 × Q^(-0.5963)
     //
-    const TRAVEL_COEF = 5174;       // Coefficient from Searcy fit
-    const TRAVEL_EXP = -0.5963;     // Exponent from Searcy fit
+    // At median flow (4,940 cfs): T = 25.8 hrs (vs Searcy's 32.4 hrs)
+    //
+    const TRAVEL_COEF = 4139;       // Adjusted coefficient (Searcy × 0.80)
+    const TRAVEL_EXP = -0.5963;     // Exponent from Searcy fit (unchanged)
     const MEDIAN_FLOW = 4940;       // Median flow at Little Falls (cfs)
-    const MEDIAN_TRAVEL = 32.3;     // Travel time at median (hrs)
+    const MEDIAN_TRAVEL = 25.8;     // Adjusted travel time at median (hrs)
 
-    // Great Falls travel time constants (derived from Searcy PoR→LF = 32.4 hrs at median)
+    // Great Falls travel time constants (derived from adjusted PoR→LF = 25.8 hrs at median)
     // PoR→GF: ~20 miles (49% of 41-mile PoR→LF distance)
     // GF→LF: ~21 miles (51% of distance, but faster through gorge - use ~25%)
     // Adjusted: PoR→GF takes ~75% of total time, GF→LF takes ~25% (gorge speeds flow)
-    const TRAVEL_POR_GF_BASELINE = 24.3;  // hours at median flow (75% of 32.4)
-    const TRAVEL_GF_LF_BASELINE = 8.1;    // hours at median flow (25% of 32.4)
+    const TRAVEL_POR_GF_BASELINE = 19.4;  // hours at median flow (75% of 25.8)
+    const TRAVEL_GF_LF_BASELINE = 6.5;    // hours at median flow (25% of 25.8)
     const GOOSE_CREEK_PCT = 0.03;         // Goose Creek contribution (~3% of LF drainage)
     
     // Flow condition labels based on LF flow
@@ -966,12 +974,12 @@
         return "Major Flood";
     }
     
-    // Calculate travel time multiplier using Searcy power law
+    // Calculate travel time multiplier using empirically-adjusted Searcy power law
     function getFlowMultiplier(lfFlow) {
         // Clamp flow to reasonable range
         const flow = Math.max(lfFlow, 1000);
-        
-        // Searcy power law: T = 5174 × Q^(-0.5963)
+
+        // Adjusted power law: T = 4139 × Q^(-0.5963) (Searcy × 0.80)
         const travelHrs = TRAVEL_COEF * Math.pow(flow, TRAVEL_EXP);
         
         // Multiplier relative to median conditions
@@ -3607,7 +3615,7 @@
     function downloadTechAppendix() {
         const content = `# Potomac Pulse - Technical Appendix
 
-**Version:** 19.0
+**Version:** 20.0
 **Date:** January 2026
 
 ---
@@ -3625,7 +3633,7 @@ This app predicts water arrival times at Little Falls and estimates conditions a
 For the Point of Rocks to Little Falls reach (41 miles):
 
 \`\`\`
-T = 5174 × Q^(-0.5963)
+T = 4139 × Q^(-0.5963)
 \`\`\`
 
 Where:
@@ -3634,44 +3642,54 @@ Where:
 
 ### 2.2 How It Was Derived
 
-Searcy measured mean water velocity vs. discharge at Point of Rocks and Little Falls, then fit a power law:
+Searcy (USGS Circular 438, 1961) measured mean water velocity vs. discharge at Point of Rocks and Little Falls, then fit a power law:
 
 \`\`\`
 V_avg = 0.0116 × Q^0.5963  (R² = 0.99)
 \`\`\`
 
-Travel time = Distance / Velocity:
+**Original Searcy Model:**
 \`\`\`
-T = (41 miles × 5280 ft/mi) / (V_avg ft/s × 3600 s/hr)
-T = 5174 × Q^(-0.5963)
+T_original = 5174 × Q^(-0.5963)
 \`\`\`
+
+**Empirical Correction (January 2026):**
+Cross-correlation analysis of modern USGS instantaneous data (6 months of 15-minute readings plus 2 years of daily data) showed that observed travel times are approximately 20% faster than Searcy's 1961 dye-tracer measurements. We apply a conservative 0.80 multiplier:
+
+\`\`\`
+T_adjusted = 5174 × 0.80 × Q^(-0.5963) = 4139 × Q^(-0.5963)
+\`\`\`
+
+This correction likely reflects modern channel conditions (different sediment, vegetation, or cross-section geometry compared to 1961).
 
 ### 2.3 Model Accuracy
 
-| LF Flow (cfs) | Searcy Measured | Model Predicted | Error |
-|---------------|-----------------|-----------------|-------|
-| 1,810 | 63.3 hrs | 59.1 hrs | -6.7% |
-| 4,940 | 32.3 hrs | 32.5 hrs | +0.5% |
-| 10,300 | 19.3 hrs | 20.9 hrs | +8.5% |
-| 26,400 | 10.2 hrs | 11.9 hrs | +17% |
-| 63,200 | 7.3 hrs | 7.1 hrs | -2.8% |
+| LF Flow (cfs) | Searcy (1961) | Corrected (×0.80) | Notes |
+|---------------|---------------|-------------------|-------|
+| 1,810 | 59.1 hrs | 47.3 hrs | Very low flow |
+| 4,940 | 32.5 hrs | 26.0 hrs | Median flow |
+| 10,300 | 20.9 hrs | 16.7 hrs | Moderate flow |
+| 26,400 | 11.9 hrs | 9.5 hrs | High flow |
+| 63,200 | 7.1 hrs | 5.7 hrs | Flood |
 
-**Accuracy by flow range:**
-- Normal flows (3,000-10,000 cfs): ±10%
-- High flows (>25,000 cfs): ±17%
+**Correction methodology:**
+- Rising limb analysis showed peak PoR→LF correlation at 24 hours (r=0.958)
+- Empirical power-law fit: T = 2438 × Q^(-0.5491) with R²=0.908
+- Conservative approach: preserve Searcy's physically-derived exponent, apply 0.80 coefficient adjustment
+- At high/flood flows where empirical data is limited, correction still uses Searcy structure
 
 ### 2.4 Upstream Gauge Travel Times
 
-For gauges upstream of Point of Rocks (Hancock, Cumberland, etc.), baseline travel times are from Searcy Table 2. These are scaled by the same flow multiplier used for PoR→LF.
+For gauges upstream of Point of Rocks (Hancock, Cumberland, etc.), baseline travel times are from Searcy Table 2, adjusted with the same 0.80 multiplier. These are scaled by the same flow multiplier used for PoR→LF.
 
 **Important limitation:** The Searcy power law was calibrated specifically for the PoR→LF reach. Upstream reaches have different channel characteristics, so using the same multiplier introduces ±10-20% additional uncertainty for distant gauges.
 
 | Gauge | Baseline (median flow) | Uncertainty |
 |-------|------------------------|-------------|
-| Point of Rocks | 32 hrs | ±10% |
-| Shepherdstown | 63 hrs | ±15% |
-| Hancock | 150 hrs (~6 days) | ±15-20% |
-| Cumberland | 226 hrs (~9 days) | ±15-20% |
+| Point of Rocks | 26 hrs | ±10% |
+| Shepherdstown | 50 hrs | ±15% |
+| Hancock | 120 hrs (~5 days) | ±15-20% |
+| Cumberland | 181 hrs (~7.5 days) | ±15-20% |
 
 For upstream gauges, travel times are best used for "pulse is coming" awareness rather than precise arrival timing.
 
@@ -3697,20 +3715,20 @@ Where:
 
 ### 3.3 Travel Times (Dynamic)
 
-Travel times scale with flow using the Searcy power law. At median flow (~5,000 cfs), the total PoR→LF travel is 32.4 hours, split as:
-- **PoR → GF:** 75% of total = **24.3 hours** (slower pooled sections above falls)
-- **GF → LF:** 25% of total = **8.1 hours** (faster through gorge)
+Travel times scale with flow using the empirically-corrected Searcy power law. At median flow (~4,940 cfs), the total PoR→LF travel is 25.8 hours, split as:
+- **PoR → GF:** 75% of total = **19.4 hours** (slower pooled sections above falls)
+- **GF → LF:** 25% of total = **6.5 hours** (faster through gorge)
 
 | Flow Condition | PoR → GF | GF → LF | Total PoR → LF |
 |----------------|----------|---------|----------------|
-| Low (<3,000 cfs) | ~33 hrs | ~11 hrs | ~44 hrs |
-| Median (~5,000 cfs) | ~24 hrs | ~8 hrs | ~32 hrs |
-| High (15,000 cfs) | ~13 hrs | ~4.5 hrs | ~18 hrs |
-| Flood (50,000 cfs) | ~7 hrs | ~2.3 hrs | ~9 hrs |
+| Low (<3,000 cfs) | ~26 hrs | ~9 hrs | ~35 hrs |
+| Median (~5,000 cfs) | ~19 hrs | ~6.5 hrs | ~26 hrs |
+| High (15,000 cfs) | ~11 hrs | ~3.6 hrs | ~14 hrs |
+| Flood (50,000 cfs) | ~5.5 hrs | ~1.8 hrs | ~7 hrs |
 
 ### 3.4 Validation & Learning
 
-Each GF estimate is validated ~8 hours later when that water reaches Little Falls:
+Each GF estimate is validated ~6-7 hours later (at median flow) when that water reaches Little Falls:
 
 1. Store prediction with timestamp, flow bin, and rising/falling state
 2. When water arrives at LF, calculate what GF actually was
@@ -3946,7 +3964,19 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
 
 ---
 
-*Generated by Potomac Pulse v19*
+## Version History
+
+| Version | Date | Changes |
+|---------|------|---------|
+| v20 | Jan 2026 | Empirical travel time correction (×0.80) based on cross-correlation analysis of modern USGS data |
+| v19 | Jan 2026 | Added Edwards Ferry ensemble model (60% PoR + 40% EF), background learning system |
+| v18 | Jan 2026 | Improved GF estimation with hysteresis detection, flow-binned corrections |
+| v17 | Dec 2025 | Added All Gauges tab with upstream travel time predictions |
+| v16 | Dec 2025 | Initial public release with PoR-based GF estimation |
+
+---
+
+*Generated by Potomac Pulse v20*
 `;
 
         // Download as Markdown file

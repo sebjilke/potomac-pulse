@@ -17,11 +17,12 @@ function getSupabase() {
 }
 
 // Constants matching client-side code
-const TRAVEL_COEF = 5174;
-const TRAVEL_EXP = -0.5963;
-const MEDIAN_TRAVEL = 32.3;
-const TRAVEL_POR_GF_BASELINE = 24.3;
-const TRAVEL_GF_LF_BASELINE = 8.1;
+// EMPIRICAL CORRECTION (Jan 2026): Searcy × 0.80 based on cross-correlation analysis
+const TRAVEL_COEF = 4139;        // Adjusted (5174 × 0.80)
+const TRAVEL_EXP = -0.5963;      // Searcy exponent (unchanged)
+const MEDIAN_TRAVEL = 25.8;      // Adjusted (32.3 × 0.80)
+const TRAVEL_POR_GF_BASELINE = 19.4;  // Adjusted (24.3 × 0.80)
+const TRAVEL_GF_LF_BASELINE = 6.5;    // Adjusted (8.1 × 0.80)
 
 // Edwards Ferry → Little Falls power-law model
 // Derived from 16,971 data pairs using limnologist approach (R² = 0.98)
