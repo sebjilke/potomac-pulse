@@ -588,6 +588,57 @@ async function saveGFLearningData(client, data) {
             result = { success: true, action: 'incrementPredictions' };
         }
 
+        // Action: Reset all GF learning data (admin only, requires PIN)
+        if (action === 'resetGFLearning') {
+            const { pin } = data;
+            // Simple PIN protection (same as client-side learning tab)
+            if (pin !== '314159') {
+                return { statusCode: 403, headers, body: JSON.stringify({ error: 'Invalid PIN' }) };
+            }
+
+            // Delete all correction bins
+            await client.from('potomac_observations')
+                .delete()
+                .eq('observation_type', 'gf_correction_bin');
+
+            // Delete all pending predictions
+            await client.from('potomac_observations')
+                .delete()
+                .eq('observation_type', 'gf_prediction')
+                .eq('gauge_id', 'pending');
+
+            // Reset metadata (keep health stats, reset learning stats)
+            const { data: meta } = await client
+                .from('potomac_observations')
+                .select('data')
+                .eq('observation_type', 'gf_metadata')
+                .eq('gauge_id', 'system')
+                .single();
+
+            const oldMeta = meta?.data || {};
+            const newMeta = {
+                totalValidations: 0,
+                totalPredictions: 0,
+                avgErrorPercent: null,
+                sumAbsErrorPercent: 0,
+                lastValidation: null,
+                lastPrediction: oldMeta.lastPrediction,  // Keep for health tracking
+                consecutiveRuns: oldMeta.consecutiveRuns,
+                missedRuns: oldMeta.missedRuns,
+                resetAt: new Date().toISOString(),
+                resetReason: 'v21_flow_state_fix'
+            };
+
+            await client.from('potomac_observations').upsert({
+                observation_type: 'gf_metadata',
+                gauge_id: 'system',
+                data: newMeta
+            }, { onConflict: 'observation_type,gauge_id' });
+
+            console.log('🔄 GF Learning data reset');
+            result = { success: true, action: 'resetGFLearning', message: 'All GF learning data cleared' };
+        }
+
         return {
             statusCode: 200,
             headers,

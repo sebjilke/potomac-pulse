@@ -792,13 +792,21 @@
                         </div>
                         <p id="healthExplain" style="font-size:0.5rem;color:#64748b;margin-top:5px;"></p>
 
-                        <h3 style="color:#a78bfa;font-size:0.75rem;margin:15px 0 8px;">Gauge Corrections</h3>
+                        <h3 style="color:#a78bfa;font-size:0.75rem;margin:15px 0 8px;">GF Flow-Bin Corrections (System 2)</h3>
+                        <div id="gfBinStats" style="font-size:0.55rem;color:#94a3b8;margin-bottom:10px;">
+                            <p>Loading bin statistics...</p>
+                        </div>
+
+                        <h3 style="color:#a78bfa;font-size:0.75rem;margin:15px 0 8px;">Gauge Corrections (System 1)</h3>
                         <div class="correction-list" id="correctionList">
                             <p style="color:#64748b;font-size:0.6rem;">Corrections appear after ~30 observations per gauge</p>
                         </div>
 
-                        <button class="learn-btn" onclick="resetLearning()">🗑️ Reset All Learning Data</button>
-                        <button class="learn-btn" style="background:#475569;margin-top:5px;" onclick="lockLearning()">🔒 Lock Section</button>
+                        <div style="margin-top:15px;padding-top:10px;border-top:1px solid #334155;">
+                            <button class="learn-btn" style="background:#dc2626;" onclick="resetGFLearning()">🗑️ Reset GF Learning (System 2)</button>
+                            <p style="font-size:0.45rem;color:#64748b;margin-top:5px;">Clears flow-bin corrections. Gauge corrections (System 1) preserved.</p>
+                        </div>
+                        <button class="learn-btn" style="background:#475569;margin-top:10px;" onclick="lockLearning()">🔒 Lock Section</button>
                     </div>
                 </div>
             </div>
@@ -2529,17 +2537,70 @@
         return learningData.corrections[gaugeId] || 1.0;
     }
     
-    function resetLearning() {
-        if (!confirm("Reset all learning data? This cannot be undone.")) return;
-        learningData = {
-            startDate: new Date().toISOString(),
-            observations: {},
-            corrections: {},
-            totalObs: 0
-        };
-        saveLearning();
-        updateLearningUI();
-        alert("Learning data reset. The model will begin gathering new observations.");
+    // Reset GF learning data (System 2) on server
+    async function resetGFLearning() {
+        if (!confirm("Reset all GF flow-bin corrections?\n\nThis clears System 2 (server-side) learning.\nGauge corrections (System 1) will be preserved.\n\nThis cannot be undone.")) return;
+
+        try {
+            const response = await fetch('/.netlify/functions/sync-learning?endpoint=gf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'resetGFLearning', pin: '314159' })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                alert("GF learning data reset.\n\nFlow-bin corrections cleared.\nNew observations will start accumulating with proper flow state classification.");
+                // Reload GF learning data
+                await loadGFLearningData();
+                updateGFLearningUI();
+                updateGFBinStats();
+            } else {
+                alert("Reset failed: " + (result.error || 'Unknown error'));
+            }
+        } catch (e) {
+            console.error('Reset error:', e);
+            alert("Reset failed: " + e.message);
+        }
+    }
+
+    // Display GF bin statistics in Learning tab
+    function updateGFBinStats() {
+        const container = document.getElementById('gfBinStats');
+        if (!container || !gfLearningData?.correctionBins) {
+            if (container) container.innerHTML = '<p style="color:#64748b;">No bin data available</p>';
+            return;
+        }
+
+        const bins = gfLearningData.correctionBins;
+        let html = '<table style="width:100%;font-size:0.5rem;"><tr><th>Flow Bin</th><th>Rising</th><th>Steady</th><th>Falling</th></tr>';
+
+        const flowBins = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
+        for (const bin of flowBins) {
+            const binData = bins[bin] || {};
+            const rising = binData.rising?.count || 0;
+            const steady = binData.steady?.count || 0;
+            const falling = binData.falling?.count || 0;
+
+            // Color code: green if 5+, yellow if 1-4, gray if 0
+            const colorFor = n => n >= 5 ? '#4ade80' : n > 0 ? '#fbbf24' : '#64748b';
+
+            html += `<tr>
+                <td>${bin}</td>
+                <td style="color:${colorFor(rising)}">${rising}</td>
+                <td style="color:${colorFor(steady)}">${steady}</td>
+                <td style="color:${colorFor(falling)}">${falling}</td>
+            </tr>`;
+        }
+        html += '</table>';
+
+        // Add correction summary
+        const meta = gfLearningData.metadata || {};
+        if (meta.resetAt) {
+            html += `<p style="margin-top:8px;color:#a78bfa;">Reset: ${new Date(meta.resetAt).toLocaleDateString()} (${meta.resetReason || 'manual'})</p>`;
+        }
+
+        container.innerHTML = html;
     }
     
     function toggleLearning() {
@@ -3656,6 +3717,7 @@
             document.getElementById('pinError').style.display = 'none';
             document.getElementById('learnTab').innerHTML = '🧠 Learning';
             sessionStorage.setItem('learnUnlocked', 'true');
+            updateGFBinStats();  // Show bin statistics
         } else {
             document.getElementById('pinError').style.display = 'block';
             document.getElementById('learnPIN').value = '';
@@ -3675,6 +3737,7 @@
         document.getElementById('learnLocked').style.display = 'none';
         document.getElementById('learnUnlocked').style.display = 'block';
         document.getElementById('learnTab').innerHTML = '🧠 Learning';
+        updateGFBinStats();  // Show bin statistics
     }
     
     // Allow Enter key to submit PIN
