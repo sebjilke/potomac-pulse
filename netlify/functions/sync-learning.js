@@ -710,7 +710,8 @@ async function saveGFLearningData(client, data) {
                 }
             }
 
-            // Update metadata to note the partial reset
+            // Reset metadata - accuracy metrics are no longer valid after partial bin reset
+            // Keep health tracking stats, reset learning stats
             const { data: meta } = await client
                 .from('potomac_observations')
                 .select('data')
@@ -718,19 +719,33 @@ async function saveGFLearningData(client, data) {
                 .eq('gauge_id', 'system')
                 .single();
 
-            const metaData = meta?.data || {};
-            metaData.lastPartialReset = new Date().toISOString();
-            metaData.partialResetReason = 'v24_ice_contamination_cleanup';
-            metaData.binsReset = lowFlowBins;
+            const oldMeta = meta?.data || {};
+            const newMeta = {
+                // Reset learning stats
+                totalValidations: 0,
+                totalPredictions: 0,
+                avgErrorPercent: null,
+                sumAbsErrorPercent: 0,
+                lastValidation: null,
+                flaggedValidations: 0,
+                // Keep health tracking
+                lastPrediction: oldMeta.lastPrediction,
+                consecutiveRuns: oldMeta.consecutiveRuns,
+                missedRuns: oldMeta.missedRuns,
+                // Record reset details
+                lastPartialReset: new Date().toISOString(),
+                partialResetReason: 'v24_ice_contamination_cleanup',
+                binsReset: lowFlowBins
+            };
 
             await client.from('potomac_observations').upsert({
                 observation_type: 'gf_metadata',
                 gauge_id: 'system',
-                data: metaData
+                data: newMeta
             }, { onConflict: 'observation_type,gauge_id' });
 
-            console.log(`🧊 Low-flow bins reset (ice cleanup): ${deletedCount} bins deleted`);
-            result = { success: true, action: 'resetLowFlowBins', deletedCount, binsReset: lowFlowBins };
+            console.log(`🧊 Low-flow bins reset (ice cleanup): ${deletedCount} bins deleted, metadata reset`);
+            result = { success: true, action: 'resetLowFlowBins', deletedCount, binsReset: lowFlowBins, metadataReset: true };
         }
 
         // Action: Reset all GF learning data (admin only, requires PIN)

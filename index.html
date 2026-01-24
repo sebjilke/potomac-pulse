@@ -2774,7 +2774,7 @@
 
     // Reset only low-flow bins (ice cleanup, v24)
     async function resetLowFlowBins() {
-        if (!confirm("Reset low-flow bins (0-6k cfs) only?\n\nThis clears bins most likely affected by ice/cold.\nHigher flow bins will be preserved.\n\nUse this after winter ice conditions.")) return;
+        if (!confirm("Reset low-flow bins AND accuracy stats?\n\nThis clears:\n• 0-3k and 3k-6k cfs correction bins\n• Validation count and accuracy %\n\nHigher flow bins (6k+) preserved.\nAccuracy will rebuild from fresh validations.\n\nUse this after winter ice conditions.")) return;
 
         try {
             const response = await fetch('/.netlify/functions/sync-learning?endpoint=gf', {
@@ -2785,7 +2785,7 @@
 
             const result = await response.json();
             if (result.success) {
-                alert(`Ice cleanup complete.\n\nCleared ${result.deletedCount} low-flow bins (0-3k, 3k-6k cfs).\nHigher flow data preserved.\n\nv24 anomaly detection will prevent future contamination.`);
+                alert(`Ice cleanup complete!\n\nCleared:\n• ${result.deletedCount} low-flow bins (0-3k, 3k-6k cfs)\n• Validation count and accuracy metrics\n\nHigher flow bins preserved.\nAccuracy will rebuild from fresh validations.\n\nv24 anomaly detection will prevent future contamination.`);
                 // Reload GF learning data
                 await loadGFLearningData();
                 updateGFLearningUI();
@@ -3262,8 +3262,9 @@
         const sites = Object.keys(GAUGES).join(",");
         const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${sites}&parameterCd=00060,00065&period=P2D&format=json`;
 
-        // Start Edwards Ferry fetch in parallel (don't await - will update GF when complete)
-        const efPromise = fetchEdwardsFerry();
+        // Start Edwards Ferry fetch - await it to ensure GF shows final value on first load
+        // This prevents the GF value from "jumping" after initial display
+        await fetchEdwardsFerry();
 
         // Try live USGS first
         try {
