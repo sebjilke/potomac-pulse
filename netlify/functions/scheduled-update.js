@@ -1,5 +1,5 @@
 // Potomac Pulse - Scheduled Background Update
-// Runs every 4 hours to fetch data, store history, and validate predictions
+// Runs every 2 hours to fetch data, store history, and validate predictions
 // This allows the learning system to work even when no browsers are open
 
 const { createClient } = require('@supabase/supabase-js');
@@ -203,6 +203,7 @@ function estimateLFStage(cfs) {
 }
 
 // Determine flow state from recent history
+// Threshold lowered to 3% (from 5%) to capture more rising/falling events
 function getFlowState(history, currentCFS) {
     if (!history?.length || history.length < 8) return 'steady';
 
@@ -220,8 +221,9 @@ function getFlowState(history, currentCFS) {
 
     const pctChange = ((currentCFS - pastReading.cfs) / pastReading.cfs) * 100;
 
-    if (pctChange > 5) return 'rising';
-    if (pctChange < -5) return 'falling';
+    // 3% threshold captures more rising/falling events while filtering noise
+    if (pctChange > 3) return 'rising';
+    if (pctChange < -3) return 'falling';
     return 'steady';
 }
 
@@ -340,12 +342,38 @@ async function validatePendingPredictions(client, usgsData) {
         return 0;
     }
 
+    console.log(`Found ${pending.length} pending predictions to check`);
+
     const now = new Date();
+    const staleThreshold = 48 * 60 * 60 * 1000; // 48 hours
     let validated = 0;
+    let cleaned = 0;
 
     for (const pred of pending) {
         const validationDue = new Date(pred.data.validationDue);
-        if (isNaN(validationDue.getTime())) continue;
+        const createdAt = new Date(pred.created_at);
+
+        // Skip invalid timestamps
+        if (isNaN(validationDue.getTime())) {
+            console.log(`⚠️ Skipping prediction with invalid validationDue: ${pred.id}`);
+            continue;
+        }
+
+        // Clean up stale predictions (>48 hours old) - mark as expired, don't validate
+        const ageMs = now - createdAt;
+        if (ageMs > staleThreshold) {
+            console.log(`🧹 Cleaning stale prediction from ${createdAt.toISOString()} (${Math.round(ageMs/3600000)}h old)`);
+            await client.from('potomac_observations').update({
+                gauge_id: 'expired',
+                data: {
+                    ...pred.data,
+                    expiredAt: now.toISOString(),
+                    reason: 'stale_prediction'
+                }
+            }).eq('id', pred.id);
+            cleaned++;
+            continue;
+        }
 
         if (now >= validationDue) {
             // Calculate actual GF CFS
@@ -575,12 +603,16 @@ async function validatePendingPredictions(client, usgsData) {
                 data: metaData
             }, { onConflict: 'observation_type,gauge_id' });
 
-            console.log(`Validated prediction: predicted=${predictedCFS}, actual=${Math.round(actualCFS)}, error=${errorPercent.toFixed(1)}%`);
+            console.log(`✅ Validated prediction: predicted=${predictedCFS}, actual=${Math.round(actualCFS)}, error=${errorPercent.toFixed(1)}%`);
             validated++;
         }
     }
 
-    return validated;
+    if (cleaned > 0) {
+        console.log(`🧹 Cleaned ${cleaned} stale predictions`);
+    }
+
+    return { validated, cleaned };
 }
 
 // Store new prediction
@@ -649,14 +681,17 @@ exports.handler = async (event, context) => {
 
         // 4. Validate pending predictions
         console.log('Checking pending predictions...');
-        const validated = await validatePendingPredictions(client, usgsData);
-        console.log(`Validated ${validated} predictions`);
+        const validationResult = await validatePendingPredictions(client, usgsData);
+        const validated = validationResult.validated || 0;
+        const cleaned = validationResult.cleaned || 0;
+        console.log(`Validated ${validated} predictions, cleaned ${cleaned} stale`);
 
         // 5. Make new prediction
         console.log('Making new prediction...');
         const prediction = makeGFPrediction(usgsData, fullHistory);
         if (prediction) {
             await storePrediction(client, prediction);
+            console.log(`📊 New prediction: ${prediction.predictedCFS} cfs (${prediction.flowBin}, ${prediction.flowState})`);
         }
 
         // 6. Log summary
@@ -667,6 +702,7 @@ exports.handler = async (event, context) => {
             efStage: usgsData.data[usgsData.gauges.ef]?.h,
             porHistoryCount: fullHistory.length,
             predictionsValidated: validated,
+            predictionsCleaned: cleaned,
             newPrediction: prediction ? {
                 cfs: prediction.predictedCFS,
                 flowBin: prediction.flowBin,

@@ -1435,12 +1435,14 @@
     }
 
     // Determine if flow is rising, falling, or steady based on trend data
+    // Uses NWS forecast rate (current → future change percentage)
+    // Threshold lowered to 3% to capture more rising/falling events
     function getFlowState(trend) {
         if (!trend) return 'steady';
-        // Use 24h trend as primary indicator
-        const pct24 = trend.pct24 || 0;
-        if (pct24 > 5) return 'rising';
-        if (pct24 < -5) return 'falling';
+        // rate is (futureFlow - currentFlow) / currentFlow
+        const pctChange = (trend.rate || 0) * 100;
+        if (pctChange > 3) return 'rising';
+        if (pctChange < -3) return 'falling';
         return 'steady';
     }
 
