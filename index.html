@@ -687,6 +687,11 @@
                                     <div style="font-size:0.5rem;color:#64748b;">Validates prediction</div>
                                 </div>
                             </div>
+
+                            <!-- Tributary note -->
+                            <div style="font-size:0.45rem;color:#64748b;text-align:center;margin-top:10px;padding-top:8px;border-top:1px solid #334155;">
+                                + Tributaries (Monocacy, Goose Creek) added at their confluence points
+                            </div>
                         </div>
 
                         <!-- THE KEY INSIGHT -->
@@ -741,14 +746,34 @@
                                 <span style="color:#94a3b8;"> Steady or slowly changing flows, normal conditions</span>
                             </div>
                             <div style="padding:6px 0;border-bottom:1px solid #334155;">
-                                <span style="color:#fbbf24;">◐ Less reliable:</span>
-                                <span style="color:#94a3b8;"> Rapidly rising floods, local thunderstorms below PoR</span>
+                                <span style="color:#fbbf24;">◐ Improving:</span>
+                                <span style="color:#94a3b8;"> Rising floods, local storms — learning system gets better with each event</span>
                             </div>
                             <div style="padding:6px 0;">
                                 <span style="color:#ef4444;">✗ Least reliable:</span>
                                 <span style="color:#94a3b8;"> Ice conditions, gauge malfunctions, extreme floods (>100k cfs)</span>
                             </div>
                         </div>
+                        <p style="font-size:0.5rem;color:#64748b;margin-top:6px;line-height:1.5;">
+                        <b>Note:</b> Rising events and floods are exactly when you want predictions most — watching a pulse travel through the basin. The model learns from each event, so accuracy improves over time for these conditions.
+                        </p>
+
+                        <!-- BASIN COVERAGE -->
+                        <h3>Basin Coverage</h3>
+                        <p style="font-size:0.55rem;color:#94a3b8;margin-bottom:8px;">
+                        We track 18 USGS gauges across the Potomac basin. Here are the key ones for Great Falls prediction:
+                        </p>
+                        <table style="font-size:0.5rem;margin:8px 0;width:100%;">
+                            <tr><th>Gauge</th><th>% of Flow</th><th>Travel to LF</th><th>Role</th></tr>
+                            <tr style="background:#1e3a5f;"><td><b>Point of Rocks</b></td><td>83.5%</td><td>~26 hrs</td><td>Main predictor</td></tr>
+                            <tr><td>Monocacy River</td><td>7.1%</td><td>~14 hrs</td><td>Added at confluence</td></tr>
+                            <tr><td>Goose Creek</td><td>3.0%</td><td>~10 hrs</td><td>Added at confluence</td></tr>
+                            <tr><td>Edwards Ferry</td><td>—</td><td>~4 hrs</td><td>Cross-check (stage only)</td></tr>
+                            <tr><td>Seneca Creek</td><td>0.9%</td><td>~5 hrs</td><td>Below GF (subtracted)</td></tr>
+                        </table>
+                        <p style="font-size:0.45rem;color:#64748b;margin-top:6px;line-height:1.4;">
+                        <b>Upstream gauges</b> (Hancock, Cumberland, Shenandoah) show multi-day forecasts. Travel times for these are less precise — treat as "pulse is coming" awareness rather than exact arrival times.
+                        </p>
 
                         <!-- DATA SOURCES -->
                         <h3>Data Sources</h3>
