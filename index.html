@@ -860,10 +860,42 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
     // =====================================================
-    // POTOMAC PULSE v22
-    // ADAPTIVE LEARNING MODEL WITH TREND PREDICTIONS
+    // POTOMAC PULSE v24
+    // Real-time Potomac River Flow Tracking & Great Falls Prediction
     //
     // © 2026 Gordon Shumway - CC BY-NC 4.0
+    // Repository: https://github.com/sebjilke/potomac-pulse
+    // Docs: See README.md for architecture and deployment
+    // =====================================================
+    //
+    // ALGORITHM OVERVIEW (for developers)
+    // -----------------------------------
+    //
+    // 1. GREAT FALLS PREDICTION (estimateGreatFalls, ~line 1696)
+    //    Ensemble model: 60% Point of Rocks + 40% Edwards Ferry
+    //    - PoR component: Time-shifted PoR reading + Monocacy + Goose Creek
+    //    - EF component: Power-law model (CFS = 108 × stage^2.64, R²=0.98)
+    //
+    // 2. TRAVEL TIME MODEL (getFlowMultiplier, ~line 1049)
+    //    Based on Searcy 1961 (USGS Circular 438) with 0.80 empirical correction
+    //    Formula: T = 4139 × Q^(-0.5963) hours
+    //    Wave celerity adjustment: Up to 30% faster during rising floods
+    //
+    // 3. ADAPTIVE LEARNING SYSTEM (~line 1063+)
+    //    - 18 correction bins: 6 flow ranges × 3 flow states (rising/falling/steady)
+    //    - Background validation every 2 hours via scheduled-update.js
+    //    - Anomaly detection: Ice, gauge errors, statistical outliers
+    //    - EMA smoothing (α=0.3) for stable corrections
+    //
+    // 4. EDWARDS FERRY MODEL (EF_MODEL, ~line 963)
+    //    Power-law: LF_cfs = 108 × EF_stage^2.64
+    //    Hysteresis: +8% rising limb, -8% falling limb
+    //
+    // 5. KEY DATA FLOWS
+    //    - USGS API → fetchData() → data{} → updateUI()
+    //    - Predictions → storeGFPrediction() → Supabase → scheduled validation
+    //    - Learning → syncToCloud() → /api/sync → Supabase
+    //
     // =====================================================
 
     const LF = { id: "01646500", name: "Little Falls", lat: 38.9498, lon: -77.1278, area: 11560 };
