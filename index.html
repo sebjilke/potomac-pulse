@@ -575,82 +575,56 @@
                             <div style="font-size:0.45rem;color:#64748b;margin-top:6px;text-align:center;"><span style="color:#ef4444;">▲</span><span style="color:#22c55e;">▼</span> vs now • tap card or graph for details</div>
                         </div>
 
-                        <details style="margin-bottom:15px;">
-                            <summary style="font-size:0.75rem;color:#60a5fa;cursor:pointer;padding:8px 0;">📥 Estimation Inputs</summary>
-                        <div style="background:rgba(0,0,0,0.15);padding:10px;border-radius:6px;margin:8px 0 15px;">
-                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                <span style="color:#94a3b8;">Point of Rocks (83.5%)</span>
-                                <span id="gf-input-por" style="color:#60a5fa;">-- cfs</span>
-                            </div>
-                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                <span style="color:#94a3b8;">+ Monocacy (7.1%)</span>
-                                <span id="gf-input-monocacy" style="color:#4ade80;">+ -- cfs</span>
-                            </div>
-                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                <span style="color:#94a3b8;">+ Goose Creek (3.0%)</span>
-                                <span id="gf-input-goose" style="color:#4ade80;">+ -- cfs</span>
-                            </div>
-                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                <span style="color:#94a3b8;">Travel time PoR→GF</span>
-                                <span id="gf-input-travel" style="color:#fbbf24;">-- hrs</span>
-                            </div>
-                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                <span style="color:#94a3b8;">Travel time GF→LF</span>
-                                <span id="gf-input-travel-gf-lf" style="color:#fbbf24;">-- hrs</span>
-                            </div>
-                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                <span style="color:#94a3b8;">Flow bin</span>
-                                <span id="gf-input-flowbin" style="color:#94a3b8;">--</span>
-                            </div>
-                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                <span style="color:#94a3b8;">Learned correction</span>
-                                <span id="gf-input-correction" style="color:#a78bfa;">± -- cfs</span>
-                            </div>
-                            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                <span style="color:#94a3b8;">Uncertainty (±1σ)</span>
-                                <span id="gf-input-uncertainty" style="color:#fbbf24;">--</span>
-                            </div>
-                            <div id="gf-ef-crosscheck" style="display:none;padding:4px 0;font-size:0.6rem;">
-                                <div style="display:flex;justify-content:space-between;">
-                                    <span style="color:#06b6d4;">Cross-check</span>
-                                    <span id="gf-ef-estimate" style="color:#06b6d4;">--</span>
+                        <div style="margin-bottom:15px;">
+                            <div style="font-size:0.7rem;color:#60a5fa;padding:8px 0;border-bottom:1px solid #334155;margin-bottom:8px;">📥 Estimation Inputs</div>
+                            <div style="background:rgba(0,0,0,0.15);padding:10px;border-radius:6px;">
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                    <span style="color:#94a3b8;">Point of Rocks (83.5%)</span>
+                                    <span id="gf-input-por" style="color:#60a5fa;">-- cfs</span>
                                 </div>
-                                <div style="font-size:0.5rem;color:#64748b;margin-top:2px;">via nearby gauge correlation</div>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                    <span style="color:#94a3b8;">+ Monocacy (7.1%)</span>
+                                    <span id="gf-input-monocacy" style="color:#4ade80;">+ -- cfs</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                    <span style="color:#94a3b8;">+ Goose Creek (3.0%)</span>
+                                    <span id="gf-input-goose" style="color:#4ade80;">+ -- cfs</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                    <span style="color:#94a3b8;">Travel time PoR→GF</span>
+                                    <span id="gf-input-travel" style="color:#fbbf24;">-- hrs</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                    <span style="color:#94a3b8;">Travel time GF→LF</span>
+                                    <span id="gf-input-travel-gf-lf" style="color:#fbbf24;">-- hrs</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                    <span style="color:#94a3b8;">Flow bin</span>
+                                    <span id="gf-input-flowbin" style="color:#94a3b8;">--</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                    <span style="color:#94a3b8;">Learned correction</span>
+                                    <span id="gf-input-correction" style="color:#a78bfa;">± -- cfs</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                    <span style="color:#94a3b8;">Uncertainty (±1σ)</span>
+                                    <span id="gf-input-uncertainty" style="color:#fbbf24;">--</span>
+                                </div>
+                                <div id="gf-ef-crosscheck" style="display:none;padding:4px 0;font-size:0.6rem;">
+                                    <div style="display:flex;justify-content:space-between;">
+                                        <span style="color:#06b6d4;">EF Cross-check</span>
+                                        <span id="gf-ef-estimate" style="color:#06b6d4;">--</span>
+                                    </div>
+                                    <div style="font-size:0.5rem;color:#64748b;margin-top:2px;">Edwards Ferry power-law estimate</div>
+                                </div>
                             </div>
                         </div>
-                        </details>
 
-                        <details style="margin-bottom:15px;">
-                            <summary style="font-size:0.75rem;color:#60a5fa;cursor:pointer;padding:8px 0;">🔄 Validation Status</summary>
-                        <div id="gf-validation" style="background:rgba(0,0,0,0.15);padding:10px;border-radius:6px;margin:8px 0 0;font-size:0.6rem;">
-                            <div style="color:#94a3b8;">Next validation in <span id="gf-val-countdown" style="color:#fbbf24;">--</span></div>
-                            <div style="margin-top:8px;padding-top:8px;border-top:1px solid #334155;">
-                                <div style="color:#64748b;font-size:0.55rem;">Last validation:</div>
-                                <div id="gf-val-last" style="color:#94a3b8;margin-top:3px;">No validations yet</div>
-                            </div>
+                        <!-- Hidden validation elements for JS compatibility - moved display to Learning tab -->
+                        <div id="gf-validation" style="display:none;">
+                            <span id="gf-val-countdown">--</span>
+                            <span id="gf-val-last">No validations yet</span>
                         </div>
-                        </details>
-
-                        <details style="margin-bottom:15px;">
-                            <summary style="font-size:0.75rem;color:#60a5fa;cursor:pointer;padding:8px 0;">📊 How It Works (TL;DR)</summary>
-                            <div style="font-size:0.55rem;color:#94a3b8;line-height:1.6;margin-top:8px;">
-                                <p style="margin-bottom:8px;"><b style="color:#60a5fa;">Core Equation:</b></p>
-                                <p style="font-family:monospace;background:#0f172a;padding:6px;border-radius:4px;margin-bottom:10px;">
-                                GF = 0.6 × PoR<sub>shifted</sub> + 0.4 × (108 × EF_stage<sup>2.64</sup>)
-                                </p>
-                                <p style="margin-bottom:6px;"><b>PoR Model (60%):</b> Time-shifted Point of Rocks + tributaries</p>
-                                <p style="font-family:monospace;font-size:0.5rem;margin-bottom:8px;">Travel = 4139 × flow<sup>-0.60</sup> hours (×0.80 empirical)</p>
-                                <p style="margin-bottom:6px;"><b>EF Model (40%):</b> Power-law from 17k paired observations (R²=0.98)</p>
-                                <p style="margin-bottom:10px;border-top:1px solid #334155;padding-top:8px;"><b style="color:#22c55e;">Validation Loop:</b> Every 2 hrs, predictions are checked when water reaches Little Falls. Flow-binned corrections (0-3k, 3-6k, 6-12k cfs × rising/falling/steady) are learned automatically.</p>
-                                <p style="margin-bottom:6px;"><b style="color:#0ea5e9;">Ice/Anomaly Detection (v24):</b> Suspicious readings flagged via:</p>
-                                <ul style="margin:0 0 0 12px;padding:0;">
-                                    <li>EF cross-check (>30% discrepancy)</li>
-                                    <li>Stage-discharge mismatch (>50%)</li>
-                                    <li>Statistical outlier (>3σ)</li>
-                                </ul>
-                                <p style="margin-top:6px;color:#64748b;">Flagged validations skip learning to preserve model integrity.</p>
-                            </div>
-                        </details>
 
                         <details>
                             <summary style="font-size:0.75rem;color:#f59e0b;cursor:pointer;padding:8px 0;">⚠️ Limitations</summary>
@@ -667,107 +641,119 @@
                 </div>
                 <div id="tab-docs" class="tab-content">
                     <div class="docs-panel" style="max-height:calc(100vh - 280px);overflow-y:auto;">
-                        <h3>What This App Does</h3>
-                        <p style="font-size:0.6rem;color:#94a3b8;">
-                        This app tracks water levels across the Potomac River basin and predicts when water from upstream will arrive at downstream locations. It's designed for paddlers who want to know conditions at Great Falls and Little Falls.
+
+                        <!-- OVERVIEW -->
+                        <h3>What Is Potomac Pulse?</h3>
+                        <p style="font-size:0.65rem;color:#94a3b8;line-height:1.6;">
+                        Potomac Pulse tracks real-time water levels across the Potomac River basin and predicts conditions at <b style="color:#60a5fa;">Great Falls</b> — where no gauge exists. It's designed for paddlers who want to know what's happening now and what's coming.
                         </p>
 
-                        <h3>How Travel Times Work</h3>
-                        <p style="font-size:0.6rem;color:#94a3b8;">
-                        Water takes time to flow downstream. The speed depends on how much water is in the river:
-                        </p>
-                        <table style="font-size:0.55rem;margin:8px 0;">
-                            <tr><th>Condition</th><th>Point of Rocks to Little Falls</th><th>River Speed</th></tr>
-                            <tr><td>Low flow</td><td>~35 hours</td><td>~1.2 mph</td></tr>
-                            <tr style="background:#1e3a5f;"><td><b>Typical</b></td><td><b>~26 hours</b></td><td><b>~1.6 mph</b></td></tr>
-                            <tr><td>High flow</td><td>~14 hours</td><td>~3 mph</td></tr>
-                            <tr><td>Flood</td><td>~7 hours</td><td>~6 mph</td></tr>
-                        </table>
-                        <p style="font-size:0.5rem;color:#64748b;">
-                        Based on USGS Circular 438 (Searcy, 1961) with empirical correction (×0.80).
+                        <!-- VISUAL: How It Works -->
+                        <div style="background:#0f172a;padding:12px;border-radius:8px;margin:15px 0;font-family:monospace;font-size:0.55rem;line-height:1.5;">
+                            <div style="color:#64748b;margin-bottom:8px;">HOW THE PREDICTION WORKS:</div>
+                            <div style="color:#94a3b8;">
+┌─────────────────┐     ┌─────────────────┐<br>
+│ <span style="color:#60a5fa;">Point of Rocks</span>  │     │ <span style="color:#06b6d4;">Edwards Ferry</span>   │<br>
+│  20 mi upstream │     │  2 mi upstream  │<br>
+│   (has flow)    │     │  (stage only)   │<br>
+└────────┬────────┘     └────────┬────────┘<br>
+         │ 60%                   │ 40%<br>
+         └─────────┬─────────────┘<br>
+                   ▼<br>
+         ┌─────────────────┐<br>
+         │  <span style="color:#4ade80;">GREAT FALLS</span>    │<br>
+         │    Estimate     │<br>
+         └────────┬────────┘<br>
+                  │ ~6 hrs later<br>
+                  ▼<br>
+         ┌─────────────────┐<br>
+         │  <span style="color:#fbbf24;">Little Falls</span>   │<br>
+         │   (validates)   │<br>
+         └─────────────────┘<br>
+                            </div>
+                        </div>
+
+                        <!-- THE KEY INSIGHT -->
+                        <h3>The Key Insight</h3>
+                        <p style="font-size:0.6rem;color:#94a3b8;line-height:1.6;">
+                        Water takes time to flow downstream. By watching upstream gauges and accounting for travel time, we can estimate what Great Falls looks like <i>right now</i> and predict what's coming in the next 48 hours.
                         </p>
 
-                        <h3>Great Falls Estimation</h3>
-                        <p style="font-size:0.6rem;color:#94a3b8;">
-                        There's no gauge at Great Falls, so we estimate it using a weighted ensemble of two models:
+                        <!-- TRAVEL TIMES -->
+                        <h3>Travel Times</h3>
+                        <p style="font-size:0.6rem;color:#94a3b8;margin-bottom:8px;">
+                        Higher water = faster travel. At typical conditions (~5,000 cfs), water takes about 26 hours from Point of Rocks to Little Falls.
                         </p>
-                        <p style="font-size:0.55rem;color:#60a5fa;margin:8px 0;">
-                        <b>GF = 60% × (PoR model) + 40% × (Edwards Ferry model)</b>
-                        </p>
-                        <p style="font-size:0.55rem;color:#94a3b8;margin-top:10px;">
-                        <b>PoR Model (60%):</b> Time-shifted Point of Rocks reading from ~19 hours ago at median flow (faster at high flows ~11 hrs, slower at low flows ~26 hrs), plus Monocacy (7.1%) and Goose Creek (3.0%) tributaries.
-                        </p>
-                        <p style="font-size:0.55rem;color:#94a3b8;margin-top:6px;">
-                        <b>Edwards Ferry Model (40%):</b> Power-law correlation from 17,000 paired observations (R²=0.98). Edwards Ferry is just 2-3 miles upstream of Great Falls.<br>
-                        <span style="font-family:monospace;font-size:0.5rem;color:#60a5fa;">LF_cfs = 108 × EF_stage^2.64</span>
-                        </p>
-                        <p style="font-size:0.55rem;color:#94a3b8;margin-top:10px;">
-                        <b>Why ensemble?</b> PoR is 20+ miles upstream but has discharge data; EF is much closer but only has stage. Blending both captures distant upstream changes AND local conditions near GF.
-                        </p>
-                        <p style="font-size:0.55rem;color:#94a3b8;margin-top:10px;">
-                        <b>Validation:</b> Every estimate gets checked ~6-7 hours later (at median flow) when that water reaches the Little Falls gauge. The system learns flow-binned correction factors for different conditions.
-                        </p>
-                        <p style="font-size:0.55rem;color:#94a3b8;margin-top:6px;">
-                        <b>Accuracy:</b> Continuously validated against actual LF readings. Current accuracy shown in the main display (e.g., "97.2% based on 169 validations").
-                        </p>
-                        <p style="font-size:0.55rem;color:#94a3b8;margin-top:6px;">
-                        <b>Uncertainty:</b> With 5+ observations per flow bin, shows a range (e.g., "3.2 ft (3.0-3.4)") representing ±1 standard deviation.
-                        </p>
-                        <p style="font-size:0.55rem;color:#94a3b8;margin-top:6px;">
-                        <b>Background learning:</b> A scheduled job runs every 2 hours to fetch data, validate predictions, and update corrections—even when no browsers are open.
-                        </p>
-
-                        <h3>Ice/Anomaly Detection (v24)</h3>
-                        <p style="font-size:0.55rem;color:#94a3b8;">
-                        Winter conditions can compromise gauge readings. Frazil ice (suspended ice crystals) affects ADVM velocity measurements while stage remains accurate. The system detects anomalies using multi-signal sensor fusion:
-                        </p>
-                        <table style="font-size:0.5rem;margin:8px 0;">
-                            <tr><th>Check</th><th>Signal</th><th>Threshold</th></tr>
-                            <tr><td>EF Cross-Check</td><td>EF estimate vs LF actual</td><td>>30% discrepancy</td></tr>
-                            <tr><td>Stage-Discharge</td><td>Expected flow from stage vs reported</td><td>>50% mismatch</td></tr>
-                            <tr><td>Statistical</td><td>Error vs historical mean</td><td>>3 std dev</td></tr>
-                            <tr><td>Sanity Check</td><td>Low CFS + normal stage</td><td><1000 cfs @ >2.5 ft</td></tr>
-                        </table>
-                        <p style="font-size:0.55rem;color:#94a3b8;">
-                        When anomaly score >= 2, validation is recorded but learning is <b>skipped</b>. This protects the model from ice-contaminated data while preserving the validation record for analysis.
-                        </p>
-
-                        <h3>The Gauges</h3>
-                        <p style="font-size:0.55rem;color:#94a3b8;">
-                        Each gauge shows the % of the total basin it drains. Point of Rocks (83.5%) captures most of the flow; the remaining 16.5% enters below via tributaries.
-                        </p>
-                        <table style="font-size:0.5rem;margin:8px 0;">
-                            <tr><th>Gauge</th><th>% of Basin</th><th>Travel to LF</th></tr>
-                            <tr><td>Point of Rocks</td><td>83.5%</td><td>~32 hrs</td></tr>
-                            <tr><td>Monocacy</td><td>7.1%</td><td>~18 hrs</td></tr>
-                            <tr><td>Goose Creek</td><td>3.0%</td><td>~12 hrs</td></tr>
-                            <tr><td>Hancock</td><td>35.2%</td><td>~6 days</td></tr>
-                            <tr><td>Cumberland</td><td>7.6%</td><td>~9 days</td></tr>
+                        <table style="font-size:0.55rem;margin:8px 0;width:100%;">
+                            <tr><th>Flow Level</th><th>Speed</th><th>PoR → LF</th></tr>
+                            <tr><td>Low (~2k cfs)</td><td>~1.2 mph</td><td>~35 hrs</td></tr>
+                            <tr style="background:#1e3a5f;"><td><b>Typical (~5k cfs)</b></td><td><b>~1.6 mph</b></td><td><b>~26 hrs</b></td></tr>
+                            <tr><td>High (~15k cfs)</td><td>~3 mph</td><td>~14 hrs</td></tr>
+                            <tr><td>Flood (~50k+ cfs)</td><td>~6 mph</td><td>~7 hrs</td></tr>
                         </table>
 
+                        <!-- READING THE DISPLAY -->
+                        <h3>Reading the Display</h3>
+                        <p style="font-size:0.6rem;color:#94a3b8;line-height:1.6;margin-bottom:10px;">
+                        <b style="color:#60a5fa;">CFS (cubic feet per second)</b> — Volume of water flowing past. Higher = more water.<br>
+                        <b style="color:#4ade80;">Stage (feet)</b> — Water height at the gauge. Shown on "LF scale" so paddlers can compare to familiar Little Falls levels.<br>
+                        <b style="color:#fbbf24;">Confidence</b> — How reliable the estimate is based on data quality.
+                        </p>
+                        <div style="font-size:0.55rem;margin:8px 0;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;">
+                            <div style="margin-bottom:4px;"><span style="color:#4ade80;">● High confidence</span> — Good upstream data + time-shifted history + EF confirmation</div>
+                            <div style="margin-bottom:4px;"><span style="color:#fbbf24;">● Medium confidence</span> — Some data sources missing or conflicting</div>
+                            <div><span style="color:#ef4444;">● Low confidence</span> — Limited data, treat as rough estimate</div>
+                        </div>
+
+                        <!-- SELF-LEARNING -->
+                        <h3>Self-Learning System</h3>
+                        <p style="font-size:0.6rem;color:#94a3b8;line-height:1.6;">
+                        Every prediction gets validated 6-7 hours later when that water reaches Little Falls. The system learns correction factors for different conditions (low/high flow, rising/falling). Accuracy improves over time — currently shown in the main display.
+                        </p>
+                        <p style="font-size:0.55rem;color:#64748b;margin-top:6px;">
+                        Winter ice can corrupt gauge readings. The system automatically detects and flags suspicious data to protect model integrity.
+                        </p>
+
+                        <!-- WHEN TO TRUST IT -->
+                        <h3>When to Trust It</h3>
+                        <div style="font-size:0.55rem;margin:8px 0;">
+                            <div style="padding:6px 0;border-bottom:1px solid #334155;">
+                                <span style="color:#4ade80;">✓ Most reliable:</span>
+                                <span style="color:#94a3b8;"> Steady or slowly changing flows, normal conditions</span>
+                            </div>
+                            <div style="padding:6px 0;border-bottom:1px solid #334155;">
+                                <span style="color:#fbbf24;">◐ Less reliable:</span>
+                                <span style="color:#94a3b8;"> Rapidly rising floods, local thunderstorms below PoR</span>
+                            </div>
+                            <div style="padding:6px 0;">
+                                <span style="color:#ef4444;">✗ Least reliable:</span>
+                                <span style="color:#94a3b8;"> Ice conditions, gauge malfunctions, extreme floods (>100k cfs)</span>
+                            </div>
+                        </div>
+
+                        <!-- DATA SOURCES -->
                         <h3>Data Sources</h3>
-                        <p style="font-size:0.55rem;color:#94a3b8;">
-                        <b>Real-time data:</b> USGS Water Services (updates every 15 minutes)<br>
+                        <p style="font-size:0.55rem;color:#94a3b8;line-height:1.6;">
+                        <b>Real-time gauges:</b> USGS Water Services — updates every 15 minutes<br>
                         <b>Forecasts:</b> National Weather Service river predictions<br>
-                        <b>Travel time model:</b> USGS Circular 438 (Searcy & Davis, 1961)
+                        <b>Model basis:</b> USGS Circular 438 (Searcy, 1961) with empirical refinements
                         </p>
 
-                        <h3>Wave Celerity (v23)</h3>
-                        <p style="font-size:0.55rem;color:#94a3b8;">
-                        During rising floods, wave fronts travel <b>faster</b> than bulk flow. The system reduces travel time proportionally to rise rate (2% reduction per 1%/hr rise, max 30%). This prevents systematic "late arrivals" during rapidly rising conditions.
+                        <!-- LIMITATIONS -->
+                        <h3 style="color:#f59e0b;">⚠️ Limitations</h3>
+                        <p style="font-size:0.55rem;color:#f59e0b;line-height:1.6;">
+                        This is an <b>estimate</b>, not a measurement. Do not use for navigation or life-safety decisions.<br><br>
+                        <span style="color:#94a3b8;">
+                        • Localized storms between gauges won't be captured until water arrives<br>
+                        • Water withdrawals (DC Aqueduct, WSSC) can reduce flow 5-15% at low levels<br>
+                        • Rapidly rising floods may arrive faster than predicted<br>
+                        • Model accuracy depends on accumulated learning data
+                        </span>
                         </p>
 
-                        <h3>Accuracy & Limitations</h3>
-                        <p style="font-size:0.55rem;color:#94a3b8;">
-                        <b>Point of Rocks to Little Falls:</b> ±10% at normal flows, ±17% at flood stage<br>
-                        <b>Upstream gauges (Hancock, Cumberland):</b> ±10-20% - useful for "pulse is coming" awareness, not precise timing<br>
-                        <b>Great Falls estimate:</b> Depends on learned corrections; accuracy improves over time<br>
-                        <b>Rapid changes:</b> Model assumes steady flow; fast-moving flood waves may arrive sooner than predicted<br>
-                        <b>Ice conditions:</b> v24 anomaly detection prevents ice-affected readings from corrupting the model
-                        </p>
-
-                        <div style="margin-top:15px;padding:10px;background:#0f172a;border-radius:6px;text-align:center;">
-                            <p style="font-size:0.6rem;color:#94a3b8;margin-bottom:8px;">Detailed derivation, validation data, and references (Markdown format)</p>
+                        <!-- TECHNICAL APPENDIX -->
+                        <div style="margin-top:20px;padding:12px;background:#0f172a;border-radius:6px;text-align:center;">
+                            <p style="font-size:0.55rem;color:#64748b;margin-bottom:8px;">For scientists and experts: equations, validation data, references</p>
                             <button onclick="downloadTechAppendix()" style="background:#2563eb;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;font-size:0.65rem;">
                                 📄 Download Technical Appendix (.md)
                             </button>
@@ -790,7 +776,17 @@
                         <p id="pinError" style="color:#ef4444;font-size:0.6rem;margin-top:10px;display:none;">Incorrect PIN</p>
                     </div>
                     <div id="learnUnlocked" class="learn-panel" style="display:none;">
-                        <h3 style="color:#a78bfa;font-size:0.8rem;margin-bottom:10px;">📈 Learning Statistics</h3>
+                        <h3 style="color:#a78bfa;font-size:0.8rem;margin-bottom:10px;">🔄 Validation Status</h3>
+                        <div class="learn-stat">
+                            <span class="label">Next Validation</span>
+                            <span class="value" id="learn-val-countdown" style="color:#fbbf24;">--</span>
+                        </div>
+                        <div class="learn-stat">
+                            <span class="label">Last Validation</span>
+                            <span class="value" id="learn-val-last" style="font-size:0.55rem;">No validations yet</span>
+                        </div>
+
+                        <h3 style="color:#a78bfa;font-size:0.8rem;margin:15px 0 10px;">📈 Learning Statistics</h3>
                         <div class="learn-stat">
                             <span class="label">Total Observations</span>
                             <span class="value" id="learnTotal">0</span>
@@ -1425,27 +1421,26 @@
 
         const meta = gfLearningData.metadata;
         const valLast = document.getElementById('gf-val-last');
+        const learnValLast = document.getElementById('learn-val-last');
         const pendingCount = gfLearningData.pendingPredictions?.length || 0;
 
-        if (valLast) {
-            let html = '';
-
-            // Show pending predictions count
-            if (pendingCount > 0) {
-                html += `<span style="color:#fbbf24;">${pendingCount} pending</span> | `;
-            }
-
-            if (meta.totalValidations > 0) {
-                const avgErr = meta.avgErrorPercent ? meta.avgErrorPercent.toFixed(1) : '--';
-                const lastVal = meta.lastValidation ? new Date(meta.lastValidation).toLocaleString() : '--';
-                html += `${meta.totalValidations} validated | Avg err: ${avgErr}%`;
-                html += `<br><span style="color:#64748b;font-size:0.5rem;">Last: ${lastVal}</span>`;
-            } else {
-                html += 'No validations yet - collecting data';
-            }
-
-            valLast.innerHTML = html;
+        // Build validation status HTML
+        let html = '';
+        if (pendingCount > 0) {
+            html += `<span style="color:#fbbf24;">${pendingCount} pending</span> | `;
         }
+        if (meta.totalValidations > 0) {
+            const avgErr = meta.avgErrorPercent ? meta.avgErrorPercent.toFixed(1) : '--';
+            const lastVal = meta.lastValidation ? new Date(meta.lastValidation).toLocaleString() : '--';
+            html += `${meta.totalValidations} validated | Avg err: ${avgErr}%`;
+            html += `<br><span style="color:#64748b;font-size:0.5rem;">Last: ${lastVal}</span>`;
+        } else {
+            html += 'No validations yet - collecting data';
+        }
+
+        // Update both GF tab (hidden) and Learning tab elements
+        if (valLast) valLast.innerHTML = html;
+        if (learnValLast) learnValLast.innerHTML = html;
 
         // Update historical accuracy display in main GF panel
         // Only show when we have at least 5 validations for statistical relevance
@@ -2080,8 +2075,11 @@
             efCrosscheck.style.display = 'none';
         }
 
-        // Validation countdown
-        document.getElementById("gf-val-countdown").textContent = gfEstimate.validationCountdown.toFixed(1) + " hrs";
+        // Validation countdown (update both GF tab hidden element and Learning tab)
+        const valCountdownText = gfEstimate.validationCountdown.toFixed(1) + " hrs";
+        document.getElementById("gf-val-countdown").textContent = valCountdownText;
+        const learnValCountdown = document.getElementById("learn-val-countdown");
+        if (learnValCountdown) learnValCountdown.textContent = valCountdownText;
 
         // Update map popup values
         const popupCFS = document.getElementById("gf-popup-cfs");
@@ -4107,7 +4105,7 @@
     function downloadTechAppendix() {
         const content = `# Potomac Pulse - Technical Appendix
 
-**Version:** 20.0
+**Version:** 24.0
 **Date:** January 2026
 
 ---
