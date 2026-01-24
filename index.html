@@ -1416,26 +1416,33 @@
         }
 
         // Update historical accuracy display in main GF panel
+        // Only show when we have at least 5 validations for statistical relevance
         const accuracyPct = document.getElementById('gf-accuracy-pct');
         const accuracyCount = document.getElementById('gf-accuracy-count');
         const accuracyDiv = document.getElementById('gf-accuracy');
 
-        if (accuracyPct && accuracyCount && meta.totalValidations > 0) {
-            const accuracy = 100 - (meta.avgErrorPercent || 0);
-            accuracyPct.textContent = `${accuracy.toFixed(1)}%`;
-            accuracyCount.textContent = meta.totalValidations.toLocaleString();
+        if (accuracyDiv) {
+            if (meta.totalValidations >= 5) {
+                accuracyDiv.style.display = 'block';
+                const accuracy = 100 - (meta.avgErrorPercent || 0);
+                accuracyPct.textContent = `${accuracy.toFixed(1)}%`;
+                accuracyCount.textContent = meta.totalValidations.toLocaleString();
 
-            // Color code based on accuracy
-            const dot = accuracyDiv.querySelector('span');
-            if (accuracy >= 97) {
-                accuracyPct.style.color = '#4ade80';  // green - excellent
-                if (dot) dot.style.color = '#4ade80';
-            } else if (accuracy >= 95) {
-                accuracyPct.style.color = '#fbbf24';  // yellow - good
-                if (dot) dot.style.color = '#fbbf24';
+                // Color code based on accuracy
+                const dot = accuracyDiv.querySelector('span');
+                if (accuracy >= 97) {
+                    accuracyPct.style.color = '#4ade80';  // green - excellent
+                    if (dot) dot.style.color = '#4ade80';
+                } else if (accuracy >= 95) {
+                    accuracyPct.style.color = '#fbbf24';  // yellow - good
+                    if (dot) dot.style.color = '#fbbf24';
+                } else {
+                    accuracyPct.style.color = '#f87171';  // red - needs improvement
+                    if (dot) dot.style.color = '#f87171';
+                }
             } else {
-                accuracyPct.style.color = '#f87171';  // red - needs improvement
-                if (dot) dot.style.color = '#f87171';
+                // Hide accuracy display until we have enough validations
+                accuracyDiv.style.display = 'none';
             }
         }
 
