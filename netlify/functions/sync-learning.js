@@ -254,6 +254,31 @@ async function saveLearningData(client, data) {
 // NOTE: This must match getGFFlowBin() in index.html client code
 const GF_FLOW_BINS = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
 
+// Estimate LF flow from stage (inverse rating curve)
+// Used for ice/anomaly detection - if actual CFS is much lower than expected from stage,
+// likely indicates frazil ice affecting ADVM velocity measurement
+// SYNC WARNING: This function is duplicated in scheduled-update.js and index.html. Keep all in sync!
+function estimateLFFlowFromStage(stage) {
+    if (stage < 2.40) return 0;
+    if (stage < 2.46) return ((stage - 2.40) / 0.06) * 600;
+    if (stage < 2.69) return 600 + ((stage - 2.46) / 0.23) * 700;
+    if (stage < 2.83) return 1300 + ((stage - 2.69) / 0.14) * 700;
+    if (stage < 2.96) return 2000 + ((stage - 2.83) / 0.13) * 600;
+    if (stage < 3.09) return 2600 + ((stage - 2.96) / 0.13) * 600;
+    if (stage < 3.16) return 3200 + ((stage - 3.09) / 0.07) * 400;
+    if (stage < 3.23) return 3600 + ((stage - 3.16) / 0.07) * 600;
+    if (stage < 3.35) return 4200 + ((stage - 3.23) / 0.12) * 800;
+    if (stage < 3.46) return 5000 + ((stage - 3.35) / 0.11) * 700;
+    if (stage < 3.67) return 5700 + ((stage - 3.46) / 0.21) * 1800;
+    if (stage < 3.95) return 7500 + ((stage - 3.67) / 0.28) * 2500;
+    if (stage < 4.29) return 10000 + ((stage - 3.95) / 0.34) * 3000;
+    if (stage < 5.50) return 13000 + ((stage - 4.29) / 1.21) * 15000;
+    if (stage < 6.79) return 28000 + ((stage - 5.50) / 1.29) * 22000;
+    if (stage < 8.36) return 50000 + ((stage - 6.79) / 1.57) * 30000;
+    if (stage < 10.93) return 80000 + ((stage - 8.36) / 2.57) * 70000;
+    return 150000 + ((stage - 10.93) / 2.5) * 100000;
+}
+
 function getFlowBin(cfs) {
     if (cfs < 3000) return '0-3000';
     if (cfs < 6000) return '3000-6000';
@@ -389,7 +414,7 @@ async function saveGFLearningData(client, data) {
 
         // Action: Record a validation (compare prediction to actual)
         if (action === 'recordValidation') {
-            const { predictionId, actualCFS, lfCFS, senecaCFS } = data;
+            const { predictionId, actualCFS, lfCFS, senecaCFS, actualStage, efEstimateCFS } = data;
 
             // Sanity check: Reject validation if actualCFS is unrealistic
             // (gauge malfunction, freezing, or data error)
@@ -423,6 +448,47 @@ async function saveGFLearningData(client, data) {
                 const flowBin = pred.data.flowBin;
                 const flowState = pred.data.flowState || 'steady';
 
+                // ============================================
+                // ICE/ANOMALY DETECTION (v24)
+                // Uses multiple signals to detect suspicious readings
+                // When flagged, skip learning but still record validation
+                // ============================================
+                let suspiciousScore = 0;
+                const anomalyFlags = [];
+
+                // Check 1: EF cross-check (if EF estimate available)
+                const efEstimate = efEstimateCFS || pred.data.efEstimateCFS;
+                if (efEstimate && actualCFS) {
+                    const efDiscrepancy = (efEstimate - actualCFS) / actualCFS;
+                    if (efDiscrepancy > 0.30) {
+                        suspiciousScore += 2;
+                        anomalyFlags.push(`EF_DISCREPANCY:${(efDiscrepancy * 100).toFixed(0)}%`);
+                    }
+                }
+
+                // Check 2: Stage-discharge inconsistency
+                if (actualStage && actualCFS) {
+                    const expectedFlowFromStage = estimateLFFlowFromStage(actualStage);
+                    if (expectedFlowFromStage > 0) {
+                        const stageDiscrepancy = (expectedFlowFromStage - actualCFS) / actualCFS;
+                        if (stageDiscrepancy > 0.50) {
+                            suspiciousScore += 2;
+                            anomalyFlags.push(`STAGE_DISCHARGE:expected=${Math.round(expectedFlowFromStage)},actual=${Math.round(actualCFS)}`);
+                        }
+                    }
+                }
+
+                // Check 3: Low flow sanity check
+                if (actualCFS < 1000 && actualStage > 2.50) {
+                    suspiciousScore += 1;
+                    anomalyFlags.push(`LOW_FLOW_HIGH_STAGE:${Math.round(actualCFS)}cfs@${actualStage}ft`);
+                }
+
+                const isSuspicious = suspiciousScore >= 2;
+                if (isSuspicious) {
+                    console.log(`🧊 ANOMALY DETECTED (score=${suspiciousScore}): ${anomalyFlags.join(', ')}`);
+                }
+
                 // Update correction bin
                 const binKey = `${flowBin}_${flowState}`;
                 const { data: existingBin } = await client
@@ -447,11 +513,18 @@ async function saveGFLearningData(client, data) {
                     if (stdDev > 0) {
                         const zScore = Math.abs((errorCFS - binData.meanError) / stdDev);
                         isOutlier = zScore > OUTLIER_THRESHOLD;
+                        if (isOutlier) {
+                            suspiciousScore += 2;
+                            anomalyFlags.push(`STATISTICAL_OUTLIER:z=${zScore.toFixed(1)}`);
+                        }
                     }
                 }
 
-                // Only update if not an outlier
-                if (!isOutlier) {
+                // Final determination
+                const skipLearning = isSuspicious || isOutlier;
+
+                // Only update learning if not suspicious/outlier
+                if (!skipLearning) {
                     binData.count += 1;
                     binData.sumError += errorCFS;
                     binData.sumErrorSq += errorCFS * errorCFS;
@@ -521,15 +594,22 @@ async function saveGFLearningData(client, data) {
                     }, { onConflict: 'observation_type,gauge_id' });
                 }
 
-                // Move prediction from pending to validated
+                // Move prediction from pending to validated/flagged
                 await client.from('potomac_observations').update({
-                    gauge_id: 'validated',
+                    gauge_id: skipLearning ? 'flagged' : 'validated',
                     data: {
                         ...pred.data,
                         actualCFS,
+                        actualStage,
                         errorCFS,
                         errorPercent,
-                        validatedAt: new Date().toISOString()
+                        validatedAt: new Date().toISOString(),
+                        isOutlier,
+                        // v24 anomaly detection fields
+                        isSuspicious,
+                        suspiciousScore,
+                        anomalyFlags: anomalyFlags.length > 0 ? anomalyFlags : null,
+                        skipLearning
                     }
                 }).eq('id', pred.id);
 
@@ -547,6 +627,13 @@ async function saveGFLearningData(client, data) {
                 metaData.avgErrorPercent = metaData.sumAbsErrorPercent / metaData.totalValidations;
                 metaData.lastValidation = new Date().toISOString();
 
+                // Track anomaly detection statistics (v24)
+                if (skipLearning) {
+                    metaData.flaggedValidations = (metaData.flaggedValidations || 0) + 1;
+                    metaData.lastFlagged = new Date().toISOString();
+                    metaData.lastFlaggedReason = anomalyFlags.join(', ');
+                }
+
                 await client.from('potomac_observations').upsert({
                     observation_type: 'gf_metadata',
                     gauge_id: 'system',
@@ -558,8 +645,12 @@ async function saveGFLearningData(client, data) {
                     action: 'recordValidation',
                     errorCFS,
                     errorPercent: errorPercent.toFixed(1),
-                    binUpdated: binKey,
-                    isOutlier: isOutlier,
+                    binUpdated: skipLearning ? null : binKey,
+                    isOutlier,
+                    isSuspicious,
+                    suspiciousScore,
+                    anomalyFlags,
+                    skipLearning,
                     binCount: binData.count
                 };
             } else {
@@ -586,6 +677,60 @@ async function saveGFLearningData(client, data) {
             }, { onConflict: 'observation_type,gauge_id' });
 
             result = { success: true, action: 'incrementPredictions' };
+        }
+
+        // Action: Reset low-flow bins only (ice-affected, v24)
+        // Keeps higher flow bins which are less likely to be contaminated
+        if (action === 'resetLowFlowBins') {
+            const { pin } = data;
+            if (pin !== '314159') {
+                return { statusCode: 403, headers, body: JSON.stringify({ error: 'Invalid PIN' }) };
+            }
+
+            // Only delete low-flow bins (0-3000 and 3000-6000) - most affected by ice
+            const lowFlowBins = ['0-3000', '3000-6000'];
+            const flowStates = ['rising', 'falling', 'steady'];
+            let deletedCount = 0;
+
+            for (const bin of lowFlowBins) {
+                for (const state of flowStates) {
+                    const binKey = `${bin}_${state}`;
+                    const { error } = await client.from('potomac_observations')
+                        .delete()
+                        .eq('observation_type', 'gf_correction_bin')
+                        .eq('gauge_id', binKey);
+                    if (!error) deletedCount++;
+
+                    // Also delete stage bins
+                    const stageBinKey = `stage_${bin}_${state}`;
+                    await client.from('potomac_observations')
+                        .delete()
+                        .eq('observation_type', 'gf_correction_bin')
+                        .eq('gauge_id', stageBinKey);
+                }
+            }
+
+            // Update metadata to note the partial reset
+            const { data: meta } = await client
+                .from('potomac_observations')
+                .select('data')
+                .eq('observation_type', 'gf_metadata')
+                .eq('gauge_id', 'system')
+                .single();
+
+            const metaData = meta?.data || {};
+            metaData.lastPartialReset = new Date().toISOString();
+            metaData.partialResetReason = 'v24_ice_contamination_cleanup';
+            metaData.binsReset = lowFlowBins;
+
+            await client.from('potomac_observations').upsert({
+                observation_type: 'gf_metadata',
+                gauge_id: 'system',
+                data: metaData
+            }, { onConflict: 'observation_type,gauge_id' });
+
+            console.log(`🧊 Low-flow bins reset (ice cleanup): ${deletedCount} bins deleted`);
+            result = { success: true, action: 'resetLowFlowBins', deletedCount, binsReset: lowFlowBins };
         }
 
         // Action: Reset all GF learning data (admin only, requires PIN)
@@ -626,7 +771,7 @@ async function saveGFLearningData(client, data) {
                 consecutiveRuns: oldMeta.consecutiveRuns,
                 missedRuns: oldMeta.missedRuns,
                 resetAt: new Date().toISOString(),
-                resetReason: 'v21_flow_state_fix'
+                resetReason: 'v24_full_reset'
             };
 
             await client.from('potomac_observations').upsert({

@@ -179,6 +179,33 @@ function getPoRFromHistory(history, hoursAgo) {
     return null;
 }
 
+// Estimate LF flow from stage (inverse rating curve)
+// Used for ice/anomaly detection - if actual CFS is much lower than expected from stage,
+// likely indicates frazil ice affecting ADVM velocity measurement
+// SYNC WARNING: This function is duplicated in index.html. Keep both in sync!
+function estimateLFFlowFromStage(stage) {
+    // Inverse of estimateLFStage - find CFS that produces given stage
+    // Uses piecewise linear interpolation (same breakpoints as estimateLFStage)
+    if (stage < 2.40) return 0;
+    if (stage < 2.46) return ((stage - 2.40) / 0.06) * 600;
+    if (stage < 2.69) return 600 + ((stage - 2.46) / 0.23) * 700;
+    if (stage < 2.83) return 1300 + ((stage - 2.69) / 0.14) * 700;
+    if (stage < 2.96) return 2000 + ((stage - 2.83) / 0.13) * 600;
+    if (stage < 3.09) return 2600 + ((stage - 2.96) / 0.13) * 600;
+    if (stage < 3.16) return 3200 + ((stage - 3.09) / 0.07) * 400;
+    if (stage < 3.23) return 3600 + ((stage - 3.16) / 0.07) * 600;
+    if (stage < 3.35) return 4200 + ((stage - 3.23) / 0.12) * 800;
+    if (stage < 3.46) return 5000 + ((stage - 3.35) / 0.11) * 700;
+    if (stage < 3.67) return 5700 + ((stage - 3.46) / 0.21) * 1800;
+    if (stage < 3.95) return 7500 + ((stage - 3.67) / 0.28) * 2500;
+    if (stage < 4.29) return 10000 + ((stage - 3.95) / 0.34) * 3000;
+    if (stage < 5.50) return 13000 + ((stage - 4.29) / 1.21) * 15000;
+    if (stage < 6.79) return 28000 + ((stage - 5.50) / 1.29) * 22000;
+    if (stage < 8.36) return 50000 + ((stage - 6.79) / 1.57) * 30000;
+    if (stage < 10.93) return 80000 + ((stage - 8.36) / 2.57) * 70000;
+    return 150000 + ((stage - 10.93) / 2.5) * 100000;
+}
+
 // Estimate LF-equivalent stage from flow
 // Based on USGS field measurements at Little Falls (01646500), 2015-2025
 // SYNC WARNING: This function is duplicated in index.html (line ~1539). Keep both in sync!
@@ -411,6 +438,53 @@ async function validatePendingPredictions(client, usgsData) {
                 console.log(`📊 Stage validation: predicted=${predictedStage}ft, actual=${actualStage}ft, error=${errorStage > 0 ? '+' : ''}${errorStage}ft @ ${Math.round(actualCFS)}cfs (${flowBin}, ${flowState})`);
             }
 
+            // ============================================
+            // ICE/ANOMALY DETECTION (v24)
+            // Uses multiple signals to detect suspicious readings
+            // When flagged, skip learning but still record validation
+            // ============================================
+            let suspiciousScore = 0;
+            const anomalyFlags = [];
+            // Note: actualStage already declared above for stage error calculation
+
+            // Check 1: EF cross-check (if EF estimate available)
+            // If EF predicts much higher flow than LF shows, LF may be ice-affected
+            const efEstimate = pred.data.efEstimateCFS;
+            if (efEstimate && actualCFS) {
+                const efDiscrepancy = (efEstimate - actualCFS) / actualCFS;
+                if (efDiscrepancy > 0.30) {  // EF says >30% more flow than LF shows
+                    suspiciousScore += 2;
+                    anomalyFlags.push(`EF_DISCREPANCY:${(efDiscrepancy * 100).toFixed(0)}%`);
+                }
+            }
+
+            // Check 2: Stage-discharge inconsistency
+            // If stage suggests much higher flow than ADVM reports, velocity measurement may be compromised
+            if (actualStage && actualCFS) {
+                const expectedFlowFromStage = estimateLFFlowFromStage(actualStage);
+                if (expectedFlowFromStage > 0) {
+                    const stageDiscrepancy = (expectedFlowFromStage - actualCFS) / actualCFS;
+                    if (stageDiscrepancy > 0.50) {  // Stage suggests >50% more flow
+                        suspiciousScore += 2;
+                        anomalyFlags.push(`STAGE_DISCHARGE:expected=${Math.round(expectedFlowFromStage)},actual=${Math.round(actualCFS)}`);
+                    }
+                }
+            }
+
+            // Check 3: Low flow sanity check
+            // Very low CFS with normal/high stage is a classic ice signature
+            if (actualCFS < 1000 && actualStage > 2.50) {
+                suspiciousScore += 1;
+                anomalyFlags.push(`LOW_FLOW_HIGH_STAGE:${Math.round(actualCFS)}cfs@${actualStage}ft`);
+            }
+
+            const isSuspicious = suspiciousScore >= 2;
+            if (isSuspicious) {
+                console.log(`🧊 ANOMALY DETECTED (score=${suspiciousScore}): ${anomalyFlags.join(', ')}`);
+                console.log(`   LF reading: ${Math.round(actualCFS)} cfs @ ${actualStage}ft`);
+                console.log(`   Skipping learning update to preserve model integrity`);
+            }
+
             // Update correction bin
             const binKey = `${flowBin}_${flowState}`;
             const { data: existingBin } = await client
@@ -424,7 +498,7 @@ async function validatePendingPredictions(client, usgsData) {
                 count: 0, sumError: 0, sumErrorSq: 0, meanError: 0, emaMeanError: 0
             };
 
-            // Outlier detection
+            // Statistical outlier detection (Check 4 for anomaly scoring)
             const EMA_ALPHA = 0.3;
             let isOutlier = false;
 
@@ -434,10 +508,17 @@ async function validatePendingPredictions(client, usgsData) {
                 if (stdDev > 0) {
                     const zScore = Math.abs((errorCFS - binData.meanError) / stdDev);
                     isOutlier = zScore > 3;
+                    if (isOutlier) {
+                        suspiciousScore += 2;
+                        anomalyFlags.push(`STATISTICAL_OUTLIER:z=${zScore.toFixed(1)}`);
+                    }
                 }
             }
 
-            if (!isOutlier) {
+            // Final suspicious determination (re-check after outlier detection)
+            const skipLearning = isSuspicious || isOutlier;
+
+            if (!skipLearning) {
                 binData.count += 1;
                 binData.sumError += errorCFS;
                 binData.sumErrorSq += errorCFS * errorCFS;
@@ -561,9 +642,9 @@ async function validatePendingPredictions(client, usgsData) {
                 console.log(`🔗 EF correlation: n=${corrData.count}, slope=${corrData.slope?.toFixed(0)}, R²=${corrData.rSquared || 'N/A'}`);
             }
 
-            // Move to validated
+            // Move to validated (include anomaly detection results)
             await client.from('potomac_observations').update({
-                gauge_id: 'validated',
+                gauge_id: skipLearning ? 'flagged' : 'validated',
                 data: {
                     ...pred.data,
                     actualCFS,
@@ -572,7 +653,12 @@ async function validatePendingPredictions(client, usgsData) {
                     errorStage,
                     errorPercent,
                     validatedAt: new Date().toISOString(),
-                    isOutlier
+                    isOutlier,
+                    // v24 anomaly detection fields
+                    isSuspicious,
+                    suspiciousScore,
+                    anomalyFlags: anomalyFlags.length > 0 ? anomalyFlags : null,
+                    skipLearning
                 }
             }).eq('id', pred.id);
 
@@ -589,6 +675,13 @@ async function validatePendingPredictions(client, usgsData) {
             metaData.sumAbsErrorPercent = (metaData.sumAbsErrorPercent || 0) + Math.abs(errorPercent);
             metaData.avgErrorPercent = metaData.sumAbsErrorPercent / metaData.totalValidations;
             metaData.lastValidation = new Date().toISOString();
+
+            // Track anomaly detection statistics (v24)
+            if (skipLearning) {
+                metaData.flaggedValidations = (metaData.flaggedValidations || 0) + 1;
+                metaData.lastFlagged = new Date().toISOString();
+                metaData.lastFlaggedReason = anomalyFlags.join(', ');
+            }
 
             // Track stage error in metadata
             if (errorStage !== null) {

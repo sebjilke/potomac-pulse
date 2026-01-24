@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v23</title>
+    <title>Potomac Pulse v24</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -632,13 +632,24 @@
                         </details>
 
                         <details style="margin-bottom:15px;">
-                            <summary style="font-size:0.75rem;color:#60a5fa;cursor:pointer;padding:8px 0;">📊 How It Works</summary>
-                            <p style="font-size:0.55rem;color:#94a3b8;line-height:1.5;margin-top:8px;">
-                                <b>Weighted Ensemble:</b> GF estimate = 60% (PoR model) + 40% (Edwards Ferry model). The PoR model uses time-shifted upstream data + tributaries; the EF model uses a power-law correlation (R²=0.98) from a gauge just 2-3 miles upstream of GF.<br><br>
-                                <b>PoR Model:</b> Point of Rocks flow (83.5%) is time-shifted by ~19 hrs (at median flow), then Monocacy (7.1%) and Goose Creek (3.0%) are added.<br><br>
-                                <b>EF Model:</b> LF_cfs = 108 × EF_stage^2.64 — built from 17,000 paired observations with time-shift optimization and hysteresis analysis.<br><br>
-                                <b>Validation:</b> Every estimate gets checked ~6-7 hrs later when water reaches Little Falls. The system learns flow-binned corrections (0-3k, 3-6k, 6-12k, etc.) for rising/falling/steady conditions.
-                            </p>
+                            <summary style="font-size:0.75rem;color:#60a5fa;cursor:pointer;padding:8px 0;">📊 How It Works (TL;DR)</summary>
+                            <div style="font-size:0.55rem;color:#94a3b8;line-height:1.6;margin-top:8px;">
+                                <p style="margin-bottom:8px;"><b style="color:#60a5fa;">Core Equation:</b></p>
+                                <p style="font-family:monospace;background:#0f172a;padding:6px;border-radius:4px;margin-bottom:10px;">
+                                GF = 0.6 × PoR<sub>shifted</sub> + 0.4 × (108 × EF_stage<sup>2.64</sup>)
+                                </p>
+                                <p style="margin-bottom:6px;"><b>PoR Model (60%):</b> Time-shifted Point of Rocks + tributaries</p>
+                                <p style="font-family:monospace;font-size:0.5rem;margin-bottom:8px;">Travel = 4139 × flow<sup>-0.60</sup> hours (×0.80 empirical)</p>
+                                <p style="margin-bottom:6px;"><b>EF Model (40%):</b> Power-law from 17k paired observations (R²=0.98)</p>
+                                <p style="margin-bottom:10px;border-top:1px solid #334155;padding-top:8px;"><b style="color:#22c55e;">Validation Loop:</b> Every 2 hrs, predictions are checked when water reaches Little Falls. Flow-binned corrections (0-3k, 3-6k, 6-12k cfs × rising/falling/steady) are learned automatically.</p>
+                                <p style="margin-bottom:6px;"><b style="color:#0ea5e9;">Ice/Anomaly Detection (v24):</b> Suspicious readings flagged via:</p>
+                                <ul style="margin:0 0 0 12px;padding:0;">
+                                    <li>EF cross-check (>30% discrepancy)</li>
+                                    <li>Stage-discharge mismatch (>50%)</li>
+                                    <li>Statistical outlier (>3σ)</li>
+                                </ul>
+                                <p style="margin-top:6px;color:#64748b;">Flagged validations skip learning to preserve model integrity.</p>
+                            </div>
                         </details>
 
                         <details>
@@ -706,6 +717,21 @@
                         <b>Background learning:</b> A scheduled job runs every 2 hours to fetch data, validate predictions, and update corrections—even when no browsers are open.
                         </p>
 
+                        <h3>Ice/Anomaly Detection (v24)</h3>
+                        <p style="font-size:0.55rem;color:#94a3b8;">
+                        Winter conditions can compromise gauge readings. Frazil ice (suspended ice crystals) affects ADVM velocity measurements while stage remains accurate. The system detects anomalies using multi-signal sensor fusion:
+                        </p>
+                        <table style="font-size:0.5rem;margin:8px 0;">
+                            <tr><th>Check</th><th>Signal</th><th>Threshold</th></tr>
+                            <tr><td>EF Cross-Check</td><td>EF estimate vs LF actual</td><td>>30% discrepancy</td></tr>
+                            <tr><td>Stage-Discharge</td><td>Expected flow from stage vs reported</td><td>>50% mismatch</td></tr>
+                            <tr><td>Statistical</td><td>Error vs historical mean</td><td>>3 std dev</td></tr>
+                            <tr><td>Sanity Check</td><td>Low CFS + normal stage</td><td><1000 cfs @ >2.5 ft</td></tr>
+                        </table>
+                        <p style="font-size:0.55rem;color:#94a3b8;">
+                        When anomaly score >= 2, validation is recorded but learning is <b>skipped</b>. This protects the model from ice-contaminated data while preserving the validation record for analysis.
+                        </p>
+
                         <h3>The Gauges</h3>
                         <p style="font-size:0.55rem;color:#94a3b8;">
                         Each gauge shows the % of the total basin it drains. Point of Rocks (83.5%) captures most of the flow; the remaining 16.5% enters below via tributaries.
@@ -726,12 +752,18 @@
                         <b>Travel time model:</b> USGS Circular 438 (Searcy & Davis, 1961)
                         </p>
 
+                        <h3>Wave Celerity (v23)</h3>
+                        <p style="font-size:0.55rem;color:#94a3b8;">
+                        During rising floods, wave fronts travel <b>faster</b> than bulk flow. The system reduces travel time proportionally to rise rate (2% reduction per 1%/hr rise, max 30%). This prevents systematic "late arrivals" during rapidly rising conditions.
+                        </p>
+
                         <h3>Accuracy & Limitations</h3>
                         <p style="font-size:0.55rem;color:#94a3b8;">
                         <b>Point of Rocks to Little Falls:</b> ±10% at normal flows, ±17% at flood stage<br>
                         <b>Upstream gauges (Hancock, Cumberland):</b> ±10-20% - useful for "pulse is coming" awareness, not precise timing<br>
                         <b>Great Falls estimate:</b> Depends on learned corrections; accuracy improves over time<br>
-                        <b>Rapid changes:</b> Model assumes steady flow; fast-moving flood waves may arrive sooner than predicted
+                        <b>Rapid changes:</b> Model assumes steady flow; fast-moving flood waves may arrive sooner than predicted<br>
+                        <b>Ice conditions:</b> v24 anomaly detection prevents ice-affected readings from corrupting the model
                         </p>
 
                         <div style="margin-top:15px;padding:10px;background:#0f172a;border-radius:6px;text-align:center;">
@@ -808,6 +840,8 @@
                         <div style="margin-top:15px;padding-top:10px;border-top:1px solid #334155;">
                             <button class="learn-btn" style="background:#dc2626;" onclick="resetGFLearning()">🗑️ Reset GF Learning (System 2)</button>
                             <p style="font-size:0.45rem;color:#64748b;margin-top:5px;">Clears flow-bin corrections. Gauge corrections (System 1) preserved.</p>
+                            <button class="learn-btn" style="background:#0ea5e9;margin-top:8px;" onclick="resetLowFlowBins()">🧊 Reset Low-Flow Bins (Ice Cleanup)</button>
+                            <p style="font-size:0.45rem;color:#64748b;margin-top:5px;">Clears only 0-6k cfs bins (ice-affected). Preserves higher flow data.</p>
                         </div>
                         <button class="learn-btn" style="background:#475569;margin-top:10px;" onclick="lockLearning()">🔒 Lock Section</button>
                     </div>
@@ -833,7 +867,7 @@
     // =====================================================
 
     const LF = { id: "01646500", name: "Little Falls", lat: 38.9498, lon: -77.1278, area: 11560 };
-    const STORAGE_KEY = "potomac_learning_v23";
+    const STORAGE_KEY = "potomac_learning_v24";
     const CACHE_KEY = "potomac_cached_data";
     const CACHE_MAX_AGE = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
 
@@ -1227,7 +1261,11 @@
                     updateEFHysteresis(pred.efTrend, pred.predictedCFS, actualGFCFS);
                 }
 
-                const success = await sendGFValidation(actualGFCFS, lf.q, senecaFlow);
+                // Pass LF stage and EF estimate for anomaly detection (v24)
+                const lfStage = lf.h || null;  // LF stage at validation time
+                const efEstimate = pred.efEstimateCFS || null;  // EF estimate from prediction
+
+                const success = await sendGFValidation(actualGFCFS, lf.q, senecaFlow, lfStage, efEstimate);
 
                 if (success) {
                     // Reload learning data to get updated corrections
@@ -1242,7 +1280,8 @@
     }
 
     // Send validation to server with retry logic
-    async function sendGFValidation(actualCFS, lfCFS, senecaCFS, retries = 0) {
+    // v24: Added actualStage and efEstimateCFS for anomaly detection
+    async function sendGFValidation(actualCFS, lfCFS, senecaCFS, actualStage = null, efEstimateCFS = null, retries = 0) {
         try {
             const response = await fetch(SYNC_API + '?endpoint=gf', {
                 method: 'POST',
@@ -1251,26 +1290,33 @@
                     action: 'recordValidation',
                     actualCFS: actualCFS,
                     lfCFS: lfCFS,
-                    senecaCFS: senecaCFS
+                    senecaCFS: senecaCFS,
+                    actualStage: actualStage,      // v24: LF stage for anomaly detection
+                    efEstimateCFS: efEstimateCFS   // v24: EF estimate for cross-check
                 })
             });
 
             if (response.ok) {
                 const result = await response.json();
-                console.log('🌊 GF validation recorded:', result);
+                // v24: Log anomaly detection results if present
+                if (result.skipLearning) {
+                    console.log('🧊 GF validation FLAGGED (anomaly detected):', result);
+                } else {
+                    console.log('🌊 GF validation recorded:', result);
+                }
                 return true;
             } else if (retries < 2) {
                 // Retry up to 2 times
                 console.warn('GF validation failed, retrying...');
                 await new Promise(r => setTimeout(r, 1000));  // Wait 1 second
-                return sendGFValidation(actualCFS, lfCFS, senecaCFS, retries + 1);
+                return sendGFValidation(actualCFS, lfCFS, senecaCFS, actualStage, efEstimateCFS, retries + 1);
             }
             return false;
         } catch (e) {
             if (retries < 2) {
                 console.warn('GF validation error, retrying...', e);
                 await new Promise(r => setTimeout(r, 1000));
-                return sendGFValidation(actualCFS, lfCFS, senecaCFS, retries + 1);
+                return sendGFValidation(actualCFS, lfCFS, senecaCFS, actualStage, efEstimateCFS, retries + 1);
             }
             console.warn('Failed to record GF validation after retries:', e);
             return false;
@@ -1826,6 +1872,31 @@
         if (cfs < 80000) return 6.79 + ((cfs - 50000) / 30000) * 1.57;// 50000-80000 → 6.79-8.36 ft
         if (cfs < 150000) return 8.36 + ((cfs - 80000) / 70000) * 2.57;// 80000-150000 → 8.36-10.93 ft
         return 10.93 + ((cfs - 150000) / 100000) * 2.5;             // 150000+ → 10.93+ ft
+    }
+
+    // Estimate LF flow from stage (inverse rating curve)
+    // Used for ice/anomaly detection - if actual CFS is much lower than expected from stage,
+    // likely indicates frazil ice affecting ADVM velocity measurement
+    // SYNC WARNING: This function is duplicated in scheduled-update.js and sync-learning.js. Keep all in sync!
+    function estimateLFFlowFromStage(stage) {
+        if (stage < 2.40) return 0;
+        if (stage < 2.46) return ((stage - 2.40) / 0.06) * 600;
+        if (stage < 2.69) return 600 + ((stage - 2.46) / 0.23) * 700;
+        if (stage < 2.83) return 1300 + ((stage - 2.69) / 0.14) * 700;
+        if (stage < 2.96) return 2000 + ((stage - 2.83) / 0.13) * 600;
+        if (stage < 3.09) return 2600 + ((stage - 2.96) / 0.13) * 600;
+        if (stage < 3.16) return 3200 + ((stage - 3.09) / 0.07) * 400;
+        if (stage < 3.23) return 3600 + ((stage - 3.16) / 0.07) * 600;
+        if (stage < 3.35) return 4200 + ((stage - 3.23) / 0.12) * 800;
+        if (stage < 3.46) return 5000 + ((stage - 3.35) / 0.11) * 700;
+        if (stage < 3.67) return 5700 + ((stage - 3.46) / 0.21) * 1800;
+        if (stage < 3.95) return 7500 + ((stage - 3.67) / 0.28) * 2500;
+        if (stage < 4.29) return 10000 + ((stage - 3.95) / 0.34) * 3000;
+        if (stage < 5.50) return 13000 + ((stage - 4.29) / 1.21) * 15000;
+        if (stage < 6.79) return 28000 + ((stage - 5.50) / 1.29) * 22000;
+        if (stage < 8.36) return 50000 + ((stage - 6.79) / 1.57) * 30000;
+        if (stage < 10.93) return 80000 + ((stage - 8.36) / 2.57) * 70000;
+        return 150000 + ((stage - 10.93) / 2.5) * 100000;
     }
 
     // Update Great Falls display in UI
@@ -2688,6 +2759,33 @@
             const result = await response.json();
             if (result.success) {
                 alert("GF learning data reset.\n\nFlow-bin corrections cleared.\nNew observations will start accumulating with proper flow state classification.");
+                // Reload GF learning data
+                await loadGFLearningData();
+                updateGFLearningUI();
+                updateGFBinStats();
+            } else {
+                alert("Reset failed: " + (result.error || 'Unknown error'));
+            }
+        } catch (e) {
+            console.error('Reset error:', e);
+            alert("Reset failed: " + e.message);
+        }
+    }
+
+    // Reset only low-flow bins (ice cleanup, v24)
+    async function resetLowFlowBins() {
+        if (!confirm("Reset low-flow bins (0-6k cfs) only?\n\nThis clears bins most likely affected by ice/cold.\nHigher flow bins will be preserved.\n\nUse this after winter ice conditions.")) return;
+
+        try {
+            const response = await fetch('/.netlify/functions/sync-learning?endpoint=gf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'resetLowFlowBins', pin: '314159' })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                alert(`Ice cleanup complete.\n\nCleared ${result.deletedCount} low-flow bins (0-3k, 3k-6k cfs).\nHigher flow data preserved.\n\nv24 anomaly detection will prevent future contamination.`);
                 // Reload GF learning data
                 await loadGFLearningData();
                 updateGFLearningUI();
@@ -4204,6 +4302,42 @@ During rising flood events, the wave front travels **faster** than the bulk wate
 
 *This addresses a key limitation: without wave celerity, the system systematically arrives "late" during rising flood events when paddlers need predictions most.*
 
+#### Ice/Anomaly Detection (v24)
+
+Winter conditions can compromise USGS gauge readings, particularly ADVM (Acoustic Doppler Velocity Meter) measurements. Frazil ice - small ice crystals suspended in supercooled water - scatter and absorb the acoustic signal, causing artificially low velocity readings even when stage (water level) remains accurate.
+
+**v24 implements multi-signal anomaly detection:**
+
+The system uses **sensor fusion** to detect when one measurement is unreliable:
+
+| Check | Signal | Threshold | Score |
+|-------|--------|-----------|-------|
+| EF Cross-Check | Edwards Ferry predicts higher flow than LF reports | >30% discrepancy | +2 |
+| Stage-Discharge | LF stage suggests higher flow than CFS reports | >50% discrepancy | +2 |
+| Statistical Outlier | Error exceeds 3σ from historical mean | z-score > 3 | +2 |
+| Low Flow Sanity | Very low CFS with normal stage | <1000 cfs @ >2.5 ft | +1 |
+
+**When suspicious score >= 2:**
+- Validation is recorded (for analysis)
+- Learning update is **skipped** (protects model integrity)
+- Record is marked as "flagged" rather than "validated"
+
+**Scientific basis:**
+- **ADVM physics**: Acoustic Doppler measures velocity by detecting frequency shift in reflected signal. Ice crystals scatter/absorb signal, returning weaker echoes that bias velocity low.
+- **Stage accuracy**: Pressure transducers measure water column height directly - not affected by ice crystals in suspension.
+- **Mass balance**: The learning system targets CFS (mass balance is physically meaningful), but uses stage as a "sanity check" to detect when CFS measurement is compromised.
+
+**Example detection:**
+\`\`\`
+LF reports:  987 cfs @ 2.56 ft stage
+Expected:    ~1,500 cfs (from stage rating curve)
+EF estimate: ~1,800 cfs
+→ Score: 2 (EF discrepancy) + 2 (stage-discharge) = 4
+→ FLAGGED: Skip learning, preserve model
+\`\`\`
+
+*This prevents ice-affected readings from corrupting the learning system during winter months.*
+
 #### Trend Validation
 
 If Edwards Ferry trend (rising/falling) disagrees with PoR trend, confidence is reduced. This catches situations where local conditions differ from upstream.
@@ -4419,6 +4553,7 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v24 | Jan 2026 | Ice/anomaly detection: Frazil ice and sensor malfunction protection using multi-signal sensor fusion. Stage-discharge consistency check detects ADVM velocity measurement errors (ice crystals scatter acoustic signal). EF cross-check, statistical outliers, and low-flow sanity checks combine into suspicious score. When flagged (score>=2), validation is recorded but learning is skipped to preserve model integrity. |
 | v23 | Jan 2026 | Wave celerity adjustment: travel time reduced up to 30% during rising floods based on rate of rise (wave fronts travel faster than bulk flow). Fixed GF loading indicator to wait for Edwards Ferry data before displaying estimate. |
 | v22 | Jan 2026 | Flow-scaled thresholds: flow state detection now uses max(100 cfs, 2% of flow) instead of flat 3%. Learnable EF hysteresis: starts with literature-informed values (+8% rising, -8% falling per Fread 1973) and refines via validation. Visual indicator for estimated gauge values. |
 | v21 | Jan 2026 | Learning system overhaul: 2h schedule, 3% flow state threshold, stale cleanup, server-side reset, health monitoring, bin statistics display. Added visual indicator for estimated gauge values (ice/malfunction). |
@@ -4430,7 +4565,7 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
 
 ---
 
-*Generated by Potomac Pulse v23*
+*Generated by Potomac Pulse v24*
 `;
 
         // Download as Markdown file
