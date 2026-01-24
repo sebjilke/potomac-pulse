@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v21</title>
+    <title>Potomac Pulse v22</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -74,6 +74,7 @@
         @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        .gf-loading { color: #64748b; animation: pulse 1s infinite; }
         .btn {
             background: #334155;
             border: none;
@@ -314,6 +315,8 @@
         .gauge-trend { font-size: 0.9rem; text-align: center; }
         .gauge-pct { color: #a78bfa; text-align: right; font-size: 0.7rem; }
         .gauge-q { color: #60a5fa; text-align: right; font-size: 0.8rem; font-weight: 500; }
+        .gauge-q.estimated { color: #94a3b8; font-style: italic; }
+        .gauge-q.estimated::after { content: "*"; font-size: 0.6rem; vertical-align: super; color: #fbbf24; }
         .gauge-t { color: #fbbf24; text-align: right; font-size: 0.75rem; }
 
         @media (max-width: 768px) {
@@ -823,14 +826,14 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
     // =====================================================
-    // POTOMAC PULSE v21
+    // POTOMAC PULSE v22
     // ADAPTIVE LEARNING MODEL WITH TREND PREDICTIONS
     //
     // © 2026 Gordon Shumway - CC BY-NC 4.0
     // =====================================================
 
     const LF = { id: "01646500", name: "Little Falls", lat: 38.9498, lon: -77.1278, area: 11560 };
-    const STORAGE_KEY = "potomac_learning_v21";
+    const STORAGE_KEY = "potomac_learning_v22";
     const CACHE_KEY = "potomac_cached_data";
     const CACHE_MAX_AGE = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
 
@@ -933,6 +936,16 @@
         maxStage: 20.0       // Maximum valid EF stage (ft)
     };
 
+    // Learnable hysteresis correction for EF model
+    // At same stage, rising limb typically carries more flow than falling (momentum vs drainage)
+    // Start with literature-informed values: +8% rising, -8% falling (Fread 1973, Henderson 1966)
+    // Learning system will refine these based on actual validation data
+    let efHysteresis = {
+        rising: { multiplier: 1.08, count: 0, sumError: 0 },   // Rising limb carries ~8% more flow at same stage
+        falling: { multiplier: 0.92, count: 0, sumError: 0 },  // Falling limb carries ~8% less flow at same stage
+        steady: { multiplier: 1.0, count: 0, sumError: 0 }
+    };
+
     // Edwards Ferry data storage
     let edwardsFerryData = {
         current: null,      // Current stage reading
@@ -1019,6 +1032,7 @@
 
     let gfEstimate = null;  // Current Great Falls estimate
     let gfLearningData = null;  // GF correction bins and metadata
+    let gfDataReady = false;  // True when all GF dependencies are loaded
     let lastGFPredictionTime = 0;  // Throttle prediction storage
     let lastGFValidationCheck = 0;  // Throttle validation checks
     let gfPredictionRetryQueue = [];  // Queue for failed prediction stores
@@ -1069,6 +1083,9 @@
             console.warn('Failed to load GF learning data:', e);
             gfLearningData = emptyData;
         }
+
+        // Mark GF data as ready (UI will update when USGS data arrives)
+        gfDataReady = true;
     }
 
     // Store a GF prediction for later validation
@@ -1092,8 +1109,9 @@
         const actualValidationHours = Math.max(estimate.validationCountdown, minValidationHours);
         const validationDue = new Date(now + actualValidationHours * 60 * 60 * 1000).toISOString();
 
-        // Include Edwards Ferry stage for correlation learning
+        // Include Edwards Ferry stage and trend for correlation learning
         const efStage = edwardsFerryData.current?.stage || null;
+        const efTrend = getEdwardsFerryTrend();
 
         const predictionData = {
             timestamp: new Date().toISOString(),
@@ -1105,7 +1123,8 @@
             flowState: estimate.flowState,
             travelTimeGFtoLF: actualValidationHours,
             validationDue: validationDue,
-            efStage: efStage  // Edwards Ferry stage at prediction time
+            efStage: efStage,  // Edwards Ferry stage at prediction time
+            efTrend: efTrend   // Edwards Ferry trend (rising/falling/steady) for hysteresis learning
         };
 
         const success = await sendGFPrediction(predictionData);
@@ -1202,6 +1221,11 @@
                 // GF_actual = LF - Seneca (roughly)
                 const senecaFlow = seneca?.q || (lf.q * 0.01);  // 1% estimate if no data
                 const actualGFCFS = lf.q - senecaFlow;
+
+                // Update EF hysteresis learning if we have EF trend from prediction
+                if (pred.efTrend && pred.predictedCFS) {
+                    updateEFHysteresis(pred.efTrend, pred.predictedCFS, actualGFCFS);
+                }
 
                 const success = await sendGFValidation(actualGFCFS, lf.q, senecaFlow);
 
@@ -1514,13 +1538,29 @@
 
     // Determine if flow is rising, falling, or steady based on trend data
     // Uses NWS forecast rate (current → future change percentage)
-    // Threshold lowered to 3% to capture more rising/falling events
-    function getFlowState(trend) {
+    // Threshold scales with flow: max(100 cfs, 2% of flow) to filter noise at low flows
+    // while still detecting real changes at high flows
+    function getFlowState(trend, currentFlow) {
         if (!trend) return 'steady';
+
         // rate is (futureFlow - currentFlow) / currentFlow
         const pctChange = (trend.rate || 0) * 100;
-        if (pctChange > 3) return 'rising';
-        if (pctChange < -3) return 'falling';
+        const absChange = Math.abs(pctChange * (currentFlow || 5000) / 100);
+
+        // Threshold: at least 100 cfs change OR 2% of flow, whichever is larger
+        // At 2,000 cfs: threshold = 100 cfs (5%)
+        // At 5,000 cfs: threshold = 100 cfs (2%)
+        // At 10,000 cfs: threshold = 200 cfs (2%)
+        // At 50,000 cfs: threshold = 1,000 cfs (2%)
+        const minAbsChange = 100;  // Minimum 100 cfs to count as change
+        const minPctChange = 2;    // Minimum 2% to count as change
+
+        const threshold = Math.max(minAbsChange, (currentFlow || 5000) * minPctChange / 100);
+
+        if (absChange >= threshold) {
+            if (pctChange > 0) return 'rising';
+            if (pctChange < 0) return 'falling';
+        }
         return 'steady';
     }
 
@@ -1569,7 +1609,8 @@
         }
 
         // Flow state (must be computed before correction lookup)
-        const flowState = getFlowState(por.trend);
+        // Pass PoR flow to scale threshold appropriately
+        const flowState = getFlowState(por.trend, por.q);
 
         // Apply learned correction based on flow bin and rising/falling state
         const flowBin = getGFFlowBin(estimatedCFS);
@@ -1708,6 +1749,19 @@
 
     // Update Great Falls display in UI
     function updateGreatFallsUI() {
+        // Show loading state until GF corrections are loaded
+        if (!gfDataReady) {
+            document.getElementById("gf-cfs").innerHTML = '<span class="gf-loading">...</span>';
+            document.getElementById("gf-stage").innerHTML = '<span class="gf-loading">...</span>';
+            document.getElementById("gf-trend").textContent = "";
+            document.getElementById("gf-data-source").textContent = "Loading corrections...";
+            document.getElementById("gf-confidence").textContent = "";
+            document.getElementById("gf-forecast-cfs").textContent = "--";
+            document.getElementById("gf-forecast-stage").textContent = "--";
+            document.getElementById("gf-forecast-hrs").textContent = "--";
+            return;
+        }
+
         gfEstimate = estimateGreatFalls();
 
         if (!gfEstimate) {
@@ -3027,6 +3081,9 @@
         const sites = Object.keys(GAUGES).join(",");
         const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${sites}&parameterCd=00060,00065&period=P2D&format=json`;
 
+        // Start Edwards Ferry fetch in parallel (don't await - will update GF when complete)
+        const efPromise = fetchEdwardsFerry();
+
         // Try live USGS first
         try {
             let r = await fetch(url);
@@ -3038,7 +3095,6 @@
                 process(json);
                 setStatus("ok");
                 fetchNWSForecasts();
-                fetchEdwardsFerry();  // Hidden gauge for GF validation
                 return;
             }
         } catch(e) {
@@ -3057,7 +3113,6 @@
                     process(json);
                     setStatus("ok");
                     fetchNWSForecasts();
-                    fetchEdwardsFerry();  // Hidden gauge for GF validation
                     return;
                 }
             } catch(e) {
@@ -3073,7 +3128,6 @@
             process(cached.data);
             setStatus(cached.stale ? "stale" : "cached");
             fetchNWSForecasts();
-            fetchEdwardsFerry();  // Hidden gauge for GF validation
             return;
         }
 
@@ -3120,6 +3174,11 @@
                 }
 
                 console.log(`📍 Edwards Ferry: ${stage.toFixed(2)} ft`);
+
+                // Update GF estimate now that we have EF data for ensemble
+                if (gfDataReady) {
+                    updateGreatFallsUI();
+                }
             }
         } catch(e) {
             console.warn('Edwards Ferry fetch failed:', e);
@@ -3145,6 +3204,7 @@
 
     // Estimate LF CFS directly from Edwards Ferry stage using power-law model
     // Model: LF_cfs = 108 × EF_stage^2.64 (R² = 0.98, derived from 16,971 data pairs)
+    // Includes learnable hysteresis correction: rising limb carries more flow than falling at same stage
     // Returns null if EF data missing or stage out of valid range
     function estimateGFFromEdwardsFerry() {
         const ef = edwardsFerryData;
@@ -3156,7 +3216,14 @@
         if (stage < EF_MODEL.minStage || stage > EF_MODEL.maxStage) return null;
 
         // Power-law model: LF_cfs = coef × stage^exp
-        const estimatedCFS = EF_MODEL.coef * Math.pow(stage, EF_MODEL.exp);
+        let estimatedCFS = EF_MODEL.coef * Math.pow(stage, EF_MODEL.exp);
+
+        // Apply learned hysteresis correction based on EF trend
+        // Multipliers start at 1.0 and are updated based on validation errors
+        const efTrend = getEdwardsFerryTrend();
+        const hysteresisData = efHysteresis[efTrend] || { multiplier: 1.0, count: 0 };
+        const hysteresisMultiplier = hysteresisData.multiplier;
+        estimatedCFS *= hysteresisMultiplier;
 
         // Sanity check - should be positive and reasonable
         if (estimatedCFS < 500 || estimatedCFS > 500000) return null;
@@ -3167,9 +3234,68 @@
             model: 'power-law',
             rSquared: EF_MODEL.rSquared,
             medianErrorPct: EF_MODEL.medianErrorPct,
+            efTrend: efTrend,
+            hysteresisMultiplier: hysteresisMultiplier,
+            hysteresisCount: hysteresisData.count,  // How many observations informed this multiplier
             // Legacy field for backwards compatibility
             correlationCount: 16971
         };
+    }
+
+    // Update EF hysteresis multiplier based on validation error
+    // Called when a GF prediction is validated against actual LF reading
+    function updateEFHysteresis(efTrend, predictedCFS, actualCFS) {
+        if (!efTrend || efTrend === 'steady') return;  // Only learn for rising/falling
+
+        const h = efHysteresis[efTrend];
+        if (!h) return;
+
+        // Calculate what multiplier would have been perfect
+        // If predicted was 10% too high, we need to multiply by 0.91 next time
+        const errorRatio = actualCFS / predictedCFS;
+
+        // Use EMA to update multiplier (α=0.2 for gradual learning)
+        const alpha = 0.2;
+        h.multiplier = alpha * (h.multiplier * errorRatio) + (1 - alpha) * h.multiplier;
+
+        // Clamp to reasonable range (0.8 to 1.2 = ±20% max correction)
+        h.multiplier = Math.max(0.8, Math.min(1.2, h.multiplier));
+
+        h.count += 1;
+        h.sumError += Math.abs(predictedCFS - actualCFS);
+
+        console.log(`📊 EF hysteresis update (${efTrend}): multiplier=${h.multiplier.toFixed(3)}, n=${h.count}`);
+
+        // Persist to localStorage
+        saveEFHysteresis();
+    }
+
+    // Save EF hysteresis to localStorage
+    function saveEFHysteresis() {
+        try {
+            localStorage.setItem('potomac_ef_hysteresis', JSON.stringify(efHysteresis));
+        } catch (e) {
+            console.warn('Failed to save EF hysteresis:', e);
+        }
+    }
+
+    // Load EF hysteresis from localStorage
+    function loadEFHysteresis() {
+        try {
+            const saved = localStorage.getItem('potomac_ef_hysteresis');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                // Merge with defaults to handle missing keys
+                for (const key of ['rising', 'falling', 'steady']) {
+                    if (parsed[key]) {
+                        efHysteresis[key] = { ...efHysteresis[key], ...parsed[key] };
+                    }
+                }
+                console.log('📊 EF hysteresis loaded:', efHysteresis);
+            }
+        } catch (e) {
+            console.warn('Failed to load EF hysteresis:', e);
+        }
     }
 
     function process(json) {
@@ -3417,7 +3543,11 @@
                 const te = document.getElementById(`t-${id}`);
                 const tre = document.getElementById(`trend-${id}`);
 
-                if (qe) qe.textContent = d?.q ? Math.round(d.q).toLocaleString() : "n/a";
+                if (qe) {
+                    qe.textContent = d?.q ? Math.round(d.q).toLocaleString() : "n/a";
+                    qe.classList.toggle('estimated', d?.estimated === true);
+                    qe.title = d?.estimated ? 'Estimated from drainage area ratio (gauge data unavailable)' : '';
+                }
                 if (te) {
                     if (d?.travelHrs) {
                         te.textContent = fmt(d.travelHrs);
@@ -3449,10 +3579,11 @@
     function popup(id, g, color, bk) {
         const d = data[id] || {};
         const isTarget = id === LF.id;
+        const estLabel = d.estimated ? ' <span style="color:#fbbf24;font-size:0.65rem;">(est*)</span>' : '';
         let html = `<div class="pop-nm" style="color:${color}">${g.name}</div>
             <div class="pop-area">${g.area?.toLocaleString()} sq mi${g.pctLF ? ' • ' + g.pctLF + '% of LF basin' : ''}</div>
             <div class="pop-row">
-                <div class="pop-cell"><div class="pop-val blue">${d.q ? Math.round(d.q).toLocaleString() : "n/a"}</div><div class="pop-lbl">cfs</div></div>
+                <div class="pop-cell"><div class="pop-val blue">${d.q ? Math.round(d.q).toLocaleString() : "n/a"}${estLabel}</div><div class="pop-lbl">cfs</div></div>
                 <div class="pop-cell"><div class="pop-val green">${d.h ? d.h.toFixed(2) : "n/a"}</div><div class="pop-lbl">ft stage</div></div>
             </div>`;
         
@@ -3484,6 +3615,9 @@
             if (bk === "belowPtR") {
                 html += `<div class="pop-warn">⚠️ Below Point of Rocks — can raise LF before upstream signal</div>`;
             }
+        }
+        if (d.estimated) {
+            html += `<div class="pop-warn" style="color:#fbbf24;">* Estimated from drainage area ratio — gauge data unavailable (ice/malfunction)</div>`;
         }
         return html;
     }
@@ -3668,6 +3802,9 @@
             // Load PoR history for Great Falls time-shifting
             loadPoRHistory();
 
+            // Load EF hysteresis corrections (local learning)
+            loadEFHysteresis();
+
             // Load learning data (from cloud + local)
             learningData = await loadLearning();
 
@@ -3827,6 +3964,21 @@ For gauges upstream of Point of Rocks (Hancock, Cumberland, etc.), baseline trav
 
 For upstream gauges, travel times are best used for "pulse is coming" awareness rather than precise arrival timing.
 
+### 2.5 Upstream Validation (Planned)
+
+**Status:** Deferred until spring 2026 due to winter ice conditions
+
+Cross-correlation analysis to validate segment travel times:
+- **Cumberland → Hancock** (North Branch): Cumberland gauge (01603000) currently ice-affected (-999999)
+- **Hancock → Point of Rocks** (Mainstem): Preliminary Jan 2026 event showed ~34h lag (peak to peak)
+
+When ice clears, we plan to:
+1. Cross-correlate Cumberland-Hancock with 1-hour resolution
+2. Cross-correlate Hancock-PoR separately from PoR-LF
+3. Determine if upstream reaches need different multipliers than the PoR→LF 0.80 correction
+
+*Preliminary observation (Jan 12-15, 2026): Hancock peaked at 2,300 cfs on Jan 13 13:00; PoR peaked at 3,520 cfs on Jan 14 22:45 — approximately 34 hours lag for the Hancock→PoR reach.*
+
 ---
 
 ## 3. Great Falls Estimation
@@ -3935,6 +4087,20 @@ This ensemble approach:
 - EF is geographically closer to GF (2-3 miles vs 20+ miles for PoR)
 - Provides cross-validation between methods
 
+#### Learnable Hysteresis Correction (v22)
+
+At the same stage, a rising river carries more flow than a falling river due to momentum and storage effects. This is called "hysteresis" and creates a loop in the stage-discharge relationship (Fread 1973, Henderson 1966).
+
+**v22 implements adaptive hysteresis learning:**
+- Multipliers start at literature-informed values: **+8% rising, -8% falling**
+- System refines these values from validation errors
+- Separate multipliers for rising, falling, and steady conditions
+- Updates use EMA (α=0.2) for gradual, stable learning
+- Multipliers clamped to ±20% range (0.8 to 1.2)
+- Stored locally in browser and persist across sessions
+
+*Starting from hydrologically-reasonable estimates (+8%/-8%) rather than neutral (1.0) allows the system to be accurate from day one, while still learning Potomac-specific corrections over time.*
+
 #### Trend Validation
 
 If Edwards Ferry trend (rising/falling) disagrees with PoR trend, confidence is reduced. This catches situations where local conditions differ from upstream.
@@ -3980,10 +4146,22 @@ A scheduled serverless function runs every 2 hours to ensure continuous learning
 
 This means the model improves 24/7, even when no browsers are open.
 
-**Flow state classification:**
-- **Rising:** Flow increased >3% over the past 2 hours
-- **Falling:** Flow decreased >3% over the past 2 hours
-- **Steady:** Flow changed <3% over the past 2 hours
+**Flow state classification (v22 - flow-scaled threshold):**
+
+The threshold scales with flow magnitude to filter noise at low flows while detecting real changes at high flows:
+- **Threshold:** max(100 cfs, 2% of current flow)
+- **Rising:** Change exceeds threshold in positive direction
+- **Falling:** Change exceeds threshold in negative direction
+- **Steady:** Change below threshold
+
+| Flow Level | Threshold | Effective % |
+|------------|-----------|-------------|
+| 2,000 cfs | 100 cfs | 5.0% |
+| 5,000 cfs | 100 cfs | 2.0% |
+| 10,000 cfs | 200 cfs | 2.0% |
+| 50,000 cfs | 1,000 cfs | 2.0% |
+
+*Previous versions used a flat 3% threshold, which was too sensitive at low flows (60 cfs noise triggers "rising") and insufficiently sensitive at flood flows.*
 
 Separate corrections are learned for each flow state because rising water moves faster than steady water at the same level (momentum effect), while falling water drains slower (hysteresis).
 
@@ -4020,7 +4198,26 @@ To prevent bad data from corrupting learned corrections:
 
 *Travel times at median flow with ×0.80 empirical correction applied.*
 
-### 4.2 Below Point of Rocks
+### 4.2 Data Availability & Estimated Values
+
+When a gauge returns invalid data (sentinel value -999999), the app estimates discharge using drainage area ratio:
+
+\`\`\`
+Estimated_CFS = LF_CFS × (gauge_drainage_area / 11,560)
+\`\`\`
+
+**Visual indicators:**
+- Sidebar: Estimated values shown in *italics* with yellow asterisk (*)
+- Popup: "(est*)" label with yellow warning explaining the estimation
+
+**Common causes of unavailable data:**
+- Ice at measurement site (winter)
+- Gauge malfunction or maintenance
+- Communication outage
+
+*Example: With Kitzmiller (247 mi²) iced over and LF at 10,000 cfs, estimated flow = 10,000 × (247/11,560) = 214 cfs*
+
+### 4.3 Below Point of Rocks
 
 16.5% of Little Falls' drainage enters below Point of Rocks:
 - Monocacy: 7.1% (gauged)
@@ -4119,7 +4316,8 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
 
 | Version | Date | Changes |
 |---------|------|---------|
-| v21 | Jan 2026 | Learning system overhaul: 2h schedule, 3% flow state threshold, stale cleanup, server-side reset, health monitoring, bin statistics display |
+| v22 | Jan 2026 | Flow-scaled thresholds: flow state detection now uses max(100 cfs, 2% of flow) instead of flat 3%. Learnable EF hysteresis: starts with literature-informed values (+8% rising, -8% falling per Fread 1973) and refines via validation. Visual indicator for estimated gauge values. GF loading indicator. |
+| v21 | Jan 2026 | Learning system overhaul: 2h schedule, 3% flow state threshold, stale cleanup, server-side reset, health monitoring, bin statistics display. Added visual indicator for estimated gauge values (ice/malfunction). |
 | v20 | Jan 2026 | Empirical travel time correction (×0.80) based on cross-correlation analysis of modern USGS data |
 | v19 | Jan 2026 | Added Edwards Ferry ensemble model (60% PoR + 40% EF), background learning system |
 | v18 | Jan 2026 | Improved GF estimation with hysteresis detection, flow-binned corrections |
@@ -4128,7 +4326,7 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
 
 ---
 
-*Generated by Potomac Pulse v21*
+*Generated by Potomac Pulse v22*
 `;
 
         // Download as Markdown file

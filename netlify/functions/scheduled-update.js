@@ -203,7 +203,8 @@ function estimateLFStage(cfs) {
 }
 
 // Determine flow state from recent history
-// Threshold lowered to 3% (from 5%) to capture more rising/falling events
+// Threshold scales with flow: max(100 cfs, 2% of flow) to filter noise at low flows
+// while still detecting real changes at high flows
 function getFlowState(history, currentCFS) {
     if (!history?.length || history.length < 8) return 'steady';
 
@@ -219,11 +220,22 @@ function getFlowState(history, currentCFS) {
 
     if (!pastReading) return 'steady';
 
-    const pctChange = ((currentCFS - pastReading.cfs) / pastReading.cfs) * 100;
+    const change = currentCFS - pastReading.cfs;
+    const absChange = Math.abs(change);
 
-    // 3% threshold captures more rising/falling events while filtering noise
-    if (pctChange > 3) return 'rising';
-    if (pctChange < -3) return 'falling';
+    // Threshold: at least 100 cfs change OR 2% of flow, whichever is larger
+    // At 2,000 cfs: threshold = 100 cfs (5%)
+    // At 5,000 cfs: threshold = 100 cfs (2%)
+    // At 10,000 cfs: threshold = 200 cfs (2%)
+    // At 50,000 cfs: threshold = 1,000 cfs (2%)
+    const minAbsChange = 100;  // Minimum 100 cfs to count as change
+    const minPctChange = 0.02; // Minimum 2% to count as change
+    const threshold = Math.max(minAbsChange, currentCFS * minPctChange);
+
+    if (absChange >= threshold) {
+        if (change > 0) return 'rising';
+        if (change < 0) return 'falling';
+    }
     return 'steady';
 }
 
