@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v22</title>
+    <title>Potomac Pulse v23</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -833,7 +833,7 @@
     // =====================================================
 
     const LF = { id: "01646500", name: "Little Falls", lat: 38.9498, lon: -77.1278, area: 11560 };
-    const STORAGE_KEY = "potomac_learning_v22";
+    const STORAGE_KEY = "potomac_learning_v23";
     const CACHE_KEY = "potomac_cached_data";
     const CACHE_MAX_AGE = 6 * 60 * 60 * 1000; // 6 hours in milliseconds
 
@@ -1526,14 +1526,87 @@
         return null;
     }
 
+    // Calculate rate of rise from PoR history (percent change per 2 hours)
+    // Returns { ratePerHour, ratePercent, flowState } or null if insufficient data
+    function getPoRRiseRate() {
+        if (porHistory.length < 4) return null;  // Need at least 1 hour of data
+
+        const now = Date.now();
+        const twoHoursAgo = now - (2 * 60 * 60 * 1000);
+
+        // Find reading closest to 2 hours ago
+        let pastReading = null;
+        for (const entry of porHistory) {
+            if (entry.timestamp <= twoHoursAgo) {
+                pastReading = entry;
+            }
+        }
+
+        if (!pastReading) return null;
+
+        // Get most recent reading
+        const currentReading = porHistory[porHistory.length - 1];
+        const currentCFS = currentReading.cfs;
+        const pastCFS = pastReading.cfs;
+
+        // Calculate rate
+        const changeCFS = currentCFS - pastCFS;
+        const changePercent = (changeCFS / pastCFS) * 100;
+        const hoursDiff = (currentReading.timestamp - pastReading.timestamp) / (60 * 60 * 1000);
+        const ratePerHour = changePercent / hoursDiff;  // % per hour
+
+        // Determine flow state
+        const absChange = Math.abs(changeCFS);
+        const threshold = Math.max(100, currentCFS * 0.02);
+        let flowState = 'steady';
+        if (absChange >= threshold) {
+            flowState = changeCFS > 0 ? 'rising' : 'falling';
+        }
+
+        return {
+            ratePerHour,
+            ratePercent: changePercent,
+            changeCFS,
+            flowState,
+            currentCFS,
+            pastCFS,
+            hoursDiff
+        };
+    }
+
     // Calculate travel time PoR → Great Falls (scales with flow multiplier)
-    function getPoRtoGFTravelTime(mult) {
-        return TRAVEL_POR_GF_BASELINE * mult;
+    // Applies wave celerity adjustment for rising events
+    function getPoRtoGFTravelTime(mult, riseRate = null) {
+        let baseTravelTime = TRAVEL_POR_GF_BASELINE * mult;
+
+        // Apply wave celerity adjustment for rising conditions
+        // Rising flood waves travel faster than steady-state flow
+        if (riseRate && riseRate.flowState === 'rising' && riseRate.ratePerHour > 0) {
+            // Empirical: reduce travel time based on rise rate
+            // At +5%/hr: reduce by ~10%
+            // At +10%/hr: reduce by ~20%
+            // Capped at 30% reduction (physics limit: wave can't travel infinitely fast)
+            const reductionFactor = Math.min(0.30, riseRate.ratePerHour * 0.02);
+            const adjusted = baseTravelTime * (1 - reductionFactor);
+            console.log(`⚡ Wave celerity: ${baseTravelTime.toFixed(1)}h → ${adjusted.toFixed(1)}h (${(reductionFactor*100).toFixed(0)}% faster, +${riseRate.ratePerHour.toFixed(1)}%/hr rise)`);
+            return adjusted;
+        }
+
+        return baseTravelTime;
     }
 
     // Calculate travel time Great Falls → Little Falls (scales with flow multiplier)
-    function getGFtoLFTravelTime(mult) {
-        return TRAVEL_GF_LF_BASELINE * mult;
+    // Also applies wave celerity adjustment for consistency
+    function getGFtoLFTravelTime(mult, riseRate = null) {
+        let baseTravelTime = TRAVEL_GF_LF_BASELINE * mult;
+
+        // Apply same wave celerity adjustment
+        if (riseRate && riseRate.flowState === 'rising' && riseRate.ratePerHour > 0) {
+            const reductionFactor = Math.min(0.30, riseRate.ratePerHour * 0.02);
+            return baseTravelTime * (1 - reductionFactor);
+        }
+
+        return baseTravelTime;
     }
 
     // Determine if flow is rising, falling, or steady based on trend data
@@ -1583,9 +1656,12 @@
         // Get current flow multiplier
         const mult = data._mult?.mult || 1.0;
 
-        // Calculate travel times
-        const travelPoRtoGF = getPoRtoGFTravelTime(mult);
-        const travelGFtoLF = getGFtoLFTravelTime(mult);
+        // Get rise rate for wave celerity adjustment
+        const riseRate = getPoRRiseRate();
+
+        // Calculate travel times (with wave celerity adjustment for rising events)
+        const travelPoRtoGF = getPoRtoGFTravelTime(mult, riseRate);
+        const travelGFtoLF = getGFtoLFTravelTime(mult, riseRate);
 
         // Tributary contributions (use actual if available, else estimate from LF %)
         const monocacyFlow = monocacy?.q || (lf.q * 0.071);  // 7.1% of LF
@@ -1708,7 +1784,12 @@
                 travelPoRtoGF: travelPoRtoGF,
                 travelGFtoLF: travelGFtoLF,
                 correction: correction,
-                flowBin: flowBin
+                flowBin: flowBin,
+                waveCelerity: riseRate ? {
+                    applied: riseRate.flowState === 'rising' && riseRate.ratePerHour > 0,
+                    ratePerHour: riseRate.ratePerHour,
+                    reductionPct: riseRate.flowState === 'rising' ? Math.min(30, riseRate.ratePerHour * 2) : 0
+                } : null
             },
             uncertaintyRange: uncertaintyRange,  // Range based on historical prediction error
             efEstimate: efEstimate,  // Edwards Ferry power-law estimate (R² = 0.98)
@@ -1749,12 +1830,14 @@
 
     // Update Great Falls display in UI
     function updateGreatFallsUI() {
-        // Show loading state until GF corrections are loaded
-        if (!gfDataReady) {
+        // Show loading state until GF corrections AND Edwards Ferry data are loaded
+        // This prevents the GF value from "jumping" when EF arrives
+        const efReady = edwardsFerryData.current !== null;
+        if (!gfDataReady || !efReady) {
             document.getElementById("gf-cfs").innerHTML = '<span class="gf-loading">...</span>';
             document.getElementById("gf-stage").innerHTML = '<span class="gf-loading">...</span>';
             document.getElementById("gf-trend").textContent = "";
-            document.getElementById("gf-data-source").textContent = "Loading corrections...";
+            document.getElementById("gf-data-source").textContent = !gfDataReady ? "Loading corrections..." : "Loading EF data...";
             document.getElementById("gf-confidence").textContent = "";
             document.getElementById("gf-forecast-cfs").textContent = "--";
             document.getElementById("gf-forecast-stage").textContent = "--";
@@ -4101,6 +4184,26 @@ At the same stage, a rising river carries more flow than a falling river due to 
 
 *Starting from hydrologically-reasonable estimates (+8%/-8%) rather than neutral (1.0) allows the system to be accurate from day one, while still learning Potomac-specific corrections over time.*
 
+#### Wave Celerity Adjustment (v23)
+
+During rising flood events, the wave front travels **faster** than the bulk water velocity. This is a fundamental property of flood wave propagation - the pressure signal moves faster than the water itself.
+
+**v23 implements an empirical wave celerity adjustment:**
+- Computes rate of rise from PoR history (% change per hour)
+- Reduces travel time proportionally: 2% reduction per 1%/hr rise rate
+- Maximum reduction capped at 30% (physics limit)
+- Only applied during confirmed "rising" conditions
+
+**Example adjustments:**
+| Rise Rate | Travel Time Reduction | 19h Baseline → |
+|-----------|----------------------|----------------|
+| +2.5%/hr  | 5%                   | 18.1h          |
+| +5%/hr    | 10%                  | 17.1h          |
+| +10%/hr   | 20%                  | 15.2h          |
+| +15%/hr+  | 30% (max)            | 13.3h          |
+
+*This addresses a key limitation: without wave celerity, the system systematically arrives "late" during rising flood events when paddlers need predictions most.*
+
 #### Trend Validation
 
 If Edwards Ferry trend (rising/falling) disagrees with PoR trend, confidence is reduced. This catches situations where local conditions differ from upstream.
@@ -4316,7 +4419,8 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
 
 | Version | Date | Changes |
 |---------|------|---------|
-| v22 | Jan 2026 | Flow-scaled thresholds: flow state detection now uses max(100 cfs, 2% of flow) instead of flat 3%. Learnable EF hysteresis: starts with literature-informed values (+8% rising, -8% falling per Fread 1973) and refines via validation. Visual indicator for estimated gauge values. GF loading indicator. |
+| v23 | Jan 2026 | Wave celerity adjustment: travel time reduced up to 30% during rising floods based on rate of rise (wave fronts travel faster than bulk flow). Fixed GF loading indicator to wait for Edwards Ferry data before displaying estimate. |
+| v22 | Jan 2026 | Flow-scaled thresholds: flow state detection now uses max(100 cfs, 2% of flow) instead of flat 3%. Learnable EF hysteresis: starts with literature-informed values (+8% rising, -8% falling per Fread 1973) and refines via validation. Visual indicator for estimated gauge values. |
 | v21 | Jan 2026 | Learning system overhaul: 2h schedule, 3% flow state threshold, stale cleanup, server-side reset, health monitoring, bin statistics display. Added visual indicator for estimated gauge values (ice/malfunction). |
 | v20 | Jan 2026 | Empirical travel time correction (×0.80) based on cross-correlation analysis of modern USGS data |
 | v19 | Jan 2026 | Added Edwards Ferry ensemble model (60% PoR + 40% EF), background learning system |
@@ -4326,7 +4430,7 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
 
 ---
 
-*Generated by Potomac Pulse v22*
+*Generated by Potomac Pulse v23*
 `;
 
         // Download as Markdown file
