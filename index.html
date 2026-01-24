@@ -3987,6 +3987,13 @@ This means the model improves 24/7, even when no browsers are open.
 
 Separate corrections are learned for each flow state because rising water moves faster than steady water at the same level (momentum effect), while falling water drains slower (hysteresis).
 
+**Health monitoring:**
+- **Consecutive runs:** Tracks streak of successful 2-hour executions
+- **Missed runs:** Cumulative count of skipped cycles (gap > 3 hours)
+- **Stale cleanup:** Predictions >48 hours old are marked expired, not validated
+
+**Admin reset:** Server-side reset clears all flow-bin corrections while preserving gauge corrections (System 1) and health statistics.
+
 ### 3.10 Gauge Malfunction Protection
 
 To prevent bad data from corrupting learned corrections:
@@ -4004,12 +4011,14 @@ To prevent bad data from corrupting learned corrections:
 | Gauge | USGS ID | Drainage (mi²) | % of LF Basin | Travel to LF |
 |-------|---------|----------------|---------------|--------------|
 | Little Falls | 01646500 | 11,560 | 100% | — |
-| Point of Rocks | 01638500 | 9,651 | 83.5% | 32 hrs |
-| Monocacy | 01643000 | 817 | 7.1% | 18 hrs |
-| Goose Creek | 01644000 | 332 | 3.0% | 12 hrs |
-| Seneca Creek | 01645000 | 101 | 0.9% | 6 hrs |
-| Hancock | 01613000 | 4,073 | 35.2% | 150 hrs |
-| Cumberland | 01603000 | 877 | 7.6% | 226 hrs |
+| Point of Rocks | 01638500 | 9,651 | 83.5% | ~26 hrs |
+| Monocacy | 01643000 | 817 | 7.1% | ~14 hrs |
+| Goose Creek | 01644000 | 332 | 3.0% | ~10 hrs |
+| Seneca Creek | 01645000 | 101 | 0.9% | ~5 hrs |
+| Hancock | 01613000 | 4,073 | 35.2% | ~120 hrs |
+| Cumberland | 01603000 | 877 | 7.6% | ~180 hrs |
+
+*Travel times at median flow with ×0.80 empirical correction applied.*
 
 ### 4.2 Below Point of Rocks
 
@@ -4110,7 +4119,7 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
 
 | Version | Date | Changes |
 |---------|------|---------|
-| v21 | Jan 2026 | Learning system improvements: 2h schedule (was 4h), 3% flow state threshold (was 5%), stale prediction cleanup |
+| v21 | Jan 2026 | Learning system overhaul: 2h schedule, 3% flow state threshold, stale cleanup, server-side reset, health monitoring, bin statistics display |
 | v20 | Jan 2026 | Empirical travel time correction (×0.80) based on cross-correlation analysis of modern USGS data |
 | v19 | Jan 2026 | Added Edwards Ferry ensemble model (60% PoR + 40% EF), background learning system |
 | v18 | Jan 2026 | Improved GF estimation with hysteresis detection, flow-binned corrections |
