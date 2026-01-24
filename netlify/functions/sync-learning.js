@@ -449,9 +449,10 @@ async function saveGFLearningData(client, data) {
                 const flowState = pred.data.flowState || 'steady';
 
                 // ============================================
-                // ICE/ANOMALY DETECTION (v24)
+                // ICE/ANOMALY DETECTION (v24.1)
                 // Uses multiple signals to detect suspicious readings
                 // When flagged, skip learning but still record validation
+                // Thresholds aligned with scheduled-update.js
                 // ============================================
                 let suspiciousScore = 0;
                 const anomalyFlags = [];
@@ -466,22 +467,28 @@ async function saveGFLearningData(client, data) {
                     }
                 }
 
-                // Check 2: Stage-discharge inconsistency
+                // Check 2: Stage-discharge inconsistency (v24.1: lowered from 50% to 35%)
                 if (actualStage && actualCFS) {
                     const expectedFlowFromStage = estimateLFFlowFromStage(actualStage);
                     if (expectedFlowFromStage > 0) {
                         const stageDiscrepancy = (expectedFlowFromStage - actualCFS) / actualCFS;
-                        if (stageDiscrepancy > 0.50) {
+                        if (stageDiscrepancy > 0.35) {
                             suspiciousScore += 2;
-                            anomalyFlags.push(`STAGE_DISCHARGE:expected=${Math.round(expectedFlowFromStage)},actual=${Math.round(actualCFS)}`);
+                            anomalyFlags.push(`STAGE_DISCHARGE:expected=${Math.round(expectedFlowFromStage)},actual=${Math.round(actualCFS)},disc=${(stageDiscrepancy*100).toFixed(0)}%`);
                         }
                     }
                 }
 
-                // Check 3: Low flow sanity check
-                if (actualCFS < 1000 && actualStage > 2.50) {
+                // Check 3: Low flow sanity check (v24.1: raised from 1000 to 1500 cfs, lowered stage from 2.50 to 2.45)
+                if (actualCFS < 1500 && actualStage > 2.45) {
                     suspiciousScore += 1;
                     anomalyFlags.push(`LOW_FLOW_HIGH_STAGE:${Math.round(actualCFS)}cfs@${actualStage}ft`);
+                }
+
+                // Check 4: Large prediction error (v24.1: new check)
+                if (Math.abs(errorPercent) > 50) {
+                    suspiciousScore += 1;
+                    anomalyFlags.push(`LARGE_ERROR:${errorPercent.toFixed(0)}%`);
                 }
 
                 const isSuspicious = suspiciousScore >= 2;
