@@ -348,6 +348,7 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ## Version History
 
+- **v24.2** (2026-01-24): Ice-affected gauge display - shows last valid reading with ❄️ indicator, excludes from learning
 - **v24.1** (2026-01-24): Improved ice detection - EF cross-check at validation time, tighter thresholds
 - **v24** (2026-01): Adaptive learning system with anomaly detection
 - Prior versions: See git history

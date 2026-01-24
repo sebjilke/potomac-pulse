@@ -317,6 +317,8 @@
         .gauge-q { color: #60a5fa; text-align: right; font-size: 0.8rem; font-weight: 500; }
         .gauge-q.estimated { color: #94a3b8; font-style: italic; }
         .gauge-q.estimated::after { content: "*"; font-size: 0.6rem; vertical-align: super; color: #fbbf24; }
+        .gauge-q.ice-affected { color: #7dd3fc; font-style: italic; }
+        .gauge-q.ice-affected::after { content: "❄"; font-size: 0.65rem; vertical-align: super; margin-left: 1px; }
         .gauge-t { color: #fbbf24; text-align: right; font-size: 0.75rem; }
 
         @media (max-width: 768px) {
@@ -982,7 +984,7 @@
     const GAUGES = {
         "01646500": { name: "Little Falls", lat: 38.9498, lon: -77.1278, area: 11560, pctLF: 100, baseHrs: 0, branch: "target" },
         "01638500": { name: "Point of Rocks", lat: 39.2726, lon: -77.5405, area: 9651, pctLF: 83.5, baseHrs: 26, branch: "mainstem" },
-        "01620000": { name: "Harpers Ferry", lat: 39.3226, lon: -77.7291, area: 9367, pctLF: 81.0, baseHrs: 36, branch: "mainstem" },
+        // Harpers Ferry (01620000) removed - stage-only gauge, no discharge data
         "01618000": { name: "Shepherdstown", lat: 39.4309, lon: -77.8033, area: 5955, pctLF: 51.5, baseHrs: 50, branch: "mainstem" },
         "01613000": { name: "Hancock", lat: 39.6987, lon: -78.1789, area: 4073, pctLF: 35.2, baseHrs: 120, branch: "mainstem" },
         "01610000": { name: "Paw Paw", lat: 39.5320, lon: -78.4578, area: 3109, pctLF: 26.9, baseHrs: 141, branch: "mainstem" },
@@ -1777,6 +1779,14 @@
         const lf = data[LF.id];            // Little Falls
 
         if (!por?.q || !lf?.q) {
+            return null;
+        }
+
+        // Skip predictions when critical gauges are ice-affected (stale data)
+        // Learning will be protected by scheduled-update anomaly detection, but
+        // we also want to avoid showing potentially inaccurate predictions
+        if (por?.iceAffected || lf?.iceAffected) {
+            console.log('🧊 GF prediction skipped: critical gauge ice-affected');
             return null;
         }
 
@@ -2724,7 +2734,10 @@
             if (id === LF.id) continue;
             const d = data[id];
             if (!d || !d.q || !d.h) continue;
-            
+
+            // Skip ice-affected or estimated gauges - stale data shouldn't train the model
+            if (d.iceAffected || d.estimated) continue;
+
             // Store observation
             if (!learningData.observations[id]) {
                 learningData.observations[id] = [];
@@ -2978,7 +2991,7 @@
     const NWS_LIDS = {
         "01646500": "BRKM2",  // Little Falls (Brookmont)
         "01638500": "PORM2",  // Point of Rocks
-        "01620000": "HFEW2",  // Harpers Ferry
+        // Harpers Ferry removed - stage-only gauge
         "01618000": "SHEW2",  // Shepherdstown
         "01613000": "HNKM2",  // Hancock
         "01610000": "PAWW2",  // Paw Paw
@@ -3347,7 +3360,8 @@
     async function fetchData() {
         setStatus("loading");
         const sites = Object.keys(GAUGES).join(",");
-        const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${sites}&parameterCd=00060,00065&period=P2D&format=json`;
+        // Use P7D to capture last valid readings for ice-affected gauges (ice can last >2 days)
+        const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${sites}&parameterCd=00060,00065&period=P7D&format=json`;
 
         // Start Edwards Ferry fetch - await it to ensure GF shows final value on first load
         // This prevents the GF value from "jumping" after initial display
@@ -3587,22 +3601,47 @@
 
             if (values?.length) {
                 // Get current value (most recent)
-                const n = parseFloat(values[values.length-1].value);
+                const latest = values[values.length-1];
+                const n = parseFloat(latest.value);
+                const qualifiers = latest.qualifiers || [];
+                const isIceFlag = n <= -999999 || qualifiers.includes('Ice');
+
                 if (n > 0 && n < 9999999) {
+                    // Valid current reading
                     if (p === "00060") data[s].q = n;
                     if (p === "00065") data[s].h = n;
+                } else if (isIceFlag && p === "00060") {
+                    // Ice-flagged discharge: find last valid reading in time series
+                    let foundValid = false;
+                    for (let i = values.length - 2; i >= 0; i--) {
+                        const val = parseFloat(values[i].value);
+                        if (val > 0 && val < 9999999) {
+                            data[s].q = val;
+                            data[s].iceAffected = true;
+                            data[s].lastValidTime = new Date(values[i].dateTime).getTime();
+                            console.log(`🧊 ${s}: Ice-flagged, using last valid: ${val} cfs from ${values[i].dateTime}`);
+                            foundValid = true;
+                            break;
+                        }
+                    }
+                    // If no valid reading in 2-day window, still mark as ice-affected
+                    // (fillMissingData will estimate from drainage ratio)
+                    if (!foundValid) {
+                        data[s].iceAffected = true;
+                        data[s].iceLongTerm = true;  // Ice has been affecting gauge >2 days
+                        console.log(`🧊 ${s}: Ice-flagged for >2 days, no valid readings in window`);
+                    }
                 }
             }
         }
 
-        // Backfill PoR history from USGS 2-day time series
+        // Backfill PoR history from USGS 7-day time series
         // This fills gaps when browser was closed
         if (porTimeSeries) {
             backfillPoRHistory(porTimeSeries);
         }
 
         // Fill in missing gauges with estimates
-        // Harpers Ferry (01620000) is stage-only and often doesn't report at low flows
         fillMissingData();
 
         calcTravelTimes();
@@ -3814,8 +3853,23 @@
 
                 if (qe) {
                     qe.textContent = d?.q ? Math.round(d.q).toLocaleString() : "n/a";
-                    qe.classList.toggle('estimated', d?.estimated === true);
-                    qe.title = d?.estimated ? 'Estimated from drainage area ratio (gauge data unavailable)' : '';
+                    // Ice-affected takes precedence over estimated
+                    const isIce = d?.iceAffected === true;
+                    const isEst = d?.estimated === true && !isIce;
+                    qe.classList.toggle('estimated', isEst);
+                    qe.classList.toggle('ice-affected', isIce);
+                    if (isIce) {
+                        if (d.iceLongTerm) {
+                            qe.title = 'Ice-affected >2 days: estimated from drainage ratio';
+                        } else {
+                            const daysAgo = d.lastValidTime ? ((Date.now() - d.lastValidTime) / (24*60*60*1000)).toFixed(1) : '?';
+                            qe.title = `Ice-affected: last valid reading ${daysAgo} days ago`;
+                        }
+                    } else if (isEst) {
+                        qe.title = 'Estimated from drainage area ratio (gauge data unavailable)';
+                    } else {
+                        qe.title = '';
+                    }
                 }
                 if (te) {
                     if (d?.travelHrs) {
@@ -3848,11 +3902,17 @@
     function popup(id, g, color, bk) {
         const d = data[id] || {};
         const isTarget = id === LF.id;
-        const estLabel = d.estimated ? ' <span style="color:#fbbf24;font-size:0.65rem;">(est*)</span>' : '';
+        // Ice-affected takes precedence over estimated
+        let statusLabel = '';
+        if (d.iceAffected) {
+            statusLabel = ' <span style="color:#7dd3fc;font-size:0.65rem;">❄️</span>';
+        } else if (d.estimated) {
+            statusLabel = ' <span style="color:#fbbf24;font-size:0.65rem;">(est*)</span>';
+        }
         let html = `<div class="pop-nm" style="color:${color}">${g.name}</div>
             <div class="pop-area">${g.area?.toLocaleString()} sq mi${g.pctLF ? ' • ' + g.pctLF + '% of LF basin' : ''}</div>
             <div class="pop-row">
-                <div class="pop-cell"><div class="pop-val blue">${d.q ? Math.round(d.q).toLocaleString() : "n/a"}${estLabel}</div><div class="pop-lbl">cfs</div></div>
+                <div class="pop-cell"><div class="pop-val blue">${d.q ? Math.round(d.q).toLocaleString() : "n/a"}${statusLabel}</div><div class="pop-lbl">cfs</div></div>
                 <div class="pop-cell"><div class="pop-val green">${d.h ? d.h.toFixed(2) : "n/a"}</div><div class="pop-lbl">ft stage</div></div>
             </div>`;
         
@@ -3885,7 +3945,14 @@
                 html += `<div class="pop-warn">⚠️ Below Point of Rocks — can raise LF before upstream signal</div>`;
             }
         }
-        if (d.estimated) {
+        if (d.iceAffected) {
+            if (d.iceLongTerm) {
+                html += `<div class="pop-warn" style="color:#7dd3fc;">❄️ Ice-affected >2 days: estimated from drainage ratio</div>`;
+            } else {
+                const daysAgo = d.lastValidTime ? ((Date.now() - d.lastValidTime) / (24*60*60*1000)).toFixed(1) : '?';
+                html += `<div class="pop-warn" style="color:#7dd3fc;">❄️ Ice-affected: showing last valid reading from ${daysAgo} days ago</div>`;
+            }
+        } else if (d.estimated) {
             html += `<div class="pop-warn" style="color:#fbbf24;">* Estimated from drainage area ratio — gauge data unavailable (ice/malfunction)</div>`;
         }
         return html;

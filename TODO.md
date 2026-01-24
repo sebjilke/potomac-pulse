@@ -2,11 +2,6 @@
 
 ## Medium Priority
 
-### Fix estimated gauge values not fetching
-- **Location**: `index.html` - data fetching logic
-- **Issue**: Estimated gauge data retrieval failing
-- **Impact**: Missing data affects predictions
-
 ### Fix tributary timing calculations
 - **Location**: `index.html` - `calcTravelTimes()` and related functions
 - **Issue**: Timing calculations for tributaries need adjustment
@@ -126,6 +121,13 @@
 
 ## Completed
 
+- [x] Ice-affected gauge display v24.2 (2026-01-24)
+  - Detects USGS ice flags (-999999 with "Ice" qualifier)
+  - Shows last valid reading (7-day window) with ❄️ indicator
+  - Falls back to drainage estimate with "Ice-affected >7 days" message
+  - Ice-affected data excluded from learning model
+  - GF predictions skipped when critical gauges (PoR, LF) are ice-affected
+  - Removed Harpers Ferry gauge (stage-only, no discharge data)
 - [x] Improve ice/anomaly detection v24.1 (2026-01-24)
   - EF cross-check now uses current stage at validation time
   - Lowered stage-discharge threshold (50% → 35%)
@@ -137,4 +139,4 @@
 
 ---
 
-*Last updated: 2026-01-24 (v24.1)*
+*Last updated: 2026-01-24 (v24.2)*
