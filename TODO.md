@@ -115,10 +115,15 @@
 
 ## Completed
 
+- [x] Improve ice/anomaly detection v24.1 (2026-01-24)
+  - EF cross-check now uses current stage at validation time
+  - Lowered stage-discharge threshold (50% → 35%)
+  - Raised low-flow threshold (1000 → 1500 cfs)
+  - Added large error check (>50%)
 - [x] Create comprehensive README.md (2026-01-24)
 - [x] Document deployment workflow
 - [x] Add documentation requirements to development guidelines
 
 ---
 
-*Last updated: 2026-01-24 (v24)*
+*Last updated: 2026-01-24 (v24.1)*

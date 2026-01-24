@@ -252,16 +252,26 @@ if (currentFlow < pastFlow * 0.98 && change >= threshold) return 'falling';
 return 'steady';
 ```
 
-### Anomaly Detection Scoring
+### Anomaly Detection Scoring (v24.1)
 Location: `scheduled-update.js` - `validatePendingPredictions()`
+
+The system uses multiple physics-based checks to detect ice and equipment anomalies.
+When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ```javascript
 // Score >= 2 triggers skipLearning
-+2: EF cross-check discrepancy > 30%
-+2: Stage-discharge inconsistency > 50%
-+1: Low flow (<1000 cfs) + high stage (>2.50 ft) - ice signature
++2: EF cross-check discrepancy > 30% (uses CURRENT EF stage at validation time)
++2: Stage-discharge inconsistency > 35% (ice reduces velocity, stage stays high)
++1: Low flow (<1500 cfs) + high stage (>2.45 ft) - classic ice signature
++1: Large prediction error > 50% - safety net for any anomaly
 +2: Statistical outlier (z-score > 3)
 ```
+
+**Physics rationale:**
+- Ice dampens ADVM acoustic returns → underestimated velocity → low CFS reading
+- Ice creates backwater effect → stage remains elevated despite reduced apparent flow
+- Edwards Ferry (stage-only gauge) is less affected by ice than LF's ADVM
+- Comparing EF estimate to LF actual reveals ice-induced discrepancies
 
 ## UI Structure
 
@@ -338,6 +348,7 @@ Location: `scheduled-update.js` - `validatePendingPredictions()`
 
 ## Version History
 
+- **v24.1** (2026-01-24): Improved ice detection - EF cross-check at validation time, tighter thresholds
 - **v24** (2026-01): Adaptive learning system with anomaly detection
 - Prior versions: See git history
 

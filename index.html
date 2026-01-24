@@ -4385,20 +4385,27 @@ During rising flood events, the wave front travels **faster** than the bulk wate
 
 *This addresses a key limitation: without wave celerity, the system systematically arrives "late" during rising flood events when paddlers need predictions most.*
 
-#### Ice/Anomaly Detection (v24)
+#### Ice/Anomaly Detection (v24.1)
 
 Winter conditions can compromise USGS gauge readings, particularly ADVM (Acoustic Doppler Velocity Meter) measurements. Frazil ice - small ice crystals suspended in supercooled water - scatter and absorb the acoustic signal, causing artificially low velocity readings even when stage (water level) remains accurate.
 
-**v24 implements multi-signal anomaly detection:**
+**v24.1 implements multi-signal anomaly detection:**
 
 The system uses **sensor fusion** to detect when one measurement is unreliable:
 
 | Check | Signal | Threshold | Score |
 |-------|--------|-----------|-------|
 | EF Cross-Check | Edwards Ferry predicts higher flow than LF reports | >30% discrepancy | +2 |
-| Stage-Discharge | LF stage suggests higher flow than CFS reports | >50% discrepancy | +2 |
+| Stage-Discharge | LF stage suggests higher flow than CFS reports | >35% discrepancy | +2 |
+| Large Error | Prediction error exceeds reasonable bounds | >50% error | +1 |
+| Low Flow Sanity | Low CFS with elevated stage | <1500 cfs @ >2.45 ft | +1 |
 | Statistical Outlier | Error exceeds 3σ from historical mean | z-score > 3 | +2 |
-| Low Flow Sanity | Very low CFS with normal stage | <1000 cfs @ >2.5 ft | +1 |
+
+**v24.1 improvements:**
+- EF cross-check now uses **current** EF stage at validation time (not prediction time, which was often null)
+- Tighter stage-discharge threshold (50% → 35%) catches subtler ice effects
+- Higher flow threshold (1000 → 1500 cfs) - Potomac rarely goes this low naturally
+- New large error check as a safety net
 
 **When suspicious score >= 2:**
 - Validation is recorded (for analysis)
@@ -4408,14 +4415,15 @@ The system uses **sensor fusion** to detect when one measurement is unreliable:
 **Scientific basis:**
 - **ADVM physics**: Acoustic Doppler measures velocity by detecting frequency shift in reflected signal. Ice crystals scatter/absorb signal, returning weaker echoes that bias velocity low.
 - **Stage accuracy**: Pressure transducers measure water column height directly - not affected by ice crystals in suspension.
+- **Edwards Ferry advantage**: EF is a stage-only gauge upstream of LF. Its power-law estimate provides an independent check unaffected by ADVM ice interference.
 - **Mass balance**: The learning system targets CFS (mass balance is physically meaningful), but uses stage as a "sanity check" to detect when CFS measurement is compromised.
 
 **Example detection:**
 \`\`\`
-LF reports:  987 cfs @ 2.56 ft stage
-Expected:    ~1,500 cfs (from stage rating curve)
-EF estimate: ~1,800 cfs
-→ Score: 2 (EF discrepancy) + 2 (stage-discharge) = 4
+LF reports:  1,120 cfs @ 2.60 ft stage
+Expected:    ~2,000 cfs (from stage rating curve)
+EF estimate: ~2,100 cfs (from 2.86 ft stage)
+→ Score: 2 (EF 87% discrepancy) + 2 (stage-discharge 79%) + 1 (large error) = 5
 → FLAGGED: Skip learning, preserve model
 \`\`\`
 
@@ -4636,6 +4644,7 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v24.1 | Jan 2026 | Improved ice detection: EF cross-check now uses current stage at validation time (was null at prediction time). Tighter thresholds: stage-discharge 50%→35%, low-flow 1000→1500 cfs, stage 2.50→2.45 ft. Added large error check (>50%). Physics: ice dampens ADVM acoustics (low CFS) while backwater keeps stage elevated; EF stage-only gauge unaffected. |
 | v24 | Jan 2026 | Ice/anomaly detection: Frazil ice and sensor malfunction protection using multi-signal sensor fusion. Stage-discharge consistency check detects ADVM velocity measurement errors (ice crystals scatter acoustic signal). EF cross-check, statistical outliers, and low-flow sanity checks combine into suspicious score. When flagged (score>=2), validation is recorded but learning is skipped to preserve model integrity. |
 | v23 | Jan 2026 | Wave celerity adjustment: travel time reduced up to 30% during rising floods based on rate of rise (wave fronts travel faster than bulk flow). Fixed GF loading indicator to wait for Edwards Ferry data before displaying estimate. |
 | v22 | Jan 2026 | Flow-scaled thresholds: flow state detection now uses max(100 cfs, 2% of flow) instead of flat 3%. Learnable EF hysteresis: starts with literature-informed values (+8% rising, -8% falling per Fread 1973) and refines via validation. Visual indicator for estimated gauge values. |
