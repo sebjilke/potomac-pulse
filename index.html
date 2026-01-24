@@ -773,6 +773,25 @@
                             <span class="value" id="learnGauges">0 / 18</span>
                         </div>
 
+                        <h3 style="color:#a78bfa;font-size:0.75rem;margin:15px 0 8px;">Scheduled Function Health</h3>
+                        <div class="learn-stat">
+                            <span class="label">Last Run</span>
+                            <span class="value" id="healthLastRun">--</span>
+                        </div>
+                        <div class="learn-stat">
+                            <span class="label">Consecutive Runs</span>
+                            <span class="value" id="healthConsecutive">--</span>
+                        </div>
+                        <div class="learn-stat">
+                            <span class="label">Missed Runs (total)</span>
+                            <span class="value" id="healthMissed">--</span>
+                        </div>
+                        <div class="learn-stat">
+                            <span class="label">Pending Predictions</span>
+                            <span class="value" id="healthPending">--</span>
+                        </div>
+                        <p id="healthExplain" style="font-size:0.5rem;color:#64748b;margin-top:5px;"></p>
+
                         <h3 style="color:#a78bfa;font-size:0.75rem;margin:15px 0 8px;">Gauge Corrections</h3>
                         <div class="correction-list" id="correctionList">
                             <p style="color:#64748b;font-size:0.6rem;">Corrections appear after ~30 observations per gauge</p>
@@ -1341,6 +1360,57 @@
                 if (dot) dot.style.color = '#f87171';
             }
         }
+
+        // Update health stats in Learning tab
+        updateHealthStats(meta, pendingCount);
+    }
+
+    function updateHealthStats(meta, pendingCount) {
+        const lastRunEl = document.getElementById('healthLastRun');
+        const consecutiveEl = document.getElementById('healthConsecutive');
+        const missedEl = document.getElementById('healthMissed');
+        const pendingEl = document.getElementById('healthPending');
+        const explainEl = document.getElementById('healthExplain');
+
+        if (!lastRunEl) return;  // Elements not in DOM yet
+
+        // Last run time
+        if (meta.lastPrediction) {
+            const lastRun = new Date(meta.lastPrediction);
+            const hoursAgo = ((Date.now() - lastRun) / (60 * 60 * 1000)).toFixed(1);
+            lastRunEl.textContent = `${hoursAgo}h ago`;
+            lastRunEl.style.color = hoursAgo <= 3 ? '#4ade80' : hoursAgo <= 6 ? '#fbbf24' : '#ef4444';
+        } else {
+            lastRunEl.textContent = 'Never';
+            lastRunEl.style.color = '#ef4444';
+        }
+
+        // Consecutive runs
+        const consecutive = meta.consecutiveRuns || 0;
+        consecutiveEl.textContent = consecutive;
+        consecutiveEl.style.color = consecutive >= 10 ? '#4ade80' : consecutive >= 3 ? '#fbbf24' : '#ef4444';
+
+        // Missed runs
+        const missed = meta.missedRuns || 0;
+        missedEl.textContent = missed;
+        missedEl.style.color = missed === 0 ? '#4ade80' : missed <= 5 ? '#fbbf24' : '#ef4444';
+
+        // Pending predictions
+        pendingEl.textContent = pendingCount;
+        pendingEl.style.color = pendingCount <= 1 ? '#4ade80' : pendingCount <= 3 ? '#fbbf24' : '#ef4444';
+
+        // Explanation
+        let explain = '';
+        if (consecutive >= 10) {
+            explain = '✅ Scheduled function running reliably (every 2h)';
+        } else if (consecutive >= 3) {
+            explain = '⚠️ Function running but had recent gaps';
+        } else if (consecutive === 0) {
+            explain = '❌ Function may not be running - check Netlify logs';
+        } else {
+            explain = 'ℹ️ Monitoring function execution...';
+        }
+        explainEl.textContent = explain;
     }
 
     // ==================== PoR HISTORY MANAGEMENT ====================
