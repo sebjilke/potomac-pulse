@@ -625,18 +625,6 @@
                             <span id="gf-val-countdown">--</span>
                             <span id="gf-val-last">No validations yet</span>
                         </div>
-
-                        <details>
-                            <summary style="font-size:0.75rem;color:#f59e0b;cursor:pointer;padding:8px 0;">⚠️ Limitations</summary>
-                            <p style="font-size:0.55rem;color:#f59e0b;line-height:1.5;margin-top:8px;">
-                                This is an <b>estimate</b>, not a measurement. Accuracy depends on:<br>
-                                • Monocacy + Goose Creek contributions (~10% of flow)<br>
-                                • Travel time model accuracy at current flow<br>
-                                • Accumulated learning observations<br>
-                                • Absence of localized storm events between PoR and GF<br>
-                                • Water withdrawals (DC Aqueduct, WSSC, Fairfax Water) - can reduce flow 5-15% at low flows; learning system corrects for this over time
-                            </p>
-                        </details>
                     </div>
                 </div>
                 <div id="tab-docs" class="tab-content">
@@ -648,28 +636,56 @@
                         Potomac Pulse tracks real-time water levels across the Potomac River basin and predicts conditions at <b style="color:#60a5fa;">Great Falls</b> — where no gauge exists. It's designed for paddlers who want to know what's happening now and what's coming.
                         </p>
 
-                        <!-- VISUAL: How It Works -->
-                        <div style="background:#0f172a;padding:12px;border-radius:8px;margin:15px 0;font-family:monospace;font-size:0.55rem;line-height:1.5;">
-                            <div style="color:#64748b;margin-bottom:8px;">HOW THE PREDICTION WORKS:</div>
-                            <div style="color:#94a3b8;">
-┌─────────────────┐     ┌─────────────────┐<br>
-│ <span style="color:#60a5fa;">Point of Rocks</span>  │     │ <span style="color:#06b6d4;">Edwards Ferry</span>   │<br>
-│  20 mi upstream │     │  2 mi upstream  │<br>
-│   (has flow)    │     │  (stage only)   │<br>
-└────────┬────────┘     └────────┬────────┘<br>
-         │ 60%                   │ 40%<br>
-         └─────────┬─────────────┘<br>
-                   ▼<br>
-         ┌─────────────────┐<br>
-         │  <span style="color:#4ade80;">GREAT FALLS</span>    │<br>
-         │    Estimate     │<br>
-         └────────┬────────┘<br>
-                  │ ~6 hrs later<br>
-                  ▼<br>
-         ┌─────────────────┐<br>
-         │  <span style="color:#fbbf24;">Little Falls</span>   │<br>
-         │   (validates)   │<br>
-         └─────────────────┘<br>
+                        <!-- VISUAL: How It Works (responsive flexbox diagram) -->
+                        <div style="background:#0f172a;padding:15px;border-radius:8px;margin:15px 0;">
+                            <div style="font-size:0.55rem;color:#64748b;margin-bottom:12px;text-align:center;">HOW THE PREDICTION WORKS</div>
+
+                            <!-- Row 1: Two upstream sources -->
+                            <div style="display:flex;justify-content:center;gap:10px;margin-bottom:8px;">
+                                <div style="background:#1e293b;border:1px solid #60a5fa;border-radius:6px;padding:8px 12px;text-align:center;min-width:110px;">
+                                    <div style="font-size:0.65rem;color:#60a5fa;font-weight:600;">Point of Rocks</div>
+                                    <div style="font-size:0.5rem;color:#64748b;">20 mi upstream</div>
+                                    <div style="font-size:0.45rem;color:#94a3b8;">(has flow data)</div>
+                                </div>
+                                <div style="background:#1e293b;border:1px solid #06b6d4;border-radius:6px;padding:8px 12px;text-align:center;min-width:110px;">
+                                    <div style="font-size:0.65rem;color:#06b6d4;font-weight:600;">Edwards Ferry</div>
+                                    <div style="font-size:0.5rem;color:#64748b;">2 mi upstream</div>
+                                    <div style="font-size:0.45rem;color:#94a3b8;">(stage only)</div>
+                                </div>
+                            </div>
+
+                            <!-- Arrows down with weights -->
+                            <div style="display:flex;justify-content:center;gap:60px;margin-bottom:4px;">
+                                <div style="text-align:center;">
+                                    <div style="font-size:0.9rem;color:#60a5fa;">↓</div>
+                                    <div style="font-size:0.5rem;color:#60a5fa;">60%</div>
+                                </div>
+                                <div style="text-align:center;">
+                                    <div style="font-size:0.9rem;color:#06b6d4;">↓</div>
+                                    <div style="font-size:0.5rem;color:#06b6d4;">40%</div>
+                                </div>
+                            </div>
+
+                            <!-- Row 2: Great Falls estimate -->
+                            <div style="display:flex;justify-content:center;margin-bottom:8px;">
+                                <div style="background:#1e293b;border:2px solid #4ade80;border-radius:6px;padding:10px 20px;text-align:center;">
+                                    <div style="font-size:0.7rem;color:#4ade80;font-weight:700;">GREAT FALLS</div>
+                                    <div style="font-size:0.5rem;color:#94a3b8;">Estimated conditions</div>
+                                </div>
+                            </div>
+
+                            <!-- Arrow down with time -->
+                            <div style="text-align:center;margin-bottom:4px;">
+                                <div style="font-size:0.9rem;color:#fbbf24;">↓</div>
+                                <div style="font-size:0.5rem;color:#fbbf24;">~6 hrs later</div>
+                            </div>
+
+                            <!-- Row 3: Little Falls validation -->
+                            <div style="display:flex;justify-content:center;">
+                                <div style="background:#1e293b;border:1px solid #fbbf24;border-radius:6px;padding:8px 16px;text-align:center;">
+                                    <div style="font-size:0.65rem;color:#fbbf24;font-weight:600;">Little Falls</div>
+                                    <div style="font-size:0.5rem;color:#64748b;">Validates prediction</div>
+                                </div>
                             </div>
                         </div>
 
