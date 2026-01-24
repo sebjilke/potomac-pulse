@@ -654,16 +654,21 @@
                                 </div>
                             </div>
 
-                            <!-- Arrows down with weights -->
+                            <!-- Arrows down with ensemble weights -->
                             <div style="display:flex;justify-content:center;gap:60px;margin-bottom:4px;">
                                 <div style="text-align:center;">
                                     <div style="font-size:0.9rem;color:#60a5fa;">↓</div>
-                                    <div style="font-size:0.5rem;color:#60a5fa;">60%</div>
+                                    <div style="font-size:0.5rem;color:#60a5fa;">60% weight</div>
                                 </div>
                                 <div style="text-align:center;">
                                     <div style="font-size:0.9rem;color:#06b6d4;">↓</div>
-                                    <div style="font-size:0.5rem;color:#06b6d4;">40%</div>
+                                    <div style="font-size:0.5rem;color:#06b6d4;">40% weight</div>
                                 </div>
+                            </div>
+
+                            <!-- Ensemble label -->
+                            <div style="text-align:center;margin-bottom:6px;">
+                                <div style="font-size:0.4rem;color:#64748b;font-style:italic;">ensemble model blend</div>
                             </div>
 
                             <!-- Row 2: Great Falls estimate -->
@@ -3984,7 +3989,7 @@
                     <span style="color:#4ade80;font-weight:600;" id="gf-popup-stage">-- ft</span>
                 </div>
                 <div style="font-size:0.65rem;color:#94a3b8;margin-top:6px;">
-                    60% PoR + tributaries, 40% Edwards Ferry model
+                    Ensemble: 60% PoR model, 40% EF model
                 </div>
             </div>
         `);
