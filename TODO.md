@@ -51,6 +51,17 @@
 
 ### Model Improvements
 
+#### Implement flow-dependent ensemble weighting
+- **Current**: Static 60% PoR / 40% EF weighting regardless of flow
+- **Improvement**: Vary weights by flow regime:
+  - Low flow (<3000 cfs): EF weight higher (~50%) - power-law is stable, travel time uncertain
+  - Medium flow (3000-15000 cfs): Current 60/40 may be optimal
+  - High flow (>15000 cfs): PoR weight higher (~70%) - travel time more predictable
+  - Flood (>50000 cfs): Consider EF higher - proximity matters, travel time compressed
+- **Alternative**: Inverse-variance weighting based on historical error by flow bin
+- **Physics**: EF's proximity (2 mi) gives it an advantage when travel times are uncertain; PoR's actual flow data is more reliable when hydraulics are stable
+- **Impact**: Better predictions across all flow regimes
+
 #### Implement Bayesian updating
 - **Current**: Simple EMA for error tracking
 - **Improvement**: Bayesian posterior updates with uncertainty quantification
