@@ -351,7 +351,12 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 - **v24.3** (2026-01-25): Tighter ice detection thresholds - EF cross-check 30%→25%, low-flow+high-stage now +2 points
 - **v24.2** (2026-01-24): Ice-affected gauge display - shows last valid reading with ❄️ indicator, excludes from learning
 - **v24.1** (2026-01-24): Improved ice detection - EF cross-check at validation time, tighter thresholds
-- **v24.0** (2026-01-20): Adaptive learning system with anomaly detection
+- **v24.0** (2026-01-24): Adaptive learning system with anomaly detection
+- **v23** (2026-01-24): Wave celerity adjustment for rising flood events
+- **v22** (2026-01-23): Flow-scaled thresholds and learnable EF hysteresis
+- **v21** (2026-01-23): Improved learning system - 2h schedule, 3% threshold, stale cleanup
+- **v20** (2026-01-17): Empirical travel time correction (×0.80) from cross-correlation analysis
+- **v19** (2026-01-17): Edwards Ferry power-law ensemble integration (R²=0.98)
 - Prior versions: See git history
 
 ---
