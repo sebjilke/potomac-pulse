@@ -77,6 +77,25 @@
 - **Improvement**: Hold-out testing, k-fold cross-validation
 - **Impact**: Model reliability verification
 
+#### Large-scale retrospective validation study (1-year)
+- **Approach**: Archive 15-min instantaneous data + model predictions to Supabase
+- **Timeline**: Run for 1 year to capture all seasons/flow regimes
+- **Analysis**:
+  - Compare predictions vs actuals across flow bins
+  - Validate/refine Searcy travel time coefficients
+  - Optimize ensemble weights (PoR/EF) by flow regime
+  - Identify systematic biases by season, gauge, or condition
+- **Data to store**:
+  - 15-min instantaneous gauge readings (all gauges)
+  - GF predictions at each interval
+  - Actual outcomes for validation
+  - Flow state (rising/falling/steady)
+  - PoR history for wave propagation analysis
+  - Validation results with error %, anomaly flags
+- **Note**: Already storing predictions/validations via scheduled-update.js (~4,380/year)
+- **Enhancement**: Add lightweight 15-min raw data archive for finer granularity
+- **Impact**: Rigorous model calibration based on real wave propagation data
+
 ### UI/UX Improvements
 
 #### Add loading states for map initialization
@@ -121,6 +140,11 @@
 
 ## Completed
 
+- [x] Tighter ice detection thresholds v24.3 (2026-01-25)
+  - Lowered EF cross-check threshold (30% → 25%)
+  - Increased low-flow + high-stage weight (+1 → +2) - this is THE classic ice signature
+  - Reset corrupted low-flow learning bins (0-3000, 3000-6000 cfs)
+  - Following USGS/NWS approach: detect bad data, flag it, exclude from learning
 - [x] Ice-affected gauge display v24.2 (2026-01-24)
   - Detects USGS ice flags (-999999 with "Ice" qualifier)
   - Shows last valid reading (7-day window) with ❄️ indicator
@@ -139,4 +163,4 @@
 
 ---
 
-*Last updated: 2026-01-24 (v24.2)*
+*Last updated: 2026-01-25 (v24.3)*

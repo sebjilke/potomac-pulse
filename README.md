@@ -252,7 +252,7 @@ if (currentFlow < pastFlow * 0.98 && change >= threshold) return 'falling';
 return 'steady';
 ```
 
-### Anomaly Detection Scoring (v24.1)
+### Anomaly Detection Scoring (v24.3)
 Location: `scheduled-update.js` - `validatePendingPredictions()`
 
 The system uses multiple physics-based checks to detect ice and equipment anomalies.
@@ -260,9 +260,9 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ```javascript
 // Score >= 2 triggers skipLearning
-+2: EF cross-check discrepancy > 30% (uses CURRENT EF stage at validation time)
++2: EF cross-check discrepancy > 25% (v24.3: lowered from 30%)
 +2: Stage-discharge inconsistency > 35% (ice reduces velocity, stage stays high)
-+1: Low flow (<1500 cfs) + high stage (>2.45 ft) - classic ice signature
++2: Low flow (<1500 cfs) + high stage (>2.45 ft) - classic ice signature (v24.3: raised from +1)
 +1: Large prediction error > 50% - safety net for any anomaly
 +2: Statistical outlier (z-score > 3)
 ```
@@ -348,6 +348,7 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ## Version History
 
+- **v24.3** (2026-01-25): Tighter ice detection thresholds - EF cross-check 30%→25%, low-flow+high-stage now +2 points
 - **v24.2** (2026-01-24): Ice-affected gauge display - shows last valid reading with ❄️ indicator, excludes from learning
 - **v24.1** (2026-01-24): Improved ice detection - EF cross-check at validation time, tighter thresholds
 - **v24** (2026-01): Adaptive learning system with anomaly detection
@@ -355,4 +356,4 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ---
 
-*Last updated: 2026-01-24*
+*Last updated: 2026-01-25*

@@ -458,7 +458,8 @@ async function validatePendingPredictions(client, usgsData) {
             }
             if (efEstimateNow && actualCFS) {
                 const efDiscrepancy = (efEstimateNow - actualCFS) / actualCFS;
-                if (efDiscrepancy > 0.30) {  // EF says >30% more flow than LF shows
+                // v24.3: Lowered threshold from 30% to 25% for better ice detection
+                if (efDiscrepancy > 0.25) {  // EF says >25% more flow than LF shows
                     suspiciousScore += 2;
                     anomalyFlags.push(`EF_DISCREPANCY:${(efDiscrepancy * 100).toFixed(0)}%,EF_est=${Math.round(efEstimateNow)},LF=${Math.round(actualCFS)}`);
                 }
@@ -480,9 +481,9 @@ async function validatePendingPredictions(client, usgsData) {
 
             // Check 3: Low flow sanity check (raised threshold for better detection)
             // Low CFS with normal/high stage is a classic ice signature
-            // Raised from 1000 to 1500 cfs, lowered stage from 2.50 to 2.45 ft
+            // v24.3: Increased weight from +1 to +2 (this is THE ice signature)
             if (actualCFS < 1500 && actualStage > 2.45) {
-                suspiciousScore += 1;
+                suspiciousScore += 2;  // v24.3: Was +1, now +2 (classic ice signature)
                 anomalyFlags.push(`LOW_FLOW_HIGH_STAGE:${Math.round(actualCFS)}cfs@${actualStage}ft`);
             }
 
