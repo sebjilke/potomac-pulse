@@ -3229,8 +3229,14 @@
                 console.log(`  No data entry for gauge ${id}`);
             }
         }
-        
+
         updateUI();
+
+        // Re-render 48h forecast now that NWS data is available
+        if (gfEstimate) {
+            console.log('Re-rendering 48h forecast with NWS data');
+            updateForecastPeriods(gfEstimate);
+        }
     }
     
     function parseNWSForecast(json, usgsId, nwsLid) {
