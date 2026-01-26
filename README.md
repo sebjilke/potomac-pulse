@@ -94,20 +94,36 @@ Where:
 - EF_power_law = 108 × (EF_stage)^2.64
 ```
 
-### 3. 48-Hour Forecast (v24.4)
-Uses NWS hydrological forecasts with LF-constrained GF estimation:
+### 3. 48-Hour Forecast (v24.6)
+Uses NWS hydrological forecasts with LF-constrained GF estimation and dynamic bias correction.
 
 **LF-Constrained Approach**: Since GF is between PoR and LF, if NWS predicts LF will rise,
 GF must rise BEFORE LF does. The forecast uses LF predictions shifted backward by GF→LF
-travel time to ensure alignment with downstream conditions.
+travel time (~6-12h depending on flow) to ensure alignment with downstream conditions.
 
-- **Primary source**: NWS/NOAA forecast for Little Falls (BRKM2), shifted by GF→LF travel time
+**Additive Bias Correction**: NWS forecasts often show systematic bias vs observed conditions
+(e.g., forecast says 1.3 kcfs when gauge reads 1.0 kcfs). We apply an additive correction:
+
+```
+offset = observed_LF_now - forecast_LF_at_now
+corrected_forecast = raw_forecast + offset
+```
+
+Why additive (not multiplicative)?
+- Preserves the forecast's predicted *change* in flow (the physics of the rise)
+- Doesn't amplify errors at high flows like multiplicative would
+- River hydraulics are non-linear; a %-based correction at low flow would over/under-correct at different flow levels
+
+The correction is **dynamic** - recalculated on every data fetch (every 15 min). As NWS
+updates their model runs and reduces basin-wide errors, the offset automatically shrinks.
+
+**Configuration**:
+- **Primary source**: NWS/NOAA forecast for Little Falls (BRKM2), bias-corrected and shifted
 - **Secondary source**: NWS forecast for Point of Rocks (PORM2) as fallback
 - **Calculation intervals**: 6, 12, 18, 24, 30, 36, 42, 48 hours (for smooth graph interpolation)
 - **Display intervals**: 6, 12, 24, 48 hours (shown as period cards)
 - **Ensemble blending**: 60% PoR-based + 40% EF power-law (when EF forecast available)
 - **Fallback**: Linear extrapolation when NWS unavailable
-- **Display**: Forecast periods show "NWS" indicator when using official forecast data
 
 ### 4. Travel Time Calculations
 Based on Searcy model (USGS Circular 438, 1961) with empirical correction:

@@ -560,7 +560,7 @@
 
                         <div id="gf-forecast-timeline" style="margin-bottom:15px;">
                             <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:4px;text-align:center;">48-HOUR FORECAST*</div>
-                            <div style="font-size:0.45rem;color:#64748b;margin-bottom:8px;text-align:center;">*Based on NWS LF forecast, shifted by GF→LF travel time</div>
+                            <div style="font-size:0.45rem;color:#64748b;margin-bottom:8px;text-align:center;">*NWS LF forecast, bias-corrected & shifted by GF→LF travel time</div>
 
                             <!-- Interactive Graph -->
                             <div id="gf-graph-container" style="position:relative;background:rgba(0,0,0,0.2);border-radius:8px;padding:10px 10px 5px;margin-bottom:10px;">
@@ -2296,14 +2296,35 @@
                 return null;
             };
 
-            // LF-CONSTRAINED FORECAST: GF is between PoR and LF
-            // If NWS predicts LF will rise, GF must rise BEFORE LF does
-            // Use LF forecast shifted backward by GF→LF travel time (~6-8h at low flow)
+            // ========================================================================
+            // LF-CONSTRAINED FORECAST WITH ADDITIVE BIAS CORRECTION
+            // ========================================================================
+            //
+            // APPROACH: GF is between PoR and LF. If NWS predicts LF will rise,
+            // GF must rise BEFORE LF does. We use LF forecast shifted backward
+            // by GF→LF travel time.
+            //
+            // BIAS CORRECTION: NWS forecasts often show systematic bias vs observed
+            // conditions (e.g., forecast says 1.3 kcfs when observed is 1.0 kcfs).
+            // We apply an ADDITIVE correction to preserve the forecast's predicted
+            // rate of change while anchoring to current observed conditions.
+            //
+            // Why additive (not multiplicative)?
+            // - Preserves the forecast's predicted CHANGE in flow (the physics of the rise)
+            // - Doesn't amplify errors at high flows like multiplicative would
+            // - River hydraulics are non-linear; a %-based correction at low flow
+            //   would over/under-correct at different flow levels
+            //
+            // Formula: corrected = raw_forecast + (observed_now - forecast_at_now)
+            //
+            // This says: "NWS expects a +X cfs rise, starting from where we actually are"
+            // ========================================================================
 
             const currentPorCFS = porData?.q || currentCFS;
             const lfData = data['01646500'];  // Little Falls gauge
             const lfForecast = lfData?.forecast;
             const hasLFForecast = lfForecast?.data?.length > 0;
+            const observedLfCFS = lfData?.q || currentCFS;  // Current observed LF
 
             // Parse LF forecast if available
             const lfPoints = hasLFForecast ? lfForecast.data.map(p => {
@@ -2313,16 +2334,30 @@
                 return { hoursAhead, cfs, stage: p.primary };
             }) : [];
 
+            // Calculate additive bias correction for LF forecast
+            // Find forecast value closest to "now" to compare with observed
+            let lfBiasOffset = 0;
+            if (hasLFForecast && lfPoints.length > 0) {
+                // Interpolate forecast at hour 0 (now)
+                const forecastAtNow = interpolateForecast(lfPoints, 0) || lfPoints[0]?.cfs;
+                if (forecastAtNow && observedLfCFS) {
+                    lfBiasOffset = observedLfCFS - forecastAtNow;
+                    console.log(`LF bias correction: observed=${observedLfCFS.toFixed(0)} cfs, forecast=${forecastAtNow.toFixed(0)} cfs, offset=${lfBiasOffset.toFixed(0)} cfs`);
+                }
+            }
+
             // Calculate GF→LF travel time at current flow
             const gfToLfTravel = TRAVEL_GF_LF_BASELINE * getFlowMultiplier(currentCFS).mult;
 
             // Helper to get GF forecast at target time
-            // Strategy: Use LF forecast shifted backward by GF→LF travel time
-            // This ensures GF forecast aligns with downstream LF forecast
+            // Strategy: Use LF forecast shifted backward by GF→LF travel time,
+            // then apply additive bias correction
             const getGFAtTime = (targetGFHrs) => {
                 // What will LF be at targetGFHrs + gfToLfTravel?
                 // That's when this GF water reaches LF
                 const lfTimeForThisWater = targetGFHrs + gfToLfTravel;
+
+                let rawForecastCFS = null;
 
                 if (hasLFForecast && lfPoints.length > 0) {
                     // Interpolate LF forecast at the arrival time
@@ -2331,10 +2366,17 @@
 
                     if (before && after && before !== after) {
                         const t = (lfTimeForThisWater - before.hoursAhead) / (after.hoursAhead - before.hoursAhead);
-                        return before.cfs + t * (after.cfs - before.cfs);
+                        rawForecastCFS = before.cfs + t * (after.cfs - before.cfs);
+                    } else if (after) {
+                        rawForecastCFS = after.cfs;
+                    } else if (before) {
+                        rawForecastCFS = before.cfs;
                     }
-                    if (after) return after.cfs;
-                    if (before) return before.cfs;
+                }
+
+                // Apply additive bias correction if we have LF forecast
+                if (rawForecastCFS !== null) {
+                    return Math.max(0, rawForecastCFS + lfBiasOffset);
                 }
 
                 // Fallback to PoR forecast if no LF forecast
@@ -2349,7 +2391,7 @@
                 return currentPorCFS;
             };
 
-            console.log(`GF forecast using LF constraint (GF→LF travel ~${gfToLfTravel.toFixed(1)}h)`);
+            console.log(`GF forecast: LF-constrained (GF→LF ~${gfToLfTravel.toFixed(1)}h) with additive bias correction`);
 
             // Generate forecast periods at all calculation times
             // (finer intervals for accurate graph, only some displayed as cards)

@@ -140,15 +140,19 @@
 
 ## Completed
 
-- [x] 48h forecast with LF-constrained GF estimation v24.5 (2026-01-25)
+- [x] 48h forecast with additive bias correction v24.6 (2026-01-25)
+  - **Additive bias correction**: NWS forecasts show systematic bias vs observed conditions.
+    We apply: `corrected = raw_forecast + (observed_now - forecast_at_now)`
+    - Preserves forecast's predicted rate of change (the physics of the rise)
+    - Doesn't amplify errors at high flows like multiplicative would
+    - Dynamic: recalculated every 15-min fetch, auto-adjusts as NWS improves
   - **LF-Constrained approach**: Since GF is between PoR and LF, uses LF forecast
     shifted backward by GF→LF travel time to ensure GF rises before LF
-  - Primary: NWS LF forecast (BRKM2) shifted by GF→LF travel time (~6-8h at low flow)
+  - Primary: NWS LF forecast (BRKM2), bias-corrected and shifted by GF→LF travel time
   - Fallback: NWS PoR forecast (PORM2) when LF unavailable
   - Calculates at 8 intervals (6,12,18,24,30,36,42,48h) for smooth graph interpolation
   - Displays only 4 periods (6,12,24,48h) as cards
   - Applies GF ensemble model: 60% PoR-based + 40% EF power-law
-  - Shows "NWS" indicator on forecast periods when using official data
   - Falls back to linear extrapolation when NWS unavailable
 - [x] Tighter ice detection thresholds v24.3 (2026-01-25)
   - Lowered EF cross-check threshold (30% → 25%)
@@ -173,4 +177,4 @@
 
 ---
 
-*Last updated: 2026-01-25 (v24.5)*
+*Last updated: 2026-01-25 (v24.6)*
