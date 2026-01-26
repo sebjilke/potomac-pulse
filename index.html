@@ -4892,6 +4892,10 @@ This ensemble approach:
 - EF is geographically closer to GF (2-3 miles vs 20+ miles for PoR)
 - Provides cross-validation between methods
 
+**EF Discrepancy Check (v24.8):** Skip EF ensemble when EF estimate differs from PoR by >50%.
+Ice or backwater at EF can inflate stage readings without affecting ADVM-based PoR/LF measurements.
+When discrepancy is detected, system falls back to PoR-only estimate.
+
 #### Learnable Hysteresis Correction (v22)
 
 At the same stage, a rising river carries more flow than a falling river due to momentum and storage effects. This is called "hysteresis" and creates a loop in the stage-discharge relationship (Fread 1973, Henderson 1966).
@@ -5240,6 +5244,8 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v24.8 | 2026-01-26 | Skip EF ensemble when discrepancy >50% (indicates ice/backwater). Extended PoR history to 72h for low-flow time-shifting. Added debug logging for history failures. |
+| v24.7 | 2026-01-25 | 48h forecast accuracy tracking: stores predictions by horizon (6h, 12h, 24h, 48h), validates when target time arrives, displays per-horizon accuracy in UI. |
 | v24.6 | 2026-01-25 | 48h forecast with LF-constrained approach and additive bias correction. Uses NWS LF forecast shifted backward by GF→LF travel time, with dynamic bias correction that auto-adjusts as NWS improves. Calculates at 8 intervals (6-48h) for smooth graph; displays 4 periods. |
 | v24.5 | 2026-01-25 | LF-constrained forecast: Since GF is between PoR and LF, uses LF forecast shifted by GF→LF travel time to ensure GF rises before LF. |
 | v24.4 | 2026-01-25 | Initial 48h forecast using NWS PoR forecast (PORM2) with GF ensemble model. Falls back to linear extrapolation when NWS unavailable. |

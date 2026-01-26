@@ -140,6 +140,14 @@
 
 ## Completed
 
+- [x] EF ensemble discrepancy check & extended history v24.8 (2026-01-26)
+  - **EF discrepancy check**: Skip EF ensemble when EF estimate differs from PoR by >50%
+    - Ice or backwater at EF can inflate stage while ADVM-based PoR/LF are accurate
+    - Example: EF 3.54ft gave 3039 cfs estimate while PoR was 1200 cfs, LF actual 1050 cfs
+  - **Extended PoR history**: Increased from 48h to 72h for low-flow time-shifting
+    - At ~1200 cfs, travel time PoR→GF is ~45 hours
+    - 72h buffer ensures enough history even during extended low-flow periods
+  - Added debug logging for getPoRFromHoursAgo failures
 - [x] 48h forecast with LF-constrained approach, bias correction & accuracy tracking v24.7 (2026-01-25)
   - **LF-Constrained approach**: Since GF is between PoR and LF, uses LF forecast
     shifted backward by GF→LF travel time to ensure GF rises before LF
@@ -176,4 +184,4 @@
 
 ---
 
-*Last updated: 2026-01-25 (v24.7)*
+*Last updated: 2026-01-26 (v24.8)*

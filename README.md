@@ -284,6 +284,9 @@ Location: `index.html` - `estimateGFFromEdwardsFerry()`
 const EF_COEF = 108;
 const EF_EXP = 2.64;
 estimatedCFS = EF_COEF * Math.pow(efStage, EF_EXP);
+
+// Ensemble: 60% PoR + 40% EF (when consistent)
+// Skip EF if discrepancy >50% (indicates ice/backwater)
 ```
 
 ### Flow State Classification
@@ -393,6 +396,7 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ## Version History
 
+- **v24.8** (2026-01-25): Skip EF ensemble when discrepancy >50% indicates ice/backwater. Extended PoR history to 72h for low-flow time-shifting.
 - **v24.7** (2026-01-25): 48h forecast with LF-constrained approach, additive bias correction, and accuracy tracking. Uses NWS LF forecast shifted backward by GF→LF travel time with dynamic bias correction. Calculates at 8 intervals for smooth graph; displays 4 periods. Tracks per-horizon accuracy (6h, 12h, 24h, 48h) with validation when target time arrives.
 - **v24.3** (2026-01-25): Tighter ice detection thresholds - EF cross-check 30%→25%, low-flow+high-stage now +2 points
 - **v24.2** (2026-01-24): Ice-affected gauge display - shows last valid reading with ❄️ indicator, excludes from learning
@@ -407,4 +411,4 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ---
 
-*Last updated: 2026-01-25*
+*Last updated: 2026-01-26*
