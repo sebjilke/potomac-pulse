@@ -140,6 +140,13 @@
 
 ## Completed
 
+- [x] 48h forecast accuracy tracking v24.7 (2026-01-25)
+  - Stores forecast predictions every 2 hours for each horizon (6h, 12h, 24h, 48h)
+  - Validates when target time arrives (compares predicted vs actual LF reading)
+  - Tracks error percentage per horizon using same approach as GF estimates
+  - UI displays: `+6h: 92% • +12h: 89% • +24h: 85% • +48h: 78%`
+  - New database types: `gf_forecast_pending`, `gf_forecast_metadata`
+  - New API endpoint: `GET /api/sync?endpoint=forecast-accuracy`
 - [x] 48h forecast with additive bias correction v24.6 (2026-01-25)
   - **Additive bias correction**: NWS forecasts show systematic bias vs observed conditions.
     We apply: `corrected = raw_forecast + (observed_now - forecast_at_now)`
@@ -177,4 +184,4 @@
 
 ---
 
-*Last updated: 2026-01-25 (v24.6)*
+*Last updated: 2026-01-25 (v24.7)*

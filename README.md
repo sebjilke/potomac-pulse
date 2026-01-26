@@ -125,6 +125,13 @@ updates their model runs and reduces basin-wide errors, the offset automatically
 - **Ensemble blending**: 60% PoR-based + 40% EF power-law (when EF forecast available)
 - **Fallback**: Linear extrapolation when NWS unavailable
 
+**Accuracy Tracking (v24.7)**:
+The system tracks forecast accuracy by horizon (6h, 12h, 24h, 48h):
+- Forecasts stored every 2 hours with target times
+- Validated when target time arrives (compare to actual LF reading)
+- Per-horizon error percentages tracked and displayed
+- Shown in UI: `+6h: 92% • +12h: 89% • +24h: 85% • +48h: 78%`
+
 ### 4. Travel Time Calculations
 Based on Searcy model (USGS Circular 438, 1961) with empirical correction:
 
@@ -159,6 +166,8 @@ Single table `potomac_observations` with polymorphic types:
 | `correction` | gauge ID | Correction factor |
 | `gf_prediction` | `pending`/`validated`/`flagged` | Prediction object |
 | `gf_correction_bin` | `flowBin_flowState` | Bin statistics |
+| `gf_forecast_pending` | `+6h`/`+12h`/`+24h`/`+48h` | Forecast prediction |
+| `gf_forecast_metadata` | `+6h`/`+12h`/`+24h`/`+48h` | Forecast accuracy stats |
 | `por_history` | `system` | 48-hour rolling buffer |
 | `ef_gf_correlation` | `system` | Correlation model |
 | `gf_metadata` | `system` | Health stats |
@@ -188,17 +197,22 @@ Single table `potomac_observations` with polymorphic types:
 - Returns: correction bins, pending predictions, metadata, EF correlation
 
 **POST /api/sync?endpoint=gf**
-- Actions: `storePrediction`, `recordValidation`, `incrementPredictions`
+- Actions: `storePrediction`, `storeForecastPredictions`, `recordValidation`, `incrementPredictions`
 - Admin actions (PIN-protected): `resetLowFlowBins`, `resetGFLearning`
+
+**GET /api/sync?endpoint=forecast-accuracy**
+- Returns forecast accuracy stats per horizon
+- Response: `{ horizons: { 6: { validations, avgErrorPercent }, 12: {...}, ... } }`
 
 ### Scheduled Function (scheduled-update.js)
 
 Runs every 2 hours (cron: `0 */2 * * *`):
 1. Fetch fresh USGS data
 2. Store Point of Rocks history (48-hour window)
-3. Validate pending predictions against actuals
-4. Make new GF prediction
-5. Update health metrics
+3. Validate pending GF predictions against actuals
+4. Validate pending 48h forecast predictions against actuals
+5. Make new GF prediction
+6. Update health metrics
 
 ## Deployment
 
@@ -379,6 +393,9 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ## Version History
 
+- **v24.7** (2026-01-25): Forecast accuracy tracking - stores predictions by horizon, validates when target time arrives, displays per-horizon accuracy
+- **v24.6** (2026-01-25): Dynamic additive bias correction for 48h forecast - anchors NWS predictions to observed conditions
+- **v24.5** (2026-01-25): LF-constrained 48h forecast - uses NWS LF forecast shifted backward by GF→LF travel time
 - **v24.4** (2026-01-25): 48h forecast uses NWS PoR forecast with GF ensemble model (60% PoR + 40% EF), accounting for travel time
 - **v24.3** (2026-01-25): Tighter ice detection thresholds - EF cross-check 30%→25%, low-flow+high-stage now +2 points
 - **v24.2** (2026-01-24): Ice-affected gauge display - shows last valid reading with ❄️ indicator, excludes from learning

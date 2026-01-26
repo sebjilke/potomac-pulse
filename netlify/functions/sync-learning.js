@@ -56,6 +56,13 @@ exports.handler = async (event, context) => {
             }
         }
 
+        // Forecast accuracy endpoint
+        if (endpoint === 'forecast-accuracy') {
+            if (event.httpMethod === 'GET') {
+                return await loadForecastAccuracy(client);
+            }
+        }
+
         // Default: Original learning endpoints
         if (event.httpMethod === 'GET') {
             return await loadLearningData(client);
@@ -410,6 +417,33 @@ async function saveGFLearningData(client, data) {
 
             if (error) throw error;
             result = { success: true, action: 'storePrediction' };
+        }
+
+        // Action: Store 48h forecast predictions for accuracy tracking
+        if (action === 'storeForecastPredictions') {
+            const { forecasts } = data;
+            if (!forecasts || !Array.isArray(forecasts)) {
+                return { statusCode: 400, headers, body: JSON.stringify({ error: 'No forecasts provided' }) };
+            }
+
+            // Store each forecast as a pending prediction
+            const insertData = forecasts.map(f => ({
+                observation_type: 'gf_forecast_pending',
+                gauge_id: `+${f.horizon}h`,
+                data: {
+                    targetTime: f.targetTime,
+                    predictedCFS: f.predictedCFS,
+                    predictedStage: f.predictedStage,
+                    source: f.source,
+                    createdAt: f.createdAt
+                }
+            }));
+
+            const { error } = await client.from('potomac_observations').insert(insertData);
+            if (error) throw error;
+
+            console.log(`📈 Stored ${forecasts.length} forecast predictions for accuracy tracking`);
+            result = { success: true, action: 'storeForecastPredictions', count: forecasts.length };
         }
 
         // Action: Record a validation (compare prediction to actual)
@@ -818,6 +852,44 @@ async function saveGFLearningData(client, data) {
             statusCode: 500,
             headers,
             body: JSON.stringify({ error: 'Failed to save GF learning data' })
+        };
+    }
+}
+
+// Load forecast accuracy data
+async function loadForecastAccuracy(client) {
+    try {
+        // Load forecast accuracy metadata for each horizon
+        const { data: metadata, error: metaErr } = await client
+            .from('potomac_observations')
+            .select('gauge_id, data')
+            .eq('observation_type', 'gf_forecast_metadata');
+
+        if (metaErr) throw metaErr;
+
+        // Build response with accuracy stats per horizon
+        const horizons = {};
+        for (const row of metadata || []) {
+            const horizon = parseInt(row.gauge_id.replace('+', '').replace('h', ''));
+            horizons[horizon] = {
+                validations: row.data?.validations || 0,
+                avgErrorPercent: row.data?.avgErrorPercent || null,
+                sumAbsErrorPercent: row.data?.sumAbsErrorPercent || 0
+            };
+        }
+
+        return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ horizons })
+        };
+
+    } catch (error) {
+        console.error('Load forecast accuracy error:', error);
+        return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to load forecast accuracy' })
         };
     }
 }

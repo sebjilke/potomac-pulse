@@ -576,6 +576,9 @@
                                 <!-- Forecast periods will be populated by JS -->
                             </div>
                             <div style="font-size:0.45rem;color:#64748b;margin-top:6px;text-align:center;"><span style="color:#ef4444;">▲</span><span style="color:#22c55e;">▼</span> vs now • tap card or graph for details</div>
+                            <div id="forecast-accuracy" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #334155;font-size:0.5rem;text-align:center;">
+                                <!-- Forecast accuracy stats populated by JS -->
+                            </div>
                         </div>
 
                         <div style="margin-bottom:15px;">
@@ -1187,6 +1190,12 @@
     const GF_PREDICTION_INTERVAL = 30 * 60 * 1000;  // Store prediction every 30 mins
     const GF_VALIDATION_CHECK_INTERVAL = 60 * 1000;  // Check validations every 1 min
     const GF_MIN_VALIDATION_TIME = 2 * 60 * 60 * 1000;  // Minimum 2 hours before validation
+
+    // 48h forecast accuracy tracking
+    let lastForecastPredictionTime = 0;  // Throttle forecast storage
+    let forecastAccuracyData = null;  // Forecast accuracy stats per horizon
+    const FORECAST_PREDICTION_INTERVAL = 2 * 60 * 60 * 1000;  // Store forecast every 2 hours
+    const FORECAST_HORIZONS = [6, 12, 24, 48];  // Hours to track
     const GF_EMA_ALPHA = 0.3;  // Exponential moving average weight (higher = more recent bias)
     const GF_OUTLIER_THRESHOLD = 3;  // Standard deviations for outlier detection
 
@@ -1324,6 +1333,98 @@
                 console.warn('🌊 GF prediction retry failed, giving up');
             }
         }
+    }
+
+    // Store 48h forecast predictions for accuracy tracking
+    async function storeForecastPredictions(periods) {
+        const now = Date.now();
+
+        // Throttle: only store every 2 hours
+        if (now - lastForecastPredictionTime < FORECAST_PREDICTION_INTERVAL) return;
+
+        // Filter to only display horizons (6, 12, 24, 48h) and NWS-based forecasts
+        const forecastsToStore = periods.filter(p =>
+            !p.isCurrent &&
+            p.isDisplayPeriod &&
+            p.source &&
+            p.source.startsWith('NWS')
+        );
+
+        if (forecastsToStore.length === 0) {
+            console.log('📈 Forecast storage skipped: no NWS-based forecasts');
+            return;
+        }
+
+        try {
+            const response = await fetch(SYNC_API + '?endpoint=gf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'storeForecastPredictions',
+                    forecasts: forecastsToStore.map(p => ({
+                        horizon: parseInt(p.label.replace('+', '').replace('h', '')),
+                        targetTime: p.time.toISOString(),
+                        predictedCFS: p.cfs,
+                        predictedStage: p.stage,
+                        source: p.source,
+                        createdAt: new Date().toISOString()
+                    }))
+                })
+            });
+
+            if (response.ok) {
+                lastForecastPredictionTime = now;
+                console.log(`📈 Stored ${forecastsToStore.length} forecast predictions for accuracy tracking`);
+            }
+        } catch (e) {
+            console.warn('Failed to store forecast predictions:', e);
+        }
+    }
+
+    // Load forecast accuracy data from server
+    async function loadForecastAccuracy() {
+        try {
+            const response = await fetch(SYNC_API + '?endpoint=forecast-accuracy');
+            if (response.ok) {
+                forecastAccuracyData = await response.json();
+                updateForecastAccuracyUI();
+            }
+        } catch (e) {
+            console.warn('Failed to load forecast accuracy:', e);
+        }
+    }
+
+    // Update forecast accuracy display in UI
+    function updateForecastAccuracyUI() {
+        const container = document.getElementById('forecast-accuracy');
+        if (!container || !forecastAccuracyData?.horizons) {
+            if (container) container.style.display = 'none';
+            return;
+        }
+
+        // Check if we have enough validations to show accuracy
+        const totalValidations = Object.values(forecastAccuracyData.horizons)
+            .reduce((sum, h) => sum + (h.validations || 0), 0);
+
+        if (totalValidations < 10) {
+            container.style.display = 'none';
+            return;
+        }
+
+        container.style.display = 'block';
+
+        // Build accuracy display for each horizon
+        const horizonStats = FORECAST_HORIZONS.map(h => {
+            const stats = forecastAccuracyData.horizons[h] || { validations: 0, avgErrorPercent: null };
+            if (stats.validations < 3 || stats.avgErrorPercent === null) {
+                return `<span style="color:#64748b;">+${h}h: --</span>`;
+            }
+            const accuracy = 100 - stats.avgErrorPercent;
+            const color = accuracy >= 90 ? '#4ade80' : (accuracy >= 80 ? '#fbbf24' : '#f87171');
+            return `<span style="color:${color};">+${h}h: ${accuracy.toFixed(0)}%</span>`;
+        }).join(' • ');
+
+        container.innerHTML = `<span style="color:#64748b;">Forecast accuracy:</span> ${horizonStats} <span style="color:#475569;">(${totalValidations} validations)</span>`;
     }
 
     // Check if any pending predictions are ready for validation (debounced)
@@ -2535,6 +2636,9 @@
 
         // Render interactive graph with ALL periods (including intermediate points for smooth curve)
         renderForecastGraph(periods, currentCFS, hasNWSForecast);
+
+        // Store forecast predictions for accuracy tracking (throttled, async)
+        storeForecastPredictions(periods).catch(e => console.warn('Forecast storage error:', e));
 
         // Add click handlers to period cards
         document.querySelectorAll('.forecast-period').forEach(card => {
@@ -4488,6 +4592,9 @@
 
             // Load GF learning data for Great Falls corrections
             await loadGFLearningData();
+
+            // Load forecast accuracy data (non-blocking)
+            loadForecastAccuracy().catch(e => console.warn('Forecast accuracy load error:', e));
 
             // Initialize UI
             initMap();

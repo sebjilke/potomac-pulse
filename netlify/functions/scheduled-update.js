@@ -779,6 +779,100 @@ async function storePrediction(client, prediction) {
     console.log(`📊 Health: ${metaData.consecutiveRuns} consecutive runs, ${metaData.missedRuns || 0} total missed`);
 }
 
+// Validate pending 48h forecast predictions
+async function validateForecastPredictions(client, usgsData) {
+    const { data, gauges } = usgsData;
+    const lf = data[gauges.lf];
+    const now = new Date();
+    let validated = 0;
+    let cleaned = 0;
+
+    if (!lf?.q) {
+        console.log('No LF data for forecast validation');
+        return { validated: 0, cleaned: 0 };
+    }
+
+    // Get pending forecast predictions
+    const { data: pending, error } = await client
+        .from('potomac_observations')
+        .select('id, gauge_id, data, created_at')
+        .eq('observation_type', 'gf_forecast_pending')
+        .order('created_at', { ascending: true })
+        .limit(100);
+
+    if (error) {
+        console.error('Error loading pending forecasts:', error);
+        return { validated: 0, cleaned: 0 };
+    }
+
+    if (!pending || pending.length === 0) {
+        return { validated: 0, cleaned: 0 };
+    }
+
+    console.log(`📈 Found ${pending.length} pending forecast predictions`);
+
+    for (const pred of pending) {
+        const targetTime = new Date(pred.data.targetTime);
+        const horizon = pred.gauge_id; // e.g., '+6h', '+12h', '+24h', '+48h'
+        const createdAt = new Date(pred.created_at);
+
+        // Check if target time has passed (allow 15 min buffer for processing)
+        if (now < new Date(targetTime.getTime() + 15 * 60 * 1000)) {
+            continue; // Not ready for validation yet
+        }
+
+        // Check if prediction is stale (>72h old)
+        const ageHours = (now - createdAt) / (1000 * 60 * 60);
+        if (ageHours > 72) {
+            await client.from('potomac_observations').delete().eq('id', pred.id);
+            cleaned++;
+            continue;
+        }
+
+        // Validate: compare predicted vs actual
+        const predictedCFS = pred.data.predictedCFS;
+        const actualCFS = lf.q;
+
+        // Skip validation if actual CFS is unrealistic
+        if (actualCFS < 500 || actualCFS > 500000) {
+            console.warn(`⚠️ Skipping forecast validation: LF reading ${actualCFS} cfs is outside valid range`);
+            continue;
+        }
+
+        const errorCFS = predictedCFS - actualCFS;
+        const errorPercent = Math.abs(errorCFS / actualCFS) * 100;
+
+        console.log(`📈 Validating ${horizon} forecast: predicted=${predictedCFS} cfs, actual=${actualCFS} cfs, error=${errorPercent.toFixed(1)}%`);
+
+        // Update metadata for this horizon
+        const { data: meta } = await client
+            .from('potomac_observations')
+            .select('data')
+            .eq('observation_type', 'gf_forecast_metadata')
+            .eq('gauge_id', horizon)
+            .single();
+
+        const metaData = meta?.data || { validations: 0, sumAbsErrorPercent: 0 };
+        metaData.validations += 1;
+        metaData.sumAbsErrorPercent = (metaData.sumAbsErrorPercent || 0) + errorPercent;
+        metaData.avgErrorPercent = metaData.sumAbsErrorPercent / metaData.validations;
+        metaData.lastValidation = now.toISOString();
+        metaData.lastErrorPercent = errorPercent;
+
+        await client.from('potomac_observations').upsert({
+            observation_type: 'gf_forecast_metadata',
+            gauge_id: horizon,
+            data: metaData
+        }, { onConflict: 'observation_type,gauge_id' });
+
+        // Delete the validated prediction
+        await client.from('potomac_observations').delete().eq('id', pred.id);
+        validated++;
+    }
+
+    return { validated, cleaned };
+}
+
 // Main handler
 exports.handler = async (event, context) => {
     console.log('=== Scheduled Update Starting ===');
@@ -821,6 +915,11 @@ exports.handler = async (event, context) => {
         const cleaned = validationResult.cleaned || 0;
         console.log(`Validated ${validated} predictions, cleaned ${cleaned} stale`);
 
+        // 4b. Validate pending 48h forecast predictions
+        console.log('Checking pending forecast predictions...');
+        const forecastValidation = await validateForecastPredictions(client, usgsData);
+        console.log(`Validated ${forecastValidation.validated || 0} forecast predictions`);
+
         // 5. Make new prediction
         console.log('Making new prediction...');
         const prediction = makeGFPrediction(usgsData, fullHistory);
@@ -838,6 +937,8 @@ exports.handler = async (event, context) => {
             porHistoryCount: fullHistory.length,
             predictionsValidated: validated,
             predictionsCleaned: cleaned,
+            forecastsValidated: forecastValidation.validated || 0,
+            forecastsCleaned: forecastValidation.cleaned || 0,
             newPrediction: prediction ? {
                 cfs: prediction.predictedCFS,
                 flowBin: prediction.flowBin,
