@@ -140,11 +140,14 @@
 
 ## Completed
 
-- [x] 48h forecast uses NWS + GF ensemble model v24.4 (2026-01-25)
-  - Uses NWS PoR forecast (PORM2) as primary source
-  - Applies GF ensemble model: 60% PoR (time-shifted) + 40% EF power-law
-  - Accounts for travel time: PoR forecast shifted by ~8-26h depending on flow
-  - Interpolates 6-hour NWS points to 2-hour intervals for smooth graph
+- [x] 48h forecast with LF-constrained GF estimation v24.5 (2026-01-25)
+  - **LF-Constrained approach**: Since GF is between PoR and LF, uses LF forecast
+    shifted backward by GF→LF travel time to ensure GF rises before LF
+  - Primary: NWS LF forecast (BRKM2) shifted by GF→LF travel time (~6-8h at low flow)
+  - Fallback: NWS PoR forecast (PORM2) when LF unavailable
+  - Calculates at 8 intervals (6,12,18,24,30,36,42,48h) for smooth graph interpolation
+  - Displays only 4 periods (6,12,24,48h) as cards
+  - Applies GF ensemble model: 60% PoR-based + 40% EF power-law
   - Shows "NWS" indicator on forecast periods when using official data
   - Falls back to linear extrapolation when NWS unavailable
 - [x] Tighter ice detection thresholds v24.3 (2026-01-25)
@@ -170,4 +173,4 @@
 
 ---
 
-*Last updated: 2026-01-25 (v24.4)*
+*Last updated: 2026-01-25 (v24.5)*

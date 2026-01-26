@@ -95,12 +95,17 @@ Where:
 ```
 
 ### 3. 48-Hour Forecast (v24.4)
-Uses NWS hydrological forecasts with the GF ensemble model:
+Uses NWS hydrological forecasts with LF-constrained GF estimation:
 
-- **Primary source**: NWS/NOAA forecast for Point of Rocks (PORM2)
-- **Travel time accounting**: PoR forecast shifted by travel time to estimate GF arrival
-- **Ensemble blending**: 60% PoR (time-shifted) + 40% EF power-law (when EF forecast available)
-- **Interpolation**: NWS 6-hour points interpolated to 2-hour intervals for smooth graph
+**LF-Constrained Approach**: Since GF is between PoR and LF, if NWS predicts LF will rise,
+GF must rise BEFORE LF does. The forecast uses LF predictions shifted backward by GF→LF
+travel time to ensure alignment with downstream conditions.
+
+- **Primary source**: NWS/NOAA forecast for Little Falls (BRKM2), shifted by GF→LF travel time
+- **Secondary source**: NWS forecast for Point of Rocks (PORM2) as fallback
+- **Calculation intervals**: 6, 12, 18, 24, 30, 36, 42, 48 hours (for smooth graph interpolation)
+- **Display intervals**: 6, 12, 24, 48 hours (shown as period cards)
+- **Ensemble blending**: 60% PoR-based + 40% EF power-law (when EF forecast available)
 - **Fallback**: Linear extrapolation when NWS unavailable
 - **Display**: Forecast periods show "NWS" indicator when using official forecast data
 
