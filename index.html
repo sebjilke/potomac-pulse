@@ -3344,13 +3344,15 @@
             }
             
             console.log(`SUCCESS: ${nwsLid} -> 24h=${forecast24} cfs, 48h=${forecast48} cfs`);
-            
+
             return {
                 forecast24,
                 forecast48,
                 time24,
                 time48,
-                source: "NWS"
+                source: "NWS",
+                // Include raw data array for detailed forecasting (48h graph)
+                data: forecastData
             };
         } catch(e) {
             console.log("Error parsing NWS for", nwsLid, ":", e.message);
