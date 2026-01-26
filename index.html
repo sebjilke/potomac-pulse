@@ -2168,6 +2168,69 @@
         updateGFLearningUI();
     }
 
+    // Get travel-time-aware PoR value for forecasting
+    // Accounts for water travel time from PoR to Great Falls using continuous Searcy model
+    // Returns { cfs, source, travelTime, porDepartureHrs, actualHoursAgo }
+    function getTravelTimeAwarePor(targetHrsFromNow, porPoints, interpolateFn, currentPorCFS, currentMult) {
+        const maxIterations = 3;
+        let travelTime = TRAVEL_POR_GF_BASELINE * currentMult;
+        let porDepartureHrs = targetHrsFromNow - travelTime;
+        let porCFS = currentPorCFS;
+        let source = 'current';
+        let actualHoursAgo = null;
+
+        for (let i = 0; i < maxIterations; i++) {
+            if (porDepartureHrs < 0) {
+                // Water already left PoR - use historical data
+                const hoursAgo = Math.abs(porDepartureHrs);
+                const historicData = getPoRFromHoursAgo(hoursAgo);
+
+                if (historicData) {
+                    porCFS = historicData.cfs;
+                    source = 'history';
+                    actualHoursAgo = historicData.actualHoursAgo;
+                } else {
+                    // No historical data - use current as fallback
+                    porCFS = currentPorCFS;
+                    source = 'current';
+                    actualHoursAgo = 0;
+                }
+            } else {
+                // Water hasn't left PoR yet - use NWS forecast
+                const forecastCFS = interpolateFn(porPoints, porDepartureHrs);
+                if (forecastCFS !== null) {
+                    porCFS = forecastCFS;
+                    source = 'NWS';
+                } else {
+                    // Forecast doesn't extend far enough - use current
+                    porCFS = currentPorCFS;
+                    source = 'current';
+                }
+                actualHoursAgo = null;
+            }
+
+            // Recalculate travel time based on looked-up flow (continuous Searcy model)
+            const newMult = getFlowMultiplier(porCFS).mult;
+            const newTravelTime = TRAVEL_POR_GF_BASELINE * newMult;
+
+            // Check for convergence (within 0.5 hours)
+            if (Math.abs(newTravelTime - travelTime) < 0.5) {
+                break;
+            }
+
+            travelTime = newTravelTime;
+            porDepartureHrs = targetHrsFromNow - travelTime;
+        }
+
+        return {
+            cfs: porCFS,
+            source: source,
+            travelTime: travelTime,
+            porDepartureHrs: porDepartureHrs,
+            actualHoursAgo: actualHoursAgo
+        };
+    }
+
     // Generate 48-hour forecast periods at 6-hour intervals
     // Uses NWS forecast data for PoR and EF, applies GF ensemble model (60% PoR + 40% EF)
     function updateForecastPeriods(gfEst) {
@@ -2229,16 +2292,19 @@
                 return null;
             };
 
+            // Get current multiplier for initial travel time estimate
+            const currentMult = data._mult?.mult || 1.0;
+            const currentPorCFS = porData?.q || currentCFS;
+
             for (const targetHrs of futureHours) {
                 const futureTime = new Date(now.getTime() + targetHrs * 60 * 60 * 1000);
 
-                // Get PoR forecast at the target time
-                // NWS forecast already represents what PoR will be at that time
-                // We use this directly as a proxy for GF conditions
-                let porCFS = interpolateForecast(porPoints, targetHrs);
-                if (porCFS === null) porCFS = porData?.q || currentCFS;
+                // Get travel-time-aware PoR value (accounts for water travel from PoR to GF)
+                const porResult = getTravelTimeAwarePor(targetHrs, porPoints, interpolateForecast, currentPorCFS, currentMult);
+                let porCFS = porResult.cfs;
 
                 // Get EF forecast at target time and apply power-law model
+                // Note: EF is closer to GF (~3-5h travel), so direct interpolation is acceptable
                 let efEstimate = null;
                 if (hasEFForecast) {
                     const efStage = interpolateForecast(efPoints, targetHrs, 'stage');
@@ -2257,16 +2323,42 @@
 
                 const forecastStage = estimateLFStage(forecastCFS);
 
+                // Build source label with travel time info
+                let sourceLabel;
+                if (porResult.source === 'history') {
+                    sourceLabel = `hist-${Math.round(porResult.actualHoursAgo)}h`;
+                } else if (porResult.source === 'NWS') {
+                    sourceLabel = 'NWS';
+                } else {
+                    sourceLabel = 'curr';
+                }
+                if (efEstimate !== null) {
+                    sourceLabel += '+EF';
+                }
+
                 periods.push({
                     label: `+${targetHrs}h`,
                     time: futureTime,
                     cfs: Math.round(forecastCFS),
                     stage: forecastStage,
                     isCurrent: false,
-                    source: 'NWS'
+                    source: sourceLabel,
+                    _debug: {
+                        travelTime: porResult.travelTime,
+                        porDepartureHrs: porResult.porDepartureHrs,
+                        porCFS: porCFS,
+                        efCFS: efEstimate,
+                        porSource: porResult.source
+                    }
                 });
             }
-            console.log('48h forecast: Using NWS PoR' + (hasEFForecast ? '+EF' : '') + ' forecast');
+
+            // Enhanced logging for travel-time-aware forecast
+            console.log('48h forecast with travel-time adjustment:');
+            periods.filter(p => !p.isCurrent).forEach(p => {
+                const d = p._debug;
+                console.log(`  ${p.label}: travel=${d.travelTime?.toFixed(1)}h, departure=${d.porDepartureHrs?.toFixed(1)}h, PoR=${d.porCFS?.toFixed(0)} (${d.porSource}), result=${p.cfs} cfs`);
+            });
         } else {
             // Fallback: Linear extrapolation based on travel time trend
             const forecastCFS = gfEst.forecastCFS;
@@ -2299,7 +2391,21 @@
             const timeStr = p.isCurrent ? 'Now' : formatForecastTime(p.time);
             const trendIcon = p.cfs > currentCFS ? '▲' : (p.cfs < currentCFS ? '▼' : '●');
             const trendColor = p.cfs > currentCFS ? '#ef4444' : (p.cfs < currentCFS ? '#22c55e' : '#94a3b8');
-            const sourceIndicator = p.source === 'NWS' ? ' <span style="color:#60a5fa;font-size:0.5rem;">NWS</span>' : '';
+
+            // Build source indicator with color coding
+            let sourceIndicator = '';
+            if (p.source && !p.isCurrent) {
+                let sourceColor = '#60a5fa'; // blue for NWS
+                let sourceTitle = 'NWS forecast data';
+                if (p.source.startsWith('hist')) {
+                    sourceColor = '#a78bfa'; // purple for history
+                    sourceTitle = 'Historical PoR data (travel-time adjusted)';
+                } else if (p.source === 'curr' || p.source.startsWith('curr')) {
+                    sourceColor = '#f59e0b'; // yellow for current fallback
+                    sourceTitle = 'Using current PoR (no history available)';
+                }
+                sourceIndicator = ` <span style="color:${sourceColor};font-size:0.5rem;" title="${sourceTitle}">${p.source}</span>`;
+            }
 
             return `
                 <div class="forecast-period${p.isCurrent ? ' current' : ''}" data-hrs="${periodHours[i]}" data-stage="${p.stage.toFixed(2)}" data-cfs="${p.cfs}" style="cursor:pointer;">
