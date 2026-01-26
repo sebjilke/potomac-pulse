@@ -140,8 +140,10 @@
 
 ## Completed
 
-- [x] 48h forecast now uses NWS data v24.4 (2026-01-25)
-  - Uses NWS hydrological forecast (BRKM2) instead of linear extrapolation
+- [x] 48h forecast uses NWS + GF ensemble model v24.4 (2026-01-25)
+  - Uses NWS PoR forecast (PORM2) as primary source
+  - Applies GF ensemble model: 60% PoR (time-shifted) + 40% EF power-law
+  - Accounts for travel time: PoR forecast shifted by ~8-26h depending on flow
   - Interpolates 6-hour NWS points to 2-hour intervals for smooth graph
   - Shows "NWS" indicator on forecast periods when using official data
   - Falls back to linear extrapolation when NWS unavailable

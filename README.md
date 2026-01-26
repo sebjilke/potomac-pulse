@@ -95,11 +95,13 @@ Where:
 ```
 
 ### 3. 48-Hour Forecast (v24.4)
-Uses NWS hydrological forecast data when available:
+Uses NWS hydrological forecasts with the GF ensemble model:
 
-- **Primary source**: NWS/NOAA stageflow forecasts for Little Falls (BRKM2)
-- **Interpolation**: NWS 6-hour forecast points interpolated to 2-hour intervals
-- **Fallback**: Linear extrapolation from travel time trend when NWS unavailable
+- **Primary source**: NWS/NOAA forecast for Point of Rocks (PORM2)
+- **Travel time accounting**: PoR forecast shifted by travel time to estimate GF arrival
+- **Ensemble blending**: 60% PoR (time-shifted) + 40% EF power-law (when EF forecast available)
+- **Interpolation**: NWS 6-hour points interpolated to 2-hour intervals for smooth graph
+- **Fallback**: Linear extrapolation when NWS unavailable
 - **Display**: Forecast periods show "NWS" indicator when using official forecast data
 
 ### 4. Travel Time Calculations
@@ -356,7 +358,7 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ## Version History
 
-- **v24.4** (2026-01-25): 48h forecast now uses NWS hydrological forecast data instead of linear extrapolation
+- **v24.4** (2026-01-25): 48h forecast uses NWS PoR forecast with GF ensemble model (60% PoR + 40% EF), accounting for travel time
 - **v24.3** (2026-01-25): Tighter ice detection thresholds - EF cross-check 30%→25%, low-flow+high-stage now +2 points
 - **v24.2** (2026-01-24): Ice-affected gauge display - shows last valid reading with ❄️ indicator, excludes from learning
 - **v24.1** (2026-01-24): Improved ice detection - EF cross-check at validation time, tighter thresholds
