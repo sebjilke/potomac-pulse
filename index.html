@@ -2043,31 +2043,6 @@
             estimatedCFS = porEstimateCFS;
         }
 
-        // ==================== SANITY CHECK VS ACTUAL LF ====================
-        // GF estimate should not be wildly different from LF actual.
-        // In steady state: GF ≈ LF (GF is just 2 miles upstream)
-        // During rise: GF can be higher than LF (wave hasn't arrived yet)
-        // During fall: GF can be lower than LF (recession wave)
-        // Max reasonable difference: ~50% in either direction
-        const lfActualCFS = lf.q;
-        const gfVsLfRatio = estimatedCFS / lfActualCFS;
-
-        if (gfVsLfRatio > 1.5 && flowState !== 'rising') {
-            // GF estimate >50% higher than LF actual, but not rising - suspicious
-            console.log(`⚠️ GF sanity check: estimate ${estimatedCFS} cfs is ${Math.round((gfVsLfRatio-1)*100)}% higher than LF actual ${lfActualCFS} cfs (not rising)`);
-            // Blend with LF actual to be more conservative
-            const blendedCFS = Math.round(0.5 * estimatedCFS + 0.5 * lfActualCFS);
-            console.log(`⚠️ Applying LF blend: ${estimatedCFS} → ${blendedCFS} cfs`);
-            estimatedCFS = blendedCFS;
-        } else if (gfVsLfRatio < 0.67 && flowState !== 'falling') {
-            // GF estimate >33% lower than LF actual, but not falling - suspicious
-            console.log(`⚠️ GF sanity check: estimate ${estimatedCFS} cfs is ${Math.round((1-gfVsLfRatio)*100)}% lower than LF actual ${lfActualCFS} cfs (not falling)`);
-            // Blend with LF actual to be more conservative
-            const blendedCFS = Math.round(0.5 * estimatedCFS + 0.5 * lfActualCFS);
-            console.log(`⚠️ Applying LF blend: ${estimatedCFS} → ${blendedCFS} cfs`);
-            estimatedCFS = blendedCFS;
-        }
-
         // Estimate stage using Little Falls equivalent (what paddlers know)
         const estimatedStage = estimateLFStage(estimatedCFS);
 
