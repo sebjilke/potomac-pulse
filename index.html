@@ -2292,16 +2292,54 @@
                 return null;
             };
 
-            // Get current multiplier for initial travel time estimate
+            // Get current flow multiplier for travel time calculations
             const currentMult = data._mult?.mult || 1.0;
             const currentPorCFS = porData?.q || currentCFS;
 
             for (const targetHrs of futureHours) {
                 const futureTime = new Date(now.getTime() + targetHrs * 60 * 60 * 1000);
 
-                // Get travel-time-aware PoR value (accounts for water travel from PoR to GF)
-                const porResult = getTravelTimeAwarePor(targetHrs, porPoints, interpolateForecast, currentPorCFS, currentMult);
-                let porCFS = porResult.cfs;
+                // Smart forecast: Find what PoR value will arrive at GF at targetHrs
+                // We need to find when water left/will leave PoR to arrive at GF at targetHrs
+                //
+                // For each target time, iterate to find the PoR time that, accounting for
+                // travel time at that flow level, results in arrival at GF at targetHrs
+                let porCFS = currentPorCFS;
+                let porLookupHrs = targetHrs - (TRAVEL_POR_GF_BASELINE * currentMult);
+
+                // Iterate to refine (travel time depends on flow)
+                for (let iter = 0; iter < 3; iter++) {
+                    let lookupCFS;
+                    if (porLookupHrs < 0) {
+                        // Water already left PoR - check history
+                        const histData = getPoRFromHoursAgo(Math.abs(porLookupHrs));
+                        lookupCFS = histData?.cfs || currentPorCFS;
+                    } else {
+                        // Water hasn't left PoR yet - use NWS forecast
+                        lookupCFS = interpolateForecast(porPoints, porLookupHrs) || currentPorCFS;
+                    }
+
+                    // Recalculate travel time at this flow
+                    const travelAtFlow = TRAVEL_POR_GF_BASELINE * getFlowMultiplier(lookupCFS).mult;
+                    const newLookupHrs = targetHrs - travelAtFlow;
+
+                    // Check convergence
+                    if (Math.abs(newLookupHrs - porLookupHrs) < 0.5) {
+                        porCFS = lookupCFS;
+                        break;
+                    }
+                    porLookupHrs = newLookupHrs;
+                    porCFS = lookupCFS;
+                }
+
+                // If result seems wrong (decreasing when NWS shows increase), use NWS directly
+                // This handles the case where historical data doesn't reflect the incoming rise
+                const nwsForecastCFS = interpolateForecast(porPoints, targetHrs) || currentPorCFS;
+                if (porCFS < currentCFS && nwsForecastCFS > currentPorCFS * 1.1) {
+                    // NWS shows significant rise but our calculation shows decrease
+                    // Use NWS as upstream indicator since rise is coming
+                    porCFS = nwsForecastCFS;
+                }
 
                 // Get EF forecast at target time and apply power-law model
                 // Note: EF is closer to GF (~3-5h travel), so direct interpolation is acceptable
@@ -2323,18 +2361,8 @@
 
                 const forecastStage = estimateLFStage(forecastCFS);
 
-                // Build source label with travel time info
-                let sourceLabel;
-                if (porResult.source === 'history') {
-                    sourceLabel = `hist-${Math.round(porResult.actualHoursAgo)}h`;
-                } else if (porResult.source === 'NWS') {
-                    sourceLabel = 'NWS';
-                } else {
-                    sourceLabel = 'curr';
-                }
-                if (efEstimate !== null) {
-                    sourceLabel += '+EF';
-                }
+                // Source label
+                const sourceLabel = 'NWS' + (efEstimate !== null ? '+EF' : '');
 
                 periods.push({
                     label: `+${targetHrs}h`,
@@ -2342,22 +2370,15 @@
                     cfs: Math.round(forecastCFS),
                     stage: forecastStage,
                     isCurrent: false,
-                    source: sourceLabel,
-                    _debug: {
-                        travelTime: porResult.travelTime,
-                        porDepartureHrs: porResult.porDepartureHrs,
-                        porCFS: porCFS,
-                        efCFS: efEstimate,
-                        porSource: porResult.source
-                    }
+                    source: sourceLabel
                 });
             }
 
-            // Enhanced logging for travel-time-aware forecast
-            console.log('48h forecast with travel-time adjustment:');
+            // Log forecast info
+            const currentTravelTime = TRAVEL_POR_GF_BASELINE * currentMult;
+            console.log(`48h forecast (travel ~${currentTravelTime.toFixed(0)}h at current flow):`);
             periods.filter(p => !p.isCurrent).forEach(p => {
-                const d = p._debug;
-                console.log(`  ${p.label}: travel=${d.travelTime?.toFixed(1)}h, departure=${d.porDepartureHrs?.toFixed(1)}h, PoR=${d.porCFS?.toFixed(0)} (${d.porSource}), result=${p.cfs} cfs`);
+                console.log(`  ${p.label}: ${p.cfs} cfs / ${p.stage.toFixed(2)} ft`);
             });
         } else {
             // Fallback: Linear extrapolation based on travel time trend
@@ -2392,18 +2413,11 @@
             const trendIcon = p.cfs > currentCFS ? '▲' : (p.cfs < currentCFS ? '▼' : '●');
             const trendColor = p.cfs > currentCFS ? '#ef4444' : (p.cfs < currentCFS ? '#22c55e' : '#94a3b8');
 
-            // Build source indicator with color coding
+            // Build source indicator (NWS = upstream forecast data)
             let sourceIndicator = '';
             if (p.source && !p.isCurrent) {
-                let sourceColor = '#60a5fa'; // blue for NWS
-                let sourceTitle = 'NWS forecast data';
-                if (p.source.startsWith('hist')) {
-                    sourceColor = '#a78bfa'; // purple for history
-                    sourceTitle = 'Historical PoR data (travel-time adjusted)';
-                } else if (p.source === 'curr' || p.source.startsWith('curr')) {
-                    sourceColor = '#f59e0b'; // yellow for current fallback
-                    sourceTitle = 'Using current PoR (no history available)';
-                }
+                const sourceColor = '#60a5fa'; // blue for NWS
+                const sourceTitle = 'NWS upstream forecast (arrival time varies with flow)';
                 sourceIndicator = ` <span style="color:${sourceColor};font-size:0.5rem;" title="${sourceTitle}">${p.source}</span>`;
             }
 
