@@ -705,8 +705,41 @@
                         <!-- THE KEY INSIGHT -->
                         <h3>The Key Insight</h3>
                         <p style="font-size:0.6rem;color:#94a3b8;line-height:1.6;">
-                        Water takes time to flow downstream. By watching upstream gauges and accounting for travel time, we can estimate what Great Falls looks like <i>right now</i>. The <b style="color:#60a5fa;">48-hour forecast</b> uses official NWS hydrological predictions when available — these incorporate precipitation forecasts and watershed models for more accurate predictions.
+                        Water takes time to flow downstream. By watching upstream gauges and accounting for travel time, we can estimate what Great Falls looks like <i>right now</i>. The <b style="color:#60a5fa;">48-hour forecast</b> uses official NWS hydrological predictions — but with important corrections.
                         </p>
+
+                        <!-- 48-HOUR FORECAST METHODOLOGY -->
+                        <h3>48-Hour Forecast</h3>
+                        <p style="font-size:0.6rem;color:#94a3b8;line-height:1.6;margin-bottom:10px;">
+                        The forecast uses a different method than the current estimate — here's why and how:
+                        </p>
+
+                        <div style="background:#0f172a;padding:12px;border-radius:8px;margin:10px 0;">
+                            <div style="font-size:0.55rem;color:#64748b;margin-bottom:8px;">WHY NOT USE THE SAME METHOD?</div>
+                            <p style="font-size:0.5rem;color:#94a3b8;line-height:1.5;margin-bottom:8px;">
+                            At low flow, water takes ~40 hours to travel from Point of Rocks to Great Falls. So to predict GF at +6h, we'd need PoR data from 34 hours <i>ago</i> — historical data, not a forecast. The result would show flat conditions even when a rise is coming.
+                            </p>
+                            <p style="font-size:0.5rem;color:#94a3b8;line-height:1.5;">
+                            Instead, we use the <b style="color:#fbbf24;">Little Falls forecast</b> and work backwards. Since GF is upstream of LF, if LF will rise, GF must rise <i>first</i>. We shift the LF forecast backward by GF→LF travel time (~6-12h).
+                            </p>
+                        </div>
+
+                        <div style="background:#0f172a;padding:12px;border-radius:8px;margin:10px 0;">
+                            <div style="font-size:0.55rem;color:#64748b;margin-bottom:8px;">BIAS CORRECTION</div>
+                            <p style="font-size:0.5rem;color:#94a3b8;line-height:1.5;margin-bottom:8px;">
+                            NWS forecasts often show systematic bias — e.g., predicting 1,300 cfs when the gauge reads 1,000 cfs. We apply an <b style="color:#4ade80;">additive correction</b>:
+                            </p>
+                            <div style="font-size:0.5rem;color:#60a5fa;text-align:center;padding:6px;background:#1e293b;border-radius:4px;margin-bottom:8px;font-family:monospace;">
+                                corrected = forecast + (observed − forecast_at_now)
+                            </div>
+                            <p style="font-size:0.5rem;color:#94a3b8;line-height:1.5;">
+                            This preserves the forecast's predicted <i>change</i> (the physics of the rise) while anchoring to what we actually observe. The correction updates every 15 minutes, so it auto-adjusts as NWS improves their predictions.
+                            </p>
+                        </div>
+
+                        <div style="font-size:0.45rem;color:#64748b;line-height:1.4;margin-top:8px;">
+                            <b>Why additive, not multiplicative?</b> River hydraulics are non-linear. A percentage-based correction (×0.8) would over-correct at high flows and under-correct at low flows. Additive correction (+/- cfs) keeps the physics intact.
+                        </div>
 
                         <!-- TRAVEL TIMES -->
                         <h3>Travel Times</h3>
