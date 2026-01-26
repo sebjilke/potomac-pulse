@@ -2292,54 +2292,59 @@
                 return null;
             };
 
-            // Get current flow multiplier for travel time calculations
-            const currentMult = data._mult?.mult || 1.0;
+            // ARRIVAL-TIME FORECAST: Calculate when NWS forecast points will reach GF
+            // For each NWS forecast point, compute: arrival_time = por_time + travel_time(flow)
+            // Then interpolate to get GF values at our standard display times
+
             const currentPorCFS = porData?.q || currentCFS;
 
+            // Build arrival schedule: when does each PoR forecast point reach GF?
+            const arrivalSchedule = [];
+
+            // Add current PoR (already in transit, use current travel time)
+            const currentTravelTime = TRAVEL_POR_GF_BASELINE * getFlowMultiplier(currentPorCFS).mult;
+            arrivalSchedule.push({
+                porTime: 0,  // hours from now at PoR
+                porCFS: currentPorCFS,
+                travelTime: currentTravelTime,
+                gfArrival: currentTravelTime  // arrives at GF in travelTime hours
+            });
+
+            // Add each NWS forecast point with its arrival time at GF
+            for (const pt of porPoints) {
+                if (pt.hoursAhead < 0) continue;  // skip past points
+                const travelTime = TRAVEL_POR_GF_BASELINE * getFlowMultiplier(pt.cfs).mult;
+                arrivalSchedule.push({
+                    porTime: pt.hoursAhead,
+                    porCFS: pt.cfs,
+                    travelTime: travelTime,
+                    gfArrival: pt.hoursAhead + travelTime
+                });
+            }
+
+            // Sort by GF arrival time
+            arrivalSchedule.sort((a, b) => a.gfArrival - b.gfArrival);
+
+            // Helper to interpolate GF conditions at a specific arrival time
+            const getGFAtTime = (targetGFHrs) => {
+                const before = arrivalSchedule.filter(p => p.gfArrival <= targetGFHrs).pop();
+                const after = arrivalSchedule.find(p => p.gfArrival >= targetGFHrs);
+
+                if (before && after && before !== after) {
+                    const t = (targetGFHrs - before.gfArrival) / (after.gfArrival - before.gfArrival);
+                    return before.porCFS + t * (after.porCFS - before.porCFS);
+                }
+                if (after) return after.porCFS;
+                if (before) return before.porCFS;
+                return currentPorCFS;
+            };
+
+            // Now generate forecast periods at standard times
             for (const targetHrs of futureHours) {
                 const futureTime = new Date(now.getTime() + targetHrs * 60 * 60 * 1000);
 
-                // Smart forecast: Find what PoR value will arrive at GF at targetHrs
-                // We need to find when water left/will leave PoR to arrive at GF at targetHrs
-                //
-                // For each target time, iterate to find the PoR time that, accounting for
-                // travel time at that flow level, results in arrival at GF at targetHrs
-                let porCFS = currentPorCFS;
-                let porLookupHrs = targetHrs - (TRAVEL_POR_GF_BASELINE * currentMult);
-
-                // Iterate to refine (travel time depends on flow)
-                for (let iter = 0; iter < 3; iter++) {
-                    let lookupCFS;
-                    if (porLookupHrs < 0) {
-                        // Water already left PoR - check history
-                        const histData = getPoRFromHoursAgo(Math.abs(porLookupHrs));
-                        lookupCFS = histData?.cfs || currentPorCFS;
-                    } else {
-                        // Water hasn't left PoR yet - use NWS forecast
-                        lookupCFS = interpolateForecast(porPoints, porLookupHrs) || currentPorCFS;
-                    }
-
-                    // Recalculate travel time at this flow
-                    const travelAtFlow = TRAVEL_POR_GF_BASELINE * getFlowMultiplier(lookupCFS).mult;
-                    const newLookupHrs = targetHrs - travelAtFlow;
-
-                    // Check convergence
-                    if (Math.abs(newLookupHrs - porLookupHrs) < 0.5) {
-                        porCFS = lookupCFS;
-                        break;
-                    }
-                    porLookupHrs = newLookupHrs;
-                    porCFS = lookupCFS;
-                }
-
-                // If result seems wrong (decreasing when NWS shows increase), use NWS directly
-                // This handles the case where historical data doesn't reflect the incoming rise
-                const nwsForecastCFS = interpolateForecast(porPoints, targetHrs) || currentPorCFS;
-                if (porCFS < currentCFS && nwsForecastCFS > currentPorCFS * 1.1) {
-                    // NWS shows significant rise but our calculation shows decrease
-                    // Use NWS as upstream indicator since rise is coming
-                    porCFS = nwsForecastCFS;
-                }
+                // Get GF conditions at this target time using arrival schedule
+                let porCFS = getGFAtTime(targetHrs);
 
                 // Get EF forecast at target time and apply power-law model
                 // Note: EF is closer to GF (~3-5h travel), so direct interpolation is acceptable
@@ -2374,9 +2379,11 @@
                 });
             }
 
-            // Log forecast info
-            const currentTravelTime = TRAVEL_POR_GF_BASELINE * currentMult;
-            console.log(`48h forecast (travel ~${currentTravelTime.toFixed(0)}h at current flow):`);
+            // Log forecast with arrival info
+            console.log(`48h GF forecast (arrival-time based, current travel ~${currentTravelTime.toFixed(0)}h):`);
+            console.log('  Arrival schedule:', arrivalSchedule.slice(0, 5).map(s =>
+                `PoR+${s.porTime.toFixed(0)}h (${s.porCFS.toFixed(0)} cfs) → GF+${s.gfArrival.toFixed(0)}h`
+            ).join(', '));
             periods.filter(p => !p.isCurrent).forEach(p => {
                 console.log(`  ${p.label}: ${p.cfs} cfs / ${p.stage.toFixed(2)} ft`);
             });
