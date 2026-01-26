@@ -1982,17 +1982,27 @@
         // ==================== WEIGHTED ENSEMBLE WITH EDWARDS FERRY ====================
         // Blend PoR-based estimate with EF power-law model for improved accuracy
         // EF model: LF_cfs = 108 × EF_stage^2.64 (R² = 0.98)
-        // Weights: 60% PoR model + 40% EF model (when EF available)
+        // Weights: 60% PoR model + 40% EF model (when EF available and consistent)
         const efEstimate = estimateGFFromEdwardsFerry();
         let useEfEnsemble = false;
 
         if (efEstimate && efEstimate.cfs > 0) {
-            // Blend the two estimates
-            const porWeight = 1 - EF_MODEL.weight;  // 0.6
-            const efWeight = EF_MODEL.weight;        // 0.4
-            estimatedCFS = Math.round(porWeight * porEstimateCFS + efWeight * efEstimate.cfs);
-            useEfEnsemble = true;
-            console.log(`🔀 Ensemble: ${porWeight*100}% PoR (${Math.round(porEstimateCFS)}) + ${efWeight*100}% EF (${efEstimate.cfs}) = ${estimatedCFS} cfs`);
+            // Check if EF estimate is consistent with PoR estimate
+            // Large discrepancy (>50%) suggests ice/backwater affecting EF stage
+            const discrepancy = Math.abs(efEstimate.cfs - porEstimateCFS) / porEstimateCFS;
+
+            if (discrepancy > 0.5) {
+                // EF too different from PoR - likely ice/backwater, skip ensemble
+                console.log(`⚠️ Skipping EF ensemble: ${Math.round(discrepancy*100)}% discrepancy (EF: ${efEstimate.cfs} vs PoR: ${Math.round(porEstimateCFS)})`);
+                estimatedCFS = porEstimateCFS;
+            } else {
+                // Blend the two estimates
+                const porWeight = 1 - EF_MODEL.weight;  // 0.6
+                const efWeight = EF_MODEL.weight;        // 0.4
+                estimatedCFS = Math.round(porWeight * porEstimateCFS + efWeight * efEstimate.cfs);
+                useEfEnsemble = true;
+                console.log(`🔀 Ensemble: ${porWeight*100}% PoR (${Math.round(porEstimateCFS)}) + ${efWeight*100}% EF (${efEstimate.cfs}) = ${estimatedCFS} cfs`);
+            }
         } else {
             // EF not available - use PoR-only estimate
             estimatedCFS = porEstimateCFS;
