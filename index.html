@@ -990,7 +990,7 @@
 
     // PoR history for Great Falls time-shifting
     const POR_HISTORY_KEY = "potomac_por_history";
-    const POR_HISTORY_MAX_AGE = 48 * 60 * 60 * 1000; // Keep 48 hours of history (matches USGS P2D)
+    const POR_HISTORY_MAX_AGE = 72 * 60 * 60 * 1000; // Keep 72 hours of history (covers low-flow travel times ~50h)
     let porHistory = []; // Array of { timestamp, cfs, stage }
 
     let dataSource = "loading"; // "live", "cached", "estimated"
@@ -1754,7 +1754,7 @@
             stage: stage || null
         });
 
-        // Keep only last 24 hours
+        // Keep only recent history (matches POR_HISTORY_MAX_AGE)
         const cutoff = now - POR_HISTORY_MAX_AGE;
         porHistory = porHistory.filter(entry => entry.timestamp > cutoff);
 
@@ -1764,7 +1764,10 @@
 
     // Get PoR reading from X hours ago (for time-shifted GF estimate)
     function getPoRFromHoursAgo(hoursAgo) {
-        if (porHistory.length === 0) return null;
+        if (porHistory.length === 0) {
+            console.log(`📊 getPoRFromHoursAgo(${hoursAgo.toFixed(1)}h): No history available`);
+            return null;
+        }
 
         const targetTime = Date.now() - (hoursAgo * 60 * 60 * 1000);
 
@@ -1789,6 +1792,13 @@
                 timestamp: closest.timestamp
             };
         }
+
+        // Log why we returned null
+        const oldestEntry = porHistory[0];
+        const newestEntry = porHistory[porHistory.length - 1];
+        const oldestHoursAgo = (Date.now() - oldestEntry.timestamp) / (60 * 60 * 1000);
+        const newestHoursAgo = (Date.now() - newestEntry.timestamp) / (60 * 60 * 1000);
+        console.log(`📊 getPoRFromHoursAgo(${hoursAgo.toFixed(1)}h): History spans ${newestHoursAgo.toFixed(1)}h to ${oldestHoursAgo.toFixed(1)}h ago (${porHistory.length} entries)`);
 
         return null;
     }
