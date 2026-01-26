@@ -427,10 +427,13 @@ async function saveGFLearningData(client, data) {
             }
 
             // Store each forecast as a pending prediction
+            // Use unique gauge_id with timestamp to allow multiple forecasts per horizon
+            const timestamp = Date.now();
             const insertData = forecasts.map(f => ({
                 observation_type: 'gf_forecast_pending',
-                gauge_id: `+${f.horizon}h`,
+                gauge_id: `+${f.horizon}h_${timestamp}`,
                 data: {
+                    horizon: f.horizon,  // Store horizon in data for validation lookup
                     targetTime: f.targetTime,
                     predictedCFS: f.predictedCFS,
                     predictedStage: f.predictedStage,

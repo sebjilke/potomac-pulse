@@ -813,7 +813,8 @@ async function validateForecastPredictions(client, usgsData) {
 
     for (const pred of pending) {
         const targetTime = new Date(pred.data.targetTime);
-        const horizon = pred.gauge_id; // e.g., '+6h', '+12h', '+24h', '+48h'
+        const horizonNum = pred.data.horizon;  // e.g., 6, 12, 24, 48
+        const horizonKey = `+${horizonNum}h`;  // e.g., '+6h' for metadata lookup
         const createdAt = new Date(pred.created_at);
 
         // Check if target time has passed (allow 15 min buffer for processing)
@@ -842,14 +843,14 @@ async function validateForecastPredictions(client, usgsData) {
         const errorCFS = predictedCFS - actualCFS;
         const errorPercent = Math.abs(errorCFS / actualCFS) * 100;
 
-        console.log(`📈 Validating ${horizon} forecast: predicted=${predictedCFS} cfs, actual=${actualCFS} cfs, error=${errorPercent.toFixed(1)}%`);
+        console.log(`📈 Validating ${horizonKey} forecast: predicted=${predictedCFS} cfs, actual=${actualCFS} cfs, error=${errorPercent.toFixed(1)}%`);
 
         // Update metadata for this horizon
         const { data: meta } = await client
             .from('potomac_observations')
             .select('data')
             .eq('observation_type', 'gf_forecast_metadata')
-            .eq('gauge_id', horizon)
+            .eq('gauge_id', horizonKey)
             .single();
 
         const metaData = meta?.data || { validations: 0, sumAbsErrorPercent: 0 };
@@ -861,7 +862,7 @@ async function validateForecastPredictions(client, usgsData) {
 
         await client.from('potomac_observations').upsert({
             observation_type: 'gf_forecast_metadata',
-            gauge_id: horizon,
+            gauge_id: horizonKey,
             data: metaData
         }, { onConflict: 'observation_type,gauge_id' });
 
