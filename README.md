@@ -84,14 +84,35 @@ Monitors 6+ USGS gauges with 15-minute updates:
 | Seneca Creek | 01645000 | Minor tributary | Local adjustment |
 
 ### 2. Great Falls Prediction Model
-Ensemble approach combining two methods:
+Estimates current flow at Great Falls using time-shifted upstream data.
 
+**Core Concept**: Water takes time to travel. At low flow (~1200 cfs), it takes ~25-30 hours
+for water to travel from Point of Rocks to Great Falls. To know what's at GF *right now*,
+we need to look at what PoR was reading a day ago - the current PoR reading tells you what
+will arrive at GF tomorrow.
+
+**Iterative Travel Time Convergence (v24.9)**:
+Travel time depends on flow, but we're looking up historical flow - this creates a chicken-and-egg problem.
+Solution: iterate to converge on the correct time-shift.
+
+```
+1. Start with current flow → calculate travel time
+2. Look up historical PoR from that many hours ago
+3. Recalculate travel time based on that historical flow
+4. Repeat until converged (within 1 hour)
+```
+
+Example: Current flow 1200 cfs → 33h travel time → historical 1900 cfs found.
+But 1900 cfs travels in ~25h, so that water already passed! Iterate to find correct data.
+
+**Ensemble Blending**:
 ```
 GF_estimate = 0.60 × PoR_time_shifted + 0.40 × EF_power_law
 
 Where:
-- PoR_time_shifted = Point of Rocks reading shifted by travel time
+- PoR_time_shifted = Point of Rocks reading from X hours ago (X = converged travel time)
 - EF_power_law = 108 × (EF_stage)^2.64
+- EF skipped if >50% discrepancy vs PoR (indicates ice/backwater)
 ```
 
 ### 3. 48-Hour Forecast (v24.6)
@@ -136,15 +157,21 @@ The system tracks forecast accuracy by horizon (6h, 12h, 24h, 48h):
 Based on Searcy model (USGS Circular 438, 1961) with empirical correction:
 
 ```javascript
-// Original Searcy: T = 5174 × Q^(-0.5963) hours
-// Corrected (2026): T = 4139 × Q^(-0.5963) hours (×0.80 multiplier)
+// Continuous power law: T = 4139 × Q^(-0.5963) hours
+// (Original Searcy × 0.80 correction factor)
 
 // Example travel times (Point of Rocks → Little Falls):
+// 1,200 cfs → ~44 hours (low flow)
 // 2,000 cfs → ~35 hours
 // 5,000 cfs → ~26 hours (median flow)
 // 20,000 cfs → ~15 hours
-// 50,000 cfs → ~10 hours
+// 50,000 cfs → ~10 hours (flood)
 ```
+
+**PoR → GF vs GF → LF Split**:
+- Total PoR→LF distance: 41 miles
+- PoR→GF: ~20 miles (49% of distance, but takes ~75% of travel time - slower upstream)
+- GF→LF: ~21 miles (51% of distance, takes ~25% of time - gorge speeds flow)
 
 ### 5. Adaptive Learning System (v24)
 Flow-binned corrections with anomaly detection:
@@ -168,7 +195,7 @@ Single table `potomac_observations` with polymorphic types:
 | `gf_correction_bin` | `flowBin_flowState` | Bin statistics |
 | `gf_forecast_pending` | `+6h`/`+12h`/`+24h`/`+48h` | Forecast prediction |
 | `gf_forecast_metadata` | `+6h`/`+12h`/`+24h`/`+48h` | Forecast accuracy stats |
-| `por_history` | `system` | 48-hour rolling buffer |
+| `por_history` | `system` | 72-hour rolling buffer |
 | `ef_gf_correlation` | `system` | Correlation model |
 | `gf_metadata` | `system` | Health stats |
 

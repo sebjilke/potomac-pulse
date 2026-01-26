@@ -708,8 +708,18 @@
                         <!-- THE KEY INSIGHT -->
                         <h3>The Key Insight</h3>
                         <p style="font-size:0.6rem;color:#94a3b8;line-height:1.6;">
-                        Water takes time to flow downstream. By watching upstream gauges and accounting for travel time, we can estimate what Great Falls looks like <i>right now</i>. The <b style="color:#60a5fa;">48-hour forecast</b> uses official NWS hydrological predictions — but with important corrections.
+                        Water takes time to flow downstream. At low flow (~1,200 cfs), it takes ~25-30 hours for water to travel from Point of Rocks to Great Falls. To know what's at GF <i>right now</i>, we look at what PoR was reading a day ago — the current PoR reading tells you what will arrive at GF <i>tomorrow</i>.
                         </p>
+
+                        <div style="background:#0f172a;padding:12px;border-radius:8px;margin:10px 0;">
+                            <div style="font-size:0.55rem;color:#64748b;margin-bottom:8px;">ITERATIVE TRAVEL TIME (v24.9)</div>
+                            <p style="font-size:0.5rem;color:#94a3b8;line-height:1.5;margin-bottom:8px;">
+                            Travel time depends on flow, but we're looking up <i>historical</i> flow — this creates a chicken-and-egg problem. Example: Current flow 1,200 cfs → 33h travel time → look up PoR from 33h ago → find 1,900 cfs. But 1,900 cfs travels in ~25h, so that water already passed!
+                            </p>
+                            <p style="font-size:0.5rem;color:#94a3b8;line-height:1.5;">
+                            <b style="color:#4ade80;">Solution:</b> Iterate to converge. Recalculate travel time based on the historical flow found, look up again, repeat until stable.
+                            </p>
+                        </div>
 
                         <!-- 48-HOUR FORECAST METHODOLOGY -->
                         <h3>48-Hour Forecast</h3>
@@ -751,6 +761,7 @@
                         </p>
                         <table style="font-size:0.55rem;margin:8px 0;width:100%;">
                             <tr><th>Flow Level</th><th>Speed</th><th>PoR → LF</th></tr>
+                            <tr><td>Very low (~1.2k cfs)</td><td>~0.9 mph</td><td>~44 hrs</td></tr>
                             <tr><td>Low (~2k cfs)</td><td>~1.2 mph</td><td>~35 hrs</td></tr>
                             <tr style="background:#1e3a5f;"><td><b>Typical (~5k cfs)</b></td><td><b>~1.6 mph</b></td><td><b>~26 hrs</b></td></tr>
                             <tr><td>High (~15k cfs)</td><td>~3 mph</td><td>~14 hrs</td></tr>
@@ -4726,7 +4737,7 @@
     function downloadTechAppendix() {
         const content = `# Potomac Pulse - Technical Appendix
 
-**Version:** 24.6
+**Version:** 24.9
 **Date:** January 2026
 
 ---
@@ -4830,16 +4841,33 @@ No USGS gauge exists at Great Falls. We estimate it by combining upstream gauge 
 ### 3.2 Estimation Formula
 
 \`\`\`
-GF_estimated = PoR(t - T_por_gf) + Monocacy + Goose Creek - Correction
+GF_estimated = PoR(t - T_converged) + Monocacy + Goose Creek - Correction
 \`\`\`
 
 Where:
-- PoR(t - T_por_gf) = Point of Rocks reading from ~24 hours ago at median flow (time-shifted)
+- PoR(t - T_converged) = Point of Rocks reading from X hours ago (X = converged travel time)
 - Monocacy = current Monocacy reading (joins 6mi below PoR)
 - Goose Creek = current Goose Creek reading (joins 12mi below PoR)
 - Correction = learned correction factor for current flow bin and flow state
 
-### 3.3 Travel Times (Dynamic)
+### 3.3 Iterative Travel Time Convergence (v24.9)
+
+Travel time depends on flow, but we're looking up *historical* flow - this creates a chicken-and-egg problem.
+
+**Example problem:**
+- Current flow 1,200 cfs → travel time ~33 hours
+- Look up PoR from 33h ago → find 1,900 cfs
+- But 1,900 cfs travels in ~25h, so that water already passed GF!
+
+**Solution:** Iterate to converge on the correct time-shift:
+1. Start with current flow → calculate travel time
+2. Look up historical PoR from that many hours ago
+3. Recalculate travel time based on that historical flow
+4. Repeat until stable (within 1 hour)
+
+This typically converges in 2-3 iterations.
+
+### 3.4 Travel Times (Dynamic)
 
 Travel times scale with flow using the empirically-corrected Searcy power law. At median flow (~4,940 cfs), the total PoR→LF travel is 25.8 hours, split as:
 - **PoR → GF:** 75% of total = **19.4 hours** (slower pooled sections above falls)
@@ -4847,12 +4875,13 @@ Travel times scale with flow using the empirically-corrected Searcy power law. A
 
 | Flow Condition | PoR → GF | GF → LF | Total PoR → LF |
 |----------------|----------|---------|----------------|
-| Low (<3,000 cfs) | ~26 hrs | ~9 hrs | ~35 hrs |
+| Very low (~1,200 cfs) | ~33 hrs | ~11 hrs | ~44 hrs |
+| Low (~2,000 cfs) | ~26 hrs | ~9 hrs | ~35 hrs |
 | Median (~5,000 cfs) | ~19 hrs | ~6.5 hrs | ~26 hrs |
 | High (15,000 cfs) | ~11 hrs | ~3.6 hrs | ~14 hrs |
 | Flood (50,000 cfs) | ~5.5 hrs | ~1.8 hrs | ~7 hrs |
 
-### 3.4 Validation & Learning
+### 3.5 Validation & Learning
 
 Each GF estimate is validated ~6-7 hours later (at median flow) when that water reaches Little Falls:
 
@@ -4863,7 +4892,7 @@ Each GF estimate is validated ~6-7 hours later (at median flow) when that water 
 
 **Outlier filtering:** Errors >3 standard deviations from the mean are discarded to prevent bad data from corrupting learned corrections.
 
-### 3.5 Uncertainty Display
+### 3.6 Uncertainty Display
 
 Once 5+ validations exist for a flow bin, the app displays an uncertainty range:
 
@@ -4873,7 +4902,7 @@ Stage: 3.2 ft (3.0 - 3.4 ft)
 
 The range represents ±1 standard deviation based on historical prediction errors for that flow bin and rising/falling state.
 
-### 3.6 Confidence Indicator
+### 3.7 Confidence Indicator
 
 The confidence display (HIGH / MEDIUM / LOW) reflects **data quality**, not prediction accuracy:
 
@@ -4888,7 +4917,7 @@ The confidence display (HIGH / MEDIUM / LOW) reflects **data quality**, not pred
 - Insufficient historical data for time-shifting
 - Tributary gauges are offline
 
-### 3.7 Edwards Ferry Power-Law Model
+### 3.8 Edwards Ferry Power-Law Model
 
 A hidden gauge at Edwards Ferry (USGS 01644148) sits just ~2-3 miles upstream of Great Falls, draining 96.3% of the basin. This gauge provides stage data only (no discharge), but we've built a highly accurate correlation model using rigorous hydrological methods.
 
@@ -5022,7 +5051,7 @@ GET /.netlify/functions/build-ef-correlation-advanced?months=12
 
 Then update the \`EF_MODEL\` constants in index.html with the recommended values.
 
-### 3.8 Historical Accuracy
+### 3.9 Historical Accuracy
 
 The system tracks all validations and displays aggregate accuracy:
 
@@ -5040,7 +5069,7 @@ The system tracks all validations and displays aggregate accuracy:
 - 🟡 Yellow (95-97%): Good accuracy
 - 🔴 Red (<95%): Needs more data or model refinement
 
-### 3.9 Background Learning System
+### 3.10 Background Learning System
 
 A scheduled serverless function runs every 2 hours to ensure continuous learning:
 
