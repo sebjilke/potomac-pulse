@@ -440,7 +440,10 @@ async function saveGFLearningData(client, data) {
             }));
 
             const { error } = await client.from('potomac_observations').insert(insertData);
-            if (error) throw error;
+            if (error) {
+                console.error('Forecast insert error:', error);
+                throw error;
+            }
 
             console.log(`📈 Stored ${forecasts.length} forecast predictions for accuracy tracking`);
             result = { success: true, action: 'storeForecastPredictions', count: forecasts.length };
@@ -851,7 +854,7 @@ async function saveGFLearningData(client, data) {
         return {
             statusCode: 500,
             headers,
-            body: JSON.stringify({ error: 'Failed to save GF learning data' })
+            body: JSON.stringify({ error: 'Failed to save GF learning data', details: error.message || error })
         };
     }
 }
