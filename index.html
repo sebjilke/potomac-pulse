@@ -704,7 +704,7 @@
                         <!-- THE KEY INSIGHT -->
                         <h3>The Key Insight</h3>
                         <p style="font-size:0.6rem;color:#94a3b8;line-height:1.6;">
-                        Water takes time to flow downstream. By watching upstream gauges and accounting for travel time, we can estimate what Great Falls looks like <i>right now</i> and predict what's coming in the next 48 hours.
+                        Water takes time to flow downstream. By watching upstream gauges and accounting for travel time, we can estimate what Great Falls looks like <i>right now</i>. The <b style="color:#60a5fa;">48-hour forecast</b> uses official NWS hydrological predictions when available — these incorporate precipitation forecasts and watershed models for more accurate predictions.
                         </p>
 
                         <!-- TRAVEL TIMES -->
@@ -2169,6 +2169,7 @@
     }
 
     // Generate 48-hour forecast periods at 6-hour intervals
+    // Uses NWS forecast data when available, falls back to linear extrapolation
     function updateForecastPeriods(gfEst) {
         const container = document.getElementById("gf-forecast-periods");
         if (!container || !gfEst) return;
@@ -2176,8 +2177,11 @@
         const periods = [];
         const now = new Date();
         const currentCFS = gfEst.cfs;
-        const forecastCFS = gfEst.forecastCFS;
-        const travelTime = gfEst.inputs?.travelPoRtoGF || 8.5;
+
+        // Try to get NWS forecast data for Little Falls
+        const lfData = data['01646500'];
+        const nwsForecast = lfData?.forecast;  // Raw NWS forecast object with data array
+        const hasNWSForecast = nwsForecast?.data?.length > 0;
 
         // Period 0: NOW (current estimate)
         periods.push({
@@ -2185,30 +2189,84 @@
             time: now,
             cfs: currentCFS,
             stage: gfEst.stage,
-            isCurrent: true
+            isCurrent: true,
+            source: 'estimate'
         });
 
-        // For future periods, we extrapolate based on trend
-        // Calculate trend rate (CFS change per hour)
-        const cfsDiff = forecastCFS - currentCFS;
-        const trendPerHour = cfsDiff / travelTime;
-
-        // Periods at 6, 12, 24, 48 hours (showing key decision points)
+        // Build forecast periods using NWS data if available
         const futureHours = [6, 12, 24, 48];
-        for (const hrs of futureHours) {
-            const futureTime = new Date(now.getTime() + hrs * 60 * 60 * 1000);
-            // Extrapolate CFS based on trend (with dampening for longer forecasts)
-            const dampening = Math.max(0.3, 1 - (hrs / 72)); // Less confident further out
-            const extrapolatedCFS = Math.max(0, currentCFS + (trendPerHour * hrs * dampening));
-            const extrapolatedStage = estimateLFStage(extrapolatedCFS);
 
-            periods.push({
-                label: `+${hrs}h`,
-                time: futureTime,
-                cfs: Math.round(extrapolatedCFS),
-                stage: extrapolatedStage,
-                isCurrent: false
-            });
+        if (hasNWSForecast) {
+            // Use NWS forecast data - interpolate to our target hours
+            const nwsPoints = nwsForecast.data.map(p => {
+                const validTime = new Date(p.validTime);
+                const hoursAhead = (validTime - now) / (1000 * 60 * 60);
+                // secondary is flow in kcfs, convert to cfs
+                const cfs = (p.secondary || 0) * 1000;
+                return { hoursAhead, cfs, stage: p.primary };
+            }).filter(p => p.hoursAhead > 0);  // Only future points
+
+            for (const targetHrs of futureHours) {
+                const futureTime = new Date(now.getTime() + targetHrs * 60 * 60 * 1000);
+                let forecastCFS, forecastStage;
+
+                // Find bracketing NWS points and interpolate
+                const before = nwsPoints.filter(p => p.hoursAhead <= targetHrs).pop();
+                const after = nwsPoints.find(p => p.hoursAhead >= targetHrs);
+
+                if (before && after && before !== after) {
+                    // Linear interpolation between NWS points
+                    const t = (targetHrs - before.hoursAhead) / (after.hoursAhead - before.hoursAhead);
+                    forecastCFS = before.cfs + t * (after.cfs - before.cfs);
+                    forecastStage = estimateLFStage(forecastCFS);
+                } else if (after) {
+                    // Use the next available NWS point
+                    forecastCFS = after.cfs;
+                    forecastStage = estimateLFStage(forecastCFS);
+                } else if (before) {
+                    // Extrapolate from last NWS point (shouldn't happen often)
+                    forecastCFS = before.cfs;
+                    forecastStage = estimateLFStage(forecastCFS);
+                } else {
+                    // Fallback: use current estimate
+                    forecastCFS = currentCFS;
+                    forecastStage = gfEst.stage;
+                }
+
+                periods.push({
+                    label: `+${targetHrs}h`,
+                    time: futureTime,
+                    cfs: Math.round(forecastCFS),
+                    stage: forecastStage,
+                    isCurrent: false,
+                    source: 'NWS'
+                });
+            }
+            console.log('48h forecast: Using NWS forecast data');
+        } else {
+            // Fallback: Linear extrapolation based on travel time trend
+            const forecastCFS = gfEst.forecastCFS;
+            const travelTime = gfEst.inputs?.travelPoRtoGF || 8.5;
+            const cfsDiff = forecastCFS - currentCFS;
+            const trendPerHour = cfsDiff / travelTime;
+
+            for (const hrs of futureHours) {
+                const futureTime = new Date(now.getTime() + hrs * 60 * 60 * 1000);
+                // Extrapolate CFS based on trend (with dampening for longer forecasts)
+                const dampening = Math.max(0.3, 1 - (hrs / 72));
+                const extrapolatedCFS = Math.max(0, currentCFS + (trendPerHour * hrs * dampening));
+                const extrapolatedStage = estimateLFStage(extrapolatedCFS);
+
+                periods.push({
+                    label: `+${hrs}h`,
+                    time: futureTime,
+                    cfs: Math.round(extrapolatedCFS),
+                    stage: extrapolatedStage,
+                    isCurrent: false,
+                    source: 'extrapolated'
+                });
+            }
+            console.log('48h forecast: NWS unavailable, using linear extrapolation');
         }
 
         // Render periods with click handlers
@@ -2217,10 +2275,11 @@
             const timeStr = p.isCurrent ? 'Now' : formatForecastTime(p.time);
             const trendIcon = p.cfs > currentCFS ? '▲' : (p.cfs < currentCFS ? '▼' : '●');
             const trendColor = p.cfs > currentCFS ? '#ef4444' : (p.cfs < currentCFS ? '#22c55e' : '#94a3b8');
+            const sourceIndicator = p.source === 'NWS' ? ' <span style="color:#60a5fa;font-size:0.5rem;">NWS</span>' : '';
 
             return `
                 <div class="forecast-period${p.isCurrent ? ' current' : ''}" data-hrs="${periodHours[i]}" data-stage="${p.stage.toFixed(2)}" data-cfs="${p.cfs}" style="cursor:pointer;">
-                    <div class="fp-time">${p.label}<br><span style="font-size:0.5rem;">${timeStr}</span></div>
+                    <div class="fp-time">${p.label}${sourceIndicator}<br><span style="font-size:0.5rem;">${timeStr}</span></div>
                     <div class="fp-stage">${p.stage.toFixed(2)} ft</div>
                     <div class="fp-cfs">${p.cfs.toLocaleString()} cfs</div>
                     ${!p.isCurrent ? `<div class="fp-trend" style="color:${trendColor}">${trendIcon}</div>` : ''}
@@ -2228,8 +2287,8 @@
             `;
         }).join('');
 
-        // Render interactive graph
-        renderForecastGraph(periods, currentCFS, trendPerHour);
+        // Render interactive graph (pass NWS data if available)
+        renderForecastGraph(periods, currentCFS, hasNWSForecast ? nwsForecast : null);
 
         // Add click handlers to period cards
         document.querySelectorAll('.forecast-period').forEach(card => {
@@ -2255,10 +2314,11 @@
     }
 
     // Render interactive SVG forecast graph
+    // nwsForecastData: if provided, use NWS forecast; otherwise use linear extrapolation
     let forecastGraphData = []; // Store for tooltip lookups
     let graphScales = {}; // Store scale functions for marker positioning
 
-    function renderForecastGraph(periods, currentCFS, trendPerHour) {
+    function renderForecastGraph(periods, currentCFS, nwsForecastData) {
         const svg = document.getElementById('gf-forecast-graph');
         if (!svg) return;
 
@@ -2269,15 +2329,59 @@
         const graphWidth = width - padding.left - padding.right;
         const graphHeight = height - padding.top - padding.bottom;
 
-        // Generate more data points for smooth curve (every 2 hours for 48 hours)
+        // Generate data points for the graph curve
         const now = new Date();
         forecastGraphData = [];
-        for (let hrs = 0; hrs <= 48; hrs += 2) {
-            const time = new Date(now.getTime() + hrs * 60 * 60 * 1000);
-            const dampening = Math.max(0.3, 1 - (hrs / 72));
-            const cfs = Math.max(0, currentCFS + (trendPerHour * hrs * dampening));
-            const stage = estimateLFStage(cfs);
-            forecastGraphData.push({ hrs, time, cfs: Math.round(cfs), stage });
+
+        if (nwsForecastData?.data?.length > 0) {
+            // Use NWS forecast data - interpolate to 2-hour intervals
+            const nwsPoints = nwsForecastData.data.map(p => {
+                const validTime = new Date(p.validTime);
+                const hoursAhead = (validTime - now) / (1000 * 60 * 60);
+                const cfs = (p.secondary || 0) * 1000;  // kcfs to cfs
+                return { hoursAhead, cfs };
+            }).filter(p => p.hoursAhead >= -1);  // Include recent points for interpolation
+
+            // Generate points every 2 hours
+            for (let hrs = 0; hrs <= 48; hrs += 2) {
+                const time = new Date(now.getTime() + hrs * 60 * 60 * 1000);
+                let cfs;
+
+                if (hrs === 0) {
+                    cfs = currentCFS;  // Use our estimate for "now"
+                } else {
+                    // Interpolate from NWS data
+                    const before = nwsPoints.filter(p => p.hoursAhead <= hrs).pop();
+                    const after = nwsPoints.find(p => p.hoursAhead >= hrs);
+
+                    if (before && after && before !== after) {
+                        const t = (hrs - before.hoursAhead) / (after.hoursAhead - before.hoursAhead);
+                        cfs = before.cfs + t * (after.cfs - before.cfs);
+                    } else if (after) {
+                        cfs = after.cfs;
+                    } else if (before) {
+                        cfs = before.cfs;
+                    } else {
+                        cfs = currentCFS;
+                    }
+                }
+
+                const stage = estimateLFStage(cfs);
+                forecastGraphData.push({ hrs, time, cfs: Math.round(cfs), stage });
+            }
+        } else {
+            // Fallback: linear extrapolation (when NWS unavailable)
+            // Calculate trend from periods data
+            const period48 = periods.find(p => p.label === '+48h');
+            const trendPerHour = period48 ? (period48.cfs - currentCFS) / 48 : 0;
+
+            for (let hrs = 0; hrs <= 48; hrs += 2) {
+                const time = new Date(now.getTime() + hrs * 60 * 60 * 1000);
+                const dampening = Math.max(0.3, 1 - (hrs / 72));
+                const cfs = Math.max(0, currentCFS + (trendPerHour * hrs * dampening));
+                const stage = estimateLFStage(cfs);
+                forecastGraphData.push({ hrs, time, cfs: Math.round(cfs), stage });
+            }
         }
 
         // Find min/max for scaling
@@ -4716,6 +4820,7 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v24.4 | 2026-01-25 | 48h forecast now uses NWS hydrological forecast data (BRKM2) instead of linear extrapolation. Falls back to extrapolation when NWS unavailable. |
 | v24.3 | 2026-01-25 | Tighter ice detection: EF cross-check 30%→25%, low-flow+high-stage now +2 points (was +1). Reset corrupted low-flow learning bins. |
 | v24.2 | 2026-01-24 | Ice-affected gauge display: shows last valid reading with ❄️ indicator, excludes from learning, removed Harpers Ferry (stage-only). |
 | v24.1 | 2026-01-24 | Improved ice detection: EF cross-check now uses current stage at validation time. Tighter thresholds: stage-discharge 50%→35%, low-flow 1000→1500 cfs. Added large error check (>50%). |

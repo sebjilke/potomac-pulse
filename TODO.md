@@ -140,6 +140,11 @@
 
 ## Completed
 
+- [x] 48h forecast now uses NWS data v24.4 (2026-01-25)
+  - Uses NWS hydrological forecast (BRKM2) instead of linear extrapolation
+  - Interpolates 6-hour NWS points to 2-hour intervals for smooth graph
+  - Shows "NWS" indicator on forecast periods when using official data
+  - Falls back to linear extrapolation when NWS unavailable
 - [x] Tighter ice detection thresholds v24.3 (2026-01-25)
   - Lowered EF cross-check threshold (30% → 25%)
   - Increased low-flow + high-stage weight (+1 → +2) - this is THE classic ice signature
@@ -163,4 +168,4 @@
 
 ---
 
-*Last updated: 2026-01-25 (v24.3)*
+*Last updated: 2026-01-25 (v24.4)*

@@ -94,7 +94,15 @@ Where:
 - EF_power_law = 108 × (EF_stage)^2.64
 ```
 
-### 3. Travel Time Calculations
+### 3. 48-Hour Forecast (v24.4)
+Uses NWS hydrological forecast data when available:
+
+- **Primary source**: NWS/NOAA stageflow forecasts for Little Falls (BRKM2)
+- **Interpolation**: NWS 6-hour forecast points interpolated to 2-hour intervals
+- **Fallback**: Linear extrapolation from travel time trend when NWS unavailable
+- **Display**: Forecast periods show "NWS" indicator when using official forecast data
+
+### 4. Travel Time Calculations
 Based on Searcy model (USGS Circular 438, 1961) with empirical correction:
 
 ```javascript
@@ -108,7 +116,7 @@ Based on Searcy model (USGS Circular 438, 1961) with empirical correction:
 // 50,000 cfs → ~10 hours
 ```
 
-### 4. Adaptive Learning System (v24)
+### 5. Adaptive Learning System (v24)
 Flow-binned corrections with anomaly detection:
 
 - **18 correction bins**: 6 flow ranges × 3 flow states (rising/falling/steady)
@@ -348,6 +356,7 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ## Version History
 
+- **v24.4** (2026-01-25): 48h forecast now uses NWS hydrological forecast data instead of linear extrapolation
 - **v24.3** (2026-01-25): Tighter ice detection thresholds - EF cross-check 30%→25%, low-flow+high-stage now +2 points
 - **v24.2** (2026-01-24): Ice-affected gauge display - shows last valid reading with ❄️ indicator, excludes from learning
 - **v24.1** (2026-01-24): Improved ice detection - EF cross-check at validation time, tighter thresholds
