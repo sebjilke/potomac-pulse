@@ -2232,19 +2232,10 @@
             for (const targetHrs of futureHours) {
                 const futureTime = new Date(now.getTime() + targetHrs * 60 * 60 * 1000);
 
-                // Calculate travel time at forecast flow level (estimate from current)
-                // Use current travel time as approximation (varies with flow)
-                const travelTime = gfEst.inputs?.travelPoRtoGF || 8.5;
-
-                // Get PoR forecast for when water arriving at GF at targetHrs left PoR
-                // Water arriving at GF at +Xh left PoR at +(X - travelTime)h
-                const porLookbackHrs = Math.max(0, targetHrs - travelTime);
-                let porCFS = interpolateForecast(porPoints, porLookbackHrs);
-
-                // If lookback is negative (water already in transit), use earliest forecast
-                if (porCFS === null && porLookbackHrs <= 0) {
-                    porCFS = porPoints[0]?.cfs || porData?.q || currentCFS;
-                }
+                // Get PoR forecast at the target time
+                // NWS forecast already represents what PoR will be at that time
+                // We use this directly as a proxy for GF conditions
+                let porCFS = interpolateForecast(porPoints, targetHrs);
                 if (porCFS === null) porCFS = porData?.q || currentCFS;
 
                 // Get EF forecast at target time and apply power-law model
@@ -2275,7 +2266,7 @@
                     source: 'NWS'
                 });
             }
-            console.log('48h forecast: Using NWS PoR' + (hasEFForecast ? '+EF' : '') + ' with GF ensemble model');
+            console.log('48h forecast: Using NWS PoR' + (hasEFForecast ? '+EF' : '') + ' forecast');
         } else {
             // Fallback: Linear extrapolation based on travel time trend
             const forecastCFS = gfEst.forecastCFS;
