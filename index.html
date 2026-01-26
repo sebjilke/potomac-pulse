@@ -2261,7 +2261,10 @@
         });
 
         // Build forecast periods
-        const futureHours = [6, 12, 24, 48];
+        // Calculate at finer intervals for accurate graph interpolation,
+        // but only display the standard periods (6, 12, 24, 48h)
+        const calculateHours = [6, 12, 18, 24, 30, 36, 42, 48];  // All calculation points
+        const displayHours = [6, 12, 24, 48];  // Only these shown as cards
 
         if (hasNWSForecast) {
             // Parse NWS PoR forecast into convenient format
@@ -2292,55 +2295,64 @@
                 return null;
             };
 
-            // ARRIVAL-TIME FORECAST: Calculate when NWS forecast points will reach GF
-            // For each NWS forecast point, compute: arrival_time = por_time + travel_time(flow)
-            // Then interpolate to get GF values at our standard display times
+            // LF-CONSTRAINED FORECAST: GF is between PoR and LF
+            // If NWS predicts LF will rise, GF must rise BEFORE LF does
+            // Use LF forecast shifted backward by GF→LF travel time (~6-8h at low flow)
 
             const currentPorCFS = porData?.q || currentCFS;
+            const lfData = data['01646500'];  // Little Falls gauge
+            const lfForecast = lfData?.forecast;
+            const hasLFForecast = lfForecast?.data?.length > 0;
 
-            // Build arrival schedule: when does each PoR forecast point reach GF?
-            const arrivalSchedule = [];
+            // Parse LF forecast if available
+            const lfPoints = hasLFForecast ? lfForecast.data.map(p => {
+                const validTime = new Date(p.validTime);
+                const hoursAhead = (validTime - now) / (1000 * 60 * 60);
+                const cfs = (p.secondary || 0) * 1000;  // kcfs to cfs
+                return { hoursAhead, cfs, stage: p.primary };
+            }) : [];
 
-            // Add current PoR (already in transit, use current travel time)
-            const currentTravelTime = TRAVEL_POR_GF_BASELINE * getFlowMultiplier(currentPorCFS).mult;
-            arrivalSchedule.push({
-                porTime: 0,  // hours from now at PoR
-                porCFS: currentPorCFS,
-                travelTime: currentTravelTime,
-                gfArrival: currentTravelTime  // arrives at GF in travelTime hours
-            });
+            // Calculate GF→LF travel time at current flow
+            const gfToLfTravel = TRAVEL_GF_LF_BASELINE * getFlowMultiplier(currentCFS).mult;
 
-            // Add each NWS forecast point with its arrival time at GF
-            for (const pt of porPoints) {
-                if (pt.hoursAhead < 0) continue;  // skip past points
-                const travelTime = TRAVEL_POR_GF_BASELINE * getFlowMultiplier(pt.cfs).mult;
-                arrivalSchedule.push({
-                    porTime: pt.hoursAhead,
-                    porCFS: pt.cfs,
-                    travelTime: travelTime,
-                    gfArrival: pt.hoursAhead + travelTime
-                });
-            }
-
-            // Sort by GF arrival time
-            arrivalSchedule.sort((a, b) => a.gfArrival - b.gfArrival);
-
-            // Helper to interpolate GF conditions at a specific arrival time
+            // Helper to get GF forecast at target time
+            // Strategy: Use LF forecast shifted backward by GF→LF travel time
+            // This ensures GF forecast aligns with downstream LF forecast
             const getGFAtTime = (targetGFHrs) => {
-                const before = arrivalSchedule.filter(p => p.gfArrival <= targetGFHrs).pop();
-                const after = arrivalSchedule.find(p => p.gfArrival >= targetGFHrs);
+                // What will LF be at targetGFHrs + gfToLfTravel?
+                // That's when this GF water reaches LF
+                const lfTimeForThisWater = targetGFHrs + gfToLfTravel;
 
-                if (before && after && before !== after) {
-                    const t = (targetGFHrs - before.gfArrival) / (after.gfArrival - before.gfArrival);
-                    return before.porCFS + t * (after.porCFS - before.porCFS);
+                if (hasLFForecast && lfPoints.length > 0) {
+                    // Interpolate LF forecast at the arrival time
+                    const before = lfPoints.filter(p => p.hoursAhead <= lfTimeForThisWater).pop();
+                    const after = lfPoints.find(p => p.hoursAhead >= lfTimeForThisWater);
+
+                    if (before && after && before !== after) {
+                        const t = (lfTimeForThisWater - before.hoursAhead) / (after.hoursAhead - before.hoursAhead);
+                        return before.cfs + t * (after.cfs - before.cfs);
+                    }
+                    if (after) return after.cfs;
+                    if (before) return before.cfs;
                 }
-                if (after) return after.porCFS;
-                if (before) return before.porCFS;
+
+                // Fallback to PoR forecast if no LF forecast
+                const porBefore = porPoints.filter(p => p.hoursAhead <= targetGFHrs).pop();
+                const porAfter = porPoints.find(p => p.hoursAhead >= targetGFHrs);
+                if (porBefore && porAfter && porBefore !== porAfter) {
+                    const t = (targetGFHrs - porBefore.hoursAhead) / (porAfter.hoursAhead - porBefore.hoursAhead);
+                    return porBefore.cfs + t * (porAfter.cfs - porBefore.cfs);
+                }
+                if (porAfter) return porAfter.cfs;
+                if (porBefore) return porBefore.cfs;
                 return currentPorCFS;
             };
 
-            // Now generate forecast periods at standard times
-            for (const targetHrs of futureHours) {
+            console.log(`GF forecast using LF constraint (GF→LF travel ~${gfToLfTravel.toFixed(1)}h)`);
+
+            // Generate forecast periods at all calculation times
+            // (finer intervals for accurate graph, only some displayed as cards)
+            for (const targetHrs of calculateHours) {
                 const futureTime = new Date(now.getTime() + targetHrs * 60 * 60 * 1000);
 
                 // Get GF conditions at this target time using arrival schedule
@@ -2369,23 +2381,23 @@
                 // Source label
                 const sourceLabel = 'NWS' + (efEstimate !== null ? '+EF' : '');
 
+                // Mark whether this period should be displayed as a card
+                const isDisplayPeriod = displayHours.includes(targetHrs);
+
                 periods.push({
                     label: `+${targetHrs}h`,
                     time: futureTime,
                     cfs: Math.round(forecastCFS),
                     stage: forecastStage,
                     isCurrent: false,
-                    source: sourceLabel
+                    source: sourceLabel,
+                    isDisplayPeriod: isDisplayPeriod  // Only true for 6, 12, 24, 48h
                 });
             }
 
-            // Log forecast with arrival info
-            console.log(`48h GF forecast (arrival-time based, current travel ~${currentTravelTime.toFixed(0)}h):`);
-            console.log('  Arrival schedule:', arrivalSchedule.slice(0, 5).map(s =>
-                `PoR+${s.porTime.toFixed(0)}h (${s.porCFS.toFixed(0)} cfs) → GF+${s.gfArrival.toFixed(0)}h`
-            ).join(', '));
+            // Log forecast info
             periods.filter(p => !p.isCurrent).forEach(p => {
-                console.log(`  ${p.label}: ${p.cfs} cfs / ${p.stage.toFixed(2)} ft`);
+                console.log(`  ${p.label}: ${p.cfs} cfs / ${p.stage.toFixed(2)} ft${p.isDisplayPeriod ? ' (display)' : ''}`);
             });
         } else {
             // Fallback: Linear extrapolation based on travel time trend
@@ -2394,7 +2406,7 @@
             const cfsDiff = forecastCFS - currentCFS;
             const trendPerHour = cfsDiff / travelTime;
 
-            for (const hrs of futureHours) {
+            for (const hrs of calculateHours) {
                 const futureTime = new Date(now.getTime() + hrs * 60 * 60 * 1000);
                 // Extrapolate CFS based on trend (with dampening for longer forecasts)
                 const dampening = Math.max(0.3, 1 - (hrs / 72));
@@ -2407,18 +2419,25 @@
                     cfs: Math.round(extrapolatedCFS),
                     stage: extrapolatedStage,
                     isCurrent: false,
-                    source: 'extrapolated'
+                    source: 'extrapolated',
+                    isDisplayPeriod: displayHours.includes(hrs)
                 });
             }
             console.log('48h forecast: NWS unavailable, using linear extrapolation');
         }
 
-        // Render periods with click handlers
-        const periodHours = [0, 6, 12, 24, 48];
-        container.innerHTML = periods.map((p, i) => {
+        // Filter periods to only show display periods as cards (Now + 6, 12, 24, 48h)
+        // All periods (including intermediate 18, 30, 36, 42h) are passed to the graph for accuracy
+        const displayPeriods = periods.filter(p => p.isCurrent || p.isDisplayPeriod);
+
+        // Render period cards (only display periods)
+        container.innerHTML = displayPeriods.map((p) => {
             const timeStr = p.isCurrent ? 'Now' : formatForecastTime(p.time);
             const trendIcon = p.cfs > currentCFS ? '▲' : (p.cfs < currentCFS ? '▼' : '●');
             const trendColor = p.cfs > currentCFS ? '#ef4444' : (p.cfs < currentCFS ? '#22c55e' : '#94a3b8');
+
+            // Extract hours from label for data attribute
+            const hrs = p.isCurrent ? 0 : parseInt(p.label.replace('+', '').replace('h', ''));
 
             // Build source indicator (NWS = upstream forecast data)
             let sourceIndicator = '';
@@ -2429,7 +2448,7 @@
             }
 
             return `
-                <div class="forecast-period${p.isCurrent ? ' current' : ''}" data-hrs="${periodHours[i]}" data-stage="${p.stage.toFixed(2)}" data-cfs="${p.cfs}" style="cursor:pointer;">
+                <div class="forecast-period${p.isCurrent ? ' current' : ''}" data-hrs="${hrs}" data-stage="${p.stage.toFixed(2)}" data-cfs="${p.cfs}" style="cursor:pointer;">
                     <div class="fp-time">${p.label}${sourceIndicator}<br><span style="font-size:0.5rem;">${timeStr}</span></div>
                     <div class="fp-stage">${p.stage.toFixed(2)} ft</div>
                     <div class="fp-cfs">${p.cfs.toLocaleString()} cfs</div>
@@ -2438,7 +2457,7 @@
             `;
         }).join('');
 
-        // Render interactive graph
+        // Render interactive graph with ALL periods (including intermediate points for smooth curve)
         renderForecastGraph(periods, currentCFS, hasNWSForecast);
 
         // Add click handlers to period cards
