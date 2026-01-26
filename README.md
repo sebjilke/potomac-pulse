@@ -396,6 +396,7 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ## Version History
 
+- **v24.9** (2026-01-25): Iterative travel time convergence fixes overprediction bug. At low flow, previous logic used current flow to calculate travel time (33h), but found higher historical flow (1900 cfs) that actually traveled faster (25h) and had already passed. Now iterates to converge on correct time-shift. Added LF sanity check - GF estimate bounded relative to LF actual when deviation is implausible.
 - **v24.8** (2026-01-25): Skip EF ensemble when discrepancy >50% indicates ice/backwater. Extended PoR history to 72h for low-flow time-shifting.
 - **v24.7** (2026-01-25): 48h forecast with LF-constrained approach, additive bias correction, and accuracy tracking. Uses NWS LF forecast shifted backward by GF→LF travel time with dynamic bias correction. Calculates at 8 intervals for smooth graph; displays 4 periods. Tracks per-horizon accuracy (6h, 12h, 24h, 48h) with validation when target time arrives.
 - **v24.3** (2026-01-25): Tighter ice detection thresholds - EF cross-check 30%→25%, low-flow+high-stage now +2 points
@@ -411,4 +412,4 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ---
 
-*Last updated: 2026-01-26*
+*Last updated: 2026-01-25*

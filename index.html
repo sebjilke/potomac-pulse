@@ -1938,24 +1938,59 @@
         // Record current PoR reading to history for future time-shifting
         recordPoRReading(por.q, por.h);
 
-        // Get current flow multiplier
-        const mult = data._mult?.mult || 1.0;
+        // Get current flow multiplier (initial estimate)
+        let mult = data._mult?.mult || 1.0;
 
         // Get rise rate for wave celerity adjustment
         const riseRate = getPoRRiseRate();
-
-        // Calculate travel times (with wave celerity adjustment for rising events)
-        const travelPoRtoGF = getPoRtoGFTravelTime(mult, riseRate);
-        const travelGFtoLF = getGFtoLFTravelTime(mult, riseRate);
 
         // Tributary contributions (use actual if available, else estimate from LF %)
         const monocacyFlow = monocacy?.q || (lf.q * 0.071);  // 7.1% of LF
         const gooseFlow = goose?.q || (lf.q * GOOSE_CREEK_PCT);  // 3.0% of LF
 
-        // Try to get time-shifted PoR data (what left PoR ~travelPoRtoGF hours ago)
-        const historicPoR = getPoRFromHoursAgo(travelPoRtoGF);
+        // ==================== ITERATIVE TRAVEL TIME CALCULATION ====================
+        // Problem: Travel time depends on flow, but we're looking up historical flow.
+        // Solution: Iterate to converge on the correct time-shift.
+        //
+        // Example: Current flow 1200 cfs → 33h travel time → historical 1900 cfs
+        //          But 1900 cfs travels in ~25h, so that water already passed!
+        //          Need to find the flow that actually arrives NOW.
 
+        let travelPoRtoGF = getPoRtoGFTravelTime(mult, riseRate);
+        let historicPoR = null;
         let estimatedCFS, useTimeShifted = false, timeShiftedHoursAgo = null;
+
+        // Iterate up to 3 times to converge on correct travel time
+        for (let iteration = 0; iteration < 3; iteration++) {
+            const lookupHours = travelPoRtoGF;
+            const tryHistoric = getPoRFromHoursAgo(lookupHours);
+
+            if (!tryHistoric) {
+                // No history at this time - can't iterate further
+                break;
+            }
+
+            historicPoR = tryHistoric;
+
+            // Recalculate travel time based on historical flow
+            const historicMult = getFlowMultiplier(historicPoR.cfs).mult;
+            const newTravelTime = getPoRtoGFTravelTime(historicMult, riseRate);
+
+            // Check for convergence (within 1 hour)
+            if (Math.abs(newTravelTime - travelPoRtoGF) < 1.0) {
+                console.log(`📊 Travel time converged in ${iteration + 1} iterations: ${travelPoRtoGF.toFixed(1)}h`);
+                break;
+            }
+
+            // Log iteration progress
+            console.log(`📊 Iteration ${iteration + 1}: ${lookupHours.toFixed(1)}h ago → ${historicPoR.cfs} cfs → new travel time ${newTravelTime.toFixed(1)}h`);
+
+            travelPoRtoGF = newTravelTime;
+            mult = historicMult;
+        }
+
+        // Calculate GF→LF travel time using final multiplier
+        const travelGFtoLF = getGFtoLFTravelTime(mult, riseRate);
 
         if (historicPoR) {
             // We have historic data - use time-shifted estimate for "GF now"
@@ -2006,6 +2041,31 @@
         } else {
             // EF not available - use PoR-only estimate
             estimatedCFS = porEstimateCFS;
+        }
+
+        // ==================== SANITY CHECK VS ACTUAL LF ====================
+        // GF estimate should not be wildly different from LF actual.
+        // In steady state: GF ≈ LF (GF is just 2 miles upstream)
+        // During rise: GF can be higher than LF (wave hasn't arrived yet)
+        // During fall: GF can be lower than LF (recession wave)
+        // Max reasonable difference: ~50% in either direction
+        const lfActualCFS = lf.q;
+        const gfVsLfRatio = estimatedCFS / lfActualCFS;
+
+        if (gfVsLfRatio > 1.5 && flowState !== 'rising') {
+            // GF estimate >50% higher than LF actual, but not rising - suspicious
+            console.log(`⚠️ GF sanity check: estimate ${estimatedCFS} cfs is ${Math.round((gfVsLfRatio-1)*100)}% higher than LF actual ${lfActualCFS} cfs (not rising)`);
+            // Blend with LF actual to be more conservative
+            const blendedCFS = Math.round(0.5 * estimatedCFS + 0.5 * lfActualCFS);
+            console.log(`⚠️ Applying LF blend: ${estimatedCFS} → ${blendedCFS} cfs`);
+            estimatedCFS = blendedCFS;
+        } else if (gfVsLfRatio < 0.67 && flowState !== 'falling') {
+            // GF estimate >33% lower than LF actual, but not falling - suspicious
+            console.log(`⚠️ GF sanity check: estimate ${estimatedCFS} cfs is ${Math.round((1-gfVsLfRatio)*100)}% lower than LF actual ${lfActualCFS} cfs (not falling)`);
+            // Blend with LF actual to be more conservative
+            const blendedCFS = Math.round(0.5 * estimatedCFS + 0.5 * lfActualCFS);
+            console.log(`⚠️ Applying LF blend: ${estimatedCFS} → ${blendedCFS} cfs`);
+            estimatedCFS = blendedCFS;
         }
 
         // Estimate stage using Little Falls equivalent (what paddlers know)

@@ -140,6 +140,16 @@
 
 ## Completed
 
+- [x] Iterative travel time & LF sanity check v24.9 (2026-01-25)
+  - **Iterative travel time**: Travel time now converges based on historical flow
+    - Previous bug: At 1200 cfs, looked up 33h ago → found 1900 cfs (which travels in 25h)
+    - The 1900 cfs water had already passed GF, causing overprediction
+    - Fix: Iterate up to 3 times to find flow that actually arrives NOW
+  - **LF sanity check**: GF estimate bounded relative to LF actual
+    - In steady state, GF should be close to LF (2 miles apart)
+    - If GF >50% higher than LF (and not rising), blend with LF actual
+    - If GF >33% lower than LF (and not falling), blend with LF actual
+    - Prevents implausible estimates during edge cases
 - [x] EF ensemble discrepancy check & extended history v24.8 (2026-01-26)
   - **EF discrepancy check**: Skip EF ensemble when EF estimate differs from PoR by >50%
     - Ice or backwater at EF can inflate stage while ADVM-based PoR/LF are accurate
@@ -184,4 +194,4 @@
 
 ---
 
-*Last updated: 2026-01-26 (v24.8)*
+*Last updated: 2026-01-25 (v24.9)*
