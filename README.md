@@ -393,10 +393,7 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ## Version History
 
-- **v24.7** (2026-01-25): Forecast accuracy tracking - stores predictions by horizon, validates when target time arrives, displays per-horizon accuracy
-- **v24.6** (2026-01-25): Dynamic additive bias correction for 48h forecast - anchors NWS predictions to observed conditions
-- **v24.5** (2026-01-25): LF-constrained 48h forecast - uses NWS LF forecast shifted backward by GF→LF travel time
-- **v24.4** (2026-01-25): 48h forecast uses NWS PoR forecast with GF ensemble model (60% PoR + 40% EF), accounting for travel time
+- **v24.7** (2026-01-25): 48h forecast with LF-constrained approach, additive bias correction, and accuracy tracking. Uses NWS LF forecast shifted backward by GF→LF travel time with dynamic bias correction. Calculates at 8 intervals for smooth graph; displays 4 periods. Tracks per-horizon accuracy (6h, 12h, 24h, 48h) with validation when target time arrives.
 - **v24.3** (2026-01-25): Tighter ice detection thresholds - EF cross-check 30%→25%, low-flow+high-stage now +2 points
 - **v24.2** (2026-01-24): Ice-affected gauge display - shows last valid reading with ❄️ indicator, excludes from learning
 - **v24.1** (2026-01-24): Improved ice detection - EF cross-check at validation time, tighter thresholds

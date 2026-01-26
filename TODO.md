@@ -140,27 +140,19 @@
 
 ## Completed
 
-- [x] 48h forecast accuracy tracking v24.7 (2026-01-25)
-  - Stores forecast predictions every 2 hours for each horizon (6h, 12h, 24h, 48h)
-  - Validates when target time arrives (compares predicted vs actual LF reading)
-  - Tracks error percentage per horizon using same approach as GF estimates
-  - UI displays: `+6h: 92% • +12h: 89% • +24h: 85% • +48h: 78%`
-  - New database types: `gf_forecast_pending`, `gf_forecast_metadata`
-  - New API endpoint: `GET /api/sync?endpoint=forecast-accuracy`
-- [x] 48h forecast with additive bias correction v24.6 (2026-01-25)
-  - **Additive bias correction**: NWS forecasts show systematic bias vs observed conditions.
-    We apply: `corrected = raw_forecast + (observed_now - forecast_at_now)`
-    - Preserves forecast's predicted rate of change (the physics of the rise)
-    - Doesn't amplify errors at high flows like multiplicative would
-    - Dynamic: recalculated every 15-min fetch, auto-adjusts as NWS improves
+- [x] 48h forecast with LF-constrained approach, bias correction & accuracy tracking v24.7 (2026-01-25)
   - **LF-Constrained approach**: Since GF is between PoR and LF, uses LF forecast
     shifted backward by GF→LF travel time to ensure GF rises before LF
-  - Primary: NWS LF forecast (BRKM2), bias-corrected and shifted by GF→LF travel time
-  - Fallback: NWS PoR forecast (PORM2) when LF unavailable
-  - Calculates at 8 intervals (6,12,18,24,30,36,42,48h) for smooth graph interpolation
-  - Displays only 4 periods (6,12,24,48h) as cards
+  - **Additive bias correction**: `corrected = raw_forecast + (observed_now - forecast_at_now)`
+    - Preserves forecast's predicted rate of change (the physics of the rise)
+    - Dynamic: recalculated every 15-min fetch, auto-adjusts as NWS improves
+  - **Accuracy tracking**: Stores predictions by horizon (6h, 12h, 24h, 48h), validates when
+    target time arrives, displays per-horizon accuracy in UI
+  - Calculates at 8 intervals (6-48h) for smooth graph; displays 4 periods as cards
   - Applies GF ensemble model: 60% PoR-based + 40% EF power-law
   - Falls back to linear extrapolation when NWS unavailable
+  - New DB types: `gf_forecast_pending`, `gf_forecast_metadata`
+  - New endpoint: `GET /api/sync?endpoint=forecast-accuracy`
 - [x] Tighter ice detection thresholds v24.3 (2026-01-25)
   - Lowered EF cross-check threshold (30% → 25%)
   - Increased low-flow + high-stage weight (+1 → +2) - this is THE classic ice signature
