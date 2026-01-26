@@ -918,8 +918,13 @@ exports.handler = async (event, context) => {
 
         // 4b. Validate pending 48h forecast predictions
         console.log('Checking pending forecast predictions...');
-        const forecastValidation = await validateForecastPredictions(client, usgsData);
-        console.log(`Validated ${forecastValidation.validated || 0} forecast predictions`);
+        let forecastValidation = { validated: 0, cleaned: 0 };
+        try {
+            forecastValidation = await validateForecastPredictions(client, usgsData);
+            console.log(`Validated ${forecastValidation.validated || 0} forecast predictions`);
+        } catch (e) {
+            console.error('Forecast validation error (non-fatal):', e);
+        }
 
         // 5. Make new prediction
         console.log('Making new prediction...');
