@@ -846,6 +846,32 @@ async function saveGFLearningData(client, data) {
             result = { success: true, action: 'resetGFLearning', message: 'All GF learning data cleared' };
         }
 
+        // Action: Reset forecast accuracy data (admin only, requires PIN)
+        if (action === 'resetForecastAccuracy') {
+            const { pin } = data;
+            if (pin !== '314159') {
+                return { statusCode: 403, headers, body: JSON.stringify({ error: 'Invalid PIN' }) };
+            }
+
+            // Delete all forecast metadata (accuracy stats)
+            const { error: metaErr } = await client.from('potomac_observations')
+                .delete()
+                .eq('observation_type', 'gf_forecast_metadata');
+
+            // Delete all pending forecast predictions
+            const { error: pendingErr } = await client.from('potomac_observations')
+                .delete()
+                .eq('observation_type', 'gf_forecast_pending');
+
+            console.log('🔄 Forecast accuracy data reset');
+            result = {
+                success: true,
+                action: 'resetForecastAccuracy',
+                message: 'Forecast accuracy data cleared',
+                errors: { metaErr: !!metaErr, pendingErr: !!pendingErr }
+            };
+        }
+
         return {
             statusCode: 200,
             headers,
