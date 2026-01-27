@@ -4642,33 +4642,45 @@
 
     // Initialize
     async function init() {
+        console.log('🔧 init() called');
         try {
             // Initialize cloud sync via serverless function
+            console.log('🔧 Step 1: initCloudSync');
             initCloudSync();
             updateSyncStatus('syncing');
 
             // Load PoR history for Great Falls time-shifting
+            console.log('🔧 Step 2: loadPoRHistory');
             loadPoRHistory();
 
             // Load EF hysteresis corrections (local learning)
+            console.log('🔧 Step 3: loadEFHysteresis');
             loadEFHysteresis();
 
             // Load learning data (from cloud + local)
+            console.log('🔧 Step 4: loadLearning');
             learningData = await loadLearning();
+            console.log('🔧 Step 4 complete');
 
             // Load GF learning data for Great Falls corrections
+            console.log('🔧 Step 5: loadGFLearningData');
             await loadGFLearningData();
+            console.log('🔧 Step 5 complete');
 
             // Load forecast accuracy data (non-blocking)
             loadForecastAccuracy().catch(e => console.warn('Forecast accuracy load error:', e));
 
             // Initialize UI
+            console.log('🔧 Step 6: initMap');
             initMap();
+            console.log('🔧 Step 7: buildBranches');
             buildBranches();
             updateLearningUI();
-            
+
             // Fetch current data
+            console.log('🔧 Step 8: fetchData');
             await fetchData();
+            console.log('🔧 Init complete!');
         } catch(e) {
             console.error('Init error:', e);
             // Fallback: at least show the map
@@ -5343,6 +5355,7 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
         URL.revokeObjectURL(url);
     }
     
+    console.log('🚀 Starting Potomac Pulse...');
     init().catch(e => console.error('Init failed:', e));
 
     // Refresh every 15 minutes
