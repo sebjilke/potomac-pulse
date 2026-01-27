@@ -876,6 +876,82 @@
                         <p id="pinError" style="color:#ef4444;font-size:0.6rem;margin-top:10px;display:none;">Incorrect PIN</p>
                     </div>
                     <div id="learnUnlocked" class="learn-panel" style="display:none;">
+                        <!-- ADMIN DASHBOARD -->
+                        <div style="background:#0f172a;border-radius:8px;padding:12px;margin-bottom:15px;border:1px solid #334155;">
+                            <div style="font-size:0.65rem;color:#64748b;margin-bottom:10px;text-align:center;">ADMIN DASHBOARD</div>
+
+                            <!-- Row 1: Current Conditions -->
+                            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
+                                <div style="background:#1e293b;padding:8px;border-radius:6px;text-align:center;">
+                                    <div style="font-size:0.5rem;color:#64748b;">LF ACTUAL</div>
+                                    <div id="dash-lf-cfs" style="font-size:0.85rem;color:#fbbf24;font-weight:600;">--</div>
+                                    <div id="dash-lf-stage" style="font-size:0.55rem;color:#94a3b8;">-- ft</div>
+                                </div>
+                                <div style="background:#1e293b;padding:8px;border-radius:6px;text-align:center;">
+                                    <div style="font-size:0.5rem;color:#64748b;">GF ESTIMATE</div>
+                                    <div id="dash-gf-cfs" style="font-size:0.85rem;color:#4ade80;font-weight:600;">--</div>
+                                    <div id="dash-gf-stage" style="font-size:0.55rem;color:#94a3b8;">-- ft</div>
+                                </div>
+                                <div style="background:#1e293b;padding:8px;border-radius:6px;text-align:center;">
+                                    <div style="font-size:0.5rem;color:#64748b;">PoR NOW</div>
+                                    <div id="dash-por-cfs" style="font-size:0.85rem;color:#60a5fa;font-weight:600;">--</div>
+                                    <div id="dash-por-status" style="font-size:0.5rem;color:#94a3b8;">--</div>
+                                </div>
+                            </div>
+
+                            <!-- Row 2: Key Upstream -->
+                            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">
+                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:#64748b;">EF Stage</div>
+                                    <div id="dash-ef-stage" style="font-size:0.7rem;color:#06b6d4;">--</div>
+                                </div>
+                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:#64748b;">Monocacy</div>
+                                    <div id="dash-mono-cfs" style="font-size:0.7rem;color:#94a3b8;">--</div>
+                                </div>
+                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:#64748b;">Goose Ck</div>
+                                    <div id="dash-goose-cfs" style="font-size:0.7rem;color:#94a3b8;">--</div>
+                                </div>
+                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:#64748b;">Travel</div>
+                                    <div id="dash-travel" style="font-size:0.7rem;color:#94a3b8;">--</div>
+                                </div>
+                            </div>
+
+                            <!-- Row 3: Model Health -->
+                            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">
+                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:#64748b;">GF Validations</div>
+                                    <div id="dash-gf-validations" style="font-size:0.7rem;color:#a78bfa;">--</div>
+                                </div>
+                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:#64748b;">GF Error</div>
+                                    <div id="dash-gf-error" style="font-size:0.7rem;color:#94a3b8;">--</div>
+                                </div>
+                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:#64748b;">Flagged</div>
+                                    <div id="dash-flagged" style="font-size:0.7rem;color:#f87171;">--</div>
+                                </div>
+                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:#64748b;">Sched Runs</div>
+                                    <div id="dash-runs" style="font-size:0.7rem;color:#94a3b8;">--</div>
+                                </div>
+                            </div>
+
+                            <!-- Row 4: Ice Status -->
+                            <div id="dash-ice-row" style="background:#1e3a5f;padding:8px;border-radius:6px;display:none;">
+                                <div style="font-size:0.55rem;color:#60a5fa;font-weight:600;">❄️ ICE-AFFECTED GAUGES</div>
+                                <div id="dash-ice-list" style="font-size:0.5rem;color:#94a3b8;margin-top:4px;">--</div>
+                            </div>
+
+                            <!-- Row 5: Last Update -->
+                            <div style="text-align:center;margin-top:8px;">
+                                <span style="font-size:0.45rem;color:#64748b;">Last fetch: </span>
+                                <span id="dash-last-fetch" style="font-size:0.45rem;color:#94a3b8;">--</span>
+                            </div>
+                        </div>
+
                         <h3 style="color:#a78bfa;font-size:0.8rem;margin-bottom:10px;">🔄 Validation Status</h3>
                         <div class="learn-stat">
                             <span class="label">Next Validation</span>
@@ -3462,8 +3538,89 @@
         if (btn) btn.classList.toggle("active", learningEnabled);
     }
     
+    // Update the admin dashboard with current data
+    function updateAdminDashboard() {
+        // Current gauge readings
+        const lf = data["01646500"];
+        const por = data["01638500"];
+        const mono = data["01643000"];
+        const goose = data["01644000"];
+        const ef = edwardsFerryData.current;
+
+        // LF Actual
+        document.getElementById("dash-lf-cfs").textContent = lf?.q ? Math.round(lf.q).toLocaleString() : "--";
+        document.getElementById("dash-lf-stage").textContent = lf?.h ? `${lf.h.toFixed(2)} ft` : "-- ft";
+
+        // GF Estimate
+        if (gfEstimate) {
+            document.getElementById("dash-gf-cfs").textContent = gfEstimate.cfs.toLocaleString();
+            document.getElementById("dash-gf-stage").textContent = `${gfEstimate.stage.toFixed(2)} ft`;
+        } else {
+            document.getElementById("dash-gf-cfs").textContent = "--";
+            document.getElementById("dash-gf-cfs").style.color = por?.iceAffected ? "#60a5fa" : "#4ade80";
+            document.getElementById("dash-gf-stage").textContent = por?.iceAffected ? "❄️ ice" : "-- ft";
+        }
+
+        // PoR
+        document.getElementById("dash-por-cfs").textContent = por?.q ? Math.round(por.q).toLocaleString() : "--";
+        if (por?.iceAffected) {
+            document.getElementById("dash-por-cfs").style.color = "#60a5fa";
+            const daysAgo = por.lastValidTime ? ((Date.now() - por.lastValidTime) / (24*60*60*1000)).toFixed(1) : "?";
+            document.getElementById("dash-por-status").textContent = `❄️ ${daysAgo}d old`;
+            document.getElementById("dash-por-status").style.color = "#60a5fa";
+        } else {
+            document.getElementById("dash-por-cfs").style.color = "#60a5fa";
+            document.getElementById("dash-por-status").textContent = por?.trend || "--";
+            document.getElementById("dash-por-status").style.color = "#94a3b8";
+        }
+
+        // Edwards Ferry
+        document.getElementById("dash-ef-stage").textContent = ef ? `${ef.toFixed(2)} ft` : "--";
+
+        // Tributaries
+        document.getElementById("dash-mono-cfs").textContent = mono?.q ? Math.round(mono.q).toLocaleString() : "--";
+        if (mono?.iceAffected) document.getElementById("dash-mono-cfs").style.color = "#60a5fa";
+        document.getElementById("dash-goose-cfs").textContent = goose?.q ? Math.round(goose.q).toLocaleString() : "--";
+
+        // Travel time
+        const mult = data._mult;
+        document.getElementById("dash-travel").textContent = mult?.travelHrs ? `~${Math.round(mult.travelHrs)}h` : "--";
+
+        // GF Learning stats
+        if (gfLearningData?.metadata) {
+            const meta = gfLearningData.metadata;
+            document.getElementById("dash-gf-validations").textContent = meta.totalValidations || 0;
+            document.getElementById("dash-gf-error").textContent = meta.avgErrorPercent ?
+                `${meta.avgErrorPercent.toFixed(0)}%` : "--";
+            document.getElementById("dash-flagged").textContent = meta.flaggedValidations || 0;
+            document.getElementById("dash-runs").textContent = meta.consecutiveRuns || "--";
+        }
+
+        // Ice-affected gauges
+        const iceGauges = [];
+        for (const [id, d] of Object.entries(data)) {
+            if (d?.iceAffected && GAUGES[id]) {
+                iceGauges.push(GAUGES[id].name);
+            }
+        }
+        if (iceGauges.length > 0) {
+            document.getElementById("dash-ice-row").style.display = "block";
+            document.getElementById("dash-ice-list").textContent = iceGauges.join(", ");
+        } else {
+            document.getElementById("dash-ice-row").style.display = "none";
+        }
+
+        // Last fetch time
+        if (lastFetchTime) {
+            document.getElementById("dash-last-fetch").textContent = new Date(lastFetchTime).toLocaleTimeString();
+        }
+    }
+
     function updateLearningUI() {
         if (!learningData) return;
+
+        // Update admin dashboard
+        updateAdminDashboard();
 
         const gaugesWithCorrections = Object.keys(learningData.corrections).length;
         
