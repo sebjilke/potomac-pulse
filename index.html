@@ -1082,6 +1082,7 @@
 
     let dataSource = "loading"; // "live", "cached", "estimated"
     let lastFetchTime = null;
+    let isFetching = false;
     
     // ==================== CLOUD SYNC VIA SERVERLESS ====================
     // Credentials are now securely stored in Netlify environment variables
@@ -3369,6 +3370,7 @@
             }
 
             syncPending = false;
+            syncTimeout = null;
         }, 30000); // 30 second debounce
     }
     
@@ -4116,6 +4118,9 @@
     }
 
     async function fetchData() {
+        if (isFetching) return;
+        isFetching = true;
+        try {
         setStatus("loading");
         const sites = Object.keys(GAUGES).join(",");
         // Use P7D to capture last valid readings for ice-affected gauges (ice can last >2 days)
@@ -4178,6 +4183,9 @@
         dataSource = "unavailable";
         setStatus("error");
         updateUI();
+        } finally {
+            isFetching = false;
+        }
     }
 
     // Fetch Edwards Ferry data (hidden gauge for GF validation)

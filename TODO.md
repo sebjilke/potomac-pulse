@@ -13,9 +13,10 @@
 - **Impact**: Model accuracy during spring conditions
 - **Note**: Seasonal - best addressed during spring runoff
 
-### Add error handling for failed API calls
+### Improve error handling for failed API calls
 - **Location**: Multiple `fetch()` calls in `index.html`
-- **Issue**: Basic error handling exists but inconsistent
+- **Issue**: Basic error handling exists but inconsistent across fetch strategies
+- **Note**: fetchData race condition was fixed (v24.10) with `isFetching` guard
 - **Impact**: Better UX when USGS/NWS APIs are unavailable
 
 ### Add automated tests for prediction model
@@ -112,9 +113,10 @@
 
 ### Testing & Monitoring
 
-#### Add health monitoring dashboard
-- **Location**: `scheduled-update.js` tracks health metrics
-- **Current**: Some health stats in Learning tab (PIN-protected)
+#### Enhance admin monitoring dashboard
+- **Location**: `index.html` - Learning tab (PIN-protected)
+- **Current**: Admin dashboard added (v24.10) showing LF/GF/PoR/EF status, model health, ice indicators
+- **Improvement**: Add historical trend charts, alert thresholds, export capability
 - **Impact**: Easier operational monitoring
 
 #### Log validation failures for analysis
@@ -140,6 +142,19 @@
 
 ## Completed
 
+- [x] EF-only fallback, ice learning suspension, admin dashboard, code review fixes v24.10 (2026-02-03)
+  - **EF-only GF fallback**: When PoR is ice-affected, falls back to 100% EF power-law model
+    - Shows "❄️ EF-ONLY ESTIMATE" with LOW confidence indicator
+    - Automatically reverts to full ensemble when PoR recovers
+  - **Ice learning suspension**: All learning/validation suspended when critical gauges are ice-affected
+    - Client-side: `isCriticalGaugeIceAffected()` guards storeGFPrediction, storeForecastPredictions, updateEFHysteresis
+    - Server-side: `criticalIce` flag in scheduled-update.js skips validation and prediction steps
+    - Prevents corrupted ice data from polluting correction bins
+  - **Admin dashboard**: Added to Learning tab showing LF/GF/PoR/EF status, model health, ice indicators
+  - **Fix: ef.toFixed crash**: `edwardsFerryData.current` is `{stage, timestamp}`, not a number — fixed to `ef.stage.toFixed(2)`
+  - **Fix: fetchData race condition**: Added `isFetching` guard with try/finally to prevent overlapping fetch calls
+  - **Fix: forecast item validation**: Added `.filter()` for malformed items in sync-learning.js
+  - **Fix: syncTimeout cleanup**: Set `syncTimeout = null` after completion
 - [x] Iterative travel time convergence v24.9 (2026-01-25)
   - **Iterative travel time**: Travel time now converges based on historical flow
     - Previous bug: At 1200 cfs, looked up 33h ago → found 1900 cfs (which travels in 25h)
@@ -189,4 +204,4 @@
 
 ---
 
-*Last updated: 2026-01-25 (v24.9)*
+*Last updated: 2026-02-03 (v24.10)*

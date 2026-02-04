@@ -115,6 +115,17 @@ Where:
 - EF skipped if >50% discrepancy vs PoR (indicates ice/backwater)
 ```
 
+**EF-Only Fallback (v24.10)**:
+When Point of Rocks is ice-affected but Edwards Ferry and Little Falls are available,
+the model falls back to an EF-only estimate instead of showing "UNAVAILABLE":
+```
+- Uses 100% EF power-law model (108 × EF_stage^2.64)
+- Confidence: LOW (single-source, no ensemble)
+- UI shows "❄️ EF-ONLY ESTIMATE" in blue with degraded confidence indicator
+- Automatically reverts to full ensemble when PoR recovers
+- No learning/validation data collected during EF-only mode
+```
+
 ### 3. 48-Hour Forecast (v24.6)
 Uses NWS hydrological forecasts with LF-constrained GF estimation and dynamic bias correction.
 
@@ -180,6 +191,7 @@ Flow-binned corrections with anomaly detection:
 - **Anomaly detection**: Ice signature, stage-discharge inconsistency, statistical outliers
 - **EMA tracking**: Exponential moving average for error correction (α=0.3)
 - **Validation cycle**: Every 2 hours via scheduled function
+- **Ice suspension (v24.10)**: All learning and validation is suspended when any critical gauge (PoR, LF, or EF) is ice-affected. This prevents corrupted ice data from polluting correction bins. Applies to both client-side (`storeGFPrediction`, `storeForecastPredictions`, `updateEFHysteresis`) and server-side (`scheduled-update.js` validation and prediction steps). Centralized via `isCriticalGaugeIceAffected()` helper on client and `criticalIce` flag on server.
 
 ## Data Model
 
@@ -234,12 +246,13 @@ Single table `potomac_observations` with polymorphic types:
 ### Scheduled Function (scheduled-update.js)
 
 Runs every 2 hours (cron: `0 */2 * * *`):
-1. Fetch fresh USGS data
+1. Fetch fresh USGS data (with ice detection: checks for -999999 and "Ice" qualifier)
 2. Store Point of Rocks history (48-hour window)
-3. Validate pending GF predictions against actuals
-4. Validate pending 48h forecast predictions against actuals
-5. Make new GF prediction
-6. Update health metrics
+3. Check critical gauge ice status (PoR, LF, EF)
+4. If no ice: Validate pending GF predictions against actuals
+5. If no ice: Validate pending 48h forecast predictions against actuals
+6. If no ice: Make new GF prediction
+7. Update health metrics (includes ice status in summary)
 
 ## Deployment
 
@@ -363,7 +376,8 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 │  │                  │ │  ├─ Great Falls          ││
 │  │                  │ │  ├─ All Gauges           ││
 │  │                  │ │  ├─ How It Works         ││
-│  │                  │ │  └─ Learning (locked)    ││
+│  │                  │ │  └─ Learning (PIN-locked)││
+│  │                  │ │     └─ Admin Dashboard   ││
 │  │                  │ └─ Footer                   ││
 │  └──────────────────┴──────────────────────────────┘│
 └─────────────────────────────────────────────────────┘
@@ -423,6 +437,7 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ## Version History
 
+- **v24.10** (2026-02-03): EF-only GF fallback when PoR is ice-affected (shows "❄️ EF-ONLY ESTIMATE" with LOW confidence, auto-reverts when PoR recovers). Learning/validation suspended across all critical gauge ice conditions (client + server). Admin dashboard in Learning tab (LF/GF/PoR/EF status, model health, ice indicators). Fixed `ef.toFixed` crash in admin dashboard (ef is `{stage, timestamp}`, not a number). Fixed fetchData race condition with `isFetching` guard. Added forecast item validation in sync-learning. Fixed syncTimeout cleanup.
 - **v24.9** (2026-01-25): Iterative travel time convergence fixes overprediction bug. At low flow, previous logic used current flow to calculate travel time (33h), but found higher historical flow (1900 cfs) that actually traveled faster (25h) and had already passed. Now iterates up to 3x to converge on correct time-shift.
 - **v24.8** (2026-01-25): Skip EF ensemble when discrepancy >50% indicates ice/backwater. Extended PoR history to 72h for low-flow time-shifting.
 - **v24.7** (2026-01-25): 48h forecast with LF-constrained approach, additive bias correction, and accuracy tracking. Uses NWS LF forecast shifted backward by GF→LF travel time with dynamic bias correction. Calculates at 8 intervals for smooth graph; displays 4 periods. Tracks per-horizon accuracy (6h, 12h, 24h, 48h) with validation when target time arrives.
@@ -439,4 +454,4 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ---
 
-*Last updated: 2026-01-25*
+*Last updated: 2026-02-03*
