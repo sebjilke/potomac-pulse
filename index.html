@@ -1334,6 +1334,12 @@
 
     // Store a GF prediction for later validation
     async function storeGFPrediction(estimate) {
+        // Don't store predictions when critical gauges are ice-affected
+        if (isCriticalGaugeIceAffected()) {
+            console.log('🧊 Prediction storage skipped: critical gauge ice-affected');
+            return;
+        }
+
         const now = Date.now();
 
         // Throttle: only store every 30 minutes
@@ -1424,6 +1430,12 @@
 
     // Store 48h forecast predictions for accuracy tracking
     async function storeForecastPredictions(periods) {
+        // Don't store forecasts when critical gauges are ice-affected
+        if (isCriticalGaugeIceAffected()) {
+            console.log('🧊 Forecast storage skipped: critical gauge ice-affected');
+            return;
+        }
+
         const now = Date.now();
 
         // Throttle: only store every 2 hours
@@ -2004,6 +2016,15 @@
     // Estimate Great Falls flow from upstream gauges
     // GF = PoR (time-shifted) + Monocacy + Goose Creek
     // All three confluences are ABOVE Great Falls
+    // Check if any critical gauge (PoR, LF, EF) is ice-affected or unavailable
+    // Used to suppress learning/validation during unreliable conditions
+    function isCriticalGaugeIceAffected() {
+        const por = data["01638500"];
+        const lf = data["01646500"];
+        const ef = edwardsFerryData.current;
+        return !!(por?.iceAffected || lf?.iceAffected || !ef);
+    }
+
     function estimateGreatFalls() {
         const por = data["01638500"];      // Point of Rocks (83.5% of LF)
         const monocacy = data["01643000"]; // Monocacy (7.1% of LF) - joins 6mi below PoR
@@ -4266,6 +4287,11 @@
     // Called when a GF prediction is validated against actual LF reading
     function updateEFHysteresis(efTrend, predictedCFS, actualCFS) {
         if (!efTrend || efTrend === 'steady') return;  // Only learn for rising/falling
+        // Don't update hysteresis when critical gauges are ice-affected
+        if (isCriticalGaugeIceAffected()) {
+            console.log('🧊 EF hysteresis update skipped: critical gauge ice-affected');
+            return;
+        }
 
         const h = efHysteresis[efTrend];
         if (!h) return;

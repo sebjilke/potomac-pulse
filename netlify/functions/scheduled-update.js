@@ -87,6 +87,14 @@ async function fetchUSGSData() {
                 // Current value
                 const latest = values[values.length - 1];
                 const val = parseFloat(latest.value);
+                const qualifiers = latest.qualifiers?.map(q => q.qualifierCode) || [];
+                const isIce = val <= -999999 || qualifiers.includes('Ice');
+
+                if (isIce && param === '00060') {
+                    data[siteId].iceAffected = true;
+                    console.log(`🧊 ${siteId}: Ice-affected (discharge)`);
+                }
+
                 if (val > 0 && val < 9999999) {
                     if (param === '00060') data[siteId].q = val;
                     if (param === '00065') data[siteId].h = val;
@@ -909,29 +917,47 @@ exports.handler = async (event, context) => {
 
         const fullHistory = storedHistory?.data?.readings || porHistory;
 
-        // 4. Validate pending predictions
-        console.log('Checking pending predictions...');
-        const validationResult = await validatePendingPredictions(client, usgsData);
-        const validated = validationResult.validated || 0;
-        const cleaned = validationResult.cleaned || 0;
-        console.log(`Validated ${validated} predictions, cleaned ${cleaned} stale`);
+        // Check if critical gauges are ice-affected (PoR, LF, or EF missing)
+        const porIce = usgsData.data[usgsData.gauges.por]?.iceAffected;
+        const lfIce = usgsData.data[usgsData.gauges.lf]?.iceAffected;
+        const efMissing = !usgsData.data[usgsData.gauges.ef]?.h;
+        const criticalIce = porIce || lfIce || efMissing;
 
-        // 4b. Validate pending 48h forecast predictions
-        console.log('Checking pending forecast predictions...');
-        let forecastValidation = { validated: 0, cleaned: 0 };
-        try {
-            forecastValidation = await validateForecastPredictions(client, usgsData);
-            console.log(`Validated ${forecastValidation.validated || 0} forecast predictions`);
-        } catch (e) {
-            console.error('Forecast validation error (non-fatal):', e);
+        if (criticalIce) {
+            console.log(`🧊 Critical gauge ice/unavailable — skipping learning & validation (PoR ice: ${!!porIce}, LF ice: ${!!lfIce}, EF missing: ${efMissing})`);
         }
 
-        // 5. Make new prediction
-        console.log('Making new prediction...');
-        const prediction = makeGFPrediction(usgsData, fullHistory);
-        if (prediction) {
-            await storePrediction(client, prediction);
-            console.log(`📊 New prediction: ${prediction.predictedCFS} cfs (${prediction.flowBin}, ${prediction.flowState})`);
+        // 4. Validate pending predictions (skip if critical gauges ice-affected)
+        let validated = 0, cleaned = 0;
+        if (!criticalIce) {
+            console.log('Checking pending predictions...');
+            const validationResult = await validatePendingPredictions(client, usgsData);
+            validated = validationResult.validated || 0;
+            cleaned = validationResult.cleaned || 0;
+            console.log(`Validated ${validated} predictions, cleaned ${cleaned} stale`);
+        }
+
+        // 4b. Validate pending 48h forecast predictions (skip if critical gauges ice-affected)
+        let forecastValidation = { validated: 0, cleaned: 0 };
+        if (!criticalIce) {
+            console.log('Checking pending forecast predictions...');
+            try {
+                forecastValidation = await validateForecastPredictions(client, usgsData);
+                console.log(`Validated ${forecastValidation.validated || 0} forecast predictions`);
+            } catch (e) {
+                console.error('Forecast validation error (non-fatal):', e);
+            }
+        }
+
+        // 5. Make new prediction (skip if critical gauges ice-affected)
+        let prediction = null;
+        if (!criticalIce) {
+            console.log('Making new prediction...');
+            prediction = makeGFPrediction(usgsData, fullHistory);
+            if (prediction) {
+                await storePrediction(client, prediction);
+                console.log(`📊 New prediction: ${prediction.predictedCFS} cfs (${prediction.flowBin}, ${prediction.flowState})`);
+            }
         }
 
         // 6. Log summary
@@ -940,6 +966,8 @@ exports.handler = async (event, context) => {
             porCFS: usgsData.data[usgsData.gauges.por]?.q,
             lfCFS: usgsData.data[usgsData.gauges.lf]?.q,
             efStage: usgsData.data[usgsData.gauges.ef]?.h,
+            iceAffected: criticalIce ? { por: !!porIce, lf: !!lfIce, efMissing } : false,
+            learningSuspended: criticalIce,
             porHistoryCount: fullHistory.length,
             predictionsValidated: validated,
             predictionsCleaned: cleaned,
