@@ -2010,15 +2010,53 @@
         const goose = data["01644000"];    // Goose Creek (3.0% of LF) - joins 12mi below PoR
         const lf = data[LF.id];            // Little Falls
 
-        if (!por?.q || !lf?.q) {
+        if (!lf?.q) {
             return null;
         }
 
-        // Skip predictions when critical gauges are ice-affected (stale data)
-        // Learning will be protected by scheduled-update anomaly detection, but
-        // we also want to avoid showing potentially inaccurate predictions
+        // If PoR has no data and isn't ice-affected, nothing we can do
+        if (!por?.q && !por?.iceAffected) {
+            return null;
+        }
+
+        // When critical gauges are ice-affected, fall back to EF-only estimate
+        // if Edwards Ferry data is available; otherwise return null
         if (por?.iceAffected || lf?.iceAffected) {
-            console.log('🧊 GF prediction skipped: critical gauge ice-affected');
+            const efEstimate = estimateGFFromEdwardsFerry();
+            if (efEstimate && efEstimate.cfs > 0) {
+                const estimatedStage = estimateLFStage(efEstimate.cfs);
+                console.log(`🧊❄️ PoR ice-affected → using EF-only estimate: ${efEstimate.cfs} cfs (${estimatedStage.toFixed(2)} ft)`);
+                return {
+                    cfs: efEstimate.cfs,
+                    stage: estimatedStage,
+                    flowState: getEdwardsFerryTrend() || 'steady',
+                    confidence: 'low',
+                    useTimeShifted: false,
+                    timeShiftedHoursAgo: null,
+                    useEfEnsemble: false,
+                    efOnly: true,  // Flag: EF-only fallback mode
+                    forecastCFS: efEstimate.cfs,
+                    forecastStage: estimatedStage,
+                    inputs: {
+                        porCFS: null,
+                        porEstimateCFS: null,
+                        historicPorCFS: null,
+                        monocacyCFS: null,
+                        monocacyActual: false,
+                        gooseCFS: null,
+                        gooseActual: false,
+                        travelPoRtoGF: null,
+                        travelGFtoLF: null,
+                        correction: 0,
+                        flowBin: null,
+                        waveCelerity: null
+                    },
+                    uncertaintyRange: null,
+                    efEstimate: efEstimate,
+                    validationCountdown: null
+                };
+            }
+            console.log('🧊 GF prediction skipped: critical gauge ice-affected, no EF data');
             return null;
         }
 
@@ -2325,6 +2363,22 @@
                 `${gfEstimate.stage.toFixed(2)} <span style="color:#64748b;font-size:0.7em;">(${range.lowStage.toFixed(2)}-${range.highStage.toFixed(2)})</span>`;
         } else {
             document.getElementById("gf-stage").textContent = gfEstimate.stage.toFixed(2);
+        }
+
+        // EF-only fallback mode: PoR is ice-affected, using Edwards Ferry model only
+        if (gfEstimate.efOnly) {
+            document.getElementById("gf-estimate-label").textContent = "❄️ EF-ONLY ESTIMATE";
+            document.getElementById("gf-estimate-label").style.color = "#60a5fa";
+            document.getElementById("gf-data-source").textContent =
+                `PoR ice-affected — using Edwards Ferry model (R²=${EF_MODEL.rSquared})`;
+            document.getElementById("gf-trend").innerHTML =
+                `<span style="color:#60a5fa;">${gfEstimate.flowState === 'rising' ? '▲' : gfEstimate.flowState === 'falling' ? '▼' : '●'} ${gfEstimate.flowState.toUpperCase()} (EF trend)</span>`;
+            document.getElementById("gf-confidence").innerHTML =
+                `Confidence: <span style="color:#f87171;">LOW</span> <span style="color:#64748b;font-size:0.8em;">(EF only)</span>`;
+            document.getElementById("gf-forecast-cfs").textContent = "--";
+            document.getElementById("gf-forecast-stage").textContent = "--";
+            document.getElementById("gf-forecast-hrs").textContent = "--";
+            return;
         }
 
         // Update label and data source based on whether we have time-shifted data
