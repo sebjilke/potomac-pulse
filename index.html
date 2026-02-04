@@ -3575,7 +3575,7 @@
         }
 
         // Edwards Ferry
-        document.getElementById("dash-ef-stage").textContent = ef ? `${ef.toFixed(2)} ft` : "--";
+        document.getElementById("dash-ef-stage").textContent = ef?.stage ? `${ef.stage.toFixed(2)} ft` : "--";
 
         // Tributaries
         document.getElementById("dash-mono-cfs").textContent = mono?.q ? Math.round(mono.q).toLocaleString() : "--";
