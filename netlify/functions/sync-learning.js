@@ -8,7 +8,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
 // Admin PIN from environment variable (defaults to legacy value if not set)
-const ADMIN_PIN = process.env.ADMIN_PIN || '314159';
+const ADMIN_PIN = process.env.ADMIN_PIN || '1506';
 
 let supabase = null;
 
