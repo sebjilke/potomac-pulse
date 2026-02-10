@@ -5029,22 +5029,14 @@
         legend.addTo(map);
     }
 
-    // Tab switching with map visibility toggle
+    // Tab switching - map now hidden by default on all tabs, use toggle button to show
     function updateMapVisibility(tabName) {
         const btn = document.getElementById('mapToggleBtn');
-        if (tabName === 'gauges') {
-            document.body.classList.add('show-map');
-            if (btn) {
-                btn.setAttribute('aria-pressed', 'true');
-                btn.classList.add('active');
-            }
-            if (map) map.invalidateSize();
-        } else {
-            document.body.classList.remove('show-map');
-            if (btn) {
-                btn.setAttribute('aria-pressed', 'false');
-                btn.classList.remove('active');
-            }
+        // Map is always hidden by default on tab switch - user must toggle it on
+        document.body.classList.remove('show-map');
+        if (btn) {
+            btn.setAttribute('aria-pressed', 'false');
+            btn.classList.remove('active');
         }
     }
 
