@@ -35,45 +35,36 @@
 
 ---
 
-## Phase 2: User Experience (High)
+## Phase 2: User Experience (High) ✅ COMPLETED
 
-*Mobile-first fixes that work together*
+*Completed 2026-02-10*
 
-### Fix mobile sidebar height
-- **Location**: CSS — `max-height: 45vh` on mobile
-- **Issue**: Users can't scroll to see all gauges on phones
-- **Fix**: Remove limit or make truly scrollable
-- **Effort**: 30m
+### ~~Fix mobile sidebar height~~ ✅
+- Changed from fixed `max-height: 45vh` to `min-height: 45vh; max-height: 60vh; overflow-y: auto`
+- Sidebar now scrollable on mobile while maintaining split-view appearance
 
-### Add network error messaging
-- **Location**: `index.html` — `fetchData()` error handling
-- **Issue**: API failures show `--` with no explanation
-- **Fix**: Add prominent error banner above content
-- **Effort**: 2h
+### ~~Add network error messaging~~ ✅
+- Added error banner below header with auto-dismiss (10s)
+- Shows on stale/error status: "Network unavailable" or "Unable to connect to USGS"
+- Dismissible via ✕ button, auto-hidden on successful fetch
 
-### Add map toggle button
-- **Location**: Header UI
-- **Issue**: No visible control to switch between map and list
-- **Fix**: Add toggle button in header
-- **Effort**: 1h
+### ~~Add map toggle button~~ ✅
+- Added 🗺️ button in header next to refresh
+- Syncs with tab changes (active when on All Gauges tab)
+- Proper ARIA attributes (aria-pressed, aria-label)
 
-### Increase mobile font sizes
-- **Location**: CSS media queries
-- **Issue**: Fonts as small as 0.7rem are unreadable
-- **Fix**: Minimum 0.8rem for all content
-- **Effort**: 1h
+### ~~Increase mobile font sizes~~ ✅
+- Added CSS overrides in mobile media query for 0.45rem and 0.5rem inline styles
+- Targets forecast timeline and docs panel specifically
 
-### Fix about button accessibility
-- **Location**: `index.html` — about button
-- **Issue**: Uses `<span>` instead of `<button>`
-- **Fix**: Convert to proper button element, add aria-describedby to tooltip
-- **Effort**: 30m
+### ~~Fix about button accessibility~~ ✅
+- Converted `<span id="about-btn">` to proper `<button>` element
+- Removed role="button" and tabindex (native button doesn't need them)
+- Added min-width/min-height 44px for touch targets
 
-### Increase forecast disclaimer size
-- **Location**: CSS — forecast experimental warning
-- **Issue**: 0.45rem text is unreadable
-- **Fix**: Increase to 0.6rem minimum
-- **Effort**: 15m
+### ~~Increase forecast disclaimer size~~ ✅
+- Changed 3 forecast disclaimer lines from 0.45rem to 0.6rem
+- Experimental warning, legend hint, tributary note all now readable
 
 ---
 
@@ -295,6 +286,13 @@
   - 45 issues identified: 8 critical, 12 high, 15 medium, 10 low
   - Reorganized TODO into 6 phases with holistic prioritization
   - Created PDF slide deck with findings
+- [x] **Phase 2: User Experience** v24.12 (2026-02-10)
+  - Mobile sidebar height fix (scrollable 45-60vh)
+  - Network error banner with auto-dismiss
+  - Map toggle button in header (🗺️)
+  - About button accessibility (span→button)
+  - Forecast disclaimer font size increased (0.45rem→0.6rem)
+  - Mobile font size CSS overrides
 - [x] **Phase 1: Security & Stability** v24.11 (2026-02-10)
   - XSS fix: innerHTML → textContent throughout UI
   - USGS response schema validation (client + server)
@@ -319,4 +317,4 @@
 
 ---
 
-*Last updated: 2026-02-10 (Phase 1 complete)*
+*Last updated: 2026-02-10 (Phase 2 complete)*

@@ -124,7 +124,9 @@
             main { flex-direction: column; }
             #sidebar {
                 width: 100%;
-                max-height: 45vh;
+                min-height: 45vh;
+                max-height: 60vh;
+                overflow-y: auto;
                 border-radius: 16px 16px 0 0;
                 border-left: none;
                 border-top: 1px solid #334155;
@@ -140,6 +142,11 @@
             .hdr-right { gap: 8px; font-size: 0.75rem; }
             .last-update { font-size: 0.7rem; padding: 3px 8px; }
             .btn { padding: 6px 10px; min-width: 40px; min-height: 40px; }
+            /* Mobile minimum font sizes for readability */
+            #gf-forecast-timeline [style*="font-size:0.45rem"],
+            #gf-forecast-timeline [style*="font-size:0.5rem"] { font-size: 0.6rem !important; }
+            .docs-panel [style*="font-size:0.4"],
+            .docs-panel [style*="font-size:0.45rem"] { font-size: 0.6rem !important; }
         }
 
         /* ==================== TARGET GAUGE (Little Falls) ==================== */
@@ -478,7 +485,7 @@
 
     <div id="app">
         <header role="banner">
-            <h1>🌊 Potomac Pulse <span id="about-btn" style="font-size:0.7rem;cursor:pointer;opacity:0.7;vertical-align:middle;" title="About this app" role="button" aria-label="About this app" tabindex="0">ⓘ</span></h1>
+            <h1>🌊 Potomac Pulse <button id="about-btn" style="font-size:0.7rem;cursor:pointer;opacity:0.7;vertical-align:middle;background:none;border:none;color:inherit;padding:4px;min-width:44px;min-height:44px;" title="About this app" aria-label="About this app">ⓘ</button></h1>
             <div id="about-tooltip" role="tooltip" style="display:none;position:absolute;top:45px;left:60px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:14px 18px;max-width:360px;font-size:0.8rem;color:#cbd5e1;line-height:1.6;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
                 <div style="margin-bottom:10px;color:#e2e8f0;">This app tracks water moving through the Potomac basin — every gauge, with travel times to Little Falls. And since Great Falls has no gauge, it estimates that too.</div>
                 <div style="color:#94a3b8;">Built by Gordon Shumway for paddling the Po' with Toby Woby and Tim Slim. Toby is "working on it." Tim is already wet.</div>
@@ -486,12 +493,19 @@
             <div class="hdr-right">
                 <span class="dot loading" id="dot" role="status" aria-label="Data status" title="Loading..."></span>
                 <span id="lastUpdate" class="last-update" aria-live="polite"></span>
+                <button class="btn" id="mapToggleBtn" onclick="toggleMap()" aria-label="Toggle map" aria-pressed="false">🗺️</button>
                 <button class="btn" id="refreshBtn" onclick="fetchData()" aria-label="Refresh data">↻</button>
             </div>
             <!-- Hidden elements for sync status (not shown in header) -->
             <span id="status" style="display:none;" aria-live="polite">Loading...</span>
             <span id="syncStatus" style="display:none;">☁️</span>
         </header>
+        <!-- Network error banner -->
+        <div id="error-banner" role="alert" aria-live="assertive" style="display:none;background:rgba(239,68,68,0.15);border-bottom:1px solid #ef4444;padding:10px 16px;align-items:center;gap:10px;color:#fca5a5;font-size:0.8rem;">
+            <span aria-hidden="true">⚠️</span>
+            <span id="error-banner-text" style="flex:1;">Unable to fetch data. Showing cached data.</span>
+            <button onclick="dismissErrorBanner()" aria-label="Dismiss error" style="background:none;border:none;color:#fca5a5;cursor:pointer;font-size:1rem;padding:4px 8px;min-width:44px;min-height:44px;">✕</button>
+        </div>
         <main id="main-content" role="main">
             <div id="map" role="application" aria-label="River gauge map"></div>
             <div id="sidebar" role="complementary" aria-label="Gauge data sidebar">
@@ -560,7 +574,7 @@
 
                         <div id="gf-forecast-timeline" style="margin-bottom:15px;">
                             <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:4px;text-align:center;">48-HOUR FORECAST*</div>
-                            <div style="font-size:0.45rem;color:#fbbf24;margin-bottom:8px;text-align:center;">*Experimental — collecting data to validate accuracy</div>
+                            <div style="font-size:0.6rem;color:#fbbf24;margin-bottom:8px;text-align:center;">*Experimental — collecting data to validate accuracy</div>
 
                             <!-- Interactive Graph -->
                             <div id="gf-graph-container" style="position:relative;background:rgba(0,0,0,0.2);border-radius:8px;padding:10px 10px 5px;margin-bottom:10px;">
@@ -575,7 +589,7 @@
                             <div id="gf-forecast-periods" style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;">
                                 <!-- Forecast periods will be populated by JS -->
                             </div>
-                            <div style="font-size:0.45rem;color:#64748b;margin-top:6px;text-align:center;"><span style="color:#ef4444;">▲</span><span style="color:#22c55e;">▼</span> vs now • tap card or graph for details</div>
+                            <div style="font-size:0.6rem;color:#64748b;margin-top:6px;text-align:center;"><span style="color:#ef4444;">▲</span><span style="color:#22c55e;">▼</span> vs now • tap card or graph for details</div>
                             <div id="forecast-accuracy" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #334155;font-size:0.5rem;text-align:center;">
                                 <!-- Forecast accuracy stats populated by JS -->
                             </div>
@@ -700,7 +714,7 @@
                             </div>
 
                             <!-- Tributary note -->
-                            <div style="font-size:0.45rem;color:#64748b;text-align:center;margin-top:10px;padding-top:8px;border-top:1px solid #334155;">
+                            <div style="font-size:0.6rem;color:#64748b;text-align:center;margin-top:10px;padding-top:8px;border-top:1px solid #334155;">
                                 + Tributaries (Monocacy, Goose Creek) added at their confluence points
                             </div>
                         </div>
@@ -4637,6 +4651,7 @@
             dot.className = "dot";
             dot.title = "Live - Connected to USGS";
             st.textContent = "Live";
+            dismissErrorBanner();
         } else if (s === "cached") {
             dot.className = "dot cached";
             dot.title = "Cached - Using stored data";
@@ -4645,14 +4660,30 @@
             dot.className = "dot error";
             dot.title = "Offline - Using old cached data";
             st.textContent = "Offline";
+            showErrorBanner("Network unavailable. Showing cached data.");
         } else if (s === "error") {
             dot.className = "dot error";
             dot.title = "No data available";
             st.textContent = "No Data";
+            showErrorBanner("Unable to connect to USGS. Check your connection.");
         }
 
         // Update staleness display
         updateStalenessDisplay();
+    }
+
+    // Error banner functions
+    let errorBannerTimeout = null;
+    function showErrorBanner(msg) {
+        const b = document.getElementById('error-banner');
+        if (msg) document.getElementById('error-banner-text').textContent = msg;
+        b.style.display = 'flex';
+        if (errorBannerTimeout) clearTimeout(errorBannerTimeout);
+        errorBannerTimeout = setTimeout(dismissErrorBanner, 10000);
+    }
+    function dismissErrorBanner() {
+        document.getElementById('error-banner').style.display = 'none';
+        if (errorBannerTimeout) { clearTimeout(errorBannerTimeout); errorBannerTimeout = null; }
     }
 
     function updateStalenessDisplay() {
@@ -5000,12 +5031,30 @@
 
     // Tab switching with map visibility toggle
     function updateMapVisibility(tabName) {
+        const btn = document.getElementById('mapToggleBtn');
         if (tabName === 'gauges') {
             document.body.classList.add('show-map');
+            if (btn) {
+                btn.setAttribute('aria-pressed', 'true');
+                btn.classList.add('active');
+            }
             if (map) map.invalidateSize();
         } else {
             document.body.classList.remove('show-map');
+            if (btn) {
+                btn.setAttribute('aria-pressed', 'false');
+                btn.classList.remove('active');
+            }
         }
+    }
+
+    // Manual map toggle button
+    function toggleMap() {
+        const btn = document.getElementById('mapToggleBtn');
+        const show = document.body.classList.toggle('show-map');
+        btn.setAttribute('aria-pressed', show);
+        btn.classList.toggle('active', show);
+        if (map && show) map.invalidateSize();
     }
 
     document.querySelectorAll(".tab").forEach(tab => {
@@ -5689,6 +5738,7 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v24.12 | 2026-02-10 | Phase 2 User Experience: Mobile sidebar scrollable (45-60vh), network error banner, map toggle button (🗺️), about button accessibility fix, forecast disclaimer font size increased. |
 | v24.11 | 2026-02-10 | Phase 1 Security & Stability: XSS fix (innerHTML→textContent), USGS validation, fetch timeouts (AbortController), PIN to env var, .gitignore .env, event listener memory leak fix. |
 | v24.10 | 2026-02-03 | EF-only fallback when PoR ice-affected, learning suspension, admin dashboard, fetchData race fix, syncTimeout cleanup. |
 | v24.9 | 2026-01-25 | Iterative travel time convergence: fixes overprediction at low flow by converging on correct time-shift. |
@@ -5712,7 +5762,7 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
 
 ---
 
-*Generated by Potomac Pulse v24.11*
+*Generated by Potomac Pulse v24.12*
 `;
 
         // Download as Markdown file
