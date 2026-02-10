@@ -1711,23 +1711,22 @@
         const learnValLast = document.getElementById('learn-val-last');
         const pendingCount = gfLearningData.pendingPredictions?.length || 0;
 
-        // Build validation status HTML
-        let html = '';
+        // Build validation status text
+        let statusText = '';
         if (pendingCount > 0) {
-            html += `<span style="color:#fbbf24;">${pendingCount} pending</span> | `;
+            statusText += pendingCount + ' pending | ';
         }
         if (meta.totalValidations > 0) {
             const avgErr = meta.avgErrorPercent ? meta.avgErrorPercent.toFixed(1) : '--';
             const lastVal = meta.lastValidation ? new Date(meta.lastValidation).toLocaleString() : '--';
-            html += `${meta.totalValidations} validated | Avg err: ${avgErr}%`;
-            html += `<br><span style="color:#64748b;font-size:0.5rem;">Last: ${lastVal}</span>`;
+            statusText += meta.totalValidations + ' validated | Avg err: ' + avgErr + '% | Last: ' + lastVal;
         } else {
-            html += 'No validations yet - collecting data';
+            statusText += 'No validations yet - collecting data';
         }
 
         // Update both GF tab (hidden) and Learning tab elements
-        if (valLast) valLast.innerHTML = html;
-        if (learnValLast) learnValLast.innerHTML = html;
+        if (valLast) valLast.textContent = statusText;
+        if (learnValLast) learnValLast.textContent = statusText;
 
         // Update historical accuracy display in main GF panel
         // Only show when we have at least 5 validations for statistical relevance
@@ -2336,8 +2335,8 @@
         // This prevents the GF value from "jumping" when EF arrives
         const efReady = edwardsFerryData.current !== null;
         if (!gfDataReady || !efReady) {
-            document.getElementById("gf-cfs").innerHTML = '<span class="gf-loading">...</span>';
-            document.getElementById("gf-stage").innerHTML = '<span class="gf-loading">...</span>';
+            document.getElementById("gf-cfs").textContent = "...";
+            document.getElementById("gf-stage").textContent = "...";
             document.getElementById("gf-trend").textContent = "";
             document.getElementById("gf-data-source").textContent = !gfDataReady ? "Loading corrections..." : "Loading EF data...";
             document.getElementById("gf-confidence").textContent = "";
@@ -2361,7 +2360,9 @@
             if (isIceIssue) {
                 document.getElementById("gf-estimate-label").textContent = "UNAVAILABLE";
                 document.getElementById("gf-estimate-label").style.color = "#60a5fa";  // blue
-                document.getElementById("gf-trend").innerHTML = '<span style="color:#60a5fa;">❄️ Ice conditions</span>';
+                const trendEl = document.getElementById("gf-trend");
+                trendEl.textContent = "❄️ Ice conditions";
+                trendEl.style.color = "#60a5fa";
                 document.getElementById("gf-data-source").textContent = "Critical gauges ice-affected — estimate suspended";
             } else {
                 document.getElementById("gf-trend").textContent = "Waiting for data...";
@@ -2379,12 +2380,12 @@
         document.getElementById("gf-cfs").textContent = gfEstimate.cfs.toLocaleString();
 
         // Show stage with uncertainty range if available
+        const stageEl = document.getElementById("gf-stage");
         if (gfEstimate.uncertaintyRange) {
             const range = gfEstimate.uncertaintyRange;
-            document.getElementById("gf-stage").innerHTML =
-                `${gfEstimate.stage.toFixed(2)} <span style="color:#64748b;font-size:0.7em;">(${range.lowStage.toFixed(2)}-${range.highStage.toFixed(2)})</span>`;
+            stageEl.textContent = gfEstimate.stage.toFixed(2) + " (" + range.lowStage.toFixed(2) + "-" + range.highStage.toFixed(2) + ")";
         } else {
-            document.getElementById("gf-stage").textContent = gfEstimate.stage.toFixed(2);
+            stageEl.textContent = gfEstimate.stage.toFixed(2);
         }
 
         // EF-only fallback mode: PoR is ice-affected, using Edwards Ferry model only
@@ -2392,11 +2393,12 @@
             document.getElementById("gf-estimate-label").textContent = "❄️ EF-ONLY ESTIMATE";
             document.getElementById("gf-estimate-label").style.color = "#60a5fa";
             document.getElementById("gf-data-source").textContent =
-                `PoR ice-affected — using Edwards Ferry model (R²=${EF_MODEL.rSquared})`;
-            document.getElementById("gf-trend").innerHTML =
-                `<span style="color:#60a5fa;">${gfEstimate.flowState === 'rising' ? '▲' : gfEstimate.flowState === 'falling' ? '▼' : '●'} ${gfEstimate.flowState.toUpperCase()} (EF trend)</span>`;
-            document.getElementById("gf-confidence").innerHTML =
-                `Confidence: <span style="color:#f87171;">LOW</span> <span style="color:#64748b;font-size:0.8em;">(EF only)</span>`;
+                "PoR ice-affected — using Edwards Ferry model (R²=" + EF_MODEL.rSquared + ")";
+            const efTrendEl = document.getElementById("gf-trend");
+            const efTrendIcon = gfEstimate.flowState === 'rising' ? '▲' : gfEstimate.flowState === 'falling' ? '▼' : '●';
+            efTrendEl.textContent = efTrendIcon + " " + gfEstimate.flowState.toUpperCase() + " (EF trend)";
+            efTrendEl.style.color = "#60a5fa";
+            document.getElementById("gf-confidence").textContent = "Confidence: LOW (EF only)";
             document.getElementById("gf-forecast-cfs").textContent = "--";
             document.getElementById("gf-forecast-stage").textContent = "--";
             document.getElementById("gf-forecast-hrs").textContent = "--";
@@ -2425,17 +2427,20 @@
         // Flow state with icon
         const stateIcons = { rising: '▲ RISING', falling: '▼ FALLING', steady: '● STEADY' };
         const stateColors = { rising: '#ef4444', falling: '#22c55e', steady: '#64748b' };
-        document.getElementById("gf-trend").innerHTML =
-            `<span style="color:${stateColors[gfEstimate.flowState]}">${stateIcons[gfEstimate.flowState]}</span>`;
+        const trendStateEl = document.getElementById("gf-trend");
+        trendStateEl.textContent = stateIcons[gfEstimate.flowState];
+        trendStateEl.style.color = stateColors[gfEstimate.flowState];
 
         // Confidence - only show once we have trend data (NWS loaded)
         const confColors = { high: '#4ade80', medium: '#fbbf24', low: '#f87171' };
         const por = data["01638500"];
+        const confEl = document.getElementById("gf-confidence");
         if (por?.trend) {
-            document.getElementById("gf-confidence").innerHTML =
-                `Confidence: <span style="color:${confColors[gfEstimate.confidence]}">${gfEstimate.confidence.toUpperCase()}</span>`;
+            confEl.textContent = "Confidence: " + gfEstimate.confidence.toUpperCase();
+            confEl.style.color = confColors[gfEstimate.confidence];
         } else {
-            document.getElementById("gf-confidence").textContent = "Confidence: --";
+            confEl.textContent = "Confidence: --";
+            confEl.style.color = "";
         }
 
         // Forecast section - always shows current PoR arriving at GF
@@ -2445,11 +2450,11 @@
         document.getElementById("gf-forecast-arrival").textContent = fmtArrival(gfEstimate.inputs.travelPoRtoGF);
 
         // Inputs section
+        const porInputEl = document.getElementById("gf-input-por");
         if (gfEstimate.inputs.historicPorCFS) {
-            document.getElementById("gf-input-por").innerHTML =
-                `<span style="color:#4ade80;">${gfEstimate.inputs.historicPorCFS.toLocaleString()} cfs</span> <span style="color:#64748b;font-size:0.5rem;">(${gfEstimate.timeShiftedHoursAgo.toFixed(1)}h ago)</span>`;
+            porInputEl.textContent = gfEstimate.inputs.historicPorCFS.toLocaleString() + " cfs (" + gfEstimate.timeShiftedHoursAgo.toFixed(1) + "h ago)";
         } else {
-            document.getElementById("gf-input-por").textContent = gfEstimate.inputs.porCFS.toLocaleString() + " cfs (current)";
+            porInputEl.textContent = gfEstimate.inputs.porCFS.toLocaleString() + " cfs (current)";
         }
         document.getElementById("gf-input-monocacy").textContent =
             (gfEstimate.inputs.monocacyActual ? "+ " : "~+ ") + gfEstimate.inputs.monocacyCFS.toLocaleString() + " cfs";
@@ -2496,7 +2501,8 @@
                 agreementColor = '#ef4444';  // red
             }
 
-            efEstimateEl.innerHTML = `${efEst.cfs.toLocaleString()} cfs / ${efStage.toFixed(1)} ft <span style="color:${agreementColor}">${agreementIcon}</span>`;
+            efEstimateEl.textContent = efEst.cfs.toLocaleString() + " cfs / " + efStage.toFixed(1) + " ft " + agreementIcon;
+            efEstimateEl.style.color = agreementColor;
             efCrosscheck.style.display = 'block';
         } else {
             efCrosscheck.style.display = 'none';
@@ -2515,7 +2521,7 @@
         if (popupStage) {
             if (gfEstimate.uncertaintyRange) {
                 const range = gfEstimate.uncertaintyRange;
-                popupStage.innerHTML = `${gfEstimate.stage.toFixed(2)} ft <span style="color:#94a3b8;font-size:0.8em;">(${range.lowStage.toFixed(2)}-${range.highStage.toFixed(2)})</span>`;
+                popupStage.textContent = gfEstimate.stage.toFixed(2) + " ft (" + range.lowStage.toFixed(2) + "-" + range.highStage.toFixed(2) + ")";
             } else {
                 popupStage.textContent = gfEstimate.stage.toFixed(2) + " ft (LF scale)";
             }
@@ -2872,9 +2878,9 @@
         // Store forecast predictions for accuracy tracking (throttled, async)
         storeForecastPredictions(periods).catch(e => console.warn('Forecast storage error:', e));
 
-        // Add click handlers to period cards
+        // Add click handlers to period cards (use onclick to avoid stacking listeners)
         document.querySelectorAll('.forecast-period').forEach(card => {
-            card.addEventListener('click', () => {
+            card.onclick = function() {
                 // Remove selected from all
                 document.querySelectorAll('.forecast-period').forEach(c => c.classList.remove('selected'));
                 // Add selected to clicked
@@ -2882,7 +2888,7 @@
                 // Show marker on graph
                 const hrs = parseInt(card.dataset.hrs);
                 showGraphMarker(hrs);
-            });
+            };
         });
     }
 
@@ -3053,10 +3059,11 @@
             tooltip.style.display = 'none';
         }
 
-        hoverRect.addEventListener('mousemove', showTooltip);
-        hoverRect.addEventListener('touchmove', showTooltip);
-        hoverRect.addEventListener('mouseleave', hideTooltip);
-        hoverRect.addEventListener('touchend', hideTooltip);
+        // Use property assignment to avoid stacking listeners on re-render
+        hoverRect.onmousemove = showTooltip;
+        hoverRect.ontouchmove = showTooltip;
+        hoverRect.onmouseleave = hideTooltip;
+        hoverRect.ontouchend = hideTooltip;
     }
 
     // Show marker on graph for selected forecast period
@@ -3378,15 +3385,16 @@
         const el = document.getElementById('syncStatus');
         if (!el) return;
 
-        if (status === 'synced') {
-            el.innerHTML = '<span style="color:#4ade80;" title="Cloud synced">☁️</span>';
-        } else if (status === 'syncing') {
-            el.innerHTML = '<span style="color:#fbbf24;" title="Syncing...">☁️</span>';
-        } else if (status === 'error') {
-            el.innerHTML = '<span style="color:#f87171;" title="Sync error">⚠️</span>';
-        } else {
-            el.innerHTML = '<span style="color:#64748b;" title="Local only">💾</span>';
-        }
+        const statusConfig = {
+            synced: { icon: '☁️', color: '#4ade80', title: 'Cloud synced' },
+            syncing: { icon: '☁️', color: '#fbbf24', title: 'Syncing...' },
+            error: { icon: '⚠️', color: '#f87171', title: 'Sync error' },
+            local: { icon: '💾', color: '#64748b', title: 'Local only' }
+        };
+        const cfg = statusConfig[status] || statusConfig.local;
+        el.textContent = cfg.icon;
+        el.style.color = cfg.color;
+        el.title = cfg.title;
     }
     
     function recordObservation() {
@@ -3573,40 +3581,67 @@
     // Display GF bin statistics in Learning tab
     function updateGFBinStats() {
         const container = document.getElementById('gfBinStats');
-        if (!container || !gfLearningData?.correctionBins) {
-            if (container) container.innerHTML = '<p style="color:#64748b;">No bin data available</p>';
+        if (!container) return;
+        container.textContent = ''; // Clear
+
+        if (!gfLearningData?.correctionBins) {
+            const p = document.createElement('p');
+            p.style.color = '#64748b';
+            p.textContent = 'No bin data available';
+            container.appendChild(p);
             return;
         }
 
         const bins = gfLearningData.correctionBins;
-        let html = '<table style="width:100%;font-size:0.5rem;"><tr><th>Flow Bin</th><th>Rising</th><th>Steady</th><th>Falling</th></tr>';
+        const table = document.createElement('table');
+        table.style.width = '100%';
+        table.style.fontSize = '0.5rem';
 
+        // Header row
+        const headerRow = document.createElement('tr');
+        ['Flow Bin', 'Rising', 'Steady', 'Falling'].forEach(text => {
+            const th = document.createElement('th');
+            th.textContent = text;
+            headerRow.appendChild(th);
+        });
+        table.appendChild(headerRow);
+
+        // Data rows
         const flowBins = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
+        const colorFor = n => n >= 5 ? '#4ade80' : n > 0 ? '#fbbf24' : '#64748b';
+
         for (const bin of flowBins) {
             const binData = bins[bin] || {};
             const rising = binData.rising?.count || 0;
             const steady = binData.steady?.count || 0;
             const falling = binData.falling?.count || 0;
 
-            // Color code: green if 5+, yellow if 1-4, gray if 0
-            const colorFor = n => n >= 5 ? '#4ade80' : n > 0 ? '#fbbf24' : '#64748b';
+            const row = document.createElement('tr');
 
-            html += `<tr>
-                <td>${bin}</td>
-                <td style="color:${colorFor(rising)}">${rising}</td>
-                <td style="color:${colorFor(steady)}">${steady}</td>
-                <td style="color:${colorFor(falling)}">${falling}</td>
-            </tr>`;
+            const binCell = document.createElement('td');
+            binCell.textContent = bin;
+            row.appendChild(binCell);
+
+            [rising, steady, falling].forEach(val => {
+                const td = document.createElement('td');
+                td.textContent = val;
+                td.style.color = colorFor(val);
+                row.appendChild(td);
+            });
+
+            table.appendChild(row);
         }
-        html += '</table>';
+        container.appendChild(table);
 
         // Add correction summary
         const meta = gfLearningData.metadata || {};
         if (meta.resetAt) {
-            html += `<p style="margin-top:8px;color:#a78bfa;">Reset: ${new Date(meta.resetAt).toLocaleDateString()} (${meta.resetReason || 'manual'})</p>`;
+            const p = document.createElement('p');
+            p.style.marginTop = '8px';
+            p.style.color = '#a78bfa';
+            p.textContent = 'Reset: ' + new Date(meta.resetAt).toLocaleDateString() + ' (' + (meta.resetReason || 'manual') + ')';
+            container.appendChild(p);
         }
-
-        container.innerHTML = html;
     }
     
     function toggleLearning() {
@@ -3718,21 +3753,37 @@
         
         // Update correction list
         const list = document.getElementById("correctionList");
+        list.textContent = ''; // Clear existing content
         const corrections = Object.entries(learningData.corrections);
         if (corrections.length === 0) {
-            list.innerHTML = '<p style="color:#64748b;font-size:0.6rem;">Corrections calculated after detecting rise events at gauges and matching arrivals at Little Falls</p>';
+            const p = document.createElement('p');
+            p.style.color = '#64748b';
+            p.style.fontSize = '0.6rem';
+            p.textContent = 'Corrections calculated after detecting rise events at gauges and matching arrivals at Little Falls';
+            list.appendChild(p);
         } else {
-            list.innerHTML = corrections.map(([id, factor]) => {
+            for (const [id, factor] of corrections) {
                 const g = GAUGES[id];
                 const obs = learningData.observations[id] || [];
                 const rises = obs.filter(o => o.rising).length;
                 const diff = ((factor - 1) * 100).toFixed(1);
                 const sign = factor >= 1 ? "+" : "";
-                return `<div class="correction-item">
-                    <span class="gauge-name">${g?.name || id}</span>
-                    <span class="factor">${factor.toFixed(3)}× (${sign}${diff}%) • ${rises} rises</span>
-                </div>`;
-            }).join("");
+
+                const div = document.createElement('div');
+                div.className = 'correction-item';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'gauge-name';
+                nameSpan.textContent = g?.name || id;
+
+                const factorSpan = document.createElement('span');
+                factorSpan.className = 'factor';
+                factorSpan.textContent = factor.toFixed(3) + '× (' + sign + diff + '%) • ' + rises + ' rises';
+
+                div.appendChild(nameSpan);
+                div.appendChild(factorSpan);
+                list.appendChild(div);
+            }
         }
     }
 
@@ -3999,8 +4050,9 @@
 
     // ==================== FORECAST DISPLAY ====================
     
-    function getTrendIcon(trend, showMagnitude = false) {
-        if (!trend || trend.source !== "NWS") return "";
+    // Returns trend data object for safe DOM manipulation
+    function getTrendData(trend, showMagnitude = false) {
+        if (!trend || trend.source !== "NWS") return null;
 
         let icon, color;
         switch(trend.direction) {
@@ -4017,15 +4069,28 @@
                 color = "#6b7280"; // Gray - stable
         }
 
-        // Add magnitude percentage if requested and available
         let magnitude = "";
         if (showMagnitude && trend.rate !== undefined && trend.rate !== 0) {
             const pct = Math.round(trend.rate * 100);
             const sign = pct > 0 ? "+" : "";
-            magnitude = ` <span style="font-size:0.55rem;">${sign}${pct}%</span>`;
+            magnitude = " " + sign + pct + "%";
         }
 
-        return `<span style="color:${color};font-weight:bold;">${icon}${magnitude}</span>`;
+        return { icon, color, magnitude };
+    }
+
+    // Apply trend to an element safely using textContent
+    function applyTrendToElement(el, trend, showMagnitude = false) {
+        if (!el) return;
+        const data = getTrendData(trend, showMagnitude);
+        if (!data) {
+            el.textContent = "";
+            el.style.color = "";
+            return;
+        }
+        el.textContent = data.icon + data.magnitude;
+        el.style.color = data.color;
+        el.style.fontWeight = "bold";
     }
     
     function getTrendText(trend, current) {
@@ -4049,7 +4114,54 @@
     }
 
     // ==================== CORE FUNCTIONS ====================
-    
+
+    // Validate USGS API response schema
+    function validateUSGSResponse(json) {
+        if (!json || typeof json !== 'object') {
+            console.error('USGS validation: Response is not an object');
+            return false;
+        }
+        if (!json.value) {
+            console.error('USGS validation: Missing "value" property');
+            return false;
+        }
+        if (!Array.isArray(json.value.timeSeries)) {
+            console.error('USGS validation: "value.timeSeries" is not an array');
+            return false;
+        }
+        // Validate each time series has required fields
+        for (let i = 0; i < json.value.timeSeries.length; i++) {
+            const ts = json.value.timeSeries[i];
+            if (!ts.sourceInfo?.siteCode?.[0]?.value) {
+                console.error(`USGS validation: timeSeries[${i}] missing sourceInfo.siteCode`);
+                return false;
+            }
+            if (!ts.variable?.variableCode?.[0]?.value) {
+                console.error(`USGS validation: timeSeries[${i}] missing variable.variableCode`);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Fetch with timeout wrapper (default 5 seconds)
+    async function fetchWithTimeout(url, timeoutMs = 5000) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+            const response = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            return response;
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                throw new Error(`Request timed out after ${timeoutMs}ms`);
+            }
+            throw error;
+        }
+    }
+
     function calcTravelTimes() {
         // Use Little Falls FLOW for multiplier (Searcy power law)
         const lfFlow = data[LF.id]?.q || MEDIAN_FLOW;
@@ -4130,29 +4242,37 @@
         // This prevents the GF value from "jumping" after initial display
         await fetchEdwardsFerry();
 
-        // Try live USGS first
+        // Try live USGS first (10 second timeout)
         try {
-            let r = await fetch(url);
+            let r = await fetchWithTimeout(url, 10000);
             if (r.ok) {
                 const json = await r.json();
-                saveToCache(json);
-                lastFetchTime = Date.now();
-                dataSource = "live";
-                process(json);
-                setStatus("ok");
-                fetchNWSForecasts();
-                return;
+                if (!validateUSGSResponse(json)) {
+                    console.log('USGS response validation failed, trying proxies...');
+                } else {
+                    saveToCache(json);
+                    lastFetchTime = Date.now();
+                    dataSource = "live";
+                    process(json);
+                    setStatus("ok");
+                    fetchNWSForecasts();
+                    return;
+                }
             }
         } catch(e) {
-            console.log('Direct USGS fetch failed:', e);
+            console.log('Direct USGS fetch failed:', e.message || e);
         }
 
-        // Try CORS proxies
+        // Try CORS proxies (5 second timeout each)
         for (const p of PROXIES) {
             try {
-                let r = await fetch(p + encodeURIComponent(url));
+                let r = await fetchWithTimeout(p + encodeURIComponent(url), 5000);
                 if (r.ok) {
                     const json = await r.json();
+                    if (!validateUSGSResponse(json)) {
+                        console.log(`Proxy ${p} returned invalid USGS response`);
+                        continue;
+                    }
                     saveToCache(json);
                     lastFetchTime = Date.now();
                     dataSource = "live";
@@ -4194,7 +4314,7 @@
         const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${EDWARDS_FERRY.id}&parameterCd=00065&period=P1D&format=json`;
 
         try {
-            const r = await fetch(url);
+            const r = await fetchWithTimeout(url, 5000);
             if (!r.ok) return;
 
             const json = await r.json();
@@ -4606,7 +4726,7 @@
         const lf = data[LF.id];
         document.getElementById("lfQ").textContent = lf?.q ? Math.round(lf.q).toLocaleString() : "--";
         document.getElementById("lfH").textContent = lf?.h ? lf.h.toFixed(2) : "--";
-        document.getElementById("lfTrend").innerHTML = getTrendIcon(lf?.trend);
+        applyTrendToElement(document.getElementById("lfTrend"), lf?.trend);
         
         const mult = data._mult;
         if (mult) {
@@ -4651,7 +4771,7 @@
                         te.title = "";
                     }
                 }
-                if (tre) tre.innerHTML = getTrendIcon(d?.trend, true); // Show magnitude in sidebar
+                if (tre) applyTrendToElement(tre, d?.trend, true); // Show magnitude in sidebar
             }
         }
         
@@ -4688,8 +4808,10 @@
             </div>`;
         
         // Trend prediction
+        const trendData = getTrendData(d.trend);
+        const trendIconHtml = trendData ? `<span style="color:${trendData.color};font-weight:bold;">${trendData.icon}</span>` : '';
         html += `<div class="pop-trend">
-            <div class="pop-trend-title">📈 48-Hour Trend ${getTrendIcon(d.trend)}</div>
+            <div class="pop-trend-title">📈 48-Hour Trend ${trendIconHtml}</div>
             ${getTrendText(d.trend, d.q)}
         </div>`;
         
@@ -4962,7 +5084,7 @@
             document.getElementById('learnLocked').style.display = 'none';
             document.getElementById('learnUnlocked').style.display = 'block';
             document.getElementById('pinError').style.display = 'none';
-            document.getElementById('learnTab').innerHTML = '🧠 Learning';
+            document.getElementById('learnTab').textContent = '🧠 Learning';
             sessionStorage.setItem('learnUnlocked', 'true');
             updateGFBinStats();  // Show bin statistics
         } else {
@@ -4974,7 +5096,7 @@
     function lockLearning() {
         document.getElementById('learnLocked').style.display = 'block';
         document.getElementById('learnUnlocked').style.display = 'none';
-        document.getElementById('learnTab').innerHTML = '🔒 Learning';
+        document.getElementById('learnTab').textContent = '🔒 Learning';
         document.getElementById('learnPIN').value = '';
         sessionStorage.removeItem('learnUnlocked');
     }
@@ -4983,7 +5105,7 @@
     if (sessionStorage.getItem('learnUnlocked') === 'true') {
         document.getElementById('learnLocked').style.display = 'none';
         document.getElementById('learnUnlocked').style.display = 'block';
-        document.getElementById('learnTab').innerHTML = '🧠 Learning';
+        document.getElementById('learnTab').textContent = '🧠 Learning';
         updateGFBinStats();  // Show bin statistics
     }
     

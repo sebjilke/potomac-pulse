@@ -437,6 +437,7 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ## Version History
 
+- **v24.11** (2026-02-10): **Phase 1 Security & Stability** — XSS fix (innerHTML→textContent throughout UI rendering), USGS response schema validation (client + server), fetch timeouts with AbortController (5-10s), admin PIN moved to server-side env variable (ADMIN_PIN), .env patterns in .gitignore, event listener memory leak fixed (property assignment vs addEventListener for repeated renders).
 - **v24.10** (2026-02-03): EF-only GF fallback when PoR is ice-affected (shows "❄️ EF-ONLY ESTIMATE" with LOW confidence, auto-reverts when PoR recovers). Learning/validation suspended across all critical gauge ice conditions (client + server). Admin dashboard in Learning tab (LF/GF/PoR/EF status, model health, ice indicators). Fixed `ef.toFixed` crash in admin dashboard (ef is `{stage, timestamp}`, not a number). Fixed fetchData race condition with `isFetching` guard. Added forecast item validation in sync-learning. Fixed syncTimeout cleanup.
 - **v24.9** (2026-01-25): Iterative travel time convergence fixes overprediction bug. At low flow, previous logic used current flow to calculate travel time (33h), but found higher historical flow (1900 cfs) that actually traveled faster (25h) and had already passed. Now iterates up to 3x to converge on correct time-shift.
 - **v24.8** (2026-01-25): Skip EF ensemble when discrepancy >50% indicates ice/backwater. Extended PoR history to 72h for low-flow time-shifting.
@@ -454,4 +455,4 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ---
 
-*Last updated: 2026-02-03*
+*Last updated: 2026-02-10*

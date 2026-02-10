@@ -52,6 +52,54 @@ function getFlowMultiplier(lfFlow) {
     return travelHrs / MEDIAN_TRAVEL;
 }
 
+// Validate USGS API response schema
+function validateUSGSResponse(json) {
+    // Check required top-level structure
+    if (!json || typeof json !== 'object') {
+        return { valid: false, error: 'Response is not an object' };
+    }
+    if (!json.value) {
+        return { valid: false, error: 'Missing "value" property' };
+    }
+    if (!Array.isArray(json.value.timeSeries)) {
+        return { valid: false, error: '"value.timeSeries" is not an array' };
+    }
+
+    // Validate each time series has required fields
+    for (let i = 0; i < json.value.timeSeries.length; i++) {
+        const ts = json.value.timeSeries[i];
+        if (!ts.sourceInfo?.siteCode?.[0]?.value) {
+            return { valid: false, error: `timeSeries[${i}] missing sourceInfo.siteCode` };
+        }
+        if (!ts.variable?.variableCode?.[0]?.value) {
+            return { valid: false, error: `timeSeries[${i}] missing variable.variableCode` };
+        }
+        if (!Array.isArray(ts.values) || !ts.values[0]) {
+            return { valid: false, error: `timeSeries[${i}] missing values array` };
+        }
+    }
+
+    return { valid: true };
+}
+
+// Fetch with timeout wrapper
+async function fetchWithTimeout(url, timeoutMs = 5000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            throw new Error(`Request timed out after ${timeoutMs}ms`);
+        }
+        throw error;
+    }
+}
+
 // Fetch current USGS data
 async function fetchUSGSData() {
     const gauges = {
@@ -67,13 +115,28 @@ async function fetchUSGSData() {
     const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${sites}&parameterCd=00060,00065&period=P2D&format=json`;
 
     try {
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url, 10000); // 10 second timeout
         if (!response.ok) {
-            console.error('USGS fetch failed:', response.status);
+            console.error('USGS fetch failed:', response.status, response.statusText);
             return null;
         }
 
-        const json = await response.json();
+        // Parse JSON with explicit error handling
+        let json;
+        try {
+            json = await response.json();
+        } catch (parseError) {
+            console.error('USGS JSON parse error:', parseError.message);
+            return null;
+        }
+
+        // Validate response schema
+        const validation = validateUSGSResponse(json);
+        if (!validation.valid) {
+            console.error('USGS response validation failed:', validation.error);
+            return null;
+        }
+
         const data = {};
 
         for (const ts of json.value?.timeSeries || []) {

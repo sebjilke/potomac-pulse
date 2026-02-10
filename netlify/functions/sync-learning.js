@@ -7,6 +7,9 @@ const { createClient } = require('@supabase/supabase-js');
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
+// Admin PIN from environment variable (defaults to legacy value if not set)
+const ADMIN_PIN = process.env.ADMIN_PIN || '314159';
+
 let supabase = null;
 
 function getSupabase() {
@@ -730,7 +733,7 @@ async function saveGFLearningData(client, data) {
         // Keeps higher flow bins which are less likely to be contaminated
         if (action === 'resetLowFlowBins') {
             const { pin } = data;
-            if (pin !== '314159') {
+            if (pin !== ADMIN_PIN) {
                 return { statusCode: 403, headers, body: JSON.stringify({ error: 'Invalid PIN' }) };
             }
 
@@ -799,7 +802,7 @@ async function saveGFLearningData(client, data) {
         if (action === 'resetGFLearning') {
             const { pin } = data;
             // Simple PIN protection (same as client-side learning tab)
-            if (pin !== '314159') {
+            if (pin !== ADMIN_PIN) {
                 return { statusCode: 403, headers, body: JSON.stringify({ error: 'Invalid PIN' }) };
             }
 
@@ -849,7 +852,7 @@ async function saveGFLearningData(client, data) {
         // Action: Reset forecast accuracy data (admin only, requires PIN)
         if (action === 'resetForecastAccuracy') {
             const { pin } = data;
-            if (pin !== '314159') {
+            if (pin !== ADMIN_PIN) {
                 return { statusCode: 403, headers, body: JSON.stringify({ error: 'Invalid PIN' }) };
             }
 
