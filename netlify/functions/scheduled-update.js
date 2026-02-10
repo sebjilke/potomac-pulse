@@ -25,11 +25,12 @@ const TRAVEL_POR_GF_BASELINE = 19.4;  // Adjusted (24.3 × 0.80)
 const TRAVEL_GF_LF_BASELINE = 6.5;    // Adjusted (8.1 × 0.80)
 
 // Edwards Ferry → Little Falls power-law model
-// Derived from 16,971 data pairs using limnologist approach (R² = 0.98)
+// Updated 2026-02-10: 136×EF^2.42 from 10,434 daily observations (2011-2026)
+// Previous model (108×2.64) had 22.6% mean error; new model reduces RMSE by 54%
 // SYNC WARNING: Keep in sync with EF_MODEL in index.html
 const EF_MODEL = {
-    coef: 108,           // Coefficient (a in LF = a × stage^b)
-    exp: 2.64,           // Exponent (b)
+    coef: 136,           // Coefficient (a in LF = a × stage^b) - was 108
+    exp: 2.42,           // Exponent (b) - was 2.64
     weight: 0.4,         // Weight in ensemble (40% EF, 60% PoR)
     minStage: 2.5,       // Minimum valid EF stage (ft)
     maxStage: 20.0       // Maximum valid EF stage (ft)

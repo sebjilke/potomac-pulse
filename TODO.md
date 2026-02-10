@@ -72,6 +72,31 @@
 
 *Requires sequential validation*
 
+### ~~Update EF power-law model coefficients~~ ✅ (v24.13)
+- **Old model**: 108 × EF^2.64 (had 22.6% mean error)
+- **New model**: 136 × EF^2.42 (6.3% mean error, 54% RMSE reduction)
+- **Data**: 10,434 daily observations from USGS (2011-2026)
+- **Files updated**: index.html, scheduled-update.js
+- **Analysis**: `/analysis/fetch_ef_longterm.py`, `/analysis/ef_lf_daily_longterm.csv`
+
+### Add temperature-aware EF model (Phase 2 enhancement)
+- **Finding**: EF model accuracy varies with water temperature
+  - Cold water (<10°C): Model = 173 × EF^2.31 (error +17-21%)
+  - Warm water (>15°C): Model = 98 × EF^2.54 (error +49%)
+- **Fix**: Fetch LF water temp (USGS param 00010), use temperature-specific coefficients
+- **Fallback**: Use default 136 × EF^2.42 when temp unavailable
+- **Data**: `/analysis/ef_lf_with_temp.csv` has merged temp data
+- **Impact**: Could reduce error to ~6-8% across all seasons
+- **Effort**: 4h
+
+### Re-tune ice detection thresholds (now possible)
+- **Background**: Previous EF model underestimated by ~22%, so EF cross-check rarely triggered
+- **With new model**: EF estimates are accurate, so EF >> LF during ice should now trigger correctly
+- **Action**: Monitor ice detection during remainder of winter 2025-2026
+- **Threshold review**: May need to adjust 25% threshold based on new model accuracy
+- **Data**: USGS ice flags in `/analysis/ice_data_raw.csv`
+- **Effort**: 4h (after monitoring period)
+
 ### Validate 0.80 travel time correction
 - **Location**: `index.html` — Searcy model constants
 - **Issue**: No statistical justification for 0.80 multiplier
@@ -92,11 +117,6 @@
 - **Issue**: Shift varies 2-5 hrs depending on flow
 - **Fix**: Use power-law T(Q) scaled to 15-mile distance
 - **Effort**: 4h
-
-### Data-driven ice detection thresholds
-- **Current**: 25%, 35% thresholds are ad-hoc
-- **Fix**: Analyze historical false positives/negatives, optimize with ROC curve
-- **Effort**: 8h
 
 ### Add confidence intervals to predictions
 - **Current**: Point estimates only
@@ -281,6 +301,13 @@
 
 ## Completed
 
+- [x] **EF Model Recalibration** v24.13 (2026-02-10)
+  - Updated power-law from 108×EF^2.64 to 136×EF^2.42
+  - Based on 10,434 USGS daily observations (2011-2026)
+  - RMSE reduced 54% (12,577 → 5,790 cfs), mean error 22.6% → 6.3%
+  - Fixes ice detection EF cross-check (was broken due to underestimation)
+  - Temperature dependency discovered: future enhancement to use temp-specific coefficients
+  - Analysis data saved to `/analysis/ef_lf_daily_longterm.csv` and `/analysis/ef_lf_with_temp.csv`
 - [x] **Comprehensive project review** (2026-02-10)
   - 5 independent review agents analyzed structure, code, UX, science, database
   - 45 issues identified: 8 critical, 12 high, 15 medium, 10 low
@@ -317,4 +344,4 @@
 
 ---
 
-*Last updated: 2026-02-10 (Phase 2 complete)*
+*Last updated: 2026-02-10 (EF model recalibration v24.13)*

@@ -1060,7 +1060,7 @@
     // 1. GREAT FALLS PREDICTION (estimateGreatFalls, ~line 1696)
     //    Ensemble model: 60% Point of Rocks + 40% Edwards Ferry
     //    - PoR component: Time-shifted PoR reading + Monocacy + Goose Creek
-    //    - EF component: Power-law model (CFS = 108 × stage^2.64, R²=0.98)
+    //    - EF component: Power-law model (CFS = 136 × stage^2.42, R²=0.94)
     //
     // 2. TRAVEL TIME MODEL (getFlowMultiplier, ~line 1049)
     //    Based on Searcy 1961 (USGS Circular 438) with 0.80 empirical correction
@@ -1073,8 +1073,8 @@
     //    - Anomaly detection: Ice, gauge errors, statistical outliers
     //    - EMA smoothing (α=0.3) for stable corrections
     //
-    // 4. EDWARDS FERRY MODEL (EF_MODEL, ~line 963)
-    //    Power-law: LF_cfs = 108 × EF_stage^2.64
+    // 4. EDWARDS FERRY MODEL (EF_MODEL, ~line 1182)
+    //    Power-law: LF_cfs = 136 × EF_stage^2.42 (updated 2026-02-10)
     //    Hysteresis: +8% rising limb, -8% falling limb
     //
     // 5. KEY DATA FLOWS
@@ -1178,12 +1178,15 @@
     // To update: Run /.netlify/functions/build-ef-correlation-advanced?months=12
     // and update these constants with the recommended model values.
     //
-    // Generated: 2026-01-17 | Data range: 2025-07-21 to 2026-01-17
+    // Generated: 2026-02-10 | Data range: 2011-2026 (10,434 daily observations)
+    // Updated from 108×EF^2.64 after analysis showed 22.6% mean error
+    // New model reduces RMSE by 54% (from 12,577 to 5,790 cfs)
+    // See /analysis/fetch_ef_longterm.py for derivation
     const EF_MODEL = {
-        coef: 108,           // Coefficient (a in LF = a × stage^b)
-        exp: 2.64,           // Exponent (b) - physically meaningful for channel geometry
-        rSquared: 0.98,      // Model fit quality
-        medianErrorPct: 4.1, // Typical prediction error
+        coef: 136,           // Coefficient (a in LF = a × stage^b) - was 108
+        exp: 2.42,           // Exponent (b) - was 2.64
+        rSquared: 0.94,      // Model fit quality (R² from log-linear regression)
+        medianErrorPct: 6.3, // Typical prediction error (was 4.1 but that was optimistic)
         weight: 0.4,         // Weight in ensemble (0.4 = 40% EF, 60% PoR)
         minStage: 2.5,       // Minimum valid EF stage (ft)
         maxStage: 20.0       // Maximum valid EF stage (ft)
@@ -2176,7 +2179,7 @@
 
         // ==================== WEIGHTED ENSEMBLE WITH EDWARDS FERRY ====================
         // Blend PoR-based estimate with EF power-law model for improved accuracy
-        // EF model: LF_cfs = 108 × EF_stage^2.64 (R² = 0.98)
+        // EF model: LF_cfs = 136 × EF_stage^2.42 (R² = 0.94, updated 2026-02-10)
         // Weights: 60% PoR model + 40% EF model (when EF available and consistent)
         const efEstimate = estimateGFFromEdwardsFerry();
         let useEfEnsemble = false;
@@ -4386,7 +4389,7 @@
     }
 
     // Estimate LF CFS directly from Edwards Ferry stage using power-law model
-    // Model: LF_cfs = 108 × EF_stage^2.64 (R² = 0.98, derived from 16,971 data pairs)
+    // Model: LF_cfs = 136 × EF_stage^2.42 (R² = 0.94, derived from 10,434 daily observations 2011-2026)
     // Includes learnable hysteresis correction: rising limb carries more flow than falling at same stage
     // Returns null if EF data missing or stage out of valid range
     function estimateGFFromEdwardsFerry() {
@@ -5345,22 +5348,23 @@ A hidden gauge at Edwards Ferry (USGS 01644148) sits just ~2-3 miles upstream of
 
 #### Model Development (Limnologist Approach)
 
-We analyzed **16,971 matched data pairs** from 6 months of instantaneous (15-minute) USGS data:
+We analyzed **10,434 matched daily observations** from 2011-2026 using USGS daily value data:
 
-1. **Time-shift optimization:** Tested shifts from 1-8 hours in 15-min increments to find optimal EF→LF alignment
+1. **Long-term data:** 15 years of USGS daily values for EF stage and LF discharge
 2. **Power-law fitting:** Fit \`LF_cfs = a × EF_stage^b\` (physically appropriate for channel hydraulics)
-3. **Outlier removal:** IQR-based detection removed ~5% sensor artifacts
-4. **Validation:** R² = 0.98, median error = 4.1%
+3. **Outlier removal:** Excluded ice-flagged periods and stage < 2.0 ft
+4. **Validation:** R² = 0.94, mean error = 6.3%
 
-#### The Model
+#### The Model (Updated 2026-02-10)
 
 \`\`\`
-LF_cfs = 108 × EF_stage^2.64
+LF_cfs = 136 × EF_stage^2.42
 \`\`\`
 
-- **R² = 0.98** (excellent correlation)
-- **Median error: 4.1%** (typical prediction accuracy)
-- **Exponent 2.64** reflects channel geometry (discharge increases faster than stage)
+- **R² = 0.94** (strong correlation)
+- **Mean error: 6.3%** (reduced from 22.6% with previous model)
+- **RMSE reduced by 54%** (from 12,577 to 5,790 cfs)
+- **Exponent 2.42** reflects channel geometry (slightly lower than 2.64 due to larger dataset)
 
 #### Weighted Ensemble
 
