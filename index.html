@@ -5448,10 +5448,10 @@ LF_cfs = 136 × EF_stage^2.42
 
 #### Weighted Ensemble
 
-The final Great Falls estimate blends two independent models:
+The final Great Falls estimate blends two independent models with **flow-dependent weighting** (v24.15):
 
 \`\`\`
-GF_estimate = 60% × (PoR model) + 40% × (EF model)
+GF_estimate = (1 - EF_weight) × (PoR model) + EF_weight × (EF model)
 \`\`\`
 
 - **PoR model:** Time-shifted upstream data + tributary corrections
@@ -5465,6 +5465,44 @@ This ensemble approach:
 **EF Discrepancy Check (v24.8):** Skip EF ensemble when EF estimate differs from PoR by >50%.
 Ice or backwater at EF can inflate stage readings without affecting ADVM-based PoR/LF measurements.
 When discrepancy is detected, system falls back to PoR-only estimate.
+
+#### Cold-Water EF Model (v24.14)
+
+Analysis of 3,354 matched observations (2021-2026) with water temperature data revealed that the EF power-law coefficients vary with temperature. Cold water has different hydraulic properties (higher density, viscosity) that affect the stage-discharge relationship.
+
+**Temperature-Specific Models:**
+
+| Condition | Formula | When Applied |
+|-----------|---------|--------------|
+| **Cold** | \`LF_cfs = 175.4 × EF^2.302\` | Water temp ≤ 10°C (50°F) |
+| **Default** | \`LF_cfs = 136 × EF^2.42\` | Water temp > 10°C or unavailable |
+
+**Implementation:**
+- Water temperature fetched from Point of Rocks (USGS 01638500, param 00010)
+- Cold-water model improves winter predictions by **10.9%**
+- Graceful fallback: uses default model when temperature data unavailable
+
+*Note: Analysis showed a full temperature model (cold/moderate/warm) made warm-season predictions worse. The cold-only adjustment captures the most significant improvement without degrading summer accuracy.*
+
+#### Flow-Dependent EF Weighting (v24.15)
+
+Analysis of 10,434 daily observations revealed that EF model accuracy varies dramatically with flow level. At low flows, dam operations (Little Falls Dam, Little Seneca Dam releases) dominate the signal, causing the same EF stage to correspond to vastly different downstream flows.
+
+**Key Finding:** At EF stage 3.5-4.0 ft, observed LF discharge ranges from **450 to 13,100 cfs** — a 29x range! This makes low-flow EF predictions inherently unreliable.
+
+**Flow-Dependent Weights:**
+
+| Estimated Flow | PoR Weight | EF Weight | Rationale |
+|----------------|------------|-----------|-----------|
+| < 3,000 cfs | 75% | 25% | Dam operations dominate; PoR ADVM more reliable |
+| 3,000 - 6,000 cfs | 65% | 35% | Transitional; still some dam influence |
+| 6,000 - 15,000 cfs | 60% | 40% | Balanced; natural flow dominates |
+| > 15,000 cfs | 55% | 45% | High flow; EF proximity advantage increases |
+
+**Why this works:**
+- **PoR (ADVM-based):** Measures actual velocity × cross-section = true discharge. Captures dam releases immediately.
+- **EF (stage-only):** Estimates discharge from water level. Cannot distinguish between "high stage from dam release" vs "high stage from natural flow."
+- At high flows, natural river behavior dominates and EF's proximity advantage (2-3 miles vs 20+ miles) outweighs the stage-discharge ambiguity.
 
 #### Learnable Hysteresis Correction (v22)
 
