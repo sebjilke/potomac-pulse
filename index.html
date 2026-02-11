@@ -1178,15 +1178,22 @@
     // To update: Run /.netlify/functions/build-ef-correlation-advanced?months=12
     // and update these constants with the recommended model values.
     //
-    // Generated: 2026-02-10 | Data range: 2011-2026 (10,434 daily observations)
+    // Generated: 2026-02-11 | Data range: 2011-2026 (10,434 daily observations)
     // Updated from 108×EF^2.64 after analysis showed 22.6% mean error
-    // New model reduces RMSE by 54% (from 12,577 to 5,790 cfs)
-    // See /analysis/fetch_ef_longterm.py for derivation
+    // v24.14: Added cold-water adjustment (175.4×EF^2.302 when temp ≤10°C)
+    // Cold adjustment improves winter RMSE by 10.9%, overall by 1.7%
+    // See /analysis/ef_lf_temp_merged.csv for temperature analysis
     const EF_MODEL = {
-        coef: 136,           // Coefficient (a in LF = a × stage^b) - was 108
-        exp: 2.42,           // Exponent (b) - was 2.64
+        // Default coefficients (temp > 10°C or temp unavailable)
+        coef: 136,           // Coefficient (a in LF = a × stage^b)
+        exp: 2.42,           // Exponent (b)
+        // Cold water coefficients (temp ≤ 10°C / 50°F)
+        coldCoef: 175.4,     // Higher coefficient for cold water
+        coldExp: 2.302,      // Lower exponent for cold water
+        coldMaxTemp: 10,     // Temperature threshold in °C
+        // Model metadata
         rSquared: 0.94,      // Model fit quality (R² from log-linear regression)
-        medianErrorPct: 6.3, // Typical prediction error (was 4.1 but that was optimistic)
+        medianErrorPct: 6.3, // Typical prediction error
         weight: 0.4,         // Weight in ensemble (0.4 = 40% EF, 60% PoR)
         minStage: 2.5,       // Minimum valid EF stage (ft)
         maxStage: 20.0       // Maximum valid EF stage (ft)
@@ -1209,6 +1216,22 @@
         correlation: null   // Legacy learned correlation (kept for backwards compatibility)
     };
     const EF_HISTORY_MAX = 48;  // Keep ~12 hours of readings at 15-min intervals
+
+    // Water temperature for EF model cold adjustment
+    // Fetched from Point of Rocks (01638500) which has temp sensor
+    let waterTempC = null;  // null = unavailable, use default model
+
+    // Flow-dependent EF weight for ensemble model
+    // Based on RMSE optimization across 10,434 observations (2011-2026)
+    // At low flow: EF has +33% bias (dam operations), reduce weight
+    // At high flow: EF is more reliable, increase weight slightly
+    // Analysis: /analysis/flow_weight_optimization_realistic.csv
+    function getEFWeight(estimatedFlow) {
+        if (estimatedFlow < 3000)  return 0.25;  // Low flow: EF +33% bias
+        if (estimatedFlow < 6000)  return 0.35;  // Med-low: slight reduction
+        if (estimatedFlow < 15000) return 0.40;  // Medium: current default
+        return 0.45;                              // High flow: EF more reliable
+    }
 
     const BRANCHES = {
         mainstem: { name: "Mainstem", color: "#2563eb", ids: ["01638500","01618000","01613000","01610000"] },
@@ -2194,12 +2217,14 @@
                 console.log(`⚠️ Skipping EF ensemble: ${Math.round(discrepancy*100)}% discrepancy (EF: ${efEstimate.cfs} vs PoR: ${Math.round(porEstimateCFS)})`);
                 estimatedCFS = porEstimateCFS;
             } else {
-                // Blend the two estimates
-                const porWeight = 1 - EF_MODEL.weight;  // 0.6
-                const efWeight = EF_MODEL.weight;        // 0.4
+                // Blend the two estimates using flow-dependent weight
+                // At low flow: reduce EF weight (EF has +33% bias from dam ops)
+                // At high flow: increase EF weight (EF more reliable)
+                const efWeight = getEFWeight(porEstimateCFS);
+                const porWeight = 1 - efWeight;
                 estimatedCFS = Math.round(porWeight * porEstimateCFS + efWeight * efEstimate.cfs);
                 useEfEnsemble = true;
-                console.log(`🔀 Ensemble: ${porWeight*100}% PoR (${Math.round(porEstimateCFS)}) + ${efWeight*100}% EF (${efEstimate.cfs}) = ${estimatedCFS} cfs`);
+                console.log(`🔀 Ensemble: ${(porWeight*100).toFixed(0)}% PoR (${Math.round(porEstimateCFS)}) + ${(efWeight*100).toFixed(0)}% EF (${efEstimate.cfs}) = ${estimatedCFS} cfs`);
             }
         } else {
             // EF not available - use PoR-only estimate
@@ -2792,18 +2817,24 @@
 
                 // Get EF forecast at target time and apply power-law model
                 // Note: EF is closer to GF (~3-5h travel), so direct interpolation is acceptable
+                // Use cold-water coefficients if current water temp ≤ 10°C
                 let efEstimate = null;
                 if (hasEFForecast) {
                     const efStage = interpolateForecast(efPoints, targetHrs, 'stage');
                     if (efStage && efStage >= EF_MODEL.minStage && efStage <= EF_MODEL.maxStage) {
-                        efEstimate = EF_MODEL.coef * Math.pow(efStage, EF_MODEL.exp);
+                        const coef = (waterTempC !== null && waterTempC <= EF_MODEL.coldMaxTemp)
+                            ? EF_MODEL.coldCoef : EF_MODEL.coef;
+                        const exp = (waterTempC !== null && waterTempC <= EF_MODEL.coldMaxTemp)
+                            ? EF_MODEL.coldExp : EF_MODEL.exp;
+                        efEstimate = coef * Math.pow(efStage, exp);
                     }
                 }
 
-                // Apply ensemble model: 60% PoR + 40% EF (when EF available)
+                // Apply ensemble model with flow-dependent EF weight
                 let forecastCFS;
                 if (efEstimate !== null) {
-                    forecastCFS = (1 - EF_MODEL.weight) * porCFS + EF_MODEL.weight * efEstimate;
+                    const efWeight = getEFWeight(porCFS);
+                    forecastCFS = (1 - efWeight) * porCFS + efWeight * efEstimate;
                 } else {
                     forecastCFS = porCFS;  // PoR only
                 }
@@ -4255,9 +4286,13 @@
         // Use P7D to capture last valid readings for ice-affected gauges (ice can last >2 days)
         const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${sites}&parameterCd=00060,00065&period=P7D&format=json`;
 
-        // Start Edwards Ferry fetch - await it to ensure GF shows final value on first load
-        // This prevents the GF value from "jumping" after initial display
-        await fetchEdwardsFerry();
+        // Fetch Edwards Ferry and water temp in parallel
+        // - EF stage: for GF ensemble model
+        // - Water temp: for cold-water EF model adjustment (improves winter predictions)
+        await Promise.all([
+            fetchEdwardsFerry(),
+            fetchWaterTemp()
+        ]);
 
         // Try live USGS first (10 second timeout)
         try {
@@ -4371,6 +4406,32 @@
         }
     }
 
+    // Fetch water temperature from Point of Rocks for EF model cold adjustment
+    // PoR is 15mi upstream of EF but on same mainstem, so temp is representative
+    async function fetchWaterTemp() {
+        const url = 'https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00010&period=P1D&format=json';
+        try {
+            const r = await fetchWithTimeout(url, 5000);
+            if (!r.ok) return;
+
+            const json = await r.json();
+            if (!json?.value?.timeSeries?.[0]?.values?.[0]?.value?.length) return;
+
+            const values = json.value.timeSeries[0].values[0].value;
+            const latest = values[values.length - 1];
+            const tempC = parseFloat(latest.value);
+
+            if (tempC >= -5 && tempC <= 40) {  // Sanity check
+                waterTempC = tempC;
+                const isCold = tempC <= EF_MODEL.coldMaxTemp;
+                console.log(`🌡️ Water temp: ${tempC.toFixed(1)}°C (${(tempC * 9/5 + 32).toFixed(0)}°F) — using ${isCold ? 'COLD' : 'default'} EF model`);
+            }
+        } catch(e) {
+            console.warn('Water temp fetch failed:', e);
+            // waterTempC remains null, will use default model
+        }
+    }
+
     // Get Edwards Ferry trend (rising/falling/steady)
     function getEdwardsFerryTrend() {
         const history = edwardsFerryData.history;
@@ -4389,7 +4450,9 @@
     }
 
     // Estimate LF CFS directly from Edwards Ferry stage using power-law model
-    // Model: LF_cfs = 136 × EF_stage^2.42 (R² = 0.94, derived from 10,434 daily observations 2011-2026)
+    // Model: LF_cfs = coef × EF_stage^exp (coefficients depend on water temperature)
+    // Cold water (≤10°C): 175.4 × EF^2.302 (10.9% better RMSE in winter)
+    // Default (>10°C or unknown): 136 × EF^2.42
     // Includes learnable hysteresis correction: rising limb carries more flow than falling at same stage
     // Returns null if EF data missing or stage out of valid range
     function estimateGFFromEdwardsFerry() {
@@ -4401,8 +4464,21 @@
         // Validate stage is in reasonable range
         if (stage < EF_MODEL.minStage || stage > EF_MODEL.maxStage) return null;
 
+        // Select coefficients based on water temperature
+        // Cold water has different hydraulic properties (higher viscosity)
+        let coef, exp, modelType;
+        if (waterTempC !== null && waterTempC <= EF_MODEL.coldMaxTemp) {
+            coef = EF_MODEL.coldCoef;
+            exp = EF_MODEL.coldExp;
+            modelType = 'cold';
+        } else {
+            coef = EF_MODEL.coef;
+            exp = EF_MODEL.exp;
+            modelType = waterTempC !== null ? 'default' : 'default-no-temp';
+        }
+
         // Power-law model: LF_cfs = coef × stage^exp
-        let estimatedCFS = EF_MODEL.coef * Math.pow(stage, EF_MODEL.exp);
+        let estimatedCFS = coef * Math.pow(stage, exp);
 
         // Apply learned hysteresis correction based on EF trend
         // Multipliers start at 1.0 and are updated based on validation errors
@@ -4418,6 +4494,10 @@
             cfs: Math.round(estimatedCFS),
             stage: stage,
             model: 'power-law',
+            modelType: modelType,         // 'cold', 'default', or 'default-no-temp'
+            waterTempC: waterTempC,       // Water temp used for model selection
+            coef: coef,                   // Coefficient used
+            exp: exp,                     // Exponent used
             rSquared: EF_MODEL.rSquared,
             medianErrorPct: EF_MODEL.medianErrorPct,
             efTrend: efTrend,

@@ -25,16 +25,33 @@ const TRAVEL_POR_GF_BASELINE = 19.4;  // Adjusted (24.3 × 0.80)
 const TRAVEL_GF_LF_BASELINE = 6.5;    // Adjusted (8.1 × 0.80)
 
 // Edwards Ferry → Little Falls power-law model
-// Updated 2026-02-10: 136×EF^2.42 from 10,434 daily observations (2011-2026)
-// Previous model (108×2.64) had 22.6% mean error; new model reduces RMSE by 54%
+// Updated 2026-02-11: Added cold-water adjustment (v24.14)
+// Cold water (≤10°C): 175.4 × EF^2.302 (10.9% better RMSE in winter)
+// Default (>10°C): 136 × EF^2.42
 // SYNC WARNING: Keep in sync with EF_MODEL in index.html
 const EF_MODEL = {
-    coef: 136,           // Coefficient (a in LF = a × stage^b) - was 108
-    exp: 2.42,           // Exponent (b) - was 2.64
-    weight: 0.4,         // Weight in ensemble (40% EF, 60% PoR)
-    minStage: 2.5,       // Minimum valid EF stage (ft)
-    maxStage: 20.0       // Maximum valid EF stage (ft)
+    // Default coefficients (temp > 10°C or temp unavailable)
+    coef: 136,
+    exp: 2.42,
+    // Cold water coefficients (temp ≤ 10°C)
+    coldCoef: 175.4,
+    coldExp: 2.302,
+    coldMaxTemp: 10,      // Temperature threshold in °C
+    // Static params (weight now flow-dependent, see getEFWeight)
+    minStage: 2.5,        // Minimum valid EF stage (ft)
+    maxStage: 20.0        // Maximum valid EF stage (ft)
 };
+
+// Flow-dependent EF weight for ensemble model
+// Based on RMSE optimization across 10,434 observations (2011-2026)
+// At low flow: EF has +33% bias (dam operations), reduce weight
+// At high flow: EF is more reliable, increase weight slightly
+function getEFWeight(estimatedFlow) {
+    if (estimatedFlow < 3000)  return 0.25;  // Low flow: EF +33% bias
+    if (estimatedFlow < 6000)  return 0.35;  // Med-low: slight reduction
+    if (estimatedFlow < 15000) return 0.40;  // Medium: default
+    return 0.45;                              // High flow: EF more reliable
+}
 
 const GF_FLOW_BINS = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
 
@@ -98,6 +115,31 @@ async function fetchWithTimeout(url, timeoutMs = 5000) {
             throw new Error(`Request timed out after ${timeoutMs}ms`);
         }
         throw error;
+    }
+}
+
+// Fetch water temperature from Point of Rocks for EF model cold adjustment
+async function fetchWaterTemp() {
+    const url = 'https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00010&period=P1D&format=json';
+    try {
+        const response = await fetchWithTimeout(url, 5000);
+        if (!response.ok) return null;
+
+        const json = await response.json();
+        const values = json?.value?.timeSeries?.[0]?.values?.[0]?.value;
+        if (!values?.length) return null;
+
+        const latest = values[values.length - 1];
+        const tempC = parseFloat(latest.value);
+
+        if (tempC >= -5 && tempC <= 40) {
+            console.log(`🌡️ Water temp: ${tempC.toFixed(1)}°C — using ${tempC <= EF_MODEL.coldMaxTemp ? 'COLD' : 'default'} EF model`);
+            return tempC;
+        }
+        return null;
+    } catch (e) {
+        console.warn('Water temp fetch failed:', e.message);
+        return null;
     }
 }
 
@@ -339,7 +381,8 @@ function getFlowState(history, currentCFS) {
 }
 
 // Make GF prediction
-function makeGFPrediction(usgsData, porHistory) {
+// waterTempC: water temperature in Celsius for cold-water EF model adjustment
+function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
     const { data, gauges } = usgsData;
 
     const lf = data[gauges.lf];
@@ -375,25 +418,37 @@ function makeGFPrediction(usgsData, porHistory) {
         porEstimateCFS = por.q + monocacyFlow + gooseFlow;
     }
 
-    // Edwards Ferry power-law estimate: LF_cfs = 108 × EF_stage^2.64
+    // Edwards Ferry power-law estimate with cold-water adjustment
+    // Cold water (≤10°C): 175.4 × EF^2.302
+    // Default (>10°C or unknown): 136 × EF^2.42
     let efEstimateCFS = null;
     let useEfEnsemble = false;
+    let efModelType = 'default';
     const efStage = ef?.h || null;
 
     if (efStage && efStage >= EF_MODEL.minStage && efStage <= EF_MODEL.maxStage) {
-        efEstimateCFS = EF_MODEL.coef * Math.pow(efStage, EF_MODEL.exp);
+        // Select coefficients based on water temperature
+        const useCold = waterTempC !== null && waterTempC <= EF_MODEL.coldMaxTemp;
+        const coef = useCold ? EF_MODEL.coldCoef : EF_MODEL.coef;
+        const exp = useCold ? EF_MODEL.coldExp : EF_MODEL.exp;
+        efModelType = useCold ? 'cold' : (waterTempC !== null ? 'default' : 'default-no-temp');
+
+        efEstimateCFS = coef * Math.pow(efStage, exp);
         if (efEstimateCFS > 500 && efEstimateCFS < 500000) {
             useEfEnsemble = true;
         }
     }
 
-    // Weighted ensemble: 60% PoR + 40% EF (when EF available)
+    // Weighted ensemble with flow-dependent EF weight
+    // At low flow: reduce EF weight (EF has +33% bias from dam ops)
+    // At high flow: increase EF weight (EF more reliable)
     let estimatedCFS;
+    let efWeightUsed = null;
     if (useEfEnsemble) {
-        const porWeight = 1 - EF_MODEL.weight;  // 0.6
-        const efWeight = EF_MODEL.weight;        // 0.4
-        estimatedCFS = porWeight * porEstimateCFS + efWeight * efEstimateCFS;
-        console.log(`🔀 Ensemble: ${porWeight*100}% PoR (${Math.round(porEstimateCFS)}) + ${efWeight*100}% EF (${Math.round(efEstimateCFS)}) = ${Math.round(estimatedCFS)} cfs`);
+        efWeightUsed = getEFWeight(porEstimateCFS);
+        const porWeight = 1 - efWeightUsed;
+        estimatedCFS = porWeight * porEstimateCFS + efWeightUsed * efEstimateCFS;
+        console.log(`🔀 Ensemble: ${(porWeight*100).toFixed(0)}% PoR (${Math.round(porEstimateCFS)}) + ${(efWeightUsed*100).toFixed(0)}% EF (${Math.round(efEstimateCFS)}) = ${Math.round(estimatedCFS)} cfs`);
     } else {
         estimatedCFS = porEstimateCFS;
     }
@@ -417,6 +472,9 @@ function makeGFPrediction(usgsData, porHistory) {
         validationDue: new Date(Date.now() + travelGFtoLF * 60 * 60 * 1000).toISOString(),
         efStage,
         efEstimateCFS: efEstimateCFS ? Math.round(efEstimateCFS) : null,
+        efModelType,                         // 'cold', 'default', or 'default-no-temp'
+        efWeight: efWeightUsed,              // Flow-dependent weight used (0.25-0.45)
+        waterTempC,                          // Water temperature used for model selection
         useTimeShifted,
         useEfEnsemble,
         lfCFS: Math.round(lf.q)
@@ -958,9 +1016,12 @@ exports.handler = async (event, context) => {
     }
 
     try {
-        // 1. Fetch USGS data
-        console.log('Fetching USGS data...');
-        const usgsData = await fetchUSGSData();
+        // 1. Fetch USGS data and water temperature in parallel
+        console.log('Fetching USGS data and water temperature...');
+        const [usgsData, waterTempC] = await Promise.all([
+            fetchUSGSData(),
+            fetchWaterTemp()
+        ]);
         if (!usgsData) {
             return { statusCode: 500, body: 'Failed to fetch USGS data' };
         }
@@ -1017,7 +1078,7 @@ exports.handler = async (event, context) => {
         let prediction = null;
         if (!criticalIce) {
             console.log('Making new prediction...');
-            prediction = makeGFPrediction(usgsData, fullHistory);
+            prediction = makeGFPrediction(usgsData, fullHistory, waterTempC);
             if (prediction) {
                 await storePrediction(client, prediction);
                 console.log(`📊 New prediction: ${prediction.predictedCFS} cfs (${prediction.flowBin}, ${prediction.flowState})`);
@@ -1030,6 +1091,8 @@ exports.handler = async (event, context) => {
             porCFS: usgsData.data[usgsData.gauges.por]?.q,
             lfCFS: usgsData.data[usgsData.gauges.lf]?.q,
             efStage: usgsData.data[usgsData.gauges.ef]?.h,
+            waterTempC: waterTempC,                        // Water temp for EF model
+            efModelType: prediction?.efModelType || null,  // 'cold' or 'default'
             iceAffected: criticalIce ? { por: !!porIce, lf: !!lfIce, efMissing } : false,
             learningSuspended: criticalIce,
             porHistoryCount: fullHistory.length,

@@ -105,13 +105,20 @@ Solution: iterate to converge on the correct time-shift.
 Example: Current flow 1200 cfs → 33h travel time → historical 1900 cfs found.
 But 1900 cfs travels in ~25h, so that water already passed! Iterate to find correct data.
 
-**Ensemble Blending**:
+**Ensemble Blending (v24.15)**:
 ```
-GF_estimate = 0.60 × PoR_time_shifted + 0.40 × EF_power_law
+GF_estimate = (1 - w) × PoR_time_shifted + w × EF_power_law
 
 Where:
 - PoR_time_shifted = Point of Rocks reading from X hours ago (X = converged travel time)
-- EF_power_law = 136 × (EF_stage)^2.42 (updated 2026-02-10 from 10,434 daily observations)
+- EF_power_law = coef × (EF_stage)^exp
+  - Cold water (≤10°C): 175.4 × EF^2.302 (v24.14)
+  - Default (>10°C): 136 × EF^2.42
+- w = flow-dependent EF weight (v24.15):
+  - <3000 cfs: 25% (EF has +33% bias from dam operations)
+  - 3000-6000 cfs: 35%
+  - 6000-15000 cfs: 40% (sweet spot)
+  - >15000 cfs: 45% (EF most reliable at high flow)
 - EF skipped if >50% discrepancy vs PoR (indicates ice/backwater)
 ```
 
@@ -119,7 +126,7 @@ Where:
 When Point of Rocks is ice-affected but Edwards Ferry and Little Falls are available,
 the model falls back to an EF-only estimate instead of showing "UNAVAILABLE":
 ```
-- Uses 100% EF power-law model (136 × EF_stage^2.42)
+- Uses 100% EF power-law model with temperature adjustment
 - Confidence: LOW (single-source, no ensemble)
 - UI shows "❄️ EF-ONLY ESTIMATE" in blue with degraded confidence indicator
 - Automatically reverts to full ensemble when PoR recovers
@@ -437,6 +444,8 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ## Version History
 
+- **v24.15** (2026-02-11): **Flow-Dependent EF Weighting** — EF weight now varies by flow regime: 25% at <3k cfs (dam operations cause +33% EF bias), 35% at 3-6k, 40% at 6-15k (default), 45% at >15k cfs (EF most reliable at high flow). Based on RMSE optimization across 10,434 observations. Analysis in `/analysis/flow_weight_optimization_realistic.csv`.
+- **v24.14** (2026-02-11): **Cold-Water EF Model** — Added temperature-aware coefficients: uses 175.4×EF^2.302 when water temp ≤10°C (50°F), default 136×EF^2.42 otherwise. Improves winter RMSE by 10.9%. Fetches water temp from Point of Rocks (USGS 01638500, param 00010).
 - **v24.13** (2026-02-10): **EF Model Recalibration** — Updated Edwards Ferry power-law model from 108×EF^2.64 to 136×EF^2.42 based on analysis of 10,434 USGS daily observations (2011-2026). Reduces RMSE by 54% (from 12,577 to 5,790 cfs), mean error from 22.6% to 6.3%. This fixes ice detection EF cross-check which was previously broken due to systematic underestimation. Analysis scripts in `/analysis/` directory.
 - **v24.12** (2026-02-10): **Phase 2 User Experience** — Mobile sidebar height fix (scrollable 45-60vh instead of fixed 45vh), network error banner with auto-dismiss (10s), map toggle button in header (🗺️), about button accessibility fix (span→button), forecast disclaimer font size increased (0.45rem→0.6rem), mobile font size CSS overrides for readability.
 - **v24.11** (2026-02-10): **Phase 1 Security & Stability** — XSS fix (innerHTML→textContent throughout UI rendering), USGS response schema validation (client + server), fetch timeouts with AbortController (5-10s), admin PIN moved to server-side env variable (ADMIN_PIN), .env patterns in .gitignore, event listener memory leak fixed (property assignment vs addEventListener for repeated renders).
@@ -457,4 +466,4 @@ When suspicious score ≥ 2, learning is skipped to protect model integrity.
 
 ---
 
-*Last updated: 2026-02-10 (v24.13)*
+*Last updated: 2026-02-11 (v24.15)*

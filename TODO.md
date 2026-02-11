@@ -79,15 +79,21 @@
 - **Files updated**: index.html, scheduled-update.js
 - **Analysis**: `/analysis/fetch_ef_longterm.py`, `/analysis/ef_lf_daily_longterm.csv`
 
-### Add temperature-aware EF model (Phase 2 enhancement)
-- **Finding**: EF model accuracy varies with water temperature
-  - Cold water (<10°C): Model = 173 × EF^2.31 (error +17-21%)
-  - Warm water (>15°C): Model = 98 × EF^2.54 (error +49%)
-- **Fix**: Fetch LF water temp (USGS param 00010), use temperature-specific coefficients
-- **Fallback**: Use default 136 × EF^2.42 when temp unavailable
-- **Data**: `/analysis/ef_lf_with_temp.csv` has merged temp data
-- **Impact**: Could reduce error to ~6-8% across all seasons
-- **Effort**: 4h
+### ~~Add temperature-aware EF model~~ ✅ (v24.14)
+- **Implemented**: Cold-only adjustment (water temp ≤10°C uses 175.4×EF^2.302)
+- **Finding**: Full temp model made predictions worse overall (-3.4%), but cold-only improves winter by 10.9%
+- **Implementation**: Fetches PoR water temp (USGS 01638500, param 00010)
+- **Fallback**: Uses default 136×EF^2.42 when temp unavailable or >10°C
+- **Data**: `/analysis/ef_lf_temp_merged.csv`
+
+### ~~Implement flow-dependent ensemble weighting~~ ✅ (v24.15)
+- **Implemented**: EF weight varies by flow regime
+  - <3000 cfs: 25% EF (dam operations cause +33% EF bias)
+  - 3000-6000 cfs: 35% EF
+  - 6000-15000 cfs: 40% EF (current default)
+  - >15000 cfs: 45% EF (EF most reliable at high flow)
+- **Analysis**: `/analysis/flow_weight_optimization_realistic.csv`
+- **Impact**: Expected 2-3% RMSE improvement, better low-flow predictions
 
 ### Re-tune ice detection thresholds (now possible)
 - **Background**: Previous EF model underestimated by ~22%, so EF cross-check rarely triggered
@@ -103,14 +109,6 @@
 - **Fix**: Compare with modern data, document confidence interval, or conduct dye-tracer study
 - **Impact**: Model accuracy foundation
 - **Effort**: 8h
-
-### Implement flow-dependent ensemble weighting
-- **Current**: Static 60% PoR / 40% EF regardless of flow
-- **Fix**: Vary weights by flow regime:
-  - Low flow (<3000 cfs): 80/20 (EF less reliable at low stage)
-  - Medium flow (3000-15000 cfs): 60/40
-  - High flow (>15000 cfs): 50/50 (both methods reliable)
-- **Effort**: 4h
 
 ### Add flow-dependent EF→LF time shift
 - **Current**: Fixed 8-hour shift
@@ -301,13 +299,23 @@
 
 ## Completed
 
+- [x] **Flow-Dependent EF Weighting** v24.15 (2026-02-11)
+  - EF weight now varies by flow: 25% at <3k (dam ops), 35% at 3-6k, 40% at 6-15k, 45% at >15k
+  - Based on RMSE optimization across 10,434 observations
+  - Expected 2-3% overall improvement, better low-flow predictions
+  - Analysis: `/analysis/flow_weight_optimization_realistic.csv`
+- [x] **Cold-Water EF Model** v24.14 (2026-02-11)
+  - Added cold-water adjustment: 175.4×EF^2.302 when temp ≤10°C
+  - Improves winter RMSE by 10.9%
+  - Full temp model hurt warm predictions, so cold-only implemented
+  - Fetches PoR water temp (USGS 01638500, param 00010)
+  - Analysis: `/analysis/ef_lf_temp_merged.csv`
 - [x] **EF Model Recalibration** v24.13 (2026-02-10)
   - Updated power-law from 108×EF^2.64 to 136×EF^2.42
   - Based on 10,434 USGS daily observations (2011-2026)
   - RMSE reduced 54% (12,577 → 5,790 cfs), mean error 22.6% → 6.3%
   - Fixes ice detection EF cross-check (was broken due to underestimation)
-  - Temperature dependency discovered: future enhancement to use temp-specific coefficients
-  - Analysis data saved to `/analysis/ef_lf_daily_longterm.csv` and `/analysis/ef_lf_with_temp.csv`
+  - Analysis data: `/analysis/ef_lf_daily_longterm.csv`
 - [x] **Comprehensive project review** (2026-02-10)
   - 5 independent review agents analyzed structure, code, UX, science, database
   - 45 issues identified: 8 critical, 12 high, 15 medium, 10 low
@@ -344,4 +352,4 @@
 
 ---
 
-*Last updated: 2026-02-10 (EF model recalibration v24.13)*
+*Last updated: 2026-02-11 (Cold-water EF v24.14, flow-dependent weighting v24.15)*
