@@ -2469,14 +2469,9 @@
         // Main display - "ESTIMATED NOW" section
         document.getElementById("gf-cfs").textContent = gfEstimate.cfs.toLocaleString();
 
-        // Show stage with uncertainty range if available
+        // Show stage (clean number only)
         const stageEl = document.getElementById("gf-stage");
-        if (gfEstimate.uncertaintyRange) {
-            const range = gfEstimate.uncertaintyRange;
-            stageEl.textContent = gfEstimate.stage.toFixed(2) + " (" + range.lowStage.toFixed(2) + "-" + range.highStage.toFixed(2) + ")";
-        } else {
-            stageEl.textContent = gfEstimate.stage.toFixed(2);
-        }
+        stageEl.textContent = gfEstimate.stage.toFixed(2);
 
         // EF-only fallback mode: PoR is ice-affected, using Edwards Ferry model only
         if (gfEstimate.efOnly) {
@@ -2615,12 +2610,7 @@
         const popupStage = document.getElementById("gf-popup-stage");
         if (popupCFS) popupCFS.textContent = gfEstimate.cfs.toLocaleString() + " cfs";
         if (popupStage) {
-            if (gfEstimate.uncertaintyRange) {
-                const range = gfEstimate.uncertaintyRange;
-                popupStage.textContent = gfEstimate.stage.toFixed(2) + " ft (" + range.lowStage.toFixed(2) + "-" + range.highStage.toFixed(2) + ")";
-            } else {
-                popupStage.textContent = gfEstimate.stage.toFixed(2) + " ft (LF scale)";
-            }
+            popupStage.textContent = gfEstimate.stage.toFixed(2) + " ft";
         }
 
         // Update 48-hour forecast periods (6-hour intervals)
@@ -4374,7 +4364,7 @@
         try {
             await Promise.race([
                 fetchNWSForecasts(),
-                new Promise(resolve => setTimeout(resolve, 8000))
+                new Promise(resolve => setTimeout(resolve, 4000))
             ]);
         } catch(e) {
             console.warn('NWS forecast fetch error:', e);
