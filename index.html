@@ -5573,7 +5573,7 @@ The **decay factor** accounts for wave travel: if the time-shifted reading is 16
 
 ### 5.4.2 Gradient Weight Optimization (v27.0)
 
-The v26.0 step function (10%/10%/20%/70% at hard cutoffs) was replaced with a smooth piecewise-linear gradient, optimized via **coordinate descent** on 5,208 consecutive-day pairs (2011-2026). The optimization used lag-1 actual discharge as a PoR proxy and minimized RMSE of the blended ensemble: `GF = (1-w) × yesterday + w × (126 × EF^2.46)`.
+The v26.0 step function (10%/10%/20%/70% at hard cutoffs) was replaced with a smooth piecewise-linear gradient, optimized via **coordinate descent** on 5,208 consecutive-day pairs (2011-2026). The optimization used lag-1 actual discharge as a PoR proxy and minimized RMSE of the blended ensemble: \`GF = (1-w) × yesterday + w × (126 × EF^2.46)\`.
 
 **Methodology**:
 1. Seven anchor points at [0, 3k, 6k, 10k, 15k, 25k, 50k] cfs
