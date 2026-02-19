@@ -489,15 +489,16 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
         estimatedCFS = porEstimateCFS;
     }
 
-    // Soft LF ceiling (v28.0): cap GF estimate at 110% of LF actual.
-    // decay=0.50 + 110% ceiling: near-zero rising bias (-4.8 cfs daily).
+    // Soft LF ceiling (v28.0): cap GF estimate at 120% of LF actual.
+    // decay=0.50 + 120% ceiling: near-zero rising bias (-29 cfs hourly).
+    // 120% avoids systematic under-prediction (110% had -476 cfs bias).
     // Cross-verified on 5,208 daily + 42,837 hourly pairs (Python + R).
     let ceilingApplied = false;
-    const CEILING_RATIO = 1.10;
+    const CEILING_RATIO = 1.20;
     if (lf?.q > 0) {
         const maxEstimate = lf.q * CEILING_RATIO;
         if (estimatedCFS > maxEstimate) {
-            console.log(`🔒 LF ceiling: ${Math.round(estimatedCFS)} → ${Math.round(maxEstimate)} cfs (110% of LF ${Math.round(lf.q)})`);
+            console.log(`🔒 LF ceiling: ${Math.round(estimatedCFS)} → ${Math.round(maxEstimate)} cfs (120% of LF ${Math.round(lf.q)})`);
             estimatedCFS = Math.round(maxEstimate);
             ceilingApplied = true;
         }

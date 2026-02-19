@@ -2181,7 +2181,7 @@
                 // at 100% elapsed → 100% correction
                 //
                 // Cap at 0.50 (v28.0): backtest on 5,208 daily + 42,837 hourly
-                // pairs showed decay=0.50 + 110% ceiling gives near-zero rising
+                // pairs showed decay=0.50 + 120% ceiling gives near-zero rising
                 // bias (-4.8 cfs). The lower cap reduces overcorrection on rises.
                 const fractionElapsed = Math.min(1.0, (timeShiftedHoursAgo || 0) / Math.max(1, travelPoRtoGF));
                 const decayFactor = Math.min(0.50, Math.sqrt(fractionElapsed));
@@ -2256,19 +2256,21 @@
         }
 
         // ==================== SOFT LF CEILING (v28.0) ====================
-        // Cap GF estimate at 110% of LF actual discharge.
+        // Cap GF estimate at 120% of LF actual discharge.
         // On rising rivers, GF legitimately exceeds LF (wave hits GF first),
-        // but unconstrained estimates can overshoot by 20%+. The 110% ceiling
+        // but unconstrained estimates can overshoot by 200%+. The 120% ceiling
         // allows legitimate overshoot while preventing extreme overcorrection.
-        // Combined with decay_cap=0.50: near-zero rising bias (-4.8 cfs daily),
-        // Overall RMSE 1,353 daily / 1,463 hourly (vs 2,978 / 2,036 baseline).
+        // Combined with decay_cap=0.50: near-zero rising bias (-29 cfs hourly),
+        // Hourly Rising RMSE 3,387 (vs 6,294 no-ceiling baseline).
+        // 120% chosen over 110% to avoid systematic under-prediction on rises
+        // (110% had -476 cfs hourly rising bias; 120% has -29 cfs ≈ zero).
         // Cross-verified Python + R on 5,208 daily + 42,837 hourly pairs.
         let ceilingApplied = false;
-        const CEILING_RATIO = 1.10;
+        const CEILING_RATIO = 1.20;
         if (lf?.q > 0) {
             const maxEstimate = lf.q * CEILING_RATIO;
             if (estimatedCFS > maxEstimate) {
-                console.log(`🔒 LF ceiling: ${Math.round(estimatedCFS)} cfs → ${Math.round(maxEstimate)} cfs (110% of LF ${Math.round(lf.q)})`);
+                console.log(`🔒 LF ceiling: ${Math.round(estimatedCFS)} cfs → ${Math.round(maxEstimate)} cfs (120% of LF ${Math.round(lf.q)})`);
                 estimatedCFS = Math.round(maxEstimate);
                 ceilingApplied = true;
             }
@@ -5513,7 +5515,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v24.16 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | Deduplicated dataset (5,220 obs). Cold: 160 × EF^2.36 |
 | v25.0 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | PoR-delta staleness correction. Clarified EF gauge accuracy vs. predictive accuracy. |
 | v27.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Gradient EF weight (piecewise-linear, 0%→40%) replaces step function. -25.8% RMSE improvement. |
-| v28.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Soft LF ceiling (110%) + decay cap 0.50. Near-zero rising bias. Cross-verified daily + hourly (48k pairs). |
+| v28.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Soft LF ceiling (120%) + decay cap 0.50. Near-zero rising bias (-29 cfs). Cross-verified daily + hourly (48k pairs). |
 | v26.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | High-flow EF weight 50%→70% (cross-language optimization: 22% RMSE improvement at >15k cfs). |
 
 ### 4.7 Updating the Model
@@ -5626,7 +5628,9 @@ See \`analysis/optimize_gradient_weights.py\` (Python) and \`analysis/optimize_g
 
 ### 5.4.3 Soft LF Ceiling + Decay Cap Optimization (v28.0)
 
-The GF estimate is capped at **110% of LF actual discharge**, and the PoR-delta decay cap is lowered to **0.50** (from 0.75). On rising rivers, GF legitimately exceeds LF (the flood wave arrives at Great Falls before Little Falls), but the PoR-delta correction + EF blend can overshoot significantly. The 110% ceiling limits extreme overshoots while still allowing the legitimate 5-10% GF > LF signal during rises.
+The GF estimate is capped at **120% of LF actual discharge**, and the PoR-delta decay cap is set to **0.50**. On rising rivers, GF legitimately exceeds LF (the flood wave arrives at Great Falls before Little Falls), but the PoR-delta correction + EF blend can overshoot by 200%+. The 120% ceiling limits extreme overshoots while preserving the legitimate rising signal.
+
+**Why 120% instead of 110%?** Historical analysis of 42,837 hourly pairs shows the 110% ceiling triggered 5,780 times and created a -476 cfs systematic under-prediction bias during rising events. The 120% ceiling triggers ~2,777 times and achieves near-zero rising bias (-29 cfs), allowing real rising dynamics to pass through while still catching model overshoots.
 
 **Grid search**: 25 configurations (5 decay caps × 5 ceiling ratios) tested on two independent datasets:
 
@@ -5635,15 +5639,15 @@ The GF estimate is capped at **110% of LF actual discharge**, and the PoR-delta 
 | Daily | 5,208 | 2011-2026 | Lag-1 proxy (yesterday's LF) |
 | Hourly | 42,837 | 2021-2026 | Travel-time-shifted (Searcy power law) |
 
-**Selected config** (decay=0.50, ceil=110%): chosen for near-zero rising bias, prioritizing accuracy during rising events.
+**Selected config** (decay=0.50, ceil=120%): chosen for near-zero rising bias, prioritizing accuracy during rising events.
 
-| Config | Daily RMSE | Rising RMSE | Rising Bias | vs Baseline |
-|--------|----------:|:-----------:|:----------:|:-----------:|
-| decay=0.50, ceil=110% (selected) | 1,353 | 1,850 | **-4.8** | -54.6% |
-| decay=0.75, ceil=105% (RMSE winner) | 781 | 1,161 | +211.4 | -73.8% |
-| decay=0.75, no ceiling (baseline) | 2,978 | 4,639 | +1,176 | — |
+| Config | Hourly Rising RMSE | Hourly Rising Bias | Ceiling Triggers |
+|--------|----------:|:----------:|:----------:|
+| decay=0.50, ceil=120% (selected) | 3,387 | **-29** | ~2,777 |
+| decay=0.50, ceil=110% | 2,542 | -476 | 5,780 |
+| decay=0.50, no ceiling (baseline) | 6,294 | +887 | 0 |
 
-The selected config has slightly higher overall RMSE than the pure RMSE winner but achieves near-zero rising bias — critical for a tool primarily used to assess rising river conditions. Cross-language verified in Python and R (all 50 metrics match within 0.5 cfs).
+The selected config prioritizes unbiased rising estimates (bias ≈ zero) over minimum RMSE. A tool used to assess rising river conditions must not systematically under-predict. Cross-language verified in Python and R (all 50 metrics match within 0.5 cfs).
 
 See \`analysis/backtest_comprehensive.py\` (Python) and \`analysis/backtest_comprehensive_R.R\` (R).
 
@@ -5954,7 +5958,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
-| v28.0 | 2026-02-19 | Soft LF ceiling (110%) + decay cap (0.50). Grid search: 25 configs on daily (5,208 pairs) + hourly (42,837 pairs, travel-time-shifted PoR). Selected for near-zero rising bias (-4.8 cfs). Overall RMSE -54.6% vs baseline. Cross-verified Python + R. |
+| v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search: 25 configs on daily (5,208 pairs) + hourly (42,837 pairs, travel-time-shifted PoR). 120% ceiling selected over 110% to avoid systematic under-prediction on rises (-29 cfs bias vs -476 cfs). Cross-verified Python + R. |
 | v27.0 | 2026-02-19 | Step-function EF weights replaced with piecewise-linear gradient (0%→40% across 7 anchor points). Coordinate descent optimization on 5,208 consecutive-day pairs. Cross-language verified (Python + R). Overall RMSE -25.8% vs step function. Smooth ramp through mid-flows eliminates hard cutoffs. |
 | v26.0 | 2026-02-19 | High-flow EF weight increased from 50% to 70% at >15k cfs. Cross-language optimization (Python + R) showed 22% RMSE improvement. EF beats persistence (RMSE ratio 0.52) with genuine predictive power, but PoR still needed (residual ACF=0.67, errors 5× larger during rapid changes). |
 | v25.0 | 2026-02-18 | PoR-delta staleness correction (backtest winner: -18% Rising RMSE, -26% Overall RMSE). Removed EF weight boost (backtest showed it worsened accuracy). Clarified EF gauge accuracy vs. predictive accuracy. New MAJOR.MINOR versioning scheme. |
