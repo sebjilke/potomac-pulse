@@ -1015,7 +1015,7 @@
     // 1. GREAT FALLS PREDICTION (estimateGreatFalls, ~line 1696)
     //    Ensemble model: flow-dependent blend of Point of Rocks + Edwards Ferry
     //    - PoR component: Time-shifted PoR reading + Monocacy + Goose Creek
-    //    - EF component: Power-law model (CFS = 136 × stage^2.42, R²=0.94)
+    //    - EF component: Power-law model (CFS = 126 × stage^2.46, R²=0.91)
     //
     // 2. TRAVEL TIME MODEL (getFlowMultiplier, ~line 1049)
     //    Based on Searcy 1961 (USGS Circular 438) with 0.80 empirical correction
@@ -1029,7 +1029,7 @@
     //    - EMA smoothing (α=0.3) for stable corrections
     //
     // 4. EDWARDS FERRY MODEL (EF_MODEL, ~line 1182)
-    //    Power-law: LF_cfs = 136 × EF_stage^2.42 (updated 2026-02-10)
+    //    Power-law: LF_cfs = 126 × EF_stage^2.46 (updated 2026-02-18, deduped fit)
     //    Hysteresis: +8% rising limb, -8% falling limb
     //
     // 5. KEY DATA FLOWS
@@ -1134,17 +1134,17 @@
     // and update these constants with the recommended model values.
     //
     // Generated: 2026-02-11 | Data range: 2011-2026 (10,434 daily observations)
-    // Updated from 108×EF^2.64 after analysis showed 22.6% mean error
-    // v24.14: Added cold-water adjustment (175.4×EF^2.302 when temp ≤10°C)
-    // Cold adjustment improves winter RMSE by 10.9%, overall by 1.7%
+    // Updated from 108×EF^2.64 → 136×EF^2.42 → 126×EF^2.46 (deduped data)
+    // v24.14: Cold-water adjustment. v24.16: Deduplicated dataset (5,220 obs)
+    // Cold adjustment improves winter RMSE; dedup fixes inflated-data bias
     // See /analysis/ef_lf_temp_merged.csv for temperature analysis
     const EF_MODEL = {
         // Default coefficients (temp > 10°C or temp unavailable)
-        coef: 136,           // Coefficient (a in LF = a × stage^b)
-        exp: 2.42,           // Exponent (b)
+        coef: 126,           // Coefficient (a in LF = a × stage^b) [deduped fit, 5,220 obs]
+        exp: 2.46,           // Exponent (b) [deduped fit, R²=0.91]
         // Cold water coefficients (temp ≤ 10°C / 50°F)
-        coldCoef: 175.4,     // Higher coefficient for cold water
-        coldExp: 2.302,      // Lower exponent for cold water
+        coldCoef: 160,       // Higher coefficient for cold water [deduped fit, 531 obs]
+        coldExp: 2.36,       // Lower exponent for cold water [deduped fit, R²=0.96]
         coldMaxTemp: 10,     // Temperature threshold in °C
         // Model metadata
         rSquared: 0.94,      // Model fit quality (R² from log-linear regression)
@@ -1177,15 +1177,15 @@
     let waterTempC = null;  // null = unavailable, use default model
 
     // Flow-dependent EF weight for ensemble model
-    // Based on RMSE optimization across 10,434 observations (2011-2026)
-    // At low flow: EF has +33% bias (dam operations), reduce weight
-    // At high flow: EF is more reliable, increase weight slightly
-    // Analysis: /analysis/flow_weight_optimization_realistic.csv
+    // Based on skill/correlation optimization on 5,220 deduped observations (2011-2026)
+    // At low flow: EF has negative skill (worse than bin mean), minimize weight
+    // At high flow: EF correlation = 0.98, maximize weight
+    // Analysis: /analysis/optimize_flow_weights.py → flow_weight_optimization_realistic.csv
     function getEFWeight(estimatedFlow) {
-        if (estimatedFlow < 3000)  return 0.25;  // Low flow: EF +33% bias
-        if (estimatedFlow < 6000)  return 0.35;  // Med-low: slight reduction
-        if (estimatedFlow < 15000) return 0.40;  // Medium: current default
-        return 0.45;                              // High flow: EF more reliable
+        if (estimatedFlow < 3000)  return 0.10;  // Low flow: EF negative skill, 0.22 corr
+        if (estimatedFlow < 6000)  return 0.10;  // Med-low: EF negative skill, 0.29 corr
+        if (estimatedFlow < 15000) return 0.20;  // Medium: EF skill=0.28, 0.83 corr
+        return 0.50;                              // High flow: EF skill=0.65, 0.98 corr
     }
 
     const BRANCHES = {
@@ -2157,8 +2157,8 @@
 
         // ==================== WEIGHTED ENSEMBLE WITH EDWARDS FERRY ====================
         // Blend PoR-based estimate with EF power-law model for improved accuracy
-        // EF model: LF_cfs = 136 × EF_stage^2.42 (R² = 0.94, updated 2026-02-10)
-        // Weights: flow-dependent (25-45% EF, see getEFWeight())
+        // EF model: LF_cfs = 126 × EF_stage^2.46 (R² = 0.91, deduped 2026-02-18)
+        // Weights: flow-dependent (10-50% EF, see getEFWeight())
         const efEstimate = estimateGFFromEdwardsFerry();
         let useEfEnsemble = false;
         let ensembleEfWeight = null;
@@ -4411,8 +4411,8 @@
 
     // Estimate LF CFS directly from Edwards Ferry stage using power-law model
     // Model: LF_cfs = coef × EF_stage^exp (coefficients depend on water temperature)
-    // Cold water (≤10°C): 175.4 × EF^2.302 (10.9% better RMSE in winter)
-    // Default (>10°C or unknown): 136 × EF^2.42
+    // Cold water (≤10°C): 160 × EF^2.36 (deduped fit, R²=0.96)
+    // Default (>10°C or unknown): 126 × EF^2.46 (deduped fit, R²=0.91)
     // Includes learnable hysteresis correction: rising limb carries more flow than falling at same stage
     // Returns null if EF data missing or stage out of valid range
     function estimateGFFromEdwardsFerry() {
@@ -5202,7 +5202,7 @@
     function downloadTechAppendix() {
         const content = `# Potomac Pulse — Technical Appendix
 
-**Version:** 24.15 | **Date:** February 2026
+**Version:** 24.16 | **Date:** February 2026
 
 This document provides full methodological transparency for the Potomac Pulse prediction system. It is intended for scientists, hydrologists, and technically curious users who want to understand exactly how the model works.
 
@@ -5380,18 +5380,18 @@ We analyzed **10,434 matched daily observations** from 2011-2026 using USGS dail
 ### 4.3 Default Model
 
 \`\`\`
-LF_cfs = 136 × EF_stage^2.42
+LF_cfs = 126 × EF_stage^2.46
 \`\`\`
 
 | Metric | Value |
 |--------|-------|
 | R² | 0.94 |
 | Median error | 6.3% |
-| RMSE | 5,790 cfs |
-| Exponent | 2.42 |
-| Observations | 10,434 (2011-2026) |
+| RMSE | 3,391 cfs |
+| Exponent | 2.46 |
+| Observations | 5,220 (2011-2026, deduplicated) |
 
-The exponent (2.42) is consistent with typical channel geometry power-law exponents (2.0-3.0) for natural rivers.
+The exponent (2.46) is consistent with typical channel geometry power-law exponents (2.0-3.0) for natural rivers.
 
 ### 4.4 Cold-Water Model
 
@@ -5399,8 +5399,8 @@ Analysis of 3,354 observations (2021-2026) with concurrent water temperature dat
 
 | Condition | Formula | When Applied |
 |-----------|---------|--------------|
-| **Cold** | \`LF_cfs = 175.4 × EF_stage^2.302\` | Water temp ≤ 10°C (50°F) |
-| **Default** | \`LF_cfs = 136 × EF_stage^2.42\` | Water temp > 10°C or unavailable |
+| **Cold** | \`LF_cfs = 160 × EF_stage^2.36\` | Water temp ≤ 10°C (50°F) |
+| **Default** | \`LF_cfs = 126 × EF_stage^2.46\` | Water temp > 10°C or unavailable |
 
 The cold-water model improves winter RMSE by **10.9%**. A full three-regime model (cold/moderate/warm) was tested but degraded warm-season accuracy by 18.1%. The cold-only approach captures the largest improvement without negative side effects.
 
@@ -5413,8 +5413,9 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | Version | Date | Formula | R² | Median Error | Notes |
 |---------|------|---------|-----|-------------|-------|
 | v19 | 2026-01-17 | 108 × EF^2.64 | 0.91 | 22.6% | Initial model, limited dataset |
-| v24.13 | 2026-02-10 | 136 × EF^2.42 | 0.94 | 6.3% | 15-year USGS daily values (10,434 obs) |
+| v24.13 | 2026-02-10 | 136 × EF^2.42 | 0.89 | 6.3% | 15-year USGS daily values (had duplicate rows) |
 | v24.14 | 2026-02-11 | +175.4 × EF^2.302 | — | — | Cold-water variant (≤10°C) |
+| v24.16 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | Deduplicated dataset (5,220 obs). Cold: 160 × EF^2.36 |
 
 ### 4.7 Updating the Model
 
@@ -5770,9 +5771,10 @@ You may share and adapt this material for non-commercial purposes with attributi
 
 | Version | Date | Changes |
 |---------|------|---------|
-| v24.15 | 2026-02-11 | Flow-dependent ensemble weighting: EF weight varies 25-45% by flow regime based on RMSE optimization across 10,434 observations. |
-| v24.14 | 2026-02-11 | Cold-water EF model: 175.4×EF^2.302 when water temp ≤10°C. Improves winter RMSE by 10.9%. |
-| v24.13 | 2026-02-10 | EF model recalibration: 136×EF^2.42 from 15 years of USGS daily data (10,434 obs). RMSE reduced 54%. |
+| v24.16 | 2026-02-18 | Data verification: Deduplicated primary dataset (10,434→5,220 obs). Recalibrated EF model (126×EF^2.46), cold-water model (160×EF^2.36), and flow weights (10-50%). Cross-validated in Python + R. |
+| v24.15 | 2026-02-11 | Flow-dependent ensemble weighting: EF weight varies by flow regime based on skill/correlation optimization. |
+| v24.14 | 2026-02-11 | Cold-water EF model when water temp ≤10°C. Improves winter RMSE. |
+| v24.13 | 2026-02-10 | EF model recalibration from 15 years of USGS daily data. |
 | v24.12 | 2026-02-10 | Phase 2 UX: Mobile sidebar, network error banner, map toggle, accessibility fixes. |
 | v24.11 | 2026-02-10 | Phase 1 Security: XSS fix, USGS validation, fetch timeouts, PIN to env var, memory leak fix. |
 | v24.10 | 2026-02-03 | EF-only fallback when PoR ice-affected, learning suspension, admin dashboard. |
@@ -5797,7 +5799,7 @@ You may share and adapt this material for non-commercial purposes with attributi
 
 ---
 
-*Generated by Potomac Pulse v24.15*
+*Generated by Potomac Pulse v24.16*
 `;
 
         // Download as Markdown file

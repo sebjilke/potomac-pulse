@@ -25,17 +25,17 @@ const TRAVEL_POR_GF_BASELINE = 19.4;  // Adjusted (24.3 × 0.80)
 const TRAVEL_GF_LF_BASELINE = 6.5;    // Adjusted (8.1 × 0.80)
 
 // Edwards Ferry → Little Falls power-law model
-// Updated 2026-02-11: Added cold-water adjustment (v24.14)
-// Cold water (≤10°C): 175.4 × EF^2.302 (10.9% better RMSE in winter)
-// Default (>10°C): 136 × EF^2.42
+// Updated 2026-02-18: Deduped dataset (v24.16)
+// Cold water (≤10°C): 160 × EF^2.36 (deduped fit, R²=0.96)
+// Default (>10°C): 126 × EF^2.46 (deduped fit, R²=0.91)
 // SYNC WARNING: Keep in sync with EF_MODEL in index.html
 const EF_MODEL = {
     // Default coefficients (temp > 10°C or temp unavailable)
-    coef: 136,
-    exp: 2.42,
+    coef: 126,
+    exp: 2.46,
     // Cold water coefficients (temp ≤ 10°C)
-    coldCoef: 175.4,
-    coldExp: 2.302,
+    coldCoef: 160,
+    coldExp: 2.36,
     coldMaxTemp: 10,      // Temperature threshold in °C
     // Static params (weight now flow-dependent, see getEFWeight)
     minStage: 2.5,        // Minimum valid EF stage (ft)
@@ -47,10 +47,10 @@ const EF_MODEL = {
 // At low flow: EF has +33% bias (dam operations), reduce weight
 // At high flow: EF is more reliable, increase weight slightly
 function getEFWeight(estimatedFlow) {
-    if (estimatedFlow < 3000)  return 0.25;  // Low flow: EF +33% bias
-    if (estimatedFlow < 6000)  return 0.35;  // Med-low: slight reduction
-    if (estimatedFlow < 15000) return 0.40;  // Medium: default
-    return 0.45;                              // High flow: EF more reliable
+    if (estimatedFlow < 3000)  return 0.10;  // Low flow: EF negative skill, 0.22 corr
+    if (estimatedFlow < 6000)  return 0.10;  // Med-low: EF negative skill, 0.29 corr
+    if (estimatedFlow < 15000) return 0.20;  // Medium: EF skill=0.28, 0.83 corr
+    return 0.50;                              // High flow: EF skill=0.65, 0.98 corr
 }
 
 const GF_FLOW_BINS = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
@@ -419,8 +419,8 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
     }
 
     // Edwards Ferry power-law estimate with cold-water adjustment
-    // Cold water (≤10°C): 175.4 × EF^2.302
-    // Default (>10°C or unknown): 136 × EF^2.42
+    // Cold water (≤10°C): 160 × EF^2.36
+    // Default (>10°C or unknown): 126 × EF^2.46
     let efEstimateCFS = null;
     let useEfEnsemble = false;
     let efModelType = 'default';
@@ -473,7 +473,7 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
         efStage,
         efEstimateCFS: efEstimateCFS ? Math.round(efEstimateCFS) : null,
         efModelType,                         // 'cold', 'default', or 'default-no-temp'
-        efWeight: efWeightUsed,              // Flow-dependent weight used (0.25-0.45)
+        efWeight: efWeightUsed,              // Flow-dependent weight used (0.10-0.50)
         waterTempC,                          // Water temperature used for model selection
         useTimeShifted,
         useEfEnsemble,
