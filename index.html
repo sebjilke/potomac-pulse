@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v27</title>
+    <title>Potomac Pulse v28</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -2180,10 +2180,11 @@
                 // at 25% of travel time elapsed → ~50% correction
                 // at 100% elapsed → 100% correction
                 //
-                // But we cap at 0.75 to avoid overcorrection — the EF blend
-                // will provide the remaining accuracy.
+                // Cap at 0.50 (v28.0): backtest on 5,208 daily + 42,837 hourly
+                // pairs showed decay=0.50 + 110% ceiling gives near-zero rising
+                // bias (-4.8 cfs). The lower cap reduces overcorrection on rises.
                 const fractionElapsed = Math.min(1.0, (timeShiftedHoursAgo || 0) / Math.max(1, travelPoRtoGF));
-                const decayFactor = Math.min(0.75, Math.sqrt(fractionElapsed));
+                const decayFactor = Math.min(0.50, Math.sqrt(fractionElapsed));
 
                 // Apply partial correction
                 const appliedRatio = 1 + (porChangeRatio - 1) * decayFactor;
@@ -2252,6 +2253,25 @@
         } else {
             // EF not available - use PoR-only estimate
             estimatedCFS = porEstimateCFS;
+        }
+
+        // ==================== SOFT LF CEILING (v28.0) ====================
+        // Cap GF estimate at 110% of LF actual discharge.
+        // On rising rivers, GF legitimately exceeds LF (wave hits GF first),
+        // but unconstrained estimates can overshoot by 20%+. The 110% ceiling
+        // allows legitimate overshoot while preventing extreme overcorrection.
+        // Combined with decay_cap=0.50: near-zero rising bias (-4.8 cfs daily),
+        // Overall RMSE 1,353 daily / 1,463 hourly (vs 2,978 / 2,036 baseline).
+        // Cross-verified Python + R on 5,208 daily + 42,837 hourly pairs.
+        let ceilingApplied = false;
+        const CEILING_RATIO = 1.10;
+        if (lf?.q > 0) {
+            const maxEstimate = lf.q * CEILING_RATIO;
+            if (estimatedCFS > maxEstimate) {
+                console.log(`🔒 LF ceiling: ${Math.round(estimatedCFS)} cfs → ${Math.round(maxEstimate)} cfs (110% of LF ${Math.round(lf.q)})`);
+                estimatedCFS = Math.round(maxEstimate);
+                ceilingApplied = true;
+            }
         }
 
         // Estimate stage using Little Falls equivalent (what paddlers know)
@@ -2332,7 +2352,8 @@
                     ratePerHour: riseRate.ratePerHour,
                     reductionPct: riseRate.flowState === 'rising' ? Math.min(30, riseRate.ratePerHour * 2) : 0
                 } : null,
-                porDeltaCorrection: porDeltaCorrection  // Staleness correction metadata
+                porDeltaCorrection: porDeltaCorrection,  // Staleness correction metadata
+                ceilingApplied: ceilingApplied  // Soft LF ceiling (105%) triggered
             },
             uncertaintyRange: uncertaintyRange,  // Range based on historical prediction error
             efEstimate: efEstimate,  // Edwards Ferry power-law estimate (R² = 0.98)
@@ -5492,6 +5513,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v24.16 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | Deduplicated dataset (5,220 obs). Cold: 160 × EF^2.36 |
 | v25.0 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | PoR-delta staleness correction. Clarified EF gauge accuracy vs. predictive accuracy. |
 | v27.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Gradient EF weight (piecewise-linear, 0%→40%) replaces step function. -25.8% RMSE improvement. |
+| v28.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Soft LF ceiling (110%) + decay cap 0.50. Near-zero rising bias. Cross-verified daily + hourly (48k pairs). |
 | v26.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | High-flow EF weight 50%→70% (cross-language optimization: 22% RMSE improvement at >15k cfs). |
 
 ### 4.7 Updating the Model
@@ -5601,6 +5623,29 @@ The v26.0 step function (10%/10%/20%/70% at hard cutoffs) was replaced with a sm
 | > 50k | 40 | 37,839 | 37,839 | 0 |
 
 See \`analysis/optimize_gradient_weights.py\` (Python) and \`analysis/optimize_gradient_weights.R\` (R).
+
+### 5.4.3 Soft LF Ceiling + Decay Cap Optimization (v28.0)
+
+The GF estimate is capped at **110% of LF actual discharge**, and the PoR-delta decay cap is lowered to **0.50** (from 0.75). On rising rivers, GF legitimately exceeds LF (the flood wave arrives at Great Falls before Little Falls), but the PoR-delta correction + EF blend can overshoot significantly. The 110% ceiling limits extreme overshoots while still allowing the legitimate 5-10% GF > LF signal during rises.
+
+**Grid search**: 25 configurations (5 decay caps × 5 ceiling ratios) tested on two independent datasets:
+
+| Dataset | N pairs | Period | PoR method |
+|---------|--------:|--------|------------|
+| Daily | 5,208 | 2011-2026 | Lag-1 proxy (yesterday's LF) |
+| Hourly | 42,837 | 2021-2026 | Travel-time-shifted (Searcy power law) |
+
+**Selected config** (decay=0.50, ceil=110%): chosen for near-zero rising bias, prioritizing accuracy during rising events.
+
+| Config | Daily RMSE | Rising RMSE | Rising Bias | vs Baseline |
+|--------|----------:|:-----------:|:----------:|:-----------:|
+| decay=0.50, ceil=110% (selected) | 1,353 | 1,850 | **-4.8** | -54.6% |
+| decay=0.75, ceil=105% (RMSE winner) | 781 | 1,161 | +211.4 | -73.8% |
+| decay=0.75, no ceiling (baseline) | 2,978 | 4,639 | +1,176 | — |
+
+The selected config has slightly higher overall RMSE than the pure RMSE winner but achieves near-zero rising bias — critical for a tool primarily used to assess rising river conditions. Cross-language verified in Python and R (all 50 metrics match within 0.5 cfs).
+
+See \`analysis/backtest_comprehensive.py\` (Python) and \`analysis/backtest_comprehensive_R.R\` (R).
 
 ### 5.5 EF Discrepancy Check
 
@@ -5909,6 +5954,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v28.0 | 2026-02-19 | Soft LF ceiling (110%) + decay cap (0.50). Grid search: 25 configs on daily (5,208 pairs) + hourly (42,837 pairs, travel-time-shifted PoR). Selected for near-zero rising bias (-4.8 cfs). Overall RMSE -54.6% vs baseline. Cross-verified Python + R. |
 | v27.0 | 2026-02-19 | Step-function EF weights replaced with piecewise-linear gradient (0%→40% across 7 anchor points). Coordinate descent optimization on 5,208 consecutive-day pairs. Cross-language verified (Python + R). Overall RMSE -25.8% vs step function. Smooth ramp through mid-flows eliminates hard cutoffs. |
 | v26.0 | 2026-02-19 | High-flow EF weight increased from 50% to 70% at >15k cfs. Cross-language optimization (Python + R) showed 22% RMSE improvement. EF beats persistence (RMSE ratio 0.52) with genuine predictive power, but PoR still needed (residual ACF=0.67, errors 5× larger during rapid changes). |
 | v25.0 | 2026-02-18 | PoR-delta staleness correction (backtest winner: -18% Rising RMSE, -26% Overall RMSE). Removed EF weight boost (backtest showed it worsened accuracy). Clarified EF gauge accuracy vs. predictive accuracy. New MAJOR.MINOR versioning scheme. |
@@ -5940,7 +5986,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 ---
 
-*Generated by Potomac Pulse v27.0*
+*Generated by Potomac Pulse v28.0*
 `;
 
         // Download as Markdown file

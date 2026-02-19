@@ -432,7 +432,7 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
 
         if (Math.abs(porChangePct) > 5) {
             const fractionElapsed = Math.min(1.0, (historicPoR.actualHoursAgo || 0) / Math.max(1, travelPoRtoGF));
-            const decayFactor = Math.min(0.75, Math.sqrt(fractionElapsed));
+            const decayFactor = Math.min(0.50, Math.sqrt(fractionElapsed));  // v28.0: lowered from 0.75
             const appliedRatio = 1 + (porChangeRatio - 1) * decayFactor;
             const rawEstimate = porEstimateCFS;
             porEstimateCFS = Math.round(porEstimateCFS * appliedRatio);
@@ -489,6 +489,20 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
         estimatedCFS = porEstimateCFS;
     }
 
+    // Soft LF ceiling (v28.0): cap GF estimate at 110% of LF actual.
+    // decay=0.50 + 110% ceiling: near-zero rising bias (-4.8 cfs daily).
+    // Cross-verified on 5,208 daily + 42,837 hourly pairs (Python + R).
+    let ceilingApplied = false;
+    const CEILING_RATIO = 1.10;
+    if (lf?.q > 0) {
+        const maxEstimate = lf.q * CEILING_RATIO;
+        if (estimatedCFS > maxEstimate) {
+            console.log(`🔒 LF ceiling: ${Math.round(estimatedCFS)} → ${Math.round(maxEstimate)} cfs (110% of LF ${Math.round(lf.q)})`);
+            estimatedCFS = Math.round(maxEstimate);
+            ceilingApplied = true;
+        }
+    }
+
     const flowBin = getFlowBin(estimatedCFS);
 
     return {
@@ -511,6 +525,7 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
         waterTempC,                          // Water temperature used for model selection
         useTimeShifted,
         useEfEnsemble,
+        ceilingApplied,
         lfCFS: Math.round(lf.q)
     };
 }
