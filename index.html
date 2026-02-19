@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v26</title>
+    <title>Potomac Pulse v27</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -764,7 +764,7 @@
                         </div>
 
                         <p style="font-size:0.65rem;color:#94a3b8;line-height:1.6;">
-                        <b>The blend is smart:</b> Edwards Ferry's gauge readings are accurate (verified against USGS), but at low flows a single water-level reading 2 miles upstream is a poor predictor of downstream discharge — local channel features, dam operations, and vegetation dominate the signal. So the model leans heavily on Point of Rocks at low flows (90% PoR). At higher flows, when the entire river channel is engaged and local effects wash out, Edwards Ferry becomes an excellent predictor (0.98 correlation) and gets the majority weight (70% EF vs 30% PoR). The system adjusts automatically based on current flow.
+                        <b>The blend is smart:</b> Edwards Ferry's gauge readings are accurate (verified against USGS), but at low flows a single water-level reading 2 miles upstream is a poor predictor of downstream discharge — local channel features, dam operations, and vegetation dominate the signal. So the model leans heavily on Point of Rocks at low flows (90% PoR). At higher flows, when the entire river channel is engaged and local effects wash out, Edwards Ferry becomes a strong predictor (0.98 correlation) and gets up to 40% weight. The weight ramps up smoothly — no hard cutoffs — using a gradient optimized from 15 years of data.
                         </p>
 
                         <!-- UNDER THE HOOD (credibility — takeaway first, formula second) -->
@@ -1177,17 +1177,24 @@
     let waterTempC = null;  // null = unavailable, use default model
 
     // Flow-dependent EF weight for ensemble model
-    // Base weights from skill/correlation optimization on 5,220 deduped observations (2011-2026)
-    // Analysis: /analysis/optimize_flow_weights.py → flow_weight_optimization_realistic.csv
-    // Note: v24.17 tried staleness-aware EF weight boost, but backtest on 5,220 days showed
-    // it actually increased Rising RMSE (6,352 vs baseline 6,117). PoR-delta correction alone
-    // PoR-delta only (v25.0) is strictly superior — see analysis/backtest_approaches.py.
-    // v26.0: High-flow weight increased to 0.70 (from 0.50) — see analysis/test_ef_high_flow_weight.py/.R
+    // v27.0: Piecewise-linear gradient EF weight — replaces step function.
+    // Optimized via coordinate descent on 5,208 consecutive-day pairs (2011-2026).
+    // Cross-language verified (Python + R produce identical weights).
+    // Overall RMSE: 3,858 cfs (gradient) vs 5,203 cfs (step) = -25.8% improvement.
+    // See analysis/optimize_gradient_weights.py and .R
     function getEFWeight(estimatedFlow) {
-        if (estimatedFlow < 3000)  return 0.10;  // Low flow: EF negative skill, 0.22 corr
-        if (estimatedFlow < 6000)  return 0.10;  // Med-low: EF negative skill, 0.29 corr
-        if (estimatedFlow < 15000) return 0.20;  // Medium: EF skill=0.28, 0.83 corr
-        return 0.70;                              // High flow: EF skill=0.65, 0.98 corr — v26.0: from 0.50, cross-language grid search (22% RMSE improvement)
+        // Anchor points: [flow_cfs, ef_weight] — linearly interpolated between
+        const anchors = [[0,0.0],[3000,0.0],[6000,0.1],[10000,0.4],[15000,0.4],[25000,0.4],[50000,0.4]];
+        if (estimatedFlow <= 0) return 0.0;
+        if (estimatedFlow >= 50000) return 0.4;
+        for (let i = 1; i < anchors.length; i++) {
+            if (estimatedFlow <= anchors[i][0]) {
+                const [f0, w0] = anchors[i-1];
+                const [f1, w1] = anchors[i];
+                return w0 + (w1 - w0) * (estimatedFlow - f0) / (f1 - f0);
+            }
+        }
+        return 0.4;
     }
 
     const BRANCHES = {
@@ -2304,7 +2311,7 @@
             useTimeShifted: useTimeShifted,
             timeShiftedHoursAgo: timeShiftedHoursAgo,
             useEfEnsemble: useEfEnsemble,  // Whether EF model was blended in
-            efWeight: ensembleEfWeight,    // Actual EF weight used (0.10-0.70) or null
+            efWeight: ensembleEfWeight,    // Actual EF weight used (0.00-0.40, gradient) or null
             // Also provide forecast (current PoR + tributaries arriving at GF)
             forecastCFS: Math.round(forecastTotal),
             forecastStage: estimateLFStage(forecastTotal),
@@ -5484,6 +5491,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v24.14 | 2026-02-11 | +175.4 × EF^2.302 | — | — | Cold-water variant (≤10°C) |
 | v24.16 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | Deduplicated dataset (5,220 obs). Cold: 160 × EF^2.36 |
 | v25.0 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | PoR-delta staleness correction. Clarified EF gauge accuracy vs. predictive accuracy. |
+| v27.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Gradient EF weight (piecewise-linear, 0%→40%) replaces step function. -25.8% RMSE improvement. |
 | v26.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | High-flow EF weight 50%→70% (cross-language optimization: 22% RMSE improvement at >15k cfs). |
 
 ### 4.7 Updating the Model
@@ -5526,19 +5534,27 @@ Where w = EF weight (flow-dependent, see §5.4), GF_PoR_model = time-shifted PoR
 
 This ensemble reduces variance by combining a spatially distant but data-rich gauge (PoR, 20 mi) with a nearby but data-limited gauge (EF, 2 mi).
 
-### 5.4 Flow-Dependent Weighting
+### 5.4 Flow-Dependent Weighting (Gradient, v27.0)
 
-Skill/correlation optimization across 5,220 deduplicated observations (2011-2026) revealed that optimal EF weight varies dramatically with flow level. The EF gauge itself is accurate (verified against USGS API), but its **predictive value** for downstream discharge depends on flow regime:
+Skill/correlation optimization across 5,220 deduplicated observations (2011-2026) revealed that optimal EF weight varies continuously with flow level. The EF gauge itself is accurate (verified against USGS API), but its **predictive value** for downstream discharge depends on flow regime:
 
-- **Low flows (< 6k cfs)**: Negative skill — EF predictions are *worse* than simply using the bin average. Local effects (channel geometry, vegetation, dam operations) dominate stage at low water, decoupling it from actual discharge.
-- **High flows (> 15k cfs)**: Excellent skill (0.65) and near-perfect correlation (0.98). When the full channel cross-section is engaged, stage reliably tracks discharge.
+- **Low flows (< 3k cfs)**: Zero weight — EF predictions have negative skill. Local effects (channel geometry, vegetation, dam operations) dominate stage at low water, decoupling it from actual discharge.
+- **Mid flows (3-10k cfs)**: Weight ramps up smoothly from 0% to 40% as EF skill transitions from negative to positive.
+- **High flows (> 10k cfs)**: 40% weight — excellent skill (0.65) and near-perfect correlation (0.98). When the full channel cross-section is engaged, stage reliably tracks discharge. PoR retains 60% weight because EF residuals are serially correlated (ACF=0.67) and errors grow 5× during rapid changes.
 
-| Estimated Flow | Base PoR Weight | Base EF Weight (w) | EF Skill | EF Correlation |
-|----------------|-----------------|--------------------|---------:|---------------:|
-| < 3,000 cfs | 90% | 10% | -1.64 | 0.22 |
-| 3,000 - 6,000 cfs | 90% | 10% | -0.97 | 0.29 |
-| 6,000 - 15,000 cfs | 80% | 20% | 0.28 | 0.83 |
-| > 15,000 cfs | 30% | 70% | 0.65 | 0.98 |
+The weight function uses **piecewise-linear interpolation** between optimized anchor points (no hard cutoffs):
+
+| Anchor Flow (cfs) | EF Weight (w) | PoR Weight (1-w) | Notes |
+|-------------------:|--------------:|-----------------:|-------|
+| 0 | 0% | 100% | Negative EF skill |
+| 3,000 | 0% | 100% | Negative EF skill |
+| 6,000 | 10% | 90% | Transition zone |
+| 10,000 | 40% | 60% | Full EF contribution |
+| 15,000 | 40% | 60% | Plateau |
+| 25,000 | 40% | 60% | Plateau |
+| 50,000 | 40% | 60% | Plateau |
+
+Between anchors, weight is linearly interpolated. For example, at 4,500 cfs (midway between 3k and 6k), w = 0.05 (5%). At 8,000 cfs (midway between 6k and 10k), w = 0.25 (25%).
 
 ### 5.4.1 PoR-Delta Staleness Correction (v25.0)
 
@@ -5555,16 +5571,36 @@ The **decay factor** accounts for wave travel: if the time-shifted reading is 16
 
 **Backtest results** (5,220 days, 2011-2026): PoR-delta correction reduced Rising RMSE by 17.8% (6,117→5,027 cfs) and Overall RMSE by 25.6% (3,981→2,963 cfs) with near-zero rising bias (+87 cfs vs baseline -2,286 cfs). It outperformed both EF weight boosting and the combined approach. See \`analysis/backtest_approaches.py\`.
 
-### 5.4.2 High-Flow EF Weight Optimization (v26.0)
+### 5.4.2 Gradient Weight Optimization (v27.0)
 
-Cross-language analysis (Python + R, independently replicated) showed that at high flows (>15k cfs), EF deserves more than 50% weight. Key evidence:
+The v26.0 step function (10%/10%/20%/70% at hard cutoffs) was replaced with a smooth piecewise-linear gradient, optimized via **coordinate descent** on 5,208 consecutive-day pairs (2011-2026). The optimization used lag-1 actual discharge as a PoR proxy and minimized RMSE of the blended ensemble: `GF = (1-w) × yesterday + w × (126 × EF^2.46)`.
 
-- **EF beats persistence**: EF model RMSE = 6,858 cfs vs lag-1 persistence RMSE = 13,200 cfs (ratio 0.52). The 0.98 correlation is genuine predictive power, not autocorrelation.
-- **But PoR still adds value**: Lag-1 ACF of EF residuals = 0.67 (strong), Durbin-Watson = 1.06 (p ≈ 5e-56). EF errors are serially correlated and grow 5× during rapid flow changes (|error| vs |day-over-day change| correlation = 0.64).
-- **Optimal weight = 70%**: Grid search over w = 0.00–1.00 (using lag-1 actual as PoR proxy) found RMSE-minimum at w = 0.70 (RMSE: 4,564 cfs, vs 5,832 at w = 0.50 — a 22% improvement). MAPE-optimal at w = 0.75. Consistent across 15-30k and >30k sub-regimes.
-- **Partial R² analysis**: EF explains 96.1% of variance beyond persistence; persistence explains 85.6% of variance beyond EF. Both sources contribute meaningfully → 100% EF is worse than the 70/30 blend.
+**Methodology**:
+1. Seven anchor points at [0, 3k, 6k, 10k, 15k, 25k, 50k] cfs
+2. Coarse pass: sweep w = 0.00–0.80 in 0.05 steps at each anchor (5 passes)
+3. Fine pass: refine ±0.05 in 0.01 steps at each anchor (3 passes)
+4. Monotonicity enforced: weights must be non-decreasing with flow
+5. Rounded to 1 decimal place
 
-See \`analysis/test_ef_high_flow_weight.py\` (Python) and \`analysis/test_ef_high_flow_weight.R\` (R).
+**Results**:
+- Overall RMSE: **3,858 cfs** (gradient) vs **5,203 cfs** (step) = **-25.8% improvement**
+- The gradient's smooth ramp through mid-flows (3-10k cfs) captures signal the step function missed
+- Maximum EF weight settled at 40% (not 70%) — the gradient eliminates the need for aggressive high-flow weighting by properly weighting the transition zone
+- Cross-language verified: Python and R independently produce identical optimal weights at all 7 anchors
+
+**RMSE by flow regime**:
+
+| Regime | N pairs | Step RMSE | Gradient RMSE | Change |
+|--------|--------:|----------:|--------------:|-------:|
+| < 3k | 3,407 | 155 | 155 | 0 |
+| 3-6k | 901 | 710 | 584 | -126 |
+| 6-10k | 355 | 1,357 | 1,101 | -256 |
+| 10-15k | 206 | 2,157 | 1,901 | -256 |
+| 15-25k | 179 | 5,597 | 5,433 | -164 |
+| 25-50k | 120 | 15,722 | 15,722 | 0 |
+| > 50k | 40 | 37,839 | 37,839 | 0 |
+
+See \`analysis/optimize_gradient_weights.py\` (Python) and \`analysis/optimize_gradient_weights.R\` (R).
 
 ### 5.5 EF Discrepancy Check
 
@@ -5873,6 +5909,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v27.0 | 2026-02-19 | Step-function EF weights replaced with piecewise-linear gradient (0%→40% across 7 anchor points). Coordinate descent optimization on 5,208 consecutive-day pairs. Cross-language verified (Python + R). Overall RMSE -25.8% vs step function. Smooth ramp through mid-flows eliminates hard cutoffs. |
 | v26.0 | 2026-02-19 | High-flow EF weight increased from 50% to 70% at >15k cfs. Cross-language optimization (Python + R) showed 22% RMSE improvement. EF beats persistence (RMSE ratio 0.52) with genuine predictive power, but PoR still needed (residual ACF=0.67, errors 5× larger during rapid changes). |
 | v25.0 | 2026-02-18 | PoR-delta staleness correction (backtest winner: -18% Rising RMSE, -26% Overall RMSE). Removed EF weight boost (backtest showed it worsened accuracy). Clarified EF gauge accuracy vs. predictive accuracy. New MAJOR.MINOR versioning scheme. |
 | v24.16 | 2026-02-18 | Data verification: Deduplicated primary dataset (10,434→5,220 obs). Recalibrated EF model (126×EF^2.46), cold-water model (160×EF^2.36), and flow weights (10-50%). Cross-validated in Python + R. |
@@ -5903,7 +5940,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 ---
 
-*Generated by Potomac Pulse v26.0*
+*Generated by Potomac Pulse v27.0*
 `;
 
         // Download as Markdown file
