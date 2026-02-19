@@ -3914,113 +3914,69 @@
         "01619500": "SACM2",  // Antietam Creek (Sharpsburg)
     };
     
-    async function fetchNWSForecasts() {
-        const forecasts = {};
-        console.log("=== Starting NWS forecast fetch ===");
-        
-        // Fetch forecasts for key gauges
-        for (const [usgsId, nwsLid] of Object.entries(NWS_LIDS)) {
+    // Fetch a single gauge's NWS forecast (tries multiple endpoints)
+    async function fetchSingleNWSForecast(usgsId, nwsLid) {
+        const endpoints = [
+            `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid}/stageflow`,
+            `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid.toLowerCase()}/stageflow`,
+            `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid}/stageflow/forecast`,
+            `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid.toLowerCase()}/stageflow/forecast`
+        ];
+
+        for (const url of endpoints) {
             try {
-                // Try multiple endpoint variations
-                const endpoints = [
-                    `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid}/stageflow`,  // Original case
-                    `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid.toLowerCase()}/stageflow`,  // Lowercase
-                    `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid}/stageflow/forecast`,  // Forecast-specific
-                    `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid.toLowerCase()}/stageflow/forecast`
-                ];
-                
-                let success = false;
-                for (const url of endpoints) {
-                    if (success) break;
-                    
-                    console.log(`Trying ${usgsId}: ${url}`);
-                    
+                const response = await fetchWithTimeout(url, 5000);
+                if (response.ok) {
+                    const text = await response.text();
                     try {
-                        const response = await fetch(url);
-                        console.log(`Response: status=${response.status}, ok=${response.ok}`);
-                        
-                        if (response.ok) {
-                            const text = await response.text();
-                            console.log(`Raw text length: ${text.length}`);
-                            if (text.length > 100) {
-                                console.log(`Raw text preview: ${text.substring(0, 1500)}`);
-                            }
-                            
-                            try {
-                                const json = JSON.parse(text);
-                                const forecast = parseNWSForecast(json, usgsId, nwsLid);
-                                if (forecast) {
-                                    forecasts[usgsId] = forecast;
-                                    success = true;
-                                    console.log(`Got forecast for ${usgsId} from ${url}`);
-                                }
-                            } catch(parseErr) {
-                                console.log(`JSON parse error:`, parseErr.message);
-                            }
-                        } else if (response.status !== 404) {
-                            // Log non-404 errors
-                            const errText = await response.text();
-                            console.log(`Error response (${response.status}):`, errText.substring(0, 300));
+                        const json = JSON.parse(text);
+                        const forecast = parseNWSForecast(json, usgsId, nwsLid);
+                        if (forecast) {
+                            console.log(`✓ NWS forecast for ${usgsId}`);
+                            return { usgsId, forecast };
                         }
-                    } catch(fetchErr) {
-                        console.log(`Fetch failed for ${url}:`, fetchErr.message);
-                    }
+                    } catch(parseErr) { /* skip */ }
                 }
-                
-                if (!success) {
-                    console.log(`No forecast found for ${usgsId} (${nwsLid})`);
-                }
-            } catch(e) {
-                console.log(`Error processing ${nwsLid}:`, e.message);
-            }
+            } catch(fetchErr) { /* skip to next endpoint */ }
         }
-        
-        console.log("=== All parsed forecasts ===", forecasts);
-        
+        return null;  // No forecast found for this gauge
+    }
+
+    async function fetchNWSForecasts() {
+        console.log("=== Fetching NWS forecasts (parallel) ===");
+
+        // Fetch ALL gauges in parallel (not sequential)
+        const promises = Object.entries(NWS_LIDS).map(
+            ([usgsId, nwsLid]) => fetchSingleNWSForecast(usgsId, nwsLid).catch(() => null)
+        );
+        const results = await Promise.all(promises);
+
         // Apply forecasts to data
-        for (const [id, forecast] of Object.entries(forecasts)) {
-            console.log(`Applying forecast to gauge ${id}:`, forecast);
-            if (data[id]) {
-                data[id].forecast = forecast;
-                // Update trend from forecast
-                if (forecast.forecast24 || forecast.forecast48) {
-                    const currentFlow = data[id].q;  // Current flow in cfs
-                    const futureFlow = forecast.forecast48 || forecast.forecast24;  // Future flow in cfs
-                    
-                    let direction = "stable";
-                    let rate = 0;
-                    
-                    if (currentFlow && futureFlow && currentFlow > 0) {
-                        rate = (futureFlow - currentFlow) / currentFlow;
-                        // Use 2% threshold for direction
-                        if (rate > 0.02) {
-                            direction = "up";
-                        } else if (rate < -0.02) {
-                            direction = "down";
-                        }
-                        console.log(`  Current: ${currentFlow} cfs, Future: ${futureFlow} cfs, Change: ${(rate*100).toFixed(1)}%, Direction: ${direction}`);
-                    }
-                    
-                    data[id].trend = {
-                        direction,
-                        rate,
-                        source: "NWS",
-                        forecast24: forecast.forecast24,
-                        forecast48: forecast.forecast48
-                    };
+        let count = 0;
+        for (const result of results) {
+            if (!result) continue;
+            const { usgsId, forecast } = result;
+            if (!data[usgsId]) continue;
+            count++;
+            data[usgsId].forecast = forecast;
+            if (forecast.forecast24 || forecast.forecast48) {
+                const currentFlow = data[usgsId].q;
+                const futureFlow = forecast.forecast48 || forecast.forecast24;
+                let direction = "stable";
+                let rate = 0;
+                if (currentFlow && futureFlow && currentFlow > 0) {
+                    rate = (futureFlow - currentFlow) / currentFlow;
+                    if (rate > 0.02) direction = "up";
+                    else if (rate < -0.02) direction = "down";
                 }
-            } else {
-                console.log(`  No data entry for gauge ${id}`);
+                data[usgsId].trend = {
+                    direction, rate, source: "NWS",
+                    forecast24: forecast.forecast24,
+                    forecast48: forecast.forecast48
+                };
             }
         }
-
-        updateUI();
-
-        // Re-render 48h forecast now that NWS data is available
-        if (gfEstimate) {
-            console.log('Re-rendering 48h forecast with NWS data');
-            updateForecastPeriods(gfEstimate);
-        }
+        console.log(`=== NWS forecasts: ${count}/${Object.keys(NWS_LIDS).length} gauges ===`);
     }
     
     function parseNWSForecast(json, usgsId, nwsLid) {
@@ -4340,75 +4296,95 @@
         // Use P7D to capture last valid readings for ice-affected gauges (ice can last >2 days)
         const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${sites}&parameterCd=00060,00065&period=P7D&format=json`;
 
-        // Fetch Edwards Ferry and water temp in parallel
-        // - EF stage: for GF ensemble model
-        // - Water temp: for cold-water EF model adjustment (improves winter predictions)
-        await Promise.all([
+        // Helper: fetch main USGS data (tries direct + proxies + cache)
+        async function fetchUSGS() {
+            // Try live USGS first (10 second timeout)
+            try {
+                let r = await fetchWithTimeout(url, 10000);
+                if (r.ok) {
+                    const json = await r.json();
+                    if (validateUSGSResponse(json)) {
+                        saveToCache(json);
+                        lastFetchTime = Date.now();
+                        dataSource = "live";
+                        return json;
+                    }
+                    console.log('USGS response validation failed, trying proxies...');
+                }
+            } catch(e) {
+                console.log('Direct USGS fetch failed:', e.message || e);
+            }
+
+            // Try CORS proxies (5 second timeout each)
+            for (const p of PROXIES) {
+                try {
+                    let r = await fetchWithTimeout(p + encodeURIComponent(url), 5000);
+                    if (r.ok) {
+                        const json = await r.json();
+                        if (validateUSGSResponse(json)) {
+                            saveToCache(json);
+                            lastFetchTime = Date.now();
+                            dataSource = "live";
+                            return json;
+                        }
+                        console.log(`Proxy ${p} returned invalid USGS response`);
+                    }
+                } catch(e) {
+                    console.log('Proxy fetch failed:', e);
+                }
+            }
+
+            // Use cached data (any age - never use estimates)
+            const cached = loadFromCache();
+            if (cached) {
+                lastFetchTime = cached.timestamp;
+                dataSource = cached.stale ? "stale" : "cached";
+                return cached.data;
+            }
+            return null;
+        }
+
+        // Fetch ALL data sources in parallel:
+        // - USGS gauge data (main data)
+        // - Edwards Ferry stage (GF ensemble model)
+        // - Water temperature (cold-water EF model)
+        // - NWS forecasts (trends + 48h forecast)
+        // This avoids the old sequential pattern where the page would render
+        // once without NWS data, then re-render when NWS arrived.
+        const [usgsJson] = await Promise.all([
+            fetchUSGS(),
             fetchEdwardsFerry(),
             fetchWaterTemp()
         ]);
 
-        // Try live USGS first (10 second timeout)
-        try {
-            let r = await fetchWithTimeout(url, 10000);
-            if (r.ok) {
-                const json = await r.json();
-                if (!validateUSGSResponse(json)) {
-                    console.log('USGS response validation failed, trying proxies...');
-                } else {
-                    saveToCache(json);
-                    lastFetchTime = Date.now();
-                    dataSource = "live";
-                    process(json);
-                    setStatus("ok");
-                    fetchNWSForecasts();
-                    return;
-                }
-            }
-        } catch(e) {
-            console.log('Direct USGS fetch failed:', e.message || e);
-        }
-
-        // Try CORS proxies (5 second timeout each)
-        for (const p of PROXIES) {
-            try {
-                let r = await fetchWithTimeout(p + encodeURIComponent(url), 5000);
-                if (r.ok) {
-                    const json = await r.json();
-                    if (!validateUSGSResponse(json)) {
-                        console.log(`Proxy ${p} returned invalid USGS response`);
-                        continue;
-                    }
-                    saveToCache(json);
-                    lastFetchTime = Date.now();
-                    dataSource = "live";
-                    process(json);
-                    setStatus("ok");
-                    fetchNWSForecasts();
-                    return;
-                }
-            } catch(e) {
-                console.log('Proxy fetch failed:', e);
-            }
-        }
-
-        // Use cached data (any age - never use estimates)
-        const cached = loadFromCache();
-        if (cached) {
-            lastFetchTime = cached.timestamp;
-            dataSource = cached.stale ? "stale" : "cached";
-            process(cached.data);
-            setStatus(cached.stale ? "stale" : "cached");
-            fetchNWSForecasts();
+        if (!usgsJson) {
+            console.log('⚠️ No data available - no cache exists');
+            lastFetchTime = null;
+            dataSource = "unavailable";
+            setStatus("error");
+            updateUI();
             return;
         }
 
-        // No data available at all
-        console.log('⚠️ No data available - no cache exists');
-        lastFetchTime = null;
-        dataSource = "unavailable";
-        setStatus("error");
+        // Process USGS data (populates `data` object) but DON'T updateUI yet
+        processData(usgsJson);
+
+        // Now fetch NWS forecasts (needs `data` to be populated first for trend calc)
+        // Use a 8s timeout so we don't wait forever if NWS is slow
+        try {
+            await Promise.race([
+                fetchNWSForecasts(),
+                new Promise(resolve => setTimeout(resolve, 8000))
+            ]);
+        } catch(e) {
+            console.warn('NWS forecast fetch error:', e);
+        }
+
+        // Single UI render with ALL data (USGS + EF + temp + NWS trends)
+        setStatus(dataSource === "live" ? "ok" : (dataSource === "stale" ? "stale" : "cached"));
         updateUI();
+        updateLearningUI();
+
         } finally {
             isFetching = false;
         }
@@ -4450,10 +4426,8 @@
 
                 console.log(`📍 Edwards Ferry: ${stage.toFixed(2)} ft`);
 
-                // Update GF estimate now that we have EF data for ensemble
-                if (gfDataReady) {
-                    updateGreatFallsUI();
-                }
+                // EF data is now available; updateUI() will use it when called
+                // (No early re-render — single render after all data arrives)
             }
         } catch(e) {
             console.warn('Edwards Ferry fetch failed:', e);
@@ -4623,9 +4597,10 @@
         }
     }
 
-    function process(json) {
+    // Process USGS JSON into the `data` object (no UI update)
+    function processData(json) {
         data = {};
-        if (!json?.value?.timeSeries) { updateUI(); return; }
+        if (!json?.value?.timeSeries) return;
 
         // Track PoR time series for history backfill
         let porTimeSeries = null;
@@ -4687,6 +4662,11 @@
         fillMissingData();
 
         calcTravelTimes();
+    }
+
+    // Legacy wrapper: process + render (used by error fallback path)
+    function process(json) {
+        processData(json);
         updateUI();
         updateLearningUI();
     }
@@ -5958,6 +5938,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v28.1 | 2026-02-19 | Parallel data loading: fetch USGS + EF + temp + NWS simultaneously. Single UI render after all data arrives (eliminates intermediate partial display). NWS fetches parallelized across 15 gauges (was sequential). 8s NWS timeout prevents stalling. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search: 25 configs on daily (5,208 pairs) + hourly (42,837 pairs, travel-time-shifted PoR). 120% ceiling selected over 110% to avoid systematic under-prediction on rises (-29 cfs bias vs -476 cfs). Cross-verified Python + R. |
 | v27.0 | 2026-02-19 | Step-function EF weights replaced with piecewise-linear gradient (0%→40% across 7 anchor points). Coordinate descent optimization on 5,208 consecutive-day pairs. Cross-language verified (Python + R). Overall RMSE -25.8% vs step function. Smooth ramp through mid-flows eliminates hard cutoffs. |
 | v26.0 | 2026-02-19 | High-flow EF weight increased from 50% to 70% at >15k cfs. Cross-language optimization (Python + R) showed 22% RMSE improvement. EF beats persistence (RMSE ratio 0.52) with genuine predictive power, but PoR still needed (residual ACF=0.67, errors 5× larger during rapid changes). |
@@ -5990,7 +5971,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 ---
 
-*Generated by Potomac Pulse v28.0*
+*Generated by Potomac Pulse v28.1*
 `;
 
         // Download as Markdown file
