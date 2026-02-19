@@ -43,14 +43,64 @@ const EF_MODEL = {
 };
 
 // Flow-dependent EF weight for ensemble model
-// Based on RMSE optimization across 10,434 observations (2011-2026)
-// At low flow: EF has +33% bias (dam operations), reduce weight
-// At high flow: EF is more reliable, increase weight slightly
-function getEFWeight(estimatedFlow) {
-    if (estimatedFlow < 3000)  return 0.10;  // Low flow: EF negative skill, 0.22 corr
-    if (estimatedFlow < 6000)  return 0.10;  // Med-low: EF negative skill, 0.29 corr
-    if (estimatedFlow < 15000) return 0.20;  // Medium: EF skill=0.28, 0.83 corr
-    return 0.50;                              // High flow: EF skill=0.65, 0.98 corr
+// Base weights from skill/correlation optimization on 5,220 deduped observations (2011-2026)
+// Staleness-aware boost: when PoR is stale AND flow is changing, increase EF weight
+// SYNC WARNING: Keep in sync with getEFWeight() in index.html
+function getEFWeight(estimatedFlow, context = null) {
+    // Base weight from flow regime (static optimization)
+    let baseWeight;
+    if (estimatedFlow < 3000)  baseWeight = 0.10;  // Low flow: EF negative skill, 0.22 corr
+    else if (estimatedFlow < 6000)  baseWeight = 0.10;  // Med-low: EF negative skill, 0.29 corr
+    else if (estimatedFlow < 15000) baseWeight = 0.20;  // Medium: EF skill=0.28, 0.83 corr
+    else baseWeight = 0.50;                              // High flow: EF skill=0.65, 0.98 corr
+
+    if (!context) return baseWeight;
+
+    const { timeShiftedHoursAgo, flowState, ratePerHour } = context;
+    if (!timeShiftedHoursAgo || !flowState || flowState === 'steady') return baseWeight;
+
+    // Staleness factor: how much older is PoR data vs EF (~4h lag)?
+    // NOTE: server does not apply wave celerity, so staleness may be slightly
+    // higher than client-side. This is acceptable for server-side snapshots.
+    const efLagHours = 4.0;
+    const stalenessExcess = Math.max(0, timeShiftedHoursAgo - efLagHours);
+    const stalenessFactor = Math.min(1.0, stalenessExcess / 16);
+
+    // Rate factor from PoR history (server has no EF history)
+    const absRate = Math.abs(ratePerHour || 0);
+    const rateFactor = Math.min(1.0, absRate / 10);
+
+    // Asymmetric boost: rising limb more reliable than falling
+    const maxBoost = (flowState === 'rising') ? 0.50 : 0.35;
+    const boost = stalenessFactor * rateFactor * maxBoost;
+
+    // Flow-dependent cap
+    const maxWeight = (estimatedFlow >= 15000) ? 0.70 : 0.60;
+    const finalWeight = Math.min(maxWeight, baseWeight + boost);
+
+    if (boost > 0.01) {
+        console.log(`📈 EF weight boost: ${(baseWeight*100).toFixed(0)}% → ${(finalWeight*100).toFixed(0)}% ` +
+            `(stale: ${timeShiftedHoursAgo.toFixed(1)}h, rate: ${absRate.toFixed(1)}%/hr, ${flowState})`);
+    }
+
+    return finalWeight;
+}
+
+// Compute PoR rate of change (%/hr) from history
+function getPoRRatePerHour(history, currentCFS) {
+    if (!history?.length || history.length < 4) return 0;
+
+    const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
+    let pastReading = null;
+    for (const r of history) {
+        if (r.timestamp <= twoHoursAgo) pastReading = r;
+    }
+    if (!pastReading || !pastReading.cfs) return 0;
+
+    const hoursDiff = (Date.now() - pastReading.timestamp) / (3600000);
+    if (hoursDiff < 0.5) return 0;
+
+    return ((currentCFS - pastReading.cfs) / pastReading.cfs) * 100 / hoursDiff;
 }
 
 const GF_FLOW_BINS = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
@@ -439,22 +489,50 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
         }
     }
 
-    // Weighted ensemble with flow-dependent EF weight
-    // At low flow: reduce EF weight (EF has +33% bias from dam ops)
-    // At high flow: increase EF weight (EF more reliable)
+    // Weighted ensemble with staleness-aware EF weight
+    // Computes flow state and PoR rate for transient-aware weighting
+    const flowState = getFlowState(porHistory, por.q);
+    const porRate = getPoRRatePerHour(porHistory, por.q);
+    const timeShiftedHoursAgo = historicPoR ? historicPoR.actualHoursAgo : null;
+
     let estimatedCFS;
     let efWeightUsed = null;
     if (useEfEnsemble) {
-        efWeightUsed = getEFWeight(porEstimateCFS);
+        // Pass staleness context for transient-aware weighting
+        const efWeightContext = {
+            timeShiftedHoursAgo: timeShiftedHoursAgo || 0,
+            flowState: flowState,
+            ratePerHour: porRate
+        };
+        efWeightUsed = getEFWeight(porEstimateCFS, efWeightContext);
         const porWeight = 1 - efWeightUsed;
-        estimatedCFS = porWeight * porEstimateCFS + efWeightUsed * efEstimateCFS;
-        console.log(`🔀 Ensemble: ${(porWeight*100).toFixed(0)}% PoR (${Math.round(porEstimateCFS)}) + ${(efWeightUsed*100).toFixed(0)}% EF (${Math.round(efEstimateCFS)}) = ${Math.round(estimatedCFS)} cfs`);
+
+        // Relaxed discrepancy guard during transients
+        const discrepancy = Math.abs(efEstimateCFS - porEstimateCFS) / porEstimateCFS;
+        const baseWeight = getEFWeight(porEstimateCFS);  // Without context
+        const boost = efWeightUsed - baseWeight;
+        let discrepancyThreshold = 0.50;
+        if (boost > 0.01 && timeShiftedHoursAgo) {
+            const sf = Math.min(1.0, Math.max(0, timeShiftedHoursAgo - 4) / 16);
+            const rf = Math.min(1.0, Math.abs(porRate) / 10);
+            discrepancyThreshold = 0.50 + sf * rf * 0.25;
+        }
+
+        if (discrepancy > discrepancyThreshold) {
+            console.log(`⚠️ Skipping EF: ${Math.round(discrepancy*100)}% discrepancy (threshold: ${Math.round(discrepancyThreshold*100)}%)`);
+            estimatedCFS = porEstimateCFS;
+            useEfEnsemble = false;
+            efWeightUsed = null;
+        } else {
+            estimatedCFS = porWeight * porEstimateCFS + efWeightUsed * efEstimateCFS;
+            const boostLabel = boost > 0.01 ? ` [+${(boost*100).toFixed(0)}% ${flowState} boost]` : '';
+            console.log(`🔀 Ensemble: ${(porWeight*100).toFixed(0)}% PoR (${Math.round(porEstimateCFS)}) + ${(efWeightUsed*100).toFixed(0)}% EF (${Math.round(efEstimateCFS)}) = ${Math.round(estimatedCFS)} cfs${boostLabel}`);
+        }
     } else {
         estimatedCFS = porEstimateCFS;
     }
 
-    // Flow state
-    const flowState = getFlowState(porHistory, por.q);
+    // Flow bin (flowState already computed above for staleness-aware weighting)
     const flowBin = getFlowBin(estimatedCFS);
 
     return {
@@ -473,7 +551,7 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
         efStage,
         efEstimateCFS: efEstimateCFS ? Math.round(efEstimateCFS) : null,
         efModelType,                         // 'cold', 'default', or 'default-no-temp'
-        efWeight: efWeightUsed,              // Flow-dependent weight used (0.10-0.50)
+        efWeight: efWeightUsed,              // Flow-dependent weight used (0.10-0.70, with transient boost)
         waterTempC,                          // Water temperature used for model selection
         useTimeShifted,
         useEfEnsemble,
