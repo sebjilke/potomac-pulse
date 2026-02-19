@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v28</title>
+    <title>Potomac Pulse v29</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -764,14 +764,14 @@
                         </div>
 
                         <p style="font-size:0.65rem;color:#94a3b8;line-height:1.6;">
-                        <b>The blend is smart:</b> Edwards Ferry's gauge readings are accurate (verified against USGS), but at low flows a single water-level reading 2 miles upstream is a poor predictor of downstream discharge — local channel features, dam operations, and vegetation dominate the signal. So the model leans heavily on Point of Rocks at low flows (90% PoR). At higher flows, when the entire river channel is engaged and local effects wash out, Edwards Ferry becomes a strong predictor (0.98 correlation) and gets up to 40% weight. The weight ramps up smoothly — no hard cutoffs — using a gradient optimized from 15 years of data.
+                        <b>The blend is smart:</b> Edwards Ferry's gauge readings are accurate (verified against USGS), but at low flows a single water-level reading 2 miles upstream is a poor predictor of downstream discharge — local channel features, dam operations, and vegetation dominate the signal. So below 3,000 cfs the model relies entirely on Point of Rocks. Above 3,000 cfs, when the full river channel is engaged and local effects wash out, Edwards Ferry becomes a strong predictor (0.98 correlation) and gets 35% weight — optimized from 5 years of hourly data (42,000+ observations, independently verified in Python and R).
                         </p>
 
                         <!-- UNDER THE HOOD (credibility — takeaway first, formula second) -->
                         <div style="background:#0f172a;padding:10px 12px;border-radius:6px;margin:10px 0;">
                             <div style="font-size:0.55rem;color:#64748b;margin-bottom:6px;">UNDER THE HOOD</div>
                             <p style="font-size:0.65rem;color:#94a3b8;line-height:1.5;margin-bottom:6px;">
-                            We tested the Edwards Ferry model against 15 years of daily USGS data (5,220 deduplicated observations). On a typical day, the estimate is within about 6% of actual flow — but accuracy varies dramatically by flow level. At low flows (&lt;3,000 cfs), the model's mean error is 44%; above 15,000 cfs, it drops to under 9%. In cold water (below 50&deg;F), a separate calibration kicks in because temperature changes how the river behaves.
+                            We tested the Edwards Ferry model against 15 years of daily USGS data (5,220 deduplicated observations) and 5 years of hourly data (42,838 observations). On a typical day, the estimate is within about 6% of actual flow — but accuracy varies dramatically by flow level. At low flows (&lt;3,000 cfs), the model's mean error is 44%; above 15,000 cfs, it drops to under 9%. In cold water (below 50&deg;F), a separate calibration kicks in because temperature changes how the river behaves.
                             </p>
                         </div>
 
@@ -1147,9 +1147,8 @@
         coldExp: 2.36,       // Lower exponent for cold water [deduped fit, R²=0.96]
         coldMaxTemp: 10,     // Temperature threshold in °C
         // Model metadata
-        rSquared: 0.94,      // Model fit quality (R² from log-linear regression)
+        rSquared: 0.91,      // Model fit quality (R² from deduped power-law fit, 5220 obs)
         medianErrorPct: 6.3, // Typical prediction error
-        weight: 0.4,         // Weight in ensemble (0.4 = 40% EF, 60% PoR)
         minStage: 2.5,       // Minimum valid EF stage (ft)
         maxStage: 20.0       // Maximum valid EF stage (ft)
     };
@@ -1177,24 +1176,15 @@
     let waterTempC = null;  // null = unavailable, use default model
 
     // Flow-dependent EF weight for ensemble model
-    // v27.0: Piecewise-linear gradient EF weight — replaces step function.
-    // Optimized via coordinate descent on 5,208 consecutive-day pairs (2011-2026).
-    // Cross-language verified (Python + R produce identical weights).
-    // Overall RMSE: 3,858 cfs (gradient) vs 5,203 cfs (step) = -25.8% improvement.
-    // See analysis/optimize_gradient_weights.py and .R
+    // v29.0: Flat 35% EF weight above 3k cfs — replaces graduated ramp.
+    // Optimized via coordinate descent on 42,838 hourly observations (2021-2026).
+    // Simultaneous blind Python + R subagents, then independent auditor review.
+    // RMSE: 1,676 cfs (flat 35%) vs 1,757 (daily-optimized) = -4.6% improvement.
+    // See analysis/optimize_gradient_weights_hourly_v2.py and .R
     function getEFWeight(estimatedFlow) {
-        // Anchor points: [flow_cfs, ef_weight] — linearly interpolated between
-        const anchors = [[0,0.0],[3000,0.0],[6000,0.1],[10000,0.4],[15000,0.4],[25000,0.4],[50000,0.4]];
-        if (estimatedFlow <= 0) return 0.0;
-        if (estimatedFlow >= 50000) return 0.4;
-        for (let i = 1; i < anchors.length; i++) {
-            if (estimatedFlow <= anchors[i][0]) {
-                const [f0, w0] = anchors[i-1];
-                const [f1, w1] = anchors[i];
-                return w0 + (w1 - w0) * (estimatedFlow - f0) / (f1 - f0);
-            }
-        }
-        return 0.4;
+        // Simple step: 0% below 3k, 35% above 3k
+        if (estimatedFlow < 3000) return 0.0;
+        return 0.35;
     }
 
     const BRANCHES = {
@@ -2333,7 +2323,7 @@
             useTimeShifted: useTimeShifted,
             timeShiftedHoursAgo: timeShiftedHoursAgo,
             useEfEnsemble: useEfEnsemble,  // Whether EF model was blended in
-            efWeight: ensembleEfWeight,    // Actual EF weight used (0.00-0.40, gradient) or null
+            efWeight: ensembleEfWeight,    // Actual EF weight used (0% <3k, 35% ≥3k) or null
             // Also provide forecast (current PoR + tributaries arriving at GF)
             forecastCFS: Math.round(forecastTotal),
             forecastStage: estimateLFStage(forecastTotal),
@@ -5479,6 +5469,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v24.16 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | Deduplicated dataset (5,220 obs). Cold: 160 × EF^2.36 |
 | v25.0 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | PoR-delta staleness correction. Clarified EF gauge accuracy vs. predictive accuracy. |
 | v27.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Gradient EF weight (piecewise-linear, 0%→40%) replaces step function. -25.8% RMSE improvement. |
+| v29.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Flat 35% EF weight above 3k cfs (hourly optimization, 42k obs). -4.6% RMSE vs daily-optimized gradient. |
 | v28.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Soft LF ceiling (120%) + decay cap 0.50. Near-zero rising bias (-29 cfs). Cross-verified daily + hourly (48k pairs). |
 | v26.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | High-flow EF weight 50%→70% (cross-language optimization: 22% RMSE improvement at >15k cfs). |
 
@@ -5522,27 +5513,19 @@ Where w = EF weight (flow-dependent, see §5.4), GF_PoR_model = time-shifted PoR
 
 This ensemble reduces variance by combining a spatially distant but data-rich gauge (PoR, 20 mi) with a nearby but data-limited gauge (EF, 2 mi).
 
-### 5.4 Flow-Dependent Weighting (Gradient, v27.0)
+### 5.4 Flow-Dependent Weighting (Flat 35%, v29.0)
 
-Skill/correlation optimization across 5,220 deduplicated observations (2011-2026) revealed that optimal EF weight varies continuously with flow level. The EF gauge itself is accurate (verified against USGS API), but its **predictive value** for downstream discharge depends on flow regime:
+Optimization on 42,838 hourly observations (2021-2026, travel-time-shifted PoR) revealed that a simple step function outperforms the graduated ramp. The EF gauge is accurate (USGS-verified), but its **predictive value** depends on flow regime:
 
-- **Low flows (< 3k cfs)**: Zero weight — EF predictions have negative skill. Local effects (channel geometry, vegetation, dam operations) dominate stage at low water, decoupling it from actual discharge.
-- **Mid flows (3-10k cfs)**: Weight ramps up smoothly from 0% to 40% as EF skill transitions from negative to positive.
-- **High flows (> 10k cfs)**: 40% weight — excellent skill (0.65) and near-perfect correlation (0.98). When the full channel cross-section is engaged, stage reliably tracks discharge. PoR retains 60% weight because EF residuals are serially correlated (ACF=0.67) and errors grow 5× during rapid changes.
+- **Low flows (< 3k cfs)**: Zero weight — EF predictions have negative skill. Local effects (channel geometry, vegetation, dam operations) dominate stage at low water.
+- **All other flows (≥ 3k cfs)**: Flat 35% weight. The hourly optimization found no benefit to varying the weight with flow level — the same 35% is optimal from 3k to 50k+ cfs.
 
-The weight function uses **piecewise-linear interpolation** between optimized anchor points (no hard cutoffs):
+| Flow Regime | EF Weight (w) | PoR Weight (1-w) |
+|-------------|:-------------:|:----------------:|
+| < 3,000 cfs | 0% | 100% |
+| ≥ 3,000 cfs | 35% | 65% |
 
-| Anchor Flow (cfs) | EF Weight (w) | PoR Weight (1-w) | Notes |
-|-------------------:|--------------:|-----------------:|-------|
-| 0 | 0% | 100% | Negative EF skill |
-| 3,000 | 0% | 100% | Negative EF skill |
-| 6,000 | 10% | 90% | Transition zone |
-| 10,000 | 40% | 60% | Full EF contribution |
-| 15,000 | 40% | 60% | Plateau |
-| 25,000 | 40% | 60% | Plateau |
-| 50,000 | 40% | 60% | Plateau |
-
-Between anchors, weight is linearly interpolated. For example, at 4,500 cfs (midway between 3k and 6k), w = 0.05 (5%). At 8,000 cfs (midway between 6k and 10k), w = 0.25 (25%).
+This replaced the v27.0 graduated ramp (0%→10%→40%) which was optimized on daily data. The hourly dataset has 8× more observations and uses actual travel-time-shifted PoR (not lag-1 proxy), producing a more robust estimate.
 
 ### 5.4.1 PoR-Delta Staleness Correction (v25.0)
 
@@ -5551,11 +5534,11 @@ When the river is rising or falling, the time-shifted PoR reading (19-26h old) c
 \`\`\`
 IF |PoR_change%| > 5%:
     ratio = PoR_now / PoR_then
-    decay = min(0.75, sqrt(staleness / travel_time))
+    decay = min(0.50, sqrt(staleness / travel_time))
     corrected = estimate × (1 + (ratio - 1) × decay)
 \`\`\`
 
-The **decay factor** accounts for wave travel: if the time-shifted reading is 16h old and PoR→GF travel is 19h, the change at PoR has only partially reached GF. The sqrt ramp gives ~50% correction at 25% elapsed, ~75% at full travel time. The 0.75 cap prevents overcorrection — the EF ensemble provides additional accuracy.
+The **decay factor** accounts for wave travel: if the time-shifted reading is 16h old and PoR→GF travel is 19h, the change at PoR has only partially reached GF. The sqrt ramp gives ~50% correction at 25% elapsed. The 0.50 cap (v28.0, lowered from 0.75) prevents overcorrection on rises — cross-verified on 42,837 hourly pairs.
 
 **Backtest results** (5,220 days, 2011-2026): PoR-delta correction reduced Rising RMSE by 17.8% (6,117→5,027 cfs) and Overall RMSE by 25.6% (3,981→2,963 cfs) with near-zero rising bias (+87 cfs vs baseline -2,286 cfs). It outperformed both EF weight boosting and the combined approach. See \`analysis/backtest_approaches.py\`.
 
@@ -5614,6 +5597,36 @@ The GF estimate is capped at **120% of LF actual discharge**, and the PoR-delta 
 The selected config prioritizes unbiased rising estimates (bias ≈ zero) over minimum RMSE. A tool used to assess rising river conditions must not systematically under-predict. Cross-language verified in Python and R (all 50 metrics match within 0.5 cfs).
 
 See \`analysis/backtest_comprehensive.py\` (Python) and \`analysis/backtest_comprehensive_R.R\` (R).
+
+### 5.4.4 Hourly Gradient Weight Re-Optimization (v29.0)
+
+The v27.0 graduated ramp (0%→10%→40%) was optimized on daily data using lag-1 actual discharge as a PoR proxy. Re-optimization on **42,838 hourly observations** (2021-2026) with **actual travel-time-shifted PoR** (Searcy power law) found that a simple flat 35% weight above 3k cfs is optimal.
+
+**Why hourly data produced different results:**
+1. **8× more observations** (42,838 vs 5,208) reduces overfitting risk
+2. **Real PoR proxy**: Travel-time-shifted PoR readings (not lag-1 daily) match the production model
+3. **Intra-day dynamics**: Captures rapid event transitions that daily averages smooth over
+
+**Optimization methodology:**
+1. Seven anchor points at [0, 3k, 6k, 10k, 15k, 25k, 50k] cfs
+2. Zero initialization (avoids warm-start bias — audit of v1 found binding constraints when initialized from current weights)
+3. W_MAX = 0.80, forward-only monotonicity
+4. Coarse pass: 0.00–0.80 in 0.05 steps (5 sweeps), fine pass: ±0.05 in 0.01 steps (3 sweeps)
+5. Two-decimal precision
+
+**Results (simultaneous blind Python + R subagents):**
+
+| Config | Overall RMSE | vs Daily-Optimized |
+|--------|:----------:|:----------:|
+| Flat 35% (v29.0) | **1,676** | **-4.6%** |
+| Flat 40% (v1 hourly) | 1,702 | -3.1% |
+| Graduated 0→10→40% (v27.0 daily) | 1,757 | baseline |
+
+**Cross-validation** (leave-one-year-out, 2021-2025): 4/6 years improve, 2 neutral. Average improvement: -36.4 cfs RMSE. No year shows significant degradation, confirming the result generalizes.
+
+**Cross-language verification**: Python and R exact match (0.0000 weight difference, 0.0 cfs RMSE difference).
+
+See \`analysis/optimize_gradient_weights_hourly_v2.py\` (Python) and \`analysis/optimize_gradient_weights_hourly_v2_verify.R\` (R).
 
 ### 5.5 EF Discrepancy Check
 
@@ -5922,6 +5935,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v29.0 | 2026-02-19 | Flat 35% EF weight above 3k cfs replaces graduated ramp (0%→10%→40%). Re-optimized on 42,838 hourly observations (2021-2026) with travel-time-shifted PoR. Overall RMSE -4.6% (1,676 vs 1,757 cfs). Simultaneous blind Python + R subagents + independent auditor. |
 | v28.1 | 2026-02-19 | Parallel data loading: fetch USGS + EF + temp + NWS simultaneously. Single UI render after all data arrives (eliminates intermediate partial display). NWS fetches parallelized across 15 gauges (was sequential). 8s NWS timeout prevents stalling. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search: 25 configs on daily (5,208 pairs) + hourly (42,837 pairs, travel-time-shifted PoR). 120% ceiling selected over 110% to avoid systematic under-prediction on rises (-29 cfs bias vs -476 cfs). Cross-verified Python + R. |
 | v27.0 | 2026-02-19 | Step-function EF weights replaced with piecewise-linear gradient (0%→40% across 7 anchor points). Coordinate descent optimization on 5,208 consecutive-day pairs. Cross-language verified (Python + R). Overall RMSE -25.8% vs step function. Smooth ramp through mid-flows eliminates hard cutoffs. |
@@ -5955,7 +5969,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 ---
 
-*Generated by Potomac Pulse v28.1*
+*Generated by Potomac Pulse v29.0*
 `;
 
         // Download as Markdown file

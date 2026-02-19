@@ -43,23 +43,15 @@ const EF_MODEL = {
 };
 
 // Flow-dependent EF weight for ensemble model
-// v27.0: Piecewise-linear gradient EF weight — replaces step function.
-// Optimized via coordinate descent on 5,208 consecutive-day pairs (2011-2026).
-// Cross-language verified (Python + R produce identical weights).
-// Overall RMSE: 3,858 cfs (gradient) vs 5,203 cfs (step) = -25.8% improvement.
+// v29.0: Flat 35% EF weight above 3k cfs — replaces graduated ramp.
+// Optimized via coordinate descent on 42,838 hourly observations (2021-2026).
+// Simultaneous blind Python + R subagents, then independent auditor review.
+// RMSE: 1,676 cfs (flat 35%) vs 1,757 (daily-optimized) = -4.6% improvement.
 // SYNC WARNING: Keep in sync with getEFWeight() in index.html
 function getEFWeight(estimatedFlow) {
-    const anchors = [[0,0.0],[3000,0.0],[6000,0.1],[10000,0.4],[15000,0.4],[25000,0.4],[50000,0.4]];
-    if (estimatedFlow <= 0) return 0.0;
-    if (estimatedFlow >= 50000) return 0.4;
-    for (let i = 1; i < anchors.length; i++) {
-        if (estimatedFlow <= anchors[i][0]) {
-            const [f0, w0] = anchors[i-1];
-            const [f1, w1] = anchors[i];
-            return w0 + (w1 - w0) * (estimatedFlow - f0) / (f1 - f0);
-        }
-    }
-    return 0.4;
+    // Simple step: 0% below 3k, 35% above 3k
+    if (estimatedFlow < 3000) return 0.0;
+    return 0.35;
 }
 
 const GF_FLOW_BINS = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
@@ -522,7 +514,7 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
         efStage,
         efEstimateCFS: efEstimateCFS ? Math.round(efEstimateCFS) : null,
         efModelType,                         // 'cold', 'default', or 'default-no-temp'
-        efWeight: efWeightUsed,              // Flow-dependent weight used (0.10-0.70, with transient boost)
+        efWeight: efWeightUsed,              // Flow-dependent weight used (0% <3k, 35% ≥3k)
         waterTempC,                          // Water temperature used for model selection
         useTimeShifted,
         useEfEnsemble,
