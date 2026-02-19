@@ -2301,7 +2301,7 @@
         if (hasActualTribs && useTimeShifted) confidence = 'high';
         if (hasActualTribs && !useTimeShifted) confidence = 'medium';
         if (!hasActualTribs && !useTimeShifted) confidence = 'low';
-        if (!por.trend) confidence = 'low';
+        // NWS trend is a bonus signal, not a requirement for confidence
 
         // Ensemble with EF boosts confidence (R² = 0.98 model adds reliability)
         if (useEfEnsemble && confidence === 'medium') {
@@ -2522,17 +2522,11 @@
         trendStateEl.textContent = stateIcons[gfEstimate.flowState];
         trendStateEl.style.color = stateColors[gfEstimate.flowState];
 
-        // Confidence - only show once we have trend data (NWS loaded)
+        // Confidence - always show (computed from data quality, not NWS)
         const confColors = { high: '#4ade80', medium: '#fbbf24', low: '#f87171' };
-        const por = data["01638500"];
         const confEl = document.getElementById("gf-confidence");
-        if (por?.trend) {
-            confEl.textContent = "Confidence: " + gfEstimate.confidence.toUpperCase();
-            confEl.style.color = confColors[gfEstimate.confidence];
-        } else {
-            confEl.textContent = "Confidence: --";
-            confEl.style.color = "";
-        }
+        confEl.textContent = "Confidence: " + gfEstimate.confidence.toUpperCase();
+        confEl.style.color = confColors[gfEstimate.confidence];
 
         // Forecast section - always shows current PoR arriving at GF
         document.getElementById("gf-forecast-cfs").textContent = gfEstimate.forecastCFS.toLocaleString();
