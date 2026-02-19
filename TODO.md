@@ -95,6 +95,15 @@
 - **Analysis**: `/analysis/flow_weight_optimization_realistic.csv`
 - **Impact**: Expected 2-3% RMSE improvement, better low-flow predictions
 
+### Review GF prediction accuracy with live data
+- **Background**: v24.13 (EF recalibration), v24.14 (cold-water model), v24.15 (flow-dependent weights) all now in production
+- **Observation**: Predictions work but "feel off" — needs validation against actual readings
+- **Action**: Compare GF predictions vs LF validation readings over several days/weeks of non-ice data
+- **Check**: Are ensemble weights (25-45% EF) appropriate? Do cold-water coefficients trigger correctly?
+- **May need**: Coefficient tuning, weight adjustments, or travel time corrections
+- **Best timing**: Now — ice has melted, clean data flowing
+- **Effort**: 4-8h (data collection + analysis)
+
 ### Re-tune ice detection thresholds (now possible)
 - **Background**: Previous EF model underestimated by ~22%, so EF cross-check rarely triggered
 - **With new model**: EF estimates are accurate, so EF >> LF during ice should now trigger correctly

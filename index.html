@@ -661,9 +661,6 @@
                         <p style="font-size:0.7rem;color:#94a3b8;line-height:1.6;margin-bottom:6px;">
                         <b style="color:#60a5fa;">CFS</b> — Cubic feet per second. How much water is flowing. Higher = more water, bigger features.
                         </p>
-                        <div style="font-size:0.65rem;color:#64748b;line-height:1.5;margin-bottom:10px;padding:6px 8px;background:rgba(0,0,0,0.2);border-radius:4px;">
-                        Typical GF range: ~2,500 cfs (low/bony) &rarr; ~6,000 (good day) &rarr; ~15,000 (big water) &rarr; 25,000+ (most lines close out)
-                        </div>
                         <p style="font-size:0.7rem;color:#94a3b8;line-height:1.6;margin-bottom:6px;">
                         <b style="color:#4ade80;">Stage</b> — Water height in feet on the Little Falls scale, so you can compare to levels you already know.
                         </p>
@@ -775,9 +772,6 @@
                             <div style="font-size:0.55rem;color:#64748b;margin-bottom:6px;">UNDER THE HOOD</div>
                             <p style="font-size:0.65rem;color:#94a3b8;line-height:1.5;margin-bottom:6px;">
                             We tested the Edwards Ferry model against 15 years of daily river data (10,434 observations). On a typical day, the estimate is within about 6% of actual flow. In cold water (below 50&deg;F), a separate calibration kicks in because temperature changes how the river behaves.
-                            </p>
-                            <p style="font-size:0.55rem;color:#64748b;line-height:1.4;">
-                            Model: <span style="color:#60a5fa;font-family:monospace;">136 &times; stage<sup>2.42</sup></span> (R&sup2; = 0.94). Cold-water variant: <span style="color:#60a5fa;font-family:monospace;">175.4 &times; stage<sup>2.30</sup></span> when &le;10&deg;C.
                             </p>
                         </div>
 
@@ -5206,76 +5200,117 @@
     
     // ==================== TECHNICAL APPENDIX DOWNLOAD ====================
     function downloadTechAppendix() {
-        const content = `# Potomac Pulse - Technical Appendix
+        const content = `# Potomac Pulse — Technical Appendix
 
-**Version:** 24.11
-**Date:** February 2026
+**Version:** 24.15 | **Date:** February 2026
 
----
-
-## 1. Overview
-
-This app predicts water arrival times at Little Falls and estimates conditions at Great Falls (which has no gauge). The travel time model uses a power law derived from USGS Circular 438 (Searcy & Davis, 1961).
+This document provides full methodological transparency for the Potomac Pulse prediction system. It is intended for scientists, hydrologists, and technically curious users who want to understand exactly how the model works.
 
 ---
 
-## 2. Travel Time Model
+## 1. Introduction
 
-### 2.1 Core Formula
+Potomac Pulse is a real-time web application that estimates water conditions at Great Falls on the Potomac River, where no USGS gauge exists. It combines data from multiple upstream gauges using an ensemble model, validates predictions against a downstream gauge, and learns correction factors over time.
 
-For the Point of Rocks to Little Falls reach (41 miles):
+**Core approach:**
+1. Look up what Point of Rocks was reading when today's Great Falls water passed through (~19-33 hours ago)
+2. Add tributary contributions (Monocacy, Goose Creek) at their confluence points
+3. Blend with a nearby stage-only gauge (Edwards Ferry) using flow-dependent weights
+4. Validate every prediction ~6 hours later when water reaches Little Falls
+5. Learn correction factors by flow regime and flow state
+
+---
+
+## 2. Study Area & Gauge Network
+
+### 2.1 Basin Overview
+
+The Potomac River at Little Falls (USGS 01646500) drains 11,560 mi². Point of Rocks, 41 river miles upstream, captures 83.5% of this drainage. The remaining 16.5% enters between Point of Rocks and Little Falls via tributaries and ungauged streams.
+
+### 2.2 Gauge Inventory
+
+| Gauge | USGS ID | Parameters | Drainage (mi²) | % of LF Basin | Travel to LF | Role |
+|-------|---------|------------|----------------|---------------|--------------|------|
+| Little Falls | 01646500 | Q, H | 11,560 | 100% | — | Validation target |
+| Point of Rocks | 01638500 | Q, H, T | 9,651 | 83.5% | ~26 hrs | Primary predictor |
+| Edwards Ferry | 01644148 | H only | 11,130 | 96.3% | ~4 hrs | Ensemble cross-check |
+| Monocacy River | 01643000 | Q, H | 817 | 7.1% | ~14 hrs | Tributary addition |
+| Goose Creek | 01644000 | Q, H | 332 | 3.0% | ~10 hrs | Tributary addition |
+| Seneca Creek | 01645000 | Q, H | 101 | 0.9% | ~5 hrs | Below GF (subtracted) |
+| Hancock | 01613000 | Q, H | 4,073 | 35.2% | ~120 hrs | Upstream early warning |
+| Cumberland | 01603000 | Q, H | 877 | 7.6% | ~180 hrs | Upstream early warning |
+
+*Q = discharge (param 00060), H = gage height (param 00065), T = water temperature (param 00010). Travel times at median flow (~5,000 cfs) with ×0.80 empirical correction.*
+
+### 2.3 Data Availability & Missing Data Handling
+
+When a gauge returns invalid data (USGS sentinel value -999999), discharge is estimated using drainage area ratio:
+
+\`\`\`
+Estimated_CFS = LF_CFS × (gauge_drainage_area / 11,560)
+\`\`\`
+
+Estimated values are displayed in italics with a yellow asterisk. Common causes: ice at measurement site, gauge malfunction, communication outage.
+
+### 2.4 Below Point of Rocks
+
+16.5% of Little Falls' drainage enters below Point of Rocks:
+- Monocacy: 7.1% (gauged)
+- Goose Creek: 3.0% (gauged)
+- Seneca Creek: 0.9% (gauged)
+- Ungauged streams: 5.5% (~640 mi²)
+
+Local storms in ungauged areas can raise Little Falls independently of Point of Rocks.
+
+---
+
+## 3. Travel Time Model
+
+### 3.1 Theoretical Basis
+
+The travel time model derives from USGS Circular 438 (Searcy & Davis, 1961), which measured mean water velocity vs. discharge at Point of Rocks and Little Falls using dye-tracer studies:
+
+\`\`\`
+V_avg = 0.0116 × Q^0.5963   (R² = 0.99)
+\`\`\`
+
+Converting velocity to travel time over the 41-mile PoR→LF reach:
+
+\`\`\`
+T_original = 5174 × Q^(-0.5963)
+\`\`\`
+
+### 3.2 Empirical Correction (×0.80)
+
+Cross-correlation analysis of modern USGS instantaneous data (6 months of 15-minute readings plus 2 years of daily data, January 2026) showed observed travel times are approximately 20% faster than Searcy's 1961 measurements. We apply a conservative 0.80 multiplier:
 
 \`\`\`
 T = 4139 × Q^(-0.5963)
 \`\`\`
 
-Where:
-- T = travel time (hours)
-- Q = Little Falls discharge (cfs)
+Where T = travel time in hours, Q = Little Falls discharge in cfs.
 
-### 2.2 How It Was Derived
+**Correction evidence:**
+- Rising limb analysis: peak PoR→LF correlation at 24 hours (r = 0.958)
+- Empirical power-law fit: T = 2438 × Q^(-0.5491), R² = 0.908
+- Conservative approach: preserve Searcy's physically-derived exponent (-0.5963), adjust coefficient only
+- Likely cause: changed channel conditions (sediment, vegetation, cross-section geometry) over 60+ years
 
-Searcy (USGS Circular 438, 1961) measured mean water velocity vs. discharge at Point of Rocks and Little Falls, then fit a power law:
+### 3.3 Travel Time by Flow Regime
 
-\`\`\`
-V_avg = 0.0116 × Q^0.5963  (R² = 0.99)
-\`\`\`
+| LF Flow (cfs) | Searcy (1961) | Corrected (×0.80) | PoR → GF (75%) | GF → LF (25%) |
+|---------------|---------------|-------------------|----------------|----------------|
+| 1,200 | 55 hrs | 44 hrs | ~33 hrs | ~11 hrs |
+| 2,000 | 44 hrs | 35 hrs | ~26 hrs | ~9 hrs |
+| 5,000 | 32 hrs | 26 hrs | ~19 hrs | ~6.5 hrs |
+| 15,000 | 18 hrs | 14 hrs | ~11 hrs | ~3.6 hrs |
+| 50,000 | 9 hrs | 7 hrs | ~5.5 hrs | ~1.8 hrs |
 
-**Original Searcy Model:**
-\`\`\`
-T_original = 5174 × Q^(-0.5963)
-\`\`\`
+The PoR→GF segment accounts for 75% of total travel time (slower pooled sections above the falls), while GF→LF accounts for 25% (faster flow through the gorge).
 
-**Empirical Correction (January 2026):**
-Cross-correlation analysis of modern USGS instantaneous data (6 months of 15-minute readings plus 2 years of daily data) showed that observed travel times are approximately 20% faster than Searcy's 1961 dye-tracer measurements. We apply a conservative 0.80 multiplier:
+### 3.4 Upstream Gauge Extensions
 
-\`\`\`
-T_adjusted = 5174 × 0.80 × Q^(-0.5963) = 4139 × Q^(-0.5963)
-\`\`\`
-
-This correction likely reflects modern channel conditions (different sediment, vegetation, or cross-section geometry compared to 1961).
-
-### 2.3 Model Accuracy
-
-| LF Flow (cfs) | Searcy (1961) | Corrected (×0.80) | Notes |
-|---------------|---------------|-------------------|-------|
-| 1,810 | 59.1 hrs | 47.3 hrs | Very low flow |
-| 4,940 | 32.5 hrs | 26.0 hrs | Median flow |
-| 10,300 | 20.9 hrs | 16.7 hrs | Moderate flow |
-| 26,400 | 11.9 hrs | 9.5 hrs | High flow |
-| 63,200 | 7.1 hrs | 5.7 hrs | Flood |
-
-**Correction methodology:**
-- Rising limb analysis showed peak PoR→LF correlation at 24 hours (r=0.958)
-- Empirical power-law fit: T = 2438 × Q^(-0.5491) with R²=0.908
-- Conservative approach: preserve Searcy's physically-derived exponent, apply 0.80 coefficient adjustment
-- At high/flood flows where empirical data is limited, correction still uses Searcy structure
-
-### 2.4 Upstream Gauge Travel Times
-
-For gauges upstream of Point of Rocks (Hancock, Cumberland, etc.), baseline travel times are from Searcy Table 2, adjusted with the same 0.80 multiplier. These are scaled by the same flow multiplier used for PoR→LF.
-
-**Important limitation:** The Searcy power law was calibrated specifically for the PoR→LF reach. Upstream reaches have different channel characteristics, so using the same multiplier introduces ±10-20% additional uncertainty for distant gauges.
+For gauges upstream of Point of Rocks, baseline travel times are from Searcy Table 2, adjusted with the same 0.80 multiplier and scaled by the same flow-dependent function.
 
 | Gauge | Baseline (median flow) | Uncertainty |
 |-------|------------------------|-------------|
@@ -5284,322 +5319,234 @@ For gauges upstream of Point of Rocks (Hancock, Cumberland, etc.), baseline trav
 | Hancock | 120 hrs (~5 days) | ±15-20% |
 | Cumberland | 181 hrs (~7.5 days) | ±15-20% |
 
-For upstream gauges, travel times are best used for "pulse is coming" awareness rather than precise arrival timing.
+**Limitation:** The Searcy power law was calibrated specifically for the PoR→LF reach. Upstream reaches have different channel characteristics. Upstream travel times are best used for "pulse is coming" awareness rather than precise arrival timing.
 
-### 2.5 Upstream Validation (Planned)
+### 3.5 Iterative Convergence Algorithm
 
-**Status:** Deferred until spring 2026 due to winter ice conditions
+Travel time depends on flow, but we look up *historical* flow — creating a circular dependency.
 
-Cross-correlation analysis to validate segment travel times:
-- **Cumberland → Hancock** (North Branch): Cumberland gauge (01603000) currently ice-affected (-999999)
-- **Hancock → Point of Rocks** (Mainstem): Preliminary Jan 2026 event showed ~34h lag (peak to peak)
+**Problem:** Current flow = 1,200 cfs → travel time ~33h → look up PoR from 33h ago → find 1,900 cfs → but 1,900 cfs travels in ~25h, so that water already passed.
 
-When ice clears, we plan to:
-1. Cross-correlate Cumberland-Hancock with 1-hour resolution
-2. Cross-correlate Hancock-PoR separately from PoR-LF
-3. Determine if upstream reaches need different multipliers than the PoR→LF 0.80 correction
+**Solution:** Iterate until convergence (within 1 hour):
+1. Start with current flow → calculate travel time
+2. Look up historical PoR from that many hours ago
+3. Recalculate travel time based on that historical flow
+4. Repeat until stable
 
-*Preliminary observation (Jan 12-15, 2026): Hancock peaked at 2,300 cfs on Jan 13 13:00; PoR peaked at 3,520 cfs on Jan 14 22:45 — approximately 34 hours lag for the Hancock→PoR reach.*
+Typically converges in 2-3 iterations.
+
+### 3.6 Wave Celerity Adjustment
+
+During rising flood events, the wave front travels faster than bulk water velocity (Fread, 1973). The pressure signal propagates faster than the water itself.
+
+**Implementation:**
+- Compute rate of rise from PoR history (% change per hour)
+- Reduce travel time: 2% reduction per 1%/hr rise rate
+- Maximum reduction: 30% (physics limit)
+- Applied only during confirmed "rising" conditions
+
+| Rise Rate | Travel Time Reduction | 19h Baseline → |
+|-----------|----------------------|----------------|
+| +2.5%/hr | 5% | 18.1h |
+| +5%/hr | 10% | 17.1h |
+| +10%/hr | 20% | 15.2h |
+| +15%/hr+ | 30% (max) | 13.3h |
+
+### 3.7 Planned Validation
+
+Cross-correlation analysis for upstream segment travel times is planned:
+- Cumberland → Hancock (North Branch)
+- Hancock → Point of Rocks (Mainstem)
+
+Preliminary observation (Jan 12-15, 2026): Hancock peaked at 2,300 cfs on Jan 13 13:00; PoR peaked at 3,520 cfs on Jan 14 22:45 — approximately 34 hours lag.
 
 ---
 
-## 3. Great Falls Estimation
+## 4. Edwards Ferry Stage-Discharge Model
 
-### 3.1 The Problem
+### 4.1 Gauge Description
 
-No USGS gauge exists at Great Falls. We estimate it by combining upstream gauge readings.
+Edwards Ferry (USGS 01644148) is a stage-only gauge located ~2-3 miles upstream of Great Falls, draining 96.3% of the Little Falls basin (11,130 mi²). It provides gage height but no discharge. Its proximity to Great Falls makes it valuable for estimation, but the lack of discharge data requires a stage-discharge model.
 
-### 3.2 Estimation Formula
+### 4.2 Power-Law Calibration
+
+We analyzed **10,434 matched daily observations** from 2011-2026 using USGS daily value data:
+
+1. Paired EF daily mean gage height with LF daily mean discharge
+2. Excluded ice-flagged periods (USGS qualifier "e" or "Ice")
+3. Excluded EF stage < 2.0 ft (below reliable measurement range)
+4. Fit power-law: \`LF_cfs = a × EF_stage^b\` (physically appropriate for open-channel hydraulics)
+
+### 4.3 Default Model
+
+\`\`\`
+LF_cfs = 136 × EF_stage^2.42
+\`\`\`
+
+| Metric | Value |
+|--------|-------|
+| R² | 0.94 |
+| Median error | 6.3% |
+| RMSE | 5,790 cfs |
+| Exponent | 2.42 |
+| Observations | 10,434 (2011-2026) |
+
+The exponent (2.42) is consistent with typical channel geometry power-law exponents (2.0-3.0) for natural rivers.
+
+### 4.4 Cold-Water Model
+
+Analysis of 3,354 observations (2021-2026) with concurrent water temperature data revealed temperature-dependent coefficients. Cold water has higher density and viscosity, altering the stage-discharge relationship.
+
+| Condition | Formula | When Applied |
+|-----------|---------|--------------|
+| **Cold** | \`LF_cfs = 175.4 × EF_stage^2.302\` | Water temp ≤ 10°C (50°F) |
+| **Default** | \`LF_cfs = 136 × EF_stage^2.42\` | Water temp > 10°C or unavailable |
+
+The cold-water model improves winter RMSE by **10.9%**. A full three-regime model (cold/moderate/warm) was tested but degraded warm-season accuracy by 18.1%. The cold-only approach captures the largest improvement without negative side effects.
+
+### 4.5 Temperature Data Source
+
+Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010). When temperature data is unavailable, the system falls back to the default model.
+
+### 4.6 Model History
+
+| Version | Date | Formula | R² | Median Error | Notes |
+|---------|------|---------|-----|-------------|-------|
+| v19 | 2026-01-17 | 108 × EF^2.64 | 0.91 | 22.6% | Initial model, limited dataset |
+| v24.13 | 2026-02-10 | 136 × EF^2.42 | 0.94 | 6.3% | 15-year USGS daily values (10,434 obs) |
+| v24.14 | 2026-02-11 | +175.4 × EF^2.302 | — | — | Cold-water variant (≤10°C) |
+
+### 4.7 Updating the Model
+
+To regenerate with more data:
+\`\`\`
+GET /.netlify/functions/build-ef-correlation-advanced?months=12
+\`\`\`
+Update the \`EF_MODEL\` constants in index.html and scheduled-update.js with the recommended values.
+
+---
+
+## 5. Great Falls Estimation
+
+### 5.1 Problem Statement
+
+No USGS gauge exists at Great Falls. The estimation combines upstream gauge readings with the Edwards Ferry stage-discharge model.
+
+### 5.2 Estimation Formula
 
 \`\`\`
 GF_estimated = PoR(t - T_converged) + Monocacy + Goose Creek - Correction
 \`\`\`
 
 Where:
-- PoR(t - T_converged) = Point of Rocks reading from X hours ago (X = converged travel time)
-- Monocacy = current Monocacy reading (joins 6mi below PoR)
-- Goose Creek = current Goose Creek reading (joins 12mi below PoR)
-- Correction = learned correction factor for current flow bin and flow state
+- PoR(t - T_converged) = Point of Rocks reading from T hours ago (T = converged travel time, §3.5)
+- Monocacy = current Monocacy discharge (joins 6 mi below PoR)
+- Goose Creek = current Goose Creek discharge (joins 12 mi below PoR)
+- Correction = learned correction factor for current flow bin and flow state (§6)
 
-### 3.3 Iterative Travel Time Convergence (v24.9)
+### 5.3 Ensemble Blending
 
-Travel time depends on flow, but we're looking up *historical* flow - this creates a chicken-and-egg problem.
+The final estimate blends two independent models:
 
-**Example problem:**
-- Current flow 1,200 cfs → travel time ~33 hours
-- Look up PoR from 33h ago → find 1,900 cfs
-- But 1,900 cfs travels in ~25h, so that water already passed GF!
+\`\`\`
+GF_final = (1 - w) × GF_PoR_model + w × GF_EF_model
+\`\`\`
 
-**Solution:** Iterate to converge on the correct time-shift:
-1. Start with current flow → calculate travel time
-2. Look up historical PoR from that many hours ago
-3. Recalculate travel time based on that historical flow
-4. Repeat until stable (within 1 hour)
+Where w = EF weight (flow-dependent, see §5.4), GF_PoR_model = time-shifted PoR + tributaries, GF_EF_model = Edwards Ferry power-law estimate.
 
-This typically converges in 2-3 iterations.
+This ensemble reduces variance by combining a spatially distant but data-rich gauge (PoR, 20 mi) with a nearby but data-limited gauge (EF, 2 mi).
 
-### 3.4 Travel Times (Dynamic)
+### 5.4 Flow-Dependent Weighting
 
-Travel times scale with flow using the empirically-corrected Searcy power law. At median flow (~4,940 cfs), the total PoR→LF travel is 25.8 hours, split as:
-- **PoR → GF:** 75% of total = **19.4 hours** (slower pooled sections above falls)
-- **GF → LF:** 25% of total = **6.5 hours** (faster through gorge)
+RMSE optimization across 10,434 observations revealed that optimal EF weight varies with flow level. At low flows, dam operations (Little Falls Dam, Little Seneca Dam releases) decouple EF stage from downstream discharge.
 
-| Flow Condition | PoR → GF | GF → LF | Total PoR → LF |
-|----------------|----------|---------|----------------|
-| Very low (~1,200 cfs) | ~33 hrs | ~11 hrs | ~44 hrs |
-| Low (~2,000 cfs) | ~26 hrs | ~9 hrs | ~35 hrs |
-| Median (~5,000 cfs) | ~19 hrs | ~6.5 hrs | ~26 hrs |
-| High (15,000 cfs) | ~11 hrs | ~3.6 hrs | ~14 hrs |
-| Flood (50,000 cfs) | ~5.5 hrs | ~1.8 hrs | ~7 hrs |
+**Key finding:** At EF stage 3.5-4.0 ft, observed LF discharge ranges from 450 to 13,100 cfs — a 29× range.
 
-### 3.5 Validation & Learning
+| Estimated Flow | PoR Weight | EF Weight (w) | Rationale |
+|----------------|------------|---------------|-----------|
+| < 3,000 cfs | 75% | 25% | Dam operations dominate; PoR ADVM more reliable |
+| 3,000 - 6,000 cfs | 65% | 35% | Transitional; some dam influence remains |
+| 6,000 - 15,000 cfs | 60% | 40% | Natural flow dominates |
+| > 15,000 cfs | 55% | 45% | High flow; EF proximity advantage maximized |
 
-Each GF estimate is validated ~6-7 hours later (at median flow) when that water reaches Little Falls:
+**Rationale:**
+- PoR uses ADVM (Acoustic Doppler): measures velocity × cross-section = true discharge. Captures dam releases immediately.
+- EF is stage-only: cannot distinguish "high stage from dam release" vs "high stage from natural flow."
+- At high flows, natural river behavior dominates and EF's proximity advantage outweighs stage-discharge ambiguity.
 
-1. Store prediction with timestamp, flow bin, and rising/falling state
-2. When water arrives at LF, calculate what GF actually was
-3. Compare prediction to actual, compute error
-4. Update correction factor using exponential moving average (α=0.3)
+### 5.5 EF Discrepancy Check
 
-**Outlier filtering:** Errors >3 standard deviations from the mean are discarded to prevent bad data from corrupting learned corrections.
+When EF estimate differs from PoR estimate by >50%, the system skips ensemble blending and uses PoR-only. This detects ice or backwater conditions that inflate EF stage without affecting ADVM-based measurements.
 
-### 3.6 Uncertainty Display
+### 5.6 Hysteresis Correction
 
-Once 5+ validations exist for a flow bin, the app displays an uncertainty range:
+At the same stage, a rising river carries more flow than a falling river (Fread 1973, Henderson 1966). The system learns adaptive multipliers:
+
+- Starting values: **+8% rising, -8% falling** (literature-informed)
+- Updated via EMA (α = 0.2) from validation errors
+- Separate multipliers for rising, falling, and steady conditions
+- Clamped to ±20% range (0.8 to 1.2)
+- Stored in browser localStorage, persists across sessions
+
+### 5.7 Confidence Indicator
+
+Reflects **data quality**, not prediction accuracy:
+
+| Level | Conditions |
+|-------|------------|
+| HIGH | Tributary data available AND time-shifted PoR history AND EF trend agrees |
+| MEDIUM | Missing time-shifted data OR EF trend disagrees |
+| LOW | Missing tributary data OR no PoR trend data |
+
+Downgrades: EF trend conflict, insufficient history for time-shifting, tributary gauges offline.
+
+### 5.8 Uncertainty Display
+
+Once 5+ validations exist for a flow bin, the app displays ±1σ uncertainty:
 
 \`\`\`
 Stage: 3.2 ft (3.0 - 3.4 ft)
 \`\`\`
 
-The range represents ±1 standard deviation based on historical prediction errors for that flow bin and rising/falling state.
+Based on historical prediction errors for the current flow bin and flow state.
 
-### 3.7 Confidence Indicator
+---
 
-The confidence display (HIGH / MEDIUM / LOW) reflects **data quality**, not prediction accuracy:
+## 6. Learning & Validation System
 
-| Confidence | Conditions |
-|------------|------------|
-| **HIGH** | Has actual tributary data (Monocacy + Goose) AND uses time-shifted historic PoR AND Edwards Ferry trend agrees |
-| **MEDIUM** | Missing time-shifted data OR Edwards Ferry trend disagrees |
-| **LOW** | Missing tributary data OR no trend data from Point of Rocks |
+### 6.1 Prediction-Validation Cycle
 
-**Downgrades occur when:**
-- Edwards Ferry trend (rising/falling) conflicts with the estimate
-- Insufficient historical data for time-shifting
-- Tributary gauges are offline
+Each Great Falls estimate is validated ~6-7 hours later when water reaches Little Falls:
 
-### 3.8 Edwards Ferry Power-Law Model
+1. Store prediction with timestamp, flow bin, and flow state
+2. When water arrives at LF, calculate what GF actually was
+3. Compute error: (predicted - actual) / actual
+4. Update correction factor using EMA (§6.3)
 
-A hidden gauge at Edwards Ferry (USGS 01644148) sits just ~2-3 miles upstream of Great Falls, draining 96.3% of the basin. This gauge provides stage data only (no discharge), but we've built a highly accurate correlation model using rigorous hydrological methods.
+### 6.2 Correction Bins
 
-#### Model Development (Limnologist Approach)
+Corrections are learned separately for 18 bins (6 flow levels × 3 flow states):
+- **Flow bins:** <2k, 2-5k, 5-10k, 10-20k, 20-50k, >50k cfs
+- **Flow states:** rising, falling, steady
 
-We analyzed **10,434 matched daily observations** from 2011-2026 using USGS daily value data:
+### 6.3 EMA Smoothing
 
-1. **Long-term data:** 15 years of USGS daily values for EF stage and LF discharge
-2. **Power-law fitting:** Fit \`LF_cfs = a × EF_stage^b\` (physically appropriate for channel hydraulics)
-3. **Outlier removal:** Excluded ice-flagged periods and stage < 2.0 ft
-4. **Validation:** R² = 0.94, mean error = 6.3%
-
-#### The Model (Updated 2026-02-10)
-
+Correction factors update via exponential moving average:
 \`\`\`
-LF_cfs = 136 × EF_stage^2.42
+new_correction = α × latest_error + (1 - α) × old_correction
 \`\`\`
+With α = 0.3, weighting recent observations more heavily while maintaining stability.
 
-- **R² = 0.94** (strong correlation)
-- **Mean error: 6.3%** (reduced from 22.6% with previous model)
-- **RMSE reduced by 54%** (from 12,577 to 5,790 cfs)
-- **Exponent 2.42** reflects channel geometry (slightly lower than 2.64 due to larger dataset)
+### 6.4 Outlier Filtering
 
-#### Weighted Ensemble
+Errors >3 standard deviations from the bin mean are discarded. This prevents bad data (gauge malfunction, ice) from corrupting learned corrections.
 
-The final Great Falls estimate blends two independent models with **flow-dependent weighting** (v24.15):
+### 6.5 Flow State Classification
 
+The threshold scales with flow magnitude:
 \`\`\`
-GF_estimate = (1 - EF_weight) × (PoR model) + EF_weight × (EF model)
+threshold = max(100 cfs, 0.02 × current_flow)
 \`\`\`
-
-- **PoR model:** Time-shifted upstream data + tributary corrections
-- **EF model:** Direct power-law from nearby stage gauge
-
-This ensemble approach:
-- Reduces variance by combining independent estimates
-- EF is geographically closer to GF (2-3 miles vs 20+ miles for PoR)
-- Provides cross-validation between methods
-
-**EF Discrepancy Check (v24.8):** Skip EF ensemble when EF estimate differs from PoR by >50%.
-Ice or backwater at EF can inflate stage readings without affecting ADVM-based PoR/LF measurements.
-When discrepancy is detected, system falls back to PoR-only estimate.
-
-#### Cold-Water EF Model (v24.14)
-
-Analysis of 3,354 matched observations (2021-2026) with water temperature data revealed that the EF power-law coefficients vary with temperature. Cold water has different hydraulic properties (higher density, viscosity) that affect the stage-discharge relationship.
-
-**Temperature-Specific Models:**
-
-| Condition | Formula | When Applied |
-|-----------|---------|--------------|
-| **Cold** | \`LF_cfs = 175.4 × EF^2.302\` | Water temp ≤ 10°C (50°F) |
-| **Default** | \`LF_cfs = 136 × EF^2.42\` | Water temp > 10°C or unavailable |
-
-**Implementation:**
-- Water temperature fetched from Point of Rocks (USGS 01638500, param 00010)
-- Cold-water model improves winter predictions by **10.9%**
-- Graceful fallback: uses default model when temperature data unavailable
-
-*Note: Analysis showed a full temperature model (cold/moderate/warm) made warm-season predictions worse. The cold-only adjustment captures the most significant improvement without degrading summer accuracy.*
-
-#### Flow-Dependent EF Weighting (v24.15)
-
-Analysis of 10,434 daily observations revealed that EF model accuracy varies dramatically with flow level. At low flows, dam operations (Little Falls Dam, Little Seneca Dam releases) dominate the signal, causing the same EF stage to correspond to vastly different downstream flows.
-
-**Key Finding:** At EF stage 3.5-4.0 ft, observed LF discharge ranges from **450 to 13,100 cfs** — a 29x range! This makes low-flow EF predictions inherently unreliable.
-
-**Flow-Dependent Weights:**
-
-| Estimated Flow | PoR Weight | EF Weight | Rationale |
-|----------------|------------|-----------|-----------|
-| < 3,000 cfs | 75% | 25% | Dam operations dominate; PoR ADVM more reliable |
-| 3,000 - 6,000 cfs | 65% | 35% | Transitional; still some dam influence |
-| 6,000 - 15,000 cfs | 60% | 40% | Balanced; natural flow dominates |
-| > 15,000 cfs | 55% | 45% | High flow; EF proximity advantage increases |
-
-**Why this works:**
-- **PoR (ADVM-based):** Measures actual velocity × cross-section = true discharge. Captures dam releases immediately.
-- **EF (stage-only):** Estimates discharge from water level. Cannot distinguish between "high stage from dam release" vs "high stage from natural flow."
-- At high flows, natural river behavior dominates and EF's proximity advantage (2-3 miles vs 20+ miles) outweighs the stage-discharge ambiguity.
-
-#### Learnable Hysteresis Correction (v22)
-
-At the same stage, a rising river carries more flow than a falling river due to momentum and storage effects. This is called "hysteresis" and creates a loop in the stage-discharge relationship (Fread 1973, Henderson 1966).
-
-**v22 implements adaptive hysteresis learning:**
-- Multipliers start at literature-informed values: **+8% rising, -8% falling**
-- System refines these values from validation errors
-- Separate multipliers for rising, falling, and steady conditions
-- Updates use EMA (α=0.2) for gradual, stable learning
-- Multipliers clamped to ±20% range (0.8 to 1.2)
-- Stored locally in browser and persist across sessions
-
-*Starting from hydrologically-reasonable estimates (+8%/-8%) rather than neutral (1.0) allows the system to be accurate from day one, while still learning Potomac-specific corrections over time.*
-
-#### Wave Celerity Adjustment (v23)
-
-During rising flood events, the wave front travels **faster** than the bulk water velocity. This is a fundamental property of flood wave propagation - the pressure signal moves faster than the water itself.
-
-**v23 implements an empirical wave celerity adjustment:**
-- Computes rate of rise from PoR history (% change per hour)
-- Reduces travel time proportionally: 2% reduction per 1%/hr rise rate
-- Maximum reduction capped at 30% (physics limit)
-- Only applied during confirmed "rising" conditions
-
-**Example adjustments:**
-| Rise Rate | Travel Time Reduction | 19h Baseline → |
-|-----------|----------------------|----------------|
-| +2.5%/hr  | 5%                   | 18.1h          |
-| +5%/hr    | 10%                  | 17.1h          |
-| +10%/hr   | 20%                  | 15.2h          |
-| +15%/hr+  | 30% (max)            | 13.3h          |
-
-*This addresses a key limitation: without wave celerity, the system systematically arrives "late" during rising flood events when paddlers need predictions most.*
-
-#### Ice/Anomaly Detection (v24.1)
-
-Winter conditions can compromise USGS gauge readings, particularly ADVM (Acoustic Doppler Velocity Meter) measurements. Frazil ice - small ice crystals suspended in supercooled water - scatter and absorb the acoustic signal, causing artificially low velocity readings even when stage (water level) remains accurate.
-
-**v24.1 implements multi-signal anomaly detection:**
-
-The system uses **sensor fusion** to detect when one measurement is unreliable:
-
-| Check | Signal | Threshold | Score |
-|-------|--------|-----------|-------|
-| EF Cross-Check | Edwards Ferry predicts higher flow than LF reports | >30% discrepancy | +2 |
-| Stage-Discharge | LF stage suggests higher flow than CFS reports | >35% discrepancy | +2 |
-| Large Error | Prediction error exceeds reasonable bounds | >50% error | +1 |
-| Low Flow Sanity | Low CFS with elevated stage | <1500 cfs @ >2.45 ft | +1 |
-| Statistical Outlier | Error exceeds 3σ from historical mean | z-score > 3 | +2 |
-
-**v24.1 improvements:**
-- EF cross-check now uses **current** EF stage at validation time (not prediction time, which was often null)
-- Tighter stage-discharge threshold (50% → 35%) catches subtler ice effects
-- Higher flow threshold (1000 → 1500 cfs) - Potomac rarely goes this low naturally
-- New large error check as a safety net
-
-**When suspicious score >= 2:**
-- Validation is recorded (for analysis)
-- Learning update is **skipped** (protects model integrity)
-- Record is marked as "flagged" rather than "validated"
-
-**Scientific basis:**
-- **ADVM physics**: Acoustic Doppler measures velocity by detecting frequency shift in reflected signal. Ice crystals scatter/absorb signal, returning weaker echoes that bias velocity low.
-- **Stage accuracy**: Pressure transducers measure water column height directly - not affected by ice crystals in suspension.
-- **Edwards Ferry advantage**: EF is a stage-only gauge upstream of LF. Its power-law estimate provides an independent check unaffected by ADVM ice interference.
-- **Mass balance**: The learning system targets CFS (mass balance is physically meaningful), but uses stage as a "sanity check" to detect when CFS measurement is compromised.
-
-**Example detection:**
-\`\`\`
-LF reports:  1,120 cfs @ 2.60 ft stage
-Expected:    ~2,000 cfs (from stage rating curve)
-EF estimate: ~2,100 cfs (from 2.86 ft stage)
-→ Score: 2 (EF 87% discrepancy) + 2 (stage-discharge 79%) + 1 (large error) = 5
-→ FLAGGED: Skip learning, preserve model
-\`\`\`
-
-*This prevents ice-affected readings from corrupting the learning system during winter months.*
-
-#### Trend Validation
-
-If Edwards Ferry trend (rising/falling) disagrees with PoR trend, confidence is reduced. This catches situations where local conditions differ from upstream.
-
-#### Model Updates
-
-To regenerate the EF model with more data:
-\`\`\`
-GET /.netlify/functions/build-ef-correlation-advanced?months=12
-\`\`\`
-
-Then update the \`EF_MODEL\` constants in index.html with the recommended values.
-
-### 3.9 Historical Accuracy
-
-The system tracks all validations and displays aggregate accuracy:
-
-\`\`\`
-● Historical accuracy: 97.2% based on 169 validations
-\`\`\`
-
-**How it's calculated:**
-- Each validation computes error as: (predicted - actual) / actual × 100
-- Average absolute error is tracked across all validations
-- Accuracy = 100% - average error %
-
-**Color coding:**
-- 🟢 Green (≥97%): Excellent accuracy
-- 🟡 Yellow (95-97%): Good accuracy
-- 🔴 Red (<95%): Needs more data or model refinement
-
-### 3.10 Background Learning System
-
-A scheduled serverless function runs every 2 hours to ensure continuous learning:
-
-1. **Fetch USGS data** for all gauges (PoR, LF, tributaries, Edwards Ferry)
-2. **Store PoR history** to cloud database (48-hour window)
-3. **Validate pending predictions** against actual LF readings
-4. **Update correction bins** with new error data (by flow bin and flow state)
-5. **Clean up stale predictions** (>48 hours old are marked expired)
-6. **Update Edwards Ferry correlation** for cross-check
-7. **Make new prediction** and store for future validation
-
-This means the model improves 24/7, even when no browsers are open.
-
-**Flow state classification (v22 - flow-scaled threshold):**
-
-The threshold scales with flow magnitude to filter noise at low flows while detecting real changes at high flows:
-- **Threshold:** max(100 cfs, 2% of current flow)
-- **Rising:** Change exceeds threshold in positive direction
-- **Falling:** Change exceeds threshold in negative direction
-- **Steady:** Change below threshold
 
 | Flow Level | Threshold | Effective % |
 |------------|-----------|-------------|
@@ -5608,209 +5555,214 @@ The threshold scales with flow magnitude to filter noise at low flows while dete
 | 10,000 cfs | 200 cfs | 2.0% |
 | 50,000 cfs | 1,000 cfs | 2.0% |
 
-*Previous versions used a flat 3% threshold, which was too sensitive at low flows (60 cfs noise triggers "rising") and insufficiently sensitive at flood flows.*
+Separate corrections per flow state account for momentum effects (rising water moves faster) and hysteresis (falling water drains slower).
 
-Separate corrections are learned for each flow state because rising water moves faster than steady water at the same level (momentum effect), while falling water drains slower (hysteresis).
+### 6.6 Background Scheduler
 
-**Health monitoring:**
-- **Consecutive runs:** Tracks streak of successful 2-hour executions
-- **Missed runs:** Cumulative count of skipped cycles (gap > 3 hours)
-- **Stale cleanup:** Predictions >48 hours old are marked expired, not validated
+A serverless function executes every 2 hours:
+1. Fetch USGS data for all gauges
+2. Store PoR history to cloud database (48-hour window)
+3. Validate pending predictions against actual LF readings
+4. Update correction bins with new error data
+5. Clean up stale predictions (>48 hours → expired)
+6. Make new prediction and store for future validation
 
-**Admin reset:** Server-side reset clears all flow-bin corrections while preserving gauge corrections (System 1) and health statistics.
+The model improves continuously, even when no browsers are open.
 
-### 3.10 48-Hour Forecast (v24.6)
+### 6.7 Health Monitoring
 
-The 48-hour forecast uses a fundamentally different methodology than the current GF estimate, because forecasting future conditions requires different data sources.
+- **Consecutive runs:** Streak of successful 2-hour executions
+- **Missed runs:** Count of skipped cycles (gap > 3 hours)
+- **Stale cleanup:** Predictions >48 hours marked expired, not validated
+- **Admin reset:** Clears flow-bin corrections while preserving health statistics
 
-#### Why Not Use the Same Method?
+### 6.8 Historical Accuracy Tracking
 
-The current GF estimate looks backward in time: "What PoR reading from ~20-40 hours ago has now arrived at GF?" This works because the water is already there.
+\`\`\`
+Accuracy = 100% - mean_absolute_error_%
+\`\`\`
 
-For forecasting, we'd need to ask: "What will GF be at +6h, +12h, +24h, +48h?" At low flow (~1,000 cfs), travel time is ~40 hours. So:
-- +6h forecast needs PoR from 34 hours AGO (historical data, not forecast)
-- +48h forecast needs PoR from 8 hours AGO (still historical!)
+Color coding: 🟢 ≥97% (excellent), 🟡 95-97% (good), 🔴 <95% (needs refinement).
 
-Using the same methodology, the forecast would show nearly flat conditions - the rising water hasn't arrived yet. This is technically correct but confusing when NWS predicts a rise at Little Falls.
+---
 
-#### LF-Constrained Approach
+## 7. Ice & Anomaly Detection
 
-Since Great Falls is between Point of Rocks and Little Falls, if NWS predicts LF will rise, GF must rise BEFORE LF does. We use this constraint:
+### 7.1 ADVM Physics
+
+USGS Little Falls uses an Acoustic Doppler Velocity Meter (ADVM). Frazil ice — small crystals suspended in supercooled water — scatters and absorbs the acoustic signal, causing artificially low velocity readings even when stage (pressure transducer) remains accurate. This produces CFS readings far below actual discharge.
+
+### 7.2 Multi-Signal Scoring System
+
+The system uses sensor fusion to detect unreliable measurements:
+
+| Check | Signal | Threshold | Score |
+|-------|--------|-----------|-------|
+| EF Cross-Check | EF predicts higher flow than LF reports | >30% discrepancy | +2 |
+| Stage-Discharge | LF stage suggests higher flow than CFS reports | >35% discrepancy | +2 |
+| Large Error | Prediction error exceeds reasonable bounds | >50% error | +1 |
+| Low Flow Sanity | Low CFS with elevated stage | <1,500 cfs @ >2.45 ft | +1 |
+| Statistical Outlier | Error exceeds 3σ from historical mean | z-score > 3 | +2 |
+
+### 7.3 Learning Protection
+
+**When score ≥ 2:**
+- Validation is recorded (for analysis)
+- Learning update is **skipped** (protects model integrity)
+- Record is marked "flagged" rather than "validated"
+
+**Scientific basis:**
+- Stage (pressure transducer): unaffected by ice crystals
+- ADVM (velocity): biased low by ice scattering
+- Edwards Ferry (stage-only): provides independent check unaffected by ADVM interference
+- The learning system targets CFS (mass balance) but uses stage as a "sanity check"
+
+### 7.4 Trend Validation
+
+If Edwards Ferry trend (rising/falling) disagrees with PoR trend, confidence is reduced. This detects local conditions differing from upstream.
+
+### 7.5 Example Detection
+
+\`\`\`
+LF reports:  1,120 cfs @ 2.60 ft stage
+Expected:    ~2,000 cfs (from stage rating curve)
+EF estimate: ~2,100 cfs (from 2.86 ft stage)
+→ Score: 2 (EF 87% discrepancy) + 2 (stage-discharge 79%) + 1 (large error) = 5
+→ FLAGGED: Skip learning, preserve model
+\`\`\`
+
+---
+
+## 8. 48-Hour Forecast
+
+### 8.1 Why a Different Method is Needed
+
+The current GF estimate looks backward: "What PoR reading from ~20-40 hours ago has arrived at GF now?" For forecasting, at low flow (~1,000 cfs, travel time ~40h):
+- +6h forecast needs PoR from 34 hours *ago* (historical, not forecast)
+- +48h forecast needs PoR from 8 hours *ago* (still historical)
+
+The forecast would show flat conditions even when a rise is imminent.
+
+### 8.2 LF-Constrained Approach
+
+Great Falls is between Point of Rocks and Little Falls. If NWS predicts LF will rise, GF must rise first. We exploit this constraint:
 
 1. Get NWS Little Falls forecast (BRKM2)
 2. Shift backward by GF→LF travel time (~6-12h depending on flow)
-3. This gives us what GF conditions will be when that water reaches LF
 
 \`\`\`
-GF_forecast(t) ≈ LF_forecast(t + travel_time_GF_LF)
+GF_forecast(t) ≈ LF_forecast(t + T_GF_LF)
 \`\`\`
 
-#### Additive Bias Correction
+### 8.3 Additive Bias Correction
 
-NWS forecasts often show systematic bias vs observed conditions. For example, forecast might predict 1,300 cfs when the gauge reads 1,000 cfs. We apply an additive correction:
+NWS forecasts exhibit systematic bias. We apply an additive correction:
 
 \`\`\`
 offset = observed_LF_now - forecast_LF_at_now
 corrected_forecast = raw_forecast + offset
 \`\`\`
 
-**Why additive (not multiplicative)?**
-- Preserves the forecast's predicted *change* in flow (the physics of the rise)
-- Doesn't amplify errors at high flows
-- River hydraulics are non-linear; a %-based correction at low flow would over/under-correct at different flow levels
+**Why additive, not multiplicative:** Preserves the forecast's predicted *change* in flow (physics of the rise). Percentage-based correction would over-correct at high flows and under-correct at low flows because river hydraulics are non-linear.
 
 **Example:**
-- Observed LF: 1,020 cfs
-- Forecast at now: 1,300 cfs
-- Offset: -280 cfs
+- Observed LF: 1,020 cfs | Forecast at now: 1,300 cfs → offset: -280 cfs
 - NWS predicts 3,400 cfs at +6h → corrected: 3,120 cfs
 
-**Dynamic updating:** The bias correction is recalculated every 15 minutes when data refreshes. As NWS updates their model runs and basin-wide errors decrease, the offset automatically shrinks.
+The offset recalculates every 15 minutes and automatically shrinks as NWS updates their model runs.
 
-#### Calculation Details
+### 8.4 Calculation & Display Intervals
 
-- **Calculation intervals:** 6, 12, 18, 24, 30, 36, 42, 48 hours (8 points for smooth graph interpolation)
-- **Display intervals:** 6, 12, 24, 48 hours (shown as period cards)
-- **Ensemble blending:** 60% LF-derived + 40% EF power-law (when EF forecast available)
-- **Fallback:** Linear extrapolation when NWS unavailable
+- **Calculation:** 6, 12, 18, 24, 30, 36, 42, 48 hours (8 points for smooth interpolation)
+- **Display:** 6, 12, 24, 48 hours (shown as forecast cards)
 
-### 3.11 Gauge Malfunction Protection
+### 8.5 Ensemble Blending for Forecasts
 
-To prevent bad data from corrupting learned corrections:
+When EF forecast data is available, forecast values are blended using the same flow-dependent weighting as the current estimate (§5.4). Otherwise, the LF-derived forecast is used alone.
 
-- **Sanity checks:** LF readings <500 or >500,000 cfs are rejected
-- **Outlier filtering:** Errors >3 standard deviations from bin mean are discarded
-- **EMA smoothing:** Exponential moving average (α=0.3) weights recent observations more heavily
+### 8.6 Fallback Behavior
+
+When NWS forecast is unavailable, the system uses linear extrapolation from recent trends.
 
 ---
 
-## 4. Gauge Network
+## 9. Limitations & Uncertainties
 
-### 4.1 Basin Coverage
-
-| Gauge | USGS ID | Drainage (mi²) | % of LF Basin | Travel to LF |
-|-------|---------|----------------|---------------|--------------|
-| Little Falls | 01646500 | 11,560 | 100% | — |
-| Point of Rocks | 01638500 | 9,651 | 83.5% | ~26 hrs |
-| Monocacy | 01643000 | 817 | 7.1% | ~14 hrs |
-| Goose Creek | 01644000 | 332 | 3.0% | ~10 hrs |
-| Seneca Creek | 01645000 | 101 | 0.9% | ~5 hrs |
-| Hancock | 01613000 | 4,073 | 35.2% | ~120 hrs |
-| Cumberland | 01603000 | 877 | 7.6% | ~180 hrs |
-
-*Travel times at median flow with ×0.80 empirical correction applied.*
-
-### 4.2 Data Availability & Estimated Values
-
-When a gauge returns invalid data (sentinel value -999999), the app estimates discharge using drainage area ratio:
-
-\`\`\`
-Estimated_CFS = LF_CFS × (gauge_drainage_area / 11,560)
-\`\`\`
-
-**Visual indicators:**
-- Sidebar: Estimated values shown in *italics* with yellow asterisk (*)
-- Popup: "(est*)" label with yellow warning explaining the estimation
-
-**Common causes of unavailable data:**
-- Ice at measurement site (winter)
-- Gauge malfunction or maintenance
-- Communication outage
-
-*Example: With Kitzmiller (247 mi²) iced over and LF at 10,000 cfs, estimated flow = 10,000 × (247/11,560) = 214 cfs*
-
-### 4.3 Below Point of Rocks
-
-16.5% of Little Falls' drainage enters below Point of Rocks:
-- Monocacy: 7.1% (gauged)
-- Goose Creek: 3.0% (gauged)
-- Seneca Creek: 0.9% (gauged)
-- Ungauged streams: 5.5% (~640 mi²)
-
-This means PoR can't predict everything - local storms below PoR can raise LF independently.
-
----
-
-## 5. Limitations & Uncertainties
-
-### 5.1 Model Limitations
+### 9.1 Model Limitations
 
 | Factor | Impact | Notes |
 |--------|--------|-------|
-| Steady-state assumption | High during floods | Model assumes quasi-steady flow; rapid flood waves travel faster than predicted |
+| Steady-state assumption | High during floods | Rapid flood waves travel faster than predicted (mitigated by wave celerity adjustment, §3.6) |
 | Single flow multiplier | ±10-20% for upstream | Same scaling applied to all reaches, though channel characteristics vary |
 | Ungauged tributaries | ~5.5% unmonitored | Local storms in ungauged areas can cause unexpected rises |
+| 0.80 travel time correction | Needs validation | Empirical correction based on limited modern data; spring validation planned |
 
-### 5.2 Great Falls Estimation Uncertainties
+### 9.2 Great Falls Estimation Uncertainties
 
 | Factor | Impact |
 |--------|--------|
-| Tributary timing | Monocacy/Goose readings are current, not time-shifted |
+| Tributary timing | Monocacy/Goose readings are current, not time-shifted to confluence arrival |
 | Water withdrawals | DC Aqueduct, WSSC, Fairfax Water remove 5-15% at low flows |
-| Rising vs falling | Model was calibrated on falling hydrographs only |
+| EF dam influence | At <3,000 cfs, dam operations cause ±33% EF bias (mitigated by flow-dependent weighting) |
+| Temperature data gaps | When PoR temp unavailable, cold-water model cannot activate |
 
 The learning system corrects for systematic errors over time.
 
 ---
 
-## 6. Data Sources & Acknowledgments
+## 10. Data Sources & Acknowledgments
 
-This application relies entirely on public data from U.S. government agencies:
+This application relies entirely on public data from U.S. government agencies.
 
-### 6.1 Real-Time Streamflow Data
+### 10.1 Real-Time Streamflow Data
 - **Source:** U.S. Geological Survey (USGS) National Water Information System (NWIS)
 - **API:** USGS Water Services REST API (https://waterservices.usgs.gov)
-- **Parameters:** Discharge (00060) in cubic feet per second, Gage height (00065) in feet
+- **Parameters:** Discharge (00060), Gage height (00065), Water temperature (00010)
 - **Update frequency:** 15-minute intervals
-- **Gauges used:** 01646500 (Little Falls), 01638500 (Point of Rocks), 01643000 (Monocacy), 01644000 (Goose Creek), 01645000 (Seneca Creek), 01644148 (Edwards Ferry - stage only), and others
 
-### 6.2 River Forecasts
-- **Source:** National Weather Service (NWS) / National Oceanic and Atmospheric Administration (NOAA)
-- **Service:** National Water Prediction Service (NWPS), formerly Advanced Hydrologic Prediction Service (AHPS)
-- **API:** NWPS REST API (https://api.water.noaa.gov/nwps/v1/)
+### 10.2 River Forecasts
+- **Source:** National Weather Service (NWS) / NOAA
+- **Service:** National Water Prediction Service (NWPS)
+- **API:** https://api.water.noaa.gov/nwps/v1/
 - **Forecast point:** BRKM2 (Little Falls / Brookmont)
 
-### 6.3 Historical & Reference Data
-- **Travel time model:** USGS Circular 438 (Searcy & Davis, 1961)
-- **Validation data:** USGS Water-Supply Paper 2257 (Taylor et al., 1985)
-- **Drainage areas:** USGS StreamStats and gauge metadata
+### 10.3 Historical & Reference Data
+- Travel time model: USGS Circular 438 (Searcy & Davis, 1961)
+- Validation data: USGS Water-Supply Paper 2257 (Taylor et al., 1985)
+- Drainage areas: USGS StreamStats and gauge metadata
 
-### 6.4 Disclaimer
-This application is not affiliated with, endorsed by, or connected to the USGS, NWS, NOAA, or any government agency. Data is provided "as-is" from public APIs. For official river information and flood warnings, always consult official NWS sources at https://water.weather.gov.
-
----
-
-## 7. References
-
-1. **Searcy, J.K. and Davis, L.C., Jr. (1961).** "Time of Travel of Water in the Potomac River, Cumberland to Washington." USGS Circular 438. U.S. Geological Survey. [PRIMARY SOURCE FOR TRAVEL TIME MODEL]
-
-2. **Taylor, K.R., James, R.W., and Helinsky, B.M. (1985).** "Traveltime and Dispersion in the Potomac River, Cumberland, Maryland, to Washington, D.C." USGS Water-Supply Paper 2257. [VALIDATION OF TRAVEL TIMES]
-
-3. **MWCOG (1984).** "Potomac River Hydraulic Survey." Metropolitan Washington Council of Governments.
-
-4. **ICPRB (2002).** "Source Water Assessment for the Potomac River, Chapter 3: Hydrology." Interstate Commission on the Potomac River Basin.
-
-5. **USGS (ongoing).** National Water Information System: Web Interface. https://waterdata.usgs.gov/nwis
-
-6. **NWS (ongoing).** National Water Prediction Service. https://water.weather.gov
+### 10.4 Disclaimer
+This application is not affiliated with, endorsed by, or connected to the USGS, NWS, NOAA, or any government agency. Data is provided "as-is" from public APIs. For official river information and flood warnings, consult https://water.weather.gov.
 
 ---
 
-## 8. License & Copyright
+## 11. References
 
-**© 2026 Gordon Shumway. All rights reserved.**
+1. Searcy, J.K. and Davis, L.C., Jr. (1961). "Time of Travel of Water in the Potomac River, Cumberland to Washington." *USGS Circular 438.* U.S. Geological Survey.
 
-This work is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)**.
+2. Taylor, K.R., James, R.W., and Helinsky, B.M. (1985). "Traveltime and Dispersion in the Potomac River, Cumberland, Maryland, to Washington, D.C." *USGS Water-Supply Paper 2257.*
 
-You are free to:
-- **Share** — copy and redistribute the material in any medium or format
-- **Adapt** — remix, transform, and build upon the material for any purpose
+3. Fread, D.L. (1973). "Technique for Implicit Dynamic Routing in Rivers with Tributaries." *Water Resources Research,* 9(4), 918-926.
 
-Under the following terms:
-- **Attribution** — You must give appropriate credit, provide a link to the license, and indicate if changes were made.
-- **NonCommercial** — You may not use the material for commercial purposes.
+4. Henderson, F.M. (1966). *Open Channel Flow.* Macmillan.
 
-Full license text: https://creativecommons.org/licenses/by-nc/4.0/
+5. MWCOG (1984). "Potomac River Hydraulic Survey." Metropolitan Washington Council of Governments.
+
+6. ICPRB (2002). "Source Water Assessment for the Potomac River, Chapter 3: Hydrology." Interstate Commission on the Potomac River Basin.
+
+7. USGS (ongoing). National Water Information System: Web Interface. https://waterdata.usgs.gov/nwis
+
+8. NWS (ongoing). National Water Prediction Service. https://water.weather.gov
+
+---
+
+## 12. License & Copyright
+
+© 2026 Gordon Shumway. All rights reserved.
+
+Licensed under **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)**.
+
+You may share and adapt this material for non-commercial purposes with attribution. Full license: https://creativecommons.org/licenses/by-nc/4.0/
 
 ---
 
@@ -5818,31 +5770,34 @@ Full license text: https://creativecommons.org/licenses/by-nc/4.0/
 
 | Version | Date | Changes |
 |---------|------|---------|
-| v24.12 | 2026-02-10 | Phase 2 User Experience: Mobile sidebar scrollable (45-60vh), network error banner, map toggle button (🗺️), about button accessibility fix, forecast disclaimer font size increased. |
-| v24.11 | 2026-02-10 | Phase 1 Security & Stability: XSS fix (innerHTML→textContent), USGS validation, fetch timeouts (AbortController), PIN to env var, .gitignore .env, event listener memory leak fix. |
-| v24.10 | 2026-02-03 | EF-only fallback when PoR ice-affected, learning suspension, admin dashboard, fetchData race fix, syncTimeout cleanup. |
-| v24.9 | 2026-01-25 | Iterative travel time convergence: fixes overprediction at low flow by converging on correct time-shift. |
-| v24.8 | 2026-01-26 | Skip EF ensemble when discrepancy >50% (indicates ice/backwater). Extended PoR history to 72h for low-flow time-shifting. Added debug logging for history failures. |
-| v24.7 | 2026-01-25 | 48h forecast accuracy tracking: stores predictions by horizon (6h, 12h, 24h, 48h), validates when target time arrives, displays per-horizon accuracy in UI. |
-| v24.6 | 2026-01-25 | 48h forecast with LF-constrained approach and additive bias correction. Uses NWS LF forecast shifted backward by GF→LF travel time, with dynamic bias correction that auto-adjusts as NWS improves. Calculates at 8 intervals (6-48h) for smooth graph; displays 4 periods. |
-| v24.5 | 2026-01-25 | LF-constrained forecast: Since GF is between PoR and LF, uses LF forecast shifted by GF→LF travel time to ensure GF rises before LF. |
-| v24.4 | 2026-01-25 | Initial 48h forecast using NWS PoR forecast (PORM2) with GF ensemble model. Falls back to linear extrapolation when NWS unavailable. |
-| v24.3 | 2026-01-25 | Tighter ice detection: EF cross-check 30%→25%, low-flow+high-stage now +2 points (was +1). Reset corrupted low-flow learning bins. |
-| v24.2 | 2026-01-24 | Ice-affected gauge display: shows last valid reading with ❄️ indicator, excludes from learning, removed Harpers Ferry (stage-only). |
-| v24.1 | 2026-01-24 | Improved ice detection: EF cross-check now uses current stage at validation time. Tighter thresholds: stage-discharge 50%→35%, low-flow 1000→1500 cfs. Added large error check (>50%). |
-| v24.0 | 2026-01-24 | Ice/anomaly detection: Frazil ice and sensor malfunction protection using multi-signal sensor fusion. Stage-discharge consistency check detects ADVM velocity measurement errors. When flagged (score>=2), learning is skipped. |
-| v23 | 2026-01-24 | Wave celerity adjustment: travel time reduced up to 30% during rising floods based on rate of rise (wave fronts travel faster than bulk flow). |
-| v22 | 2026-01-23 | Flow-scaled thresholds: flow state detection now uses max(100 cfs, 2% of flow) instead of flat 3%. Learnable EF hysteresis. |
-| v21 | 2026-01-23 | Learning system overhaul: 2h schedule, 3% flow state threshold, stale cleanup, server-side reset, health monitoring. |
-| v20 | 2026-01-17 | Empirical travel time correction (×0.80) based on cross-correlation analysis of modern USGS data |
-| v19 | 2026-01-17 | Added Edwards Ferry ensemble model (60% PoR + 40% EF), background learning system |
-| v18 | 2026-01-10 | Improved GF estimation with hysteresis detection, flow-binned corrections |
-| v17 | 2025-12-15 | Added All Gauges tab with upstream travel time predictions |
-| v16 | 2025-12-01 | Initial public release with PoR-based GF estimation |
+| v24.15 | 2026-02-11 | Flow-dependent ensemble weighting: EF weight varies 25-45% by flow regime based on RMSE optimization across 10,434 observations. |
+| v24.14 | 2026-02-11 | Cold-water EF model: 175.4×EF^2.302 when water temp ≤10°C. Improves winter RMSE by 10.9%. |
+| v24.13 | 2026-02-10 | EF model recalibration: 136×EF^2.42 from 15 years of USGS daily data (10,434 obs). RMSE reduced 54%. |
+| v24.12 | 2026-02-10 | Phase 2 UX: Mobile sidebar, network error banner, map toggle, accessibility fixes. |
+| v24.11 | 2026-02-10 | Phase 1 Security: XSS fix, USGS validation, fetch timeouts, PIN to env var, memory leak fix. |
+| v24.10 | 2026-02-03 | EF-only fallback when PoR ice-affected, learning suspension, admin dashboard. |
+| v24.9 | 2026-01-25 | Iterative travel time convergence for correct time-shifting at variable flows. |
+| v24.8 | 2026-01-26 | EF discrepancy check (>50% → skip ensemble). Extended PoR history to 72h. |
+| v24.7 | 2026-01-25 | 48h forecast accuracy tracking by horizon (6h, 12h, 24h, 48h). |
+| v24.6 | 2026-01-25 | 48h forecast with LF-constrained approach and additive bias correction. |
+| v24.5 | 2026-01-25 | LF-constrained forecast: GF rises before LF, shift forecast backward. |
+| v24.4 | 2026-01-25 | Initial 48h forecast using NWS PoR forecast with ensemble model. |
+| v24.3 | 2026-01-25 | Tighter ice detection thresholds. Reset corrupted low-flow bins. |
+| v24.2 | 2026-01-24 | Ice-affected gauge display with ❄️ indicator. |
+| v24.1 | 2026-01-24 | Multi-signal ice detection: EF cross-check, stage-discharge, large error, outlier checks. |
+| v24.0 | 2026-01-24 | Ice/anomaly detection via sensor fusion. Learning protection when score ≥ 2. |
+| v23 | 2026-01-24 | Wave celerity adjustment: up to 30% travel time reduction during rising floods. |
+| v22 | 2026-01-23 | Flow-scaled thresholds. Learnable EF hysteresis (±8% starting, EMA α=0.2). |
+| v21 | 2026-01-23 | Learning system overhaul: 2h schedule, stale cleanup, health monitoring. |
+| v20 | 2026-01-17 | Empirical travel time correction (×0.80) from cross-correlation analysis. |
+| v19 | 2026-01-17 | Edwards Ferry ensemble model. Background learning system. |
+| v18 | 2026-01-10 | Hysteresis detection, flow-binned corrections. |
+| v17 | 2025-12-15 | All Gauges tab with upstream travel time predictions. |
+| v16 | 2025-12-01 | Initial public release with PoR-based GF estimation. |
 
 ---
 
-*Generated by Potomac Pulse v24.12*
+*Generated by Potomac Pulse v24.15*
 `;
 
         // Download as Markdown file
