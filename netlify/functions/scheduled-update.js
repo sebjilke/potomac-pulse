@@ -46,12 +46,13 @@ const EF_MODEL = {
 // Base weights from skill/correlation optimization on 5,220 deduped observations (2011-2026)
 // Note: v24.17 tried staleness-aware EF weight boost, but backtest showed it increased
 // Rising RMSE. PoR-delta correction alone (v25.0) is strictly superior.
+// v26.0: High-flow weight increased to 0.70 (from 0.50) — cross-language grid search showed 22% RMSE improvement.
 // SYNC WARNING: Keep in sync with getEFWeight() in index.html
 function getEFWeight(estimatedFlow) {
     if (estimatedFlow < 3000)  return 0.10;  // Low flow: EF negative skill, 0.22 corr
     if (estimatedFlow < 6000)  return 0.10;  // Med-low: EF negative skill, 0.29 corr
     if (estimatedFlow < 15000) return 0.20;  // Medium: EF skill=0.28, 0.83 corr
-    return 0.50;                              // High flow: EF skill=0.65, 0.98 corr
+    return 0.70;                              // High flow: EF skill=0.65, 0.98 corr — v26.0: from 0.50, cross-language grid search (22% RMSE improvement)
 }
 
 const GF_FLOW_BINS = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
