@@ -464,6 +464,22 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
     if (historicPoR) {
         porEstimateCFS = historicPoR.cfs + monocacyFlow + gooseFlow;
         useTimeShifted = true;
+
+        // PoR-delta staleness correction: if PoR has changed significantly
+        // since the time-shifted reading, scale the estimate proportionally.
+        // Uses decay factor to account for wave travel (not all change has reached GF yet).
+        const porChangeRatio = por.q / historicPoR.cfs;
+        const porChangePct = (porChangeRatio - 1) * 100;
+
+        if (Math.abs(porChangePct) > 5) {
+            const fractionElapsed = Math.min(1.0, (historicPoR.actualHoursAgo || 0) / Math.max(1, travelPoRtoGF));
+            const decayFactor = Math.min(0.75, Math.sqrt(fractionElapsed));
+            const appliedRatio = 1 + (porChangeRatio - 1) * decayFactor;
+            const rawEstimate = porEstimateCFS;
+            porEstimateCFS = Math.round(porEstimateCFS * appliedRatio);
+            console.log(`📊 PoR-delta correction: ${porChangePct > 0 ? '+' : ''}${porChangePct.toFixed(1)}%. ` +
+                `Decay: ${(decayFactor*100).toFixed(0)}%. Estimate: ${rawEstimate} → ${porEstimateCFS} cfs`);
+        }
     } else {
         porEstimateCFS = por.q + monocacyFlow + gooseFlow;
     }

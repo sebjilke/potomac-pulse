@@ -2188,12 +2188,67 @@
         // Calculate GF→LF travel time using final multiplier
         const travelGFtoLF = getGFtoLFTravelTime(mult, riseRate);
 
+        // ==================== PoR-DELTA STALENESS CORRECTION ====================
+        // Problem: on a rising river, the time-shifted PoR reading (16-26h old) may
+        // be from a completely different flow regime. If PoR has risen 30% since that
+        // reading, the time-shifted value drastically underestimates current GF flow.
+        //
+        // Solution: apply a partial PoR-delta correction. If PoR has changed by X%
+        // since the time-shifted reading, scale the estimate by a fraction of that
+        // change. The fraction accounts for wave travel: the change at PoR hasn't
+        // fully arrived at GF yet (it's in transit). We use a decay factor based on
+        // how much of the travel time has elapsed.
+        let porDeltaCorrection = null;  // { rawRatio, appliedRatio, correctedCFS }
+
         if (historicPoR) {
-            // We have historic data - use time-shifted estimate for "GF now"
-            // PoR is time-shifted; tributaries use current values (smaller contribution, shorter distance)
+            // Base estimate from time-shifted PoR
             estimatedCFS = historicPoR.cfs + monocacyFlow + gooseFlow;
             useTimeShifted = true;
             timeShiftedHoursAgo = historicPoR.actualHoursAgo;
+
+            // PoR-delta correction: scale estimate if PoR has changed significantly
+            // since the time-shifted reading
+            const porNow = por.q;
+            const porThen = historicPoR.cfs;
+            const porChangeRatio = porNow / porThen;  // e.g., 1.31 if +31%
+            const porChangePct = (porChangeRatio - 1) * 100;
+
+            // Only apply if change exceeds noise threshold (>5%)
+            if (Math.abs(porChangePct) > 5) {
+                // Decay factor: how much of the PoR change has reached GF?
+                // If time-shifted reading is 16h old and travel time is 16h,
+                // the wave from "then" has just arrived, but the current rise
+                // is still mostly upstream. Scale the correction by a fraction.
+                //
+                // Think of it as: the PoR change happened over the last 16h.
+                // GF is 16h downstream. So only the earliest part of that rise
+                // has reached GF. We use sqrt(fraction) for a gentle curve:
+                // at 25% of travel time elapsed → ~50% correction
+                // at 100% elapsed → 100% correction
+                //
+                // But we cap at 0.75 to avoid overcorrection — the EF blend
+                // will provide the remaining accuracy.
+                const fractionElapsed = Math.min(1.0, (timeShiftedHoursAgo || 0) / Math.max(1, travelPoRtoGF));
+                const decayFactor = Math.min(0.75, Math.sqrt(fractionElapsed));
+
+                // Apply partial correction
+                const appliedRatio = 1 + (porChangeRatio - 1) * decayFactor;
+                const rawEstimate = estimatedCFS;
+                estimatedCFS = Math.round(estimatedCFS * appliedRatio);
+
+                porDeltaCorrection = {
+                    rawRatio: porChangeRatio,
+                    appliedRatio: appliedRatio,
+                    decayFactor: decayFactor,
+                    rawEstimate: rawEstimate,
+                    correctedCFS: estimatedCFS,
+                    porNow: porNow,
+                    porThen: porThen
+                };
+
+                console.log(`📊 PoR-delta correction: PoR changed ${porChangePct > 0 ? '+' : ''}${porChangePct.toFixed(1)}% since time-shifted reading. ` +
+                    `Decay factor: ${(decayFactor*100).toFixed(0)}%. Estimate: ${rawEstimate} → ${estimatedCFS} cfs`);
+            }
         } else {
             // No historic data yet - use current PoR as forecast
             // This represents "what's arriving at GF in ~travelPoRtoGF hours"
@@ -2355,7 +2410,8 @@
                     applied: riseRate.flowState === 'rising' && riseRate.ratePerHour > 0,
                     ratePerHour: riseRate.ratePerHour,
                     reductionPct: riseRate.flowState === 'rising' ? Math.min(30, riseRate.ratePerHour * 2) : 0
-                } : null
+                } : null,
+                porDeltaCorrection: porDeltaCorrection  // Staleness correction metadata
             },
             uncertaintyRange: uncertaintyRange,  // Range based on historical prediction error
             efEstimate: efEstimate,  // Edwards Ferry power-law estimate (R² = 0.98)
@@ -2503,11 +2559,15 @@
             if (gfEstimate.useEfEnsemble && gfEstimate.efWeight) {
                 const porPct = Math.round((1 - gfEstimate.efWeight) * 100);
                 const efPct = Math.round(gfEstimate.efWeight * 100);
+                const delta = gfEstimate.inputs?.porDeltaCorrection;
+                const deltaLabel = delta
+                    ? ` [Δ-corrected ${((delta.rawRatio-1)*100).toFixed(0)}%]`
+                    : '';
                 const boostLabel = gfEstimate.efWeightBoost
                     ? ` [${gfEstimate.efWeightBoost.flowState} boost]`
                     : '';
                 document.getElementById("gf-data-source").textContent =
-                    `${porPct}% PoR (${gfEstimate.timeShiftedHoursAgo.toFixed(0)}h ago) + ${efPct}% EF${boostLabel} → LF in ~${gfEstimate.inputs.travelGFtoLF.toFixed(1)} hrs`;
+                    `${porPct}% PoR (${gfEstimate.timeShiftedHoursAgo.toFixed(0)}h ago)${deltaLabel} + ${efPct}% EF${boostLabel} → LF in ~${gfEstimate.inputs.travelGFtoLF.toFixed(1)} hrs`;
             } else {
                 document.getElementById("gf-data-source").textContent =
                     `PoR from ${gfEstimate.timeShiftedHoursAgo.toFixed(1)} hrs ago → arrives at LF in ~${gfEstimate.inputs.travelGFtoLF.toFixed(1)} hrs`;
