@@ -1135,7 +1135,7 @@
     //
     // Generated: 2026-02-11 | Data range: 2011-2026 (10,434 daily observations)
     // Updated from 108×EF^2.64 → 136×EF^2.42 → 126×EF^2.46 (deduped data)
-    // v24.14: Cold-water adjustment. v24.16: Deduplicated dataset. v24.17: Staleness-aware EF weight boost
+    // v24.14: Cold-water adjustment. v24.16: Deduplicated dataset. v24.18: PoR-delta correction (backtest winner)
     // Cold adjustment improves winter RMSE; dedup fixes inflated-data bias
     // See /analysis/ef_lf_temp_merged.csv for temperature analysis
     const EF_MODEL = {
@@ -1178,69 +1178,15 @@
 
     // Flow-dependent EF weight for ensemble model
     // Base weights from skill/correlation optimization on 5,220 deduped observations (2011-2026)
-    // Staleness-aware boost: when PoR is stale AND flow is changing, increase EF weight
-    // because EF (~4h lag) is more current than PoR (~19-26h lag) during transients
     // Analysis: /analysis/optimize_flow_weights.py → flow_weight_optimization_realistic.csv
-    function getEFWeight(estimatedFlow, context = null) {
-        // Base weight from flow regime (static optimization)
-        let baseWeight;
-        if (estimatedFlow < 3000)  baseWeight = 0.10;  // Low flow: EF negative skill, 0.22 corr
-        else if (estimatedFlow < 6000)  baseWeight = 0.10;  // Med-low: EF negative skill, 0.29 corr
-        else if (estimatedFlow < 15000) baseWeight = 0.20;  // Medium: EF skill=0.28, 0.83 corr
-        else baseWeight = 0.50;                              // High flow: EF skill=0.65, 0.98 corr
-
-        // If no context provided, return base weight (backwards compatible for forecast)
-        if (!context) return baseWeight;
-
-        const { timeShiftedHoursAgo, riseRate } = context;
-
-        // Need both staleness and rate-of-change data to boost
-        if (!timeShiftedHoursAgo || !riseRate) return baseWeight;
-
-        // Only boost if conditions are changing (not steady)
-        if (riseRate.flowState === 'steady') return baseWeight;
-
-        // Skip boost during ice conditions (EF stage unreliable under backwater)
-        if (isCriticalGaugeIceAffected()) return baseWeight;
-
-        // === STALENESS FACTOR ===
-        // How much older is PoR data than EF data?
-        // EF is ~4h upstream of GF; PoR is ~19-26h. The "staleness excess" is the
-        // additional lag beyond EF's inherent ~4h delay.
-        // NOTE: timeShiftedHoursAgo already reflects wave celerity adjustment
-        // (shorter travel time → more recent reading → less staleness → less boost).
-        // This self-correcting interaction is intentional.
-        const efLagHours = 4.0;
-        const stalenessExcess = Math.max(0, timeShiftedHoursAgo - efLagHours);
-        const stalenessFactor = Math.min(1.0, stalenessExcess / 16);  // Normalized: 20h → 1.0
-
-        // === RATE FACTOR ===
-        // Use the stronger signal of PoR and EF rates (catches events from between gauges)
-        const porRate = Math.abs(riseRate.ratePerHour || 0);
-        const efRate = Math.abs(getEFRatePerHour() || 0);
-        const absRate = Math.max(porRate, efRate);
-        const rateFactor = Math.min(1.0, absRate / 10);  // Normalized: 10%/hr → 1.0
-
-        // === BOOST CALCULATION ===
-        // Product of staleness and rate: staleness alone is fine (steady river),
-        // rapid change alone is fine (if data is fresh). Only their conjunction
-        // creates systematic bias in the PoR estimate.
-        // Asymmetric: EF is more reliable on rising limb than falling limb
-        // (falling has non-unique stage-discharge, lower R²)
-        const maxBoost = (riseRate.flowState === 'rising') ? 0.50 : 0.35;
-        const boost = stalenessFactor * rateFactor * maxBoost;
-
-        // Flow-dependent cap: more trust in EF at higher flows (R²=0.98 at >15k)
-        const maxWeight = (estimatedFlow >= 15000) ? 0.70 : 0.60;
-        const finalWeight = Math.min(maxWeight, baseWeight + boost);
-
-        if (boost > 0.01) {
-            console.log(`📈 EF weight boost: ${(baseWeight*100).toFixed(0)}% → ${(finalWeight*100).toFixed(0)}% ` +
-                `(stale: ${timeShiftedHoursAgo.toFixed(1)}h, rate: ${absRate.toFixed(1)}%/hr, ` +
-                `${riseRate.flowState}, boost: +${(boost*100).toFixed(0)}%)`);
-        }
-
-        return finalWeight;
+    // Note: v24.17 tried staleness-aware EF weight boost, but backtest on 5,220 days showed
+    // it actually increased Rising RMSE (6,352 vs baseline 6,117). PoR-delta correction alone
+    // (v24.18) is strictly superior — see analysis/backtest_approaches.py.
+    function getEFWeight(estimatedFlow) {
+        if (estimatedFlow < 3000)  return 0.10;  // Low flow: EF negative skill, 0.22 corr
+        if (estimatedFlow < 6000)  return 0.10;  // Med-low: EF negative skill, 0.29 corr
+        if (estimatedFlow < 15000) return 0.20;  // Medium: EF skill=0.28, 0.83 corr
+        return 0.50;                              // High flow: EF skill=0.65, 0.98 corr
     }
 
     const BRANCHES = {
@@ -2268,43 +2214,22 @@
         // ==================== WEIGHTED ENSEMBLE WITH EDWARDS FERRY ====================
         // Blend PoR-based estimate with EF power-law model for improved accuracy
         // EF model: LF_cfs = 126 × EF_stage^2.46 (R² = 0.91, deduped 2026-02-18)
-        // Weights: flow-dependent (10-50% base, up to 70% with staleness-aware boost)
+        // Weights: flow-dependent (10-50%) from skill/correlation optimization
+        // Note: PoR-delta correction above already handles staleness — the backtest
+        // showed that simple static EF weights + PoR-delta gives the best results
         const efEstimate = estimateGFFromEdwardsFerry();
         let useEfEnsemble = false;
         let ensembleEfWeight = null;
-        let efWeightBoostInfo = null;
 
         if (efEstimate && efEstimate.cfs > 0) {
-            // Compute staleness-aware EF weight FIRST (needed for discrepancy threshold)
-            const efWeightContext = {
-                timeShiftedHoursAgo: timeShiftedHoursAgo || 0,
-                riseRate: riseRate
-            };
-            const efWeight = getEFWeight(porEstimateCFS, efWeightContext);
-            const baseEfWeight = getEFWeight(porEstimateCFS);  // Without context, for comparison
-            const boost = efWeight - baseEfWeight;
+            const efWeight = getEFWeight(porEstimateCFS);
 
-            // Relaxed discrepancy guard during transients
-            // When PoR is known-stale and flow is changing, a large EF-PoR gap is
-            // expected and informative — the whole point of the boost is that PoR is
-            // systematically wrong during rapid changes. Rejecting EF here would
-            // negate the boost at exactly the moments it's most needed.
+            // Discrepancy guard: if EF and PoR differ by >50%, skip ensemble
+            // (likely ice, backwater, or gauge malfunction)
             const discrepancy = Math.abs(efEstimate.cfs - porEstimateCFS) / porEstimateCFS;
-            let discrepancyThreshold = 0.50;
-            if (boost > 0.01 && riseRate) {
-                const stalenessExcess = Math.max(0, (timeShiftedHoursAgo || 0) - 4.0);
-                const sf = Math.min(1.0, stalenessExcess / 16);
-                const porRate = Math.abs(riseRate.ratePerHour || 0);
-                const efRate = Math.abs(getEFRatePerHour() || 0);
-                const rf = Math.min(1.0, Math.max(porRate, efRate) / 10);
-                const relaxation = sf * rf * 0.25;  // Up to +25% wider threshold
-                discrepancyThreshold = 0.50 + relaxation;
-            }
-
-            if (discrepancy > discrepancyThreshold) {
-                // EF too different from PoR - likely ice/backwater, skip ensemble
+            if (discrepancy > 0.50) {
                 console.log(`⚠️ Skipping EF ensemble: ${Math.round(discrepancy*100)}% discrepancy ` +
-                    `(threshold: ${Math.round(discrepancyThreshold*100)}%, EF: ${efEstimate.cfs} vs PoR: ${Math.round(porEstimateCFS)})`);
+                    `(EF: ${efEstimate.cfs} vs PoR: ${Math.round(porEstimateCFS)})`);
                 estimatedCFS = porEstimateCFS;
             } else {
                 // Blend the two estimates
@@ -2313,19 +2238,8 @@
                 useEfEnsemble = true;
                 ensembleEfWeight = efWeight;
 
-                // Store boost metadata for diagnostics and validation analysis
-                if (boost > 0.01) {
-                    efWeightBoostInfo = {
-                        baseWeight: baseEfWeight,
-                        finalWeight: efWeight,
-                        boost: boost,
-                        flowState: riseRate?.flowState || 'unknown'
-                    };
-                }
-
-                const boostLabel = boost > 0.01 ? ` [+${(boost*100).toFixed(0)}% ${riseRate?.flowState} boost]` : '';
                 console.log(`🔀 Ensemble: ${(porWeight*100).toFixed(0)}% PoR (${Math.round(porEstimateCFS)}) + ` +
-                    `${(efWeight*100).toFixed(0)}% EF (${efEstimate.cfs}) = ${estimatedCFS} cfs${boostLabel}`);
+                    `${(efWeight*100).toFixed(0)}% EF (${efEstimate.cfs}) = ${estimatedCFS} cfs`);
             }
         } else {
             // EF not available - use PoR-only estimate
@@ -2389,8 +2303,7 @@
             useTimeShifted: useTimeShifted,
             timeShiftedHoursAgo: timeShiftedHoursAgo,
             useEfEnsemble: useEfEnsemble,  // Whether EF model was blended in
-            efWeight: ensembleEfWeight,    // Actual EF weight used (0.10-0.70) or null
-            efWeightBoost: efWeightBoostInfo,  // Boost metadata during transients (or null)
+            efWeight: ensembleEfWeight,    // Actual EF weight used (0.10-0.50) or null
             // Also provide forecast (current PoR + tributaries arriving at GF)
             forecastCFS: Math.round(forecastTotal),
             forecastStage: estimateLFStage(forecastTotal),
@@ -2563,11 +2476,8 @@
                 const deltaLabel = delta
                     ? ` [Δ-corrected ${((delta.rawRatio-1)*100).toFixed(0)}%]`
                     : '';
-                const boostLabel = gfEstimate.efWeightBoost
-                    ? ` [${gfEstimate.efWeightBoost.flowState} boost]`
-                    : '';
                 document.getElementById("gf-data-source").textContent =
-                    `${porPct}% PoR (${gfEstimate.timeShiftedHoursAgo.toFixed(0)}h ago)${deltaLabel} + ${efPct}% EF${boostLabel} → LF in ~${gfEstimate.inputs.travelGFtoLF.toFixed(1)} hrs`;
+                    `${porPct}% PoR (${gfEstimate.timeShiftedHoursAgo.toFixed(0)}h ago)${deltaLabel} + ${efPct}% EF → LF in ~${gfEstimate.inputs.travelGFtoLF.toFixed(1)} hrs`;
             } else {
                 document.getElementById("gf-data-source").textContent =
                     `PoR from ${gfEstimate.timeShiftedHoursAgo.toFixed(1)} hrs ago → arrives at LF in ~${gfEstimate.inputs.travelGFtoLF.toFixed(1)} hrs`;
@@ -4562,27 +4472,6 @@
         return 'steady';
     }
 
-    // Get quantitative EF rate of change (%/hr in flow-equivalent terms)
-    // Uses EF stage history and power-law exponent to approximate flow rate
-    // More responsive than getPoRRiseRate() because EF is only ~4h upstream of GF
-    function getEFRatePerHour() {
-        const history = edwardsFerryData.history;
-        if (history.length < 4) return null;
-
-        const current = history[history.length - 1];
-        const oneHourIdx = Math.max(0, history.length - 5);  // ~4-5 readings = 1 hour
-        const past = history[oneHourIdx];
-
-        const hoursDiff = (current.timestamp - past.timestamp) / (3600000);
-        if (hoursDiff < 0.5) return null;
-
-        // Rate in %/hr based on stage change, scaled by power-law exponent
-        // A 5% stage increase ≈ 12.3% flow increase (stage^2.46)
-        const stageChangePct = ((current.stage - past.stage) / past.stage) * 100;
-        const flowRateApprox = stageChangePct * EF_MODEL.exp;  // Scale by exponent
-        return flowRateApprox / hoursDiff;
-    }
-
     // Estimate LF CFS directly from Edwards Ferry stage using power-law model
     // Model: LF_cfs = coef × EF_stage^exp (coefficients depend on water temperature)
     // Cold water (≤10°C): 160 × EF^2.36 (deduped fit, R²=0.96)
@@ -5590,7 +5479,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v24.13 | 2026-02-10 | 136 × EF^2.42 | 0.89 | 6.3% | 15-year USGS daily values (had duplicate rows) |
 | v24.14 | 2026-02-11 | +175.4 × EF^2.302 | — | — | Cold-water variant (≤10°C) |
 | v24.16 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | Deduplicated dataset (5,220 obs). Cold: 160 × EF^2.36 |
-| v24.17 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | Staleness-aware EF weight boost during transients (10-70%) |
+| v24.18 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | PoR-delta staleness correction (backtest winner over EF boost) |
 
 ### 4.7 Updating the Model
 
@@ -5643,25 +5532,24 @@ Skill/correlation optimization across 5,220 deduplicated observations (2011-2026
 | 6,000 - 15,000 cfs | 80% | 20% | 0.28 | 0.83 |
 | > 15,000 cfs | 50% | 50% | 0.65 | 0.98 |
 
-### 5.4.1 Staleness-Aware Weight Boost (v24.17)
+### 5.4.1 PoR-Delta Staleness Correction (v24.18)
 
-During rapid flow changes, the PoR time-shifted reading (19-26h old) becomes systematically biased — too low on rising limbs, too high on falling limbs. EF, with only ~4h lag, reflects current conditions more accurately. The system boosts EF weight during transients:
+When the river is rising or falling, the time-shifted PoR reading (19-26h old) comes from a different flow regime and systematically misestimates current GF conditions. The PoR-delta correction scales the time-shifted estimate by the proportion of change observed at Point of Rocks since that reading:
 
 \`\`\`
-w_final = min(maxWeight, w_base + stalenessFactor × rateFactor × maxBoost)
+IF |PoR_change%| > 5%:
+    ratio = PoR_now / PoR_then
+    decay = min(0.75, sqrt(staleness / travel_time))
+    corrected = estimate × (1 + (ratio - 1) × decay)
 \`\`\`
 
-Where:
-- **stalenessFactor** = min(1, (PoR_age - 4h) / 16) — how much older PoR data is vs EF
-- **rateFactor** = min(1, max(|PoR_rate|, |EF_rate|) / 10) — how fast flow is changing (%/hr)
-- **maxBoost** = 0.50 (rising) or 0.35 (falling) — asymmetric because EF is more reliable on rising limb
-- **maxWeight** = 0.70 (flow ≥15k cfs) or 0.60 (flow <15k cfs) — flow-dependent cap
+The **decay factor** accounts for wave travel: if the time-shifted reading is 16h old and PoR→GF travel is 19h, the change at PoR has only partially reached GF. The sqrt ramp gives ~50% correction at 25% elapsed, ~75% at full travel time. The 0.75 cap prevents overcorrection — the EF ensemble provides additional accuracy.
 
-The multiplicative formulation ensures boost activates **only** when PoR is both stale AND conditions are changing. Staleness alone (steady river) or rapid change alone (fresh data) produce no boost. The staleness factor self-corrects with wave celerity: during rises, faster wave travel pulls in a newer PoR reading, reducing staleness and thus reducing the boost.
+**Backtest results** (5,220 days, 2011-2026): PoR-delta correction reduced Rising RMSE by 17.8% (6,117→5,027 cfs) and Overall RMSE by 25.6% (3,981→2,963 cfs) with near-zero rising bias (+87 cfs vs baseline -2,286 cfs). It outperformed both EF weight boosting and the combined approach. See \`analysis/backtest_approaches.py\`.
 
 ### 5.5 EF Discrepancy Check
 
-When EF estimate differs from PoR estimate by more than a threshold, the system skips ensemble blending and uses PoR-only. The base threshold is 50%. During transient conditions (when the staleness-aware boost is active), the threshold relaxes by up to 25% (to 75%) to avoid rejecting EF precisely when it is most needed — during rapid rises when PoR is systematically underestimating.
+When EF estimate differs from PoR estimate by more than 50%, the system skips ensemble blending and uses PoR-only. This guards against ice-affected EF readings, backwater conditions, or gauge malfunctions that would corrupt the ensemble.
 
 ### 5.6 Hysteresis Correction
 
@@ -5956,7 +5844,7 @@ You may share and adapt this material for non-commercial purposes with attributi
 | Version | Date | Changes |
 |---------|------|---------|
 | v24.16 | 2026-02-18 | Data verification: Deduplicated primary dataset (10,434→5,220 obs). Recalibrated EF model (126×EF^2.46), cold-water model (160×EF^2.36), and flow weights (10-50%). Cross-validated in Python + R. |
-| v24.17 | 2026-02-18 | Staleness-aware EF weight boost: during rapid flow changes, EF weight increases from base (10-50%) up to 70% because PoR time-shifted data (19-26h old) is systematically biased while EF (~4h lag) reflects current conditions. Asymmetric: larger boost on rising limb (maxBoost=0.50) than falling (0.35). Discrepancy guard relaxed during transients. |
+| v24.18 | 2026-02-18 | PoR-delta staleness correction: scales time-shifted PoR estimate by observed PoR change (with wave-travel decay). Backtest on 5,220 days showed this reduces Rising RMSE by 18% and Overall RMSE by 26%. Removed EF weight boost (v24.17) — backtest showed it worsened Rising RMSE. |
 | v24.15 | 2026-02-11 | Flow-dependent ensemble weighting: EF weight varies by flow regime based on skill/correlation optimization. |
 | v24.14 | 2026-02-11 | Cold-water EF model when water temp ≤10°C. Improves winter RMSE. |
 | v24.13 | 2026-02-10 | EF model recalibration from 15 years of USGS daily data. |
@@ -5984,7 +5872,7 @@ You may share and adapt this material for non-commercial purposes with attributi
 
 ---
 
-*Generated by Potomac Pulse v24.17*
+*Generated by Potomac Pulse v24.18*
 `;
 
         // Download as Markdown file
