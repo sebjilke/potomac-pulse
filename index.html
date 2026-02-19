@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v24</title>
+    <title>Potomac Pulse v25</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -764,14 +764,14 @@
                         </div>
 
                         <p style="font-size:0.65rem;color:#94a3b8;line-height:1.6;">
-                        <b>The blend is smart:</b> At low flows, dam operations make the nearby Edwards Ferry gauge unreliable, so the model leans more on Point of Rocks. At higher flows, when natural river behavior dominates, Edwards Ferry gets more weight because it's so close to Great Falls. The system adjusts automatically.
+                        <b>The blend is smart:</b> Edwards Ferry's gauge readings are accurate (verified against USGS), but at low flows a single water-level reading 2 miles upstream is a poor predictor of downstream discharge — local channel features, dam operations, and vegetation dominate the signal. So the model leans heavily on Point of Rocks at low flows (90% PoR). At higher flows, when the entire river channel is engaged and local effects wash out, Edwards Ferry becomes an excellent predictor (0.98 correlation) and gets equal weight. The system adjusts automatically based on current flow.
                         </p>
 
                         <!-- UNDER THE HOOD (credibility — takeaway first, formula second) -->
                         <div style="background:#0f172a;padding:10px 12px;border-radius:6px;margin:10px 0;">
                             <div style="font-size:0.55rem;color:#64748b;margin-bottom:6px;">UNDER THE HOOD</div>
                             <p style="font-size:0.65rem;color:#94a3b8;line-height:1.5;margin-bottom:6px;">
-                            We tested the Edwards Ferry model against 15 years of daily river data (10,434 observations). On a typical day, the estimate is within about 6% of actual flow. In cold water (below 50&deg;F), a separate calibration kicks in because temperature changes how the river behaves.
+                            We tested the Edwards Ferry model against 15 years of daily USGS data (5,220 deduplicated observations). On a typical day, the estimate is within about 6% of actual flow — but accuracy varies dramatically by flow level. At low flows (&lt;3,000 cfs), the model's mean error is 44%; above 15,000 cfs, it drops to under 9%. In cold water (below 50&deg;F), a separate calibration kicks in because temperature changes how the river behaves.
                             </p>
                         </div>
 
@@ -1135,7 +1135,7 @@
     //
     // Generated: 2026-02-11 | Data range: 2011-2026 (10,434 daily observations)
     // Updated from 108×EF^2.64 → 136×EF^2.42 → 126×EF^2.46 (deduped data)
-    // v24.14: Cold-water adjustment. v24.16: Deduplicated dataset. v24.18: PoR-delta correction (backtest winner)
+    // v24.14: Cold-water adjustment. v24.16: Deduplicated dataset. v25.0: PoR-delta correction (backtest winner)
     // Cold adjustment improves winter RMSE; dedup fixes inflated-data bias
     // See /analysis/ef_lf_temp_merged.csv for temperature analysis
     const EF_MODEL = {
@@ -1181,7 +1181,7 @@
     // Analysis: /analysis/optimize_flow_weights.py → flow_weight_optimization_realistic.csv
     // Note: v24.17 tried staleness-aware EF weight boost, but backtest on 5,220 days showed
     // it actually increased Rising RMSE (6,352 vs baseline 6,117). PoR-delta correction alone
-    // (v24.18) is strictly superior — see analysis/backtest_approaches.py.
+    // (v25.0) is strictly superior — see analysis/backtest_approaches.py.
     function getEFWeight(estimatedFlow) {
         if (estimatedFlow < 3000)  return 0.10;  // Low flow: EF negative skill, 0.22 corr
         if (estimatedFlow < 6000)  return 0.10;  // Med-low: EF negative skill, 0.29 corr
@@ -5433,12 +5433,15 @@ Edwards Ferry (USGS 01644148) is a stage-only gauge located ~2-3 miles upstream 
 
 ### 4.2 Power-Law Calibration
 
-We analyzed **10,434 matched daily observations** from 2011-2026 using USGS daily value data:
+We analyzed **5,220 deduplicated daily observations** from 2011-2026 using USGS daily value data:
 
 1. Paired EF daily mean gage height with LF daily mean discharge
 2. Excluded ice-flagged periods (USGS qualifier "e" or "Ice")
 3. Excluded EF stage < 2.0 ft (below reliable measurement range)
-4. Fit power-law: \`LF_cfs = a × EF_stage^b\` (physically appropriate for open-channel hydraulics)
+4. Deduplicated by date (USGS returns two time series for this gauge; averaged)
+5. Fit power-law: \`LF_cfs = a × EF_stage^b\` (physically appropriate for open-channel hydraulics)
+
+**Important distinction: gauge accuracy vs. predictive accuracy.** All EF stage readings have been verified against the USGS API (7/7 spot-checks exact match). The gauge is accurate. However, a single stage reading at one location is a limited *predictor* of discharge at a downstream point — especially at low flows, where local channel geometry, vegetation, and dam operations dominate the stage-discharge relationship. This is why the ensemble weight is flow-dependent (§5.4).
 
 ### 4.3 Default Model
 
@@ -5479,7 +5482,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v24.13 | 2026-02-10 | 136 × EF^2.42 | 0.89 | 6.3% | 15-year USGS daily values (had duplicate rows) |
 | v24.14 | 2026-02-11 | +175.4 × EF^2.302 | — | — | Cold-water variant (≤10°C) |
 | v24.16 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | Deduplicated dataset (5,220 obs). Cold: 160 × EF^2.36 |
-| v24.18 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | PoR-delta staleness correction (backtest winner over EF boost) |
+| v25.0 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | PoR-delta staleness correction. Clarified EF gauge accuracy vs. predictive accuracy. |
 
 ### 4.7 Updating the Model
 
@@ -5523,7 +5526,10 @@ This ensemble reduces variance by combining a spatially distant but data-rich ga
 
 ### 5.4 Flow-Dependent Weighting
 
-Skill/correlation optimization across 5,220 deduplicated observations (2011-2026) revealed that optimal EF weight varies with flow level. At low flows, EF has negative skill (worse than bin mean) due to dam operations decoupling EF stage from downstream discharge.
+Skill/correlation optimization across 5,220 deduplicated observations (2011-2026) revealed that optimal EF weight varies dramatically with flow level. The EF gauge itself is accurate (verified against USGS API), but its **predictive value** for downstream discharge depends on flow regime:
+
+- **Low flows (< 6k cfs)**: Negative skill — EF predictions are *worse* than simply using the bin average. Local effects (channel geometry, vegetation, dam operations) dominate stage at low water, decoupling it from actual discharge.
+- **High flows (> 15k cfs)**: Excellent skill (0.65) and near-perfect correlation (0.98). When the full channel cross-section is engaged, stage reliably tracks discharge.
 
 | Estimated Flow | Base PoR Weight | Base EF Weight (w) | EF Skill | EF Correlation |
 |----------------|-----------------|--------------------|---------:|---------------:|
@@ -5532,7 +5538,7 @@ Skill/correlation optimization across 5,220 deduplicated observations (2011-2026
 | 6,000 - 15,000 cfs | 80% | 20% | 0.28 | 0.83 |
 | > 15,000 cfs | 50% | 50% | 0.65 | 0.98 |
 
-### 5.4.1 PoR-Delta Staleness Correction (v24.18)
+### 5.4.1 PoR-Delta Staleness Correction (v25.0)
 
 When the river is rising or falling, the time-shifted PoR reading (19-26h old) comes from a different flow regime and systematically misestimates current GF conditions. The PoR-delta correction scales the time-shifted estimate by the proportion of change observed at Point of Rocks since that reading:
 
@@ -5839,12 +5845,23 @@ You may share and adapt this material for non-commercial purposes with attributi
 
 ---
 
+## Versioning Scheme
+
+Starting with v25.0, Potomac Pulse uses **MAJOR.MINOR** versioning:
+
+- **MAJOR** (v25 → v26): Changes to the core GF estimation logic — model recalibration, new estimation approach, architectural changes that alter outputs for the same inputs.
+- **MINOR** (.0 → .1): Bug fixes, UI changes, new features/tabs, documentation updates, display changes — anything that does not alter the core estimation output.
+
+Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked large features and dot releases marked incremental changes within a development sprint.
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v25.0 | 2026-02-18 | PoR-delta staleness correction (backtest winner: -18% Rising RMSE, -26% Overall RMSE). Removed EF weight boost (backtest showed it worsened accuracy). Clarified EF gauge accuracy vs. predictive accuracy. New MAJOR.MINOR versioning scheme. |
 | v24.16 | 2026-02-18 | Data verification: Deduplicated primary dataset (10,434→5,220 obs). Recalibrated EF model (126×EF^2.46), cold-water model (160×EF^2.36), and flow weights (10-50%). Cross-validated in Python + R. |
-| v24.18 | 2026-02-18 | PoR-delta staleness correction: scales time-shifted PoR estimate by observed PoR change (with wave-travel decay). Backtest on 5,220 days showed this reduces Rising RMSE by 18% and Overall RMSE by 26%. Removed EF weight boost (v24.17) — backtest showed it worsened Rising RMSE. |
 | v24.15 | 2026-02-11 | Flow-dependent ensemble weighting: EF weight varies by flow regime based on skill/correlation optimization. |
 | v24.14 | 2026-02-11 | Cold-water EF model when water temp ≤10°C. Improves winter RMSE. |
 | v24.13 | 2026-02-10 | EF model recalibration from 15 years of USGS daily data. |
@@ -5872,7 +5889,7 @@ You may share and adapt this material for non-commercial purposes with attributi
 
 ---
 
-*Generated by Potomac Pulse v24.18*
+*Generated by Potomac Pulse v25.0*
 `;
 
         // Download as Markdown file

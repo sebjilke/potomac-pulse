@@ -45,7 +45,7 @@ const EF_MODEL = {
 // Flow-dependent EF weight for ensemble model
 // Base weights from skill/correlation optimization on 5,220 deduped observations (2011-2026)
 // Note: v24.17 tried staleness-aware EF weight boost, but backtest showed it increased
-// Rising RMSE. PoR-delta correction alone (v24.18) is strictly superior.
+// Rising RMSE. PoR-delta correction alone (v25.0) is strictly superior.
 // SYNC WARNING: Keep in sync with getEFWeight() in index.html
 function getEFWeight(estimatedFlow) {
     if (estimatedFlow < 3000)  return 0.10;  // Low flow: EF negative skill, 0.22 corr
