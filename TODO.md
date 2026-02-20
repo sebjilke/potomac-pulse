@@ -87,12 +87,7 @@ Audit reports: `analysis/powerlaw_refit_audit.md`, `analysis/gradient_weights_11
 - **Validate 0.80 travel time correction** — INCONCLUSIVE. First-difference cross-correlation works at high flows (>20k cfs) where empirical ratios (0.84, 1.05) bracket current 0.80, but noise-dominated at low flows. Keeping 0.80. See `analysis/travel_time_audit.md`.
 - **Add flow-dependent EF→LF time shift** — lag=0 VALIDATED. Lag=4h gives only 3.3% improvement, concentrated entirely in >50k cfs floods (3% of data). For 87% of operational data (3k-25k cfs), lag=0 is already optimal. See `analysis/ef_lag_audit.md`.
 - **Add confidence intervals to predictions** — IMPLEMENTED (v29.1). Empirical 90% CI per bin replaces ±1σ. Errors are non-normal in all 18 bins (kurtosis up to 18.3, asymmetry up to 42:1). Gaussian ±1.645σ would mis-specify by up to 745%. See `analysis/error_distribution_audit.md`.
-
-### Remaining
-
-### Fix tributary timing calculations
-- **Issue**: Timing calculations for tributaries need adjustment
-- **Effort**: 4h
+- **Fix tributary timing calculations** — NO CHANGE needed. Monocacy (7.1%) and Goose Creek (3.0%) contribute only 10.1% of flow. Time-shifting provides <1% RMSE improvement in all flow regimes. Theoretical upper bound: 0.098% (mathematically impossible to reach 1% threshold). See `analysis/tributary_timing_audit.md`.
 
 ### Segment-specific travel time validation (spring)
 - **Note**: Seasonal — best addressed during spring runoff
@@ -270,9 +265,10 @@ Audit reports: `analysis/powerlaw_refit_audit.md`, `analysis/gradient_weights_11
   - Per-bin error quantiles (q05/q95) replace ±1σ uncertainty display
   - Errors non-normal in all 18 bins; Gaussian would mis-specify by up to 745%
   - 3-layer verified (Python + R + auditor)
-- [x] **Phase 3 Science Validation** v29.0 (2026-02-19)
+- [x] **Phase 3 Science Validation** v29.1 (2026-02-19)
   - Travel time 0.80 correction: INCONCLUSIVE, keeping current (brackets at high flow)
   - EF→LF lag=0: VALIDATED (3% improvement only in rare >50k floods)
+  - Tributary timing: NO CHANGE needed (<1% improvement, theoretical max 0.098%)
 - [x] **117k Hourly Validation** v29.0 (2026-02-19)
   - All model parameters re-estimated on 117,704 hourly observations (2011–2026)
   - 3-step pipeline: gradient weights, ceiling/decay, power-law + autocorrelation
