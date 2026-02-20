@@ -43,15 +43,19 @@ const EF_MODEL = {
 };
 
 // Flow-dependent EF weight for ensemble model
-// v29.0: Flat 35% EF weight above 3k cfs — replaces graduated ramp.
-// Optimized via coordinate descent on 42,838 hourly observations (2021-2026).
-// Simultaneous blind Python + R subagents, then independent auditor review.
-// RMSE: 1,676 cfs (flat 35%) vs 1,757 (daily-optimized) = -4.6% improvement.
+// v30.0: Logistic EF weight ramp — smooth 0% → 40%, midpoint 10k cfs.
+// Calibrated via Approach 5 (EF-Dominant) horse race on 117,704 hourly obs (2011-2026).
+// Leave-One-Year-Out CV (14 folds), OOS RMSE: 1,907 cfs (-4.6% vs v29.0 baseline).
+// Blind Python + R subagents + independent auditor verified.
+// See analysis/horserace_v2_python.py and horserace_v2_R.R
 // SYNC WARNING: Keep in sync with getEFWeight() in index.html
 function getEFWeight(estimatedFlow) {
-    // Simple step: 0% below 3k, 35% above 3k
-    if (estimatedFlow < 3000) return 0.0;
-    return 0.35;
+    // Logistic ramp: near 0% at low flows, 20% at 10k, approaching 40% at high flows
+    if (estimatedFlow < 1000) return 0.0;  // Short-circuit: negligible weight below 1k
+    const W_MAX = 0.40;
+    const K = 5.0;
+    const MIDPOINT = Math.log(10000);
+    return W_MAX / (1 + Math.exp(-K * (Math.log(estimatedFlow) - MIDPOINT)));
 }
 
 const GF_FLOW_BINS = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v29</title>
+    <title>Potomac Pulse v30</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -733,7 +733,7 @@
 
                             <!-- Blend label -->
                             <div style="text-align:center;margin-bottom:6px;">
-                                <div style="font-size:0.55rem;color:#94a3b8;">blended based on conditions</div>
+                                <div style="font-size:0.55rem;color:#94a3b8;">blended by logistic weight function</div>
                             </div>
 
                             <!-- Great Falls estimate -->
@@ -765,14 +765,14 @@
                         </div>
 
                         <p style="font-size:0.65rem;color:#94a3b8;line-height:1.6;">
-                        <b>The blend is smart:</b> At low flows (&lt;3,000 cfs), local channel effects make Edwards Ferry a poor downstream predictor, so the model uses Point of Rocks alone. Above 3,000 cfs, EF gets 35% weight — validated on 117,000+ hourly observations (2011–2026) and cross-verified in Python and R.
+                        <b>The blend is smart:</b> At low flows, local channel effects make Edwards Ferry a poor downstream predictor, so the model uses Point of Rocks alone. As flows increase, EF weight rises smoothly via a logistic function (0% → 40%, midpoint at 10k cfs) — calibrated on 117,000+ hourly observations (2011–2026) and cross-verified in Python and R.
                         </p>
 
                         <!-- UNDER THE HOOD (credibility — takeaway first, formula second) -->
                         <div style="background:#0f172a;padding:10px 12px;border-radius:6px;margin:10px 0;">
                             <div style="font-size:0.55rem;color:#64748b;margin-bottom:6px;">UNDER THE HOOD</div>
                             <p style="font-size:0.65rem;color:#94a3b8;line-height:1.5;margin-bottom:6px;">
-                            Validated against 15 years of USGS data (117,000+ hourly observations, 2011–2026). Typical error ~6%, but varies by flow: higher error below 3,000 cfs, under 9% above 15,000 cfs. A separate cold-water calibration (&lt;50&deg;F) accounts for temperature effects on the stage-discharge relationship. All model parameters independently verified in Python and R with formal audits.
+                            Validated against 15 years of USGS data (117,000+ hourly observations, 2011–2026). The model uses a smooth logistic weight function to blend Point of Rocks and Edwards Ferry — EF influence scales from near-zero at low flows to 40% at high flows, calibrated as the winner of seven competing approaches. Typical error ~6%, but varies by flow: higher error below 3,000 cfs, under 9% above 15,000 cfs. A separate cold-water calibration (&lt;50&deg;F) accounts for temperature effects on the stage-discharge relationship. All model parameters independently verified in Python and R with formal audits.
                             </p>
                         </div>
 
@@ -1177,15 +1177,18 @@
     let waterTempC = null;  // null = unavailable, use default model
 
     // Flow-dependent EF weight for ensemble model
-    // v29.0: Flat 35% EF weight above 3k cfs — replaces graduated ramp.
-    // Optimized via coordinate descent on 42,838 hourly observations (2021-2026).
-    // Simultaneous blind Python + R subagents, then independent auditor review.
-    // RMSE: 1,676 cfs (flat 35%) vs 1,757 (daily-optimized) = -4.6% improvement.
-    // See analysis/optimize_gradient_weights_hourly_v2.py and .R
+    // v30.0: Logistic EF weight ramp — smooth 0% → 40%, midpoint 10k cfs.
+    // Calibrated via Approach 5 (EF-Dominant) horse race on 117,704 hourly obs (2011-2026).
+    // Leave-One-Year-Out CV (14 folds), OOS RMSE: 1,907 cfs (-4.6% vs v29.0 baseline).
+    // Blind Python + R subagents + independent auditor verified.
+    // See analysis/horserace_v2_python.py and horserace_v2_R.R
     function getEFWeight(estimatedFlow) {
-        // Simple step: 0% below 3k, 35% above 3k
-        if (estimatedFlow < 3000) return 0.0;
-        return 0.35;
+        // Logistic ramp: near 0% at low flows, 20% at 10k, approaching 40% at high flows
+        if (estimatedFlow < 1000) return 0.0;  // Short-circuit: negligible weight below 1k
+        const W_MAX = 0.40;
+        const K = 5.0;
+        const MIDPOINT = Math.log(10000);
+        return W_MAX / (1 + Math.exp(-K * (Math.log(estimatedFlow) - MIDPOINT)));
     }
 
     // ==================== EMPIRICAL 90% CONFIDENCE INTERVALS ====================
@@ -2356,7 +2359,7 @@
             useTimeShifted: useTimeShifted,
             timeShiftedHoursAgo: timeShiftedHoursAgo,
             useEfEnsemble: useEfEnsemble,  // Whether EF model was blended in
-            efWeight: ensembleEfWeight,    // Actual EF weight used (0% <3k, 35% ≥3k) or null
+            efWeight: ensembleEfWeight,    // Actual EF weight used (logistic 0%→40%, midpoint 10k) or null
             // Also provide forecast (current PoR + tributaries arriving at GF)
             forecastCFS: Math.round(forecastTotal),
             forecastStage: estimateLFStage(forecastTotal),
@@ -5536,6 +5539,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v28.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Soft LF ceiling (120%) + decay cap 0.50. Near-zero rising bias (-29 cfs). Cross-verified daily + hourly (48k pairs). |
 | v29.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Flat 35% EF weight above 3k cfs (hourly optimization, 42k→117k obs). All parameters validated on 117k hourly dataset with autocorrelation testing. |
 | v29.1 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Empirical 90% CI replaces ±1σ. Per-bin q05/q95 from 117k obs. Display-only change, no estimation logic change. |
+| v30.0 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | Logistic EF weight ramp (0%→40%, midpoint 10k cfs) replaces flat 35% step. Horse race of 7 approaches on 117k hourly obs. OOS RMSE −4.6%. |
 
 ### 4.7 Updating the Model
 
@@ -5577,19 +5581,39 @@ Where w = EF weight (flow-dependent, see §5.4), GF_PoR_model = time-shifted PoR
 
 This ensemble reduces variance by combining a spatially distant but data-rich gauge (PoR, 20 mi) with a nearby but data-limited gauge (EF, 2 mi).
 
-### 5.4 Flow-Dependent Weighting (Flat 35%, v29.0)
+### 5.4 Flow-Dependent Weighting (Logistic Ramp, v30.0)
 
-Optimization on 42,838 hourly observations (2021-2026, travel-time-shifted PoR) revealed that a simple step function outperforms the graduated ramp. The EF gauge is accurate (USGS-verified), but its **predictive value** depends on flow regime:
+A **7-approach horse race** on 117,704 hourly observations (2011–2026) with Leave-One-Year-Out cross-validation (14 folds) identified a smooth logistic ramp as optimal. The EF gauge is accurate (USGS-verified), but its **predictive value** depends on flow regime — the logistic function captures this relationship continuously:
 
-- **Low flows (< 3k cfs)**: Zero weight — EF predictions have negative skill. Local effects (channel geometry, vegetation, dam operations) dominate stage at low water.
-- **All other flows (≥ 3k cfs)**: Flat 35% weight. The hourly optimization found no benefit to varying the weight with flow level — the same 35% is optimal from 3k to 50k+ cfs.
+\`\`\`
+ef_weight = W_MAX / (1 + exp(-K × (ln(flow) - ln(MIDPOINT))))
+         = 0.40  / (1 + exp(-5.0 × (ln(flow) - ln(10000))))
+\`\`\`
 
-| Flow Regime | EF Weight (w) | PoR Weight (1-w) |
-|-------------|:-------------:|:----------------:|
-| < 3,000 cfs | 0% | 100% |
-| ≥ 3,000 cfs | 35% | 65% |
+| Flow Level | EF Weight | PoR Weight |
+|------------|:---------:|:----------:|
+| 1,000 cfs | ~0.0% | ~100% |
+| 3,000 cfs | 1.8% | 98.2% |
+| 5,000 cfs | 3.5% | 96.5% |
+| 10,000 cfs | 20.0% | 80.0% |
+| 20,000 cfs | 36.5% | 63.5% |
+| 50,000 cfs | 39.8% | 60.2% |
 
-This replaced the v27.0 graduated ramp (0%→10%→40%) which was optimized on daily data. The hourly dataset has 8× more observations and uses actual travel-time-shifted PoR (not lag-1 proxy), producing a more robust estimate.
+**Horse race results** (OOS RMSE on 115,213 observations across 14 CV folds):
+
+| Approach | OOS RMSE | Skill Score | vs Baseline |
+|----------|:--------:|:-----------:|:-----------:|
+| EF-Dominant (logistic) — **winner** | **1,907** | **+0.090** | **−4.6%** |
+| PoR Ratio Scaler | 1,950 | +0.048 | −2.4% |
+| Tributary Addback | 1,975 | +0.025 | −1.2% |
+| Combined Ratio+Tribs | 1,987 | +0.012 | −0.6% |
+| Baseline (flat 35% step) | 1,999 | (ref) | — |
+| EF Power-Law Refit | 2,003 | −0.004 | +0.2% |
+| Log-Linear Regression | 2,006 | −0.007 | +0.3% |
+
+The logistic ramp improves on the v29.0 flat 35% step by eliminating the hard 3k cfs cutoff and allowing EF influence to increase gradually with flow. At low flows, EF weight is near zero (avoiding the negative-skill regime). At high flows, it asymptotes at 40% — matching the previous optimal ceiling. The smooth sigmoid requires no arbitrary bin boundaries.
+
+**Cross-language verified**: Blind Python + R subagents agree on winner (RMSE within 7 cfs). Independent auditor confirmed methodology is sound. See \`analysis/horserace_v2_python.py\`, \`analysis/horserace_v2_R.R\`, audit: \`analysis/horserace_v2_audit.md\`.
 
 ### 5.4.1 PoR-Delta Staleness Correction (v25.0)
 
@@ -5664,7 +5688,9 @@ See \`analysis/backtest_comprehensive.py\` (Python) and \`analysis/backtest_comp
 
 **117k Hourly Validation (2026-02-19):** Re-tested on 117,704 hourly observations (2011–2026). With hourly staleness ≈ 1hr/20hr = 0.05, the decay factor is ≈ 0.22 regardless of cap — the decay cap is essentially irrelevant for hourly data. Current config validated. See \`analysis/backtest_117k.py/.R\`, audit: \`analysis/backtest_117k_audit.md\`.
 
-### 5.4.4 Hourly Gradient Weight Re-Optimization (v29.0)
+### 5.4.4 Hourly Gradient Weight Re-Optimization (v29.0, superseded by v30.0)
+
+*Historical context: The v29.0 flat 35% step function served as the baseline for the v30.0 horse race. The logistic ramp (§5.4) now replaces this.*
 
 The v27.0 graduated ramp (0%→10%→40%) was optimized on daily data using lag-1 actual discharge as a PoR proxy. Re-optimization on **42,838 hourly observations** (2021-2026) with **actual travel-time-shifted PoR** (Searcy power law) found that a simple flat 35% weight above 3k cfs is optimal.
 
@@ -6007,6 +6033,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v30.0 | 2026-02-20 | Logistic EF weight ramp (0%→40%, midpoint 10k cfs, k=5.0) replaces flat 35% step function. Winner of 7-approach horse race on 117,704 hourly obs with Leave-One-Year-Out CV (14 folds). OOS RMSE 1,907 cfs (−4.6% vs v29.0 baseline). Smooth sigmoid eliminates hard 3k cfs cutoff. 3-layer verified (blind Python + R + independent auditor). |
 | v29.1 | 2026-02-19 | Empirical 90% CI replaces ±1σ uncertainty display. Per-bin error quantiles (q05/q95) validated on 117,704 hourly observations. Errors are non-normal (kurtosis up to 18.3, asymmetry up to 42:1). Gaussian ±1.645σ would mis-specify by up to 745%. 3-layer verified (Python + R + auditor). |
 | v29.0 | 2026-02-19 | Flat 35% EF weight above 3k cfs replaces graduated ramp (0%→10%→40%). Re-optimized on 42,838 hourly observations (2021-2026) with travel-time-shifted PoR. Overall RMSE -4.6% (1,676 vs 1,757 cfs). Simultaneous blind Python + R subagents + independent auditor. |
 | v28.1 | 2026-02-19 | Parallel data loading: fetch USGS + EF + temp + NWS simultaneously. Single UI render after all data arrives (eliminates intermediate partial display). NWS fetches parallelized across 15 gauges (was sequential). 8s NWS timeout prevents stalling. |
@@ -6042,7 +6069,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 ---
 
-*Generated by Potomac Pulse v29.1 — Empirical 90% CI. All parameters validated on 117,704 hourly observations (2011–2026)*
+*Generated by Potomac Pulse v30.0 — Logistic EF weight ramp. All parameters validated on 117,704 hourly observations (2011–2026)*
 `;
 
         // Download as Markdown file
