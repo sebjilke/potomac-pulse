@@ -1888,10 +1888,10 @@
 
                 // Color code based on accuracy
                 const dot = accuracyDiv.querySelector('span');
-                if (accuracy >= 97) {
+                if (accuracy >= 95) {
                     accuracyPct.style.color = '#4ade80';  // green - excellent
                     if (dot) dot.style.color = '#4ade80';
-                } else if (accuracy >= 95) {
+                } else if (accuracy >= 90) {
                     accuracyPct.style.color = '#fbbf24';  // yellow - good
                     if (dot) dot.style.color = '#fbbf24';
                 } else {
@@ -6175,7 +6175,7 @@ The model improves continuously, even when no browsers are open.
 Accuracy = 100% - mean_absolute_error_%
 \`\`\`
 
-Color coding: 🟢 ≥97% (excellent), 🟡 95-97% (good), 🔴 <95% (needs refinement).
+Color coding: 🟢 ≥95% (excellent), 🟡 90-95% (good), 🔴 <90% (needs refinement).
 
 ---
 
