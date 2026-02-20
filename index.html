@@ -780,7 +780,7 @@
                         <div style="background:#0f172a;padding:10px 12px;border-radius:6px;margin:10px 0;">
                             <div style="font-size:0.55rem;color:#64748b;margin-bottom:6px;">UNDER THE HOOD</div>
                             <p style="font-size:0.65rem;color:#94a3b8;line-height:1.5;margin-bottom:6px;">
-                            Validated against 15 years of USGS data (117,000+ hourly observations, 2011–2026). The model uses a smooth logistic weight function to blend Point of Rocks and Edwards Ferry — EF influence scales from near-zero at low flows to 40% at high flows, calibrated as the winner of seven competing approaches. Typical error ~6%, but varies by flow: higher error below 3,000 cfs, under 9% above 15,000 cfs. A separate cold-water calibration (&lt;50&deg;F) accounts for temperature effects on the stage-discharge relationship. All model parameters independently verified in Python and R with formal audits.
+                            The logistic blend was selected from seven competing approaches via leave-one-year-out cross-validation. Typical prediction error is ~6%, varying by flow: higher below 3,000 cfs, under 9% above 15,000 cfs. A separate cold-water calibration (&lt;50&deg;F) adjusts for temperature effects on the stage-discharge relationship.
                             </p>
                         </div>
 
