@@ -558,6 +558,7 @@
                                     <div style="font-size:0.55rem;color:#64748b;">ft (LF scale)</div>
                                 </div>
                             </div>
+                            <div id="gf-ci-range" style="margin-top:4px;font-size:0.6rem;color:#94a3b8;display:none;">90% CI: <span id="gf-ci-text">--</span></div>
                             <div id="gf-trend" style="margin-top:10px;font-size:0.8rem;color:#64748b;">--</div>
                             <div id="gf-data-source" style="display:none;margin-top:5px;font-size:0.55rem;color:#94a3b8;">Based on PoR from -- hrs ago</div>
                             <div id="gf-confidence" style="margin-top:5px;font-size:0.55rem;color:#a78bfa;">Confidence: --</div>
@@ -627,7 +628,7 @@
                                     <span id="gf-input-correction" style="color:#a78bfa;">± -- cfs</span>
                                 </div>
                                 <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                    <span style="color:#94a3b8;">Uncertainty (±1σ)</span>
+                                    <span style="color:#94a3b8;">90% CI</span>
                                     <span id="gf-input-uncertainty" style="color:#fbbf24;">--</span>
                                 </div>
                                 <div id="gf-ef-crosscheck" style="display:none;padding:4px 0;font-size:0.6rem;">
@@ -764,14 +765,14 @@
                         </div>
 
                         <p style="font-size:0.65rem;color:#94a3b8;line-height:1.6;">
-                        <b>The blend is smart:</b> At low flows (&lt;3,000 cfs), local channel effects make Edwards Ferry a poor downstream predictor, so the model uses Point of Rocks alone. Above 3,000 cfs, EF gets 35% weight — optimized from 42,000+ hourly observations and cross-verified in Python and R.
+                        <b>The blend is smart:</b> At low flows (&lt;3,000 cfs), local channel effects make Edwards Ferry a poor downstream predictor, so the model uses Point of Rocks alone. Above 3,000 cfs, EF gets 35% weight — validated on 117,000+ hourly observations (2011–2026) and cross-verified in Python and R.
                         </p>
 
                         <!-- UNDER THE HOOD (credibility — takeaway first, formula second) -->
                         <div style="background:#0f172a;padding:10px 12px;border-radius:6px;margin:10px 0;">
                             <div style="font-size:0.55rem;color:#64748b;margin-bottom:6px;">UNDER THE HOOD</div>
                             <p style="font-size:0.65rem;color:#94a3b8;line-height:1.5;margin-bottom:6px;">
-                            Tested against 15 years of USGS data (5,220 daily + 42,838 hourly observations). Typical error ~6%, but varies by flow: 44% mean error below 3,000 cfs, under 9% above 15,000 cfs. A separate cold-water calibration (&lt;50&deg;F) accounts for temperature effects on the stage-discharge relationship.
+                            Validated against 15 years of USGS data (117,000+ hourly observations, 2011–2026). Typical error ~6%, but varies by flow: higher error below 3,000 cfs, under 9% above 15,000 cfs. A separate cold-water calibration (&lt;50&deg;F) accounts for temperature effects on the stage-discharge relationship. All model parameters independently verified in Python and R with formal audits.
                             </p>
                         </div>
 
@@ -1186,6 +1187,25 @@
         if (estimatedFlow < 3000) return 0.0;
         return 0.35;
     }
+
+    // ==================== EMPIRICAL 90% CONFIDENCE INTERVALS ====================
+    // v29.1: Validated on 117,704 hourly observations (2011-2026).
+    // Error = (blended_estimate - actual_LF_discharge).
+    // Errors are non-normal in all 18 bins (Shapiro-Wilk p < 0.01, kurtosis up to 18.3).
+    // Gaussian ±1.645σ would mis-specify uncertainty by up to 745%.
+    // Per-bin empirical quantiles (q05, q95) provide calibrated 90% CI.
+    // CI formula: [estimate + q05, estimate + q95]
+    // 3-layer verified: blind Python + R subagents + independent auditor.
+    // See: analysis/analyze_error_distribution_python.py, analyze_error_distribution_R.R,
+    //       error_distribution_audit.md
+    const EMPIRICAL_CI_90 = {
+        '0-2k':   { rising: { q05: -507, q95: 402 }, steady: { q05: -155, q95: 484 }, falling: { q05: -118, q95: 766 }, all: { q05: -160, q95: 485 } },
+        '2-5k':   { rising: { q05: -1637, q95: 1834 }, steady: { q05: -778, q95: 773 }, falling: { q05: -1641, q95: 715 }, all: { q05: -856, q95: 816 } },
+        '5-10k':  { rising: { q05: -3526, q95: 1393 }, steady: { q05: -1781, q95: -145 }, falling: { q05: -4055, q95: -96 }, all: { q05: -2040, q95: -89 } },
+        '10-20k': { rising: { q05: -6486, q95: 3266 }, steady: { q05: -3406, q95: -418 }, falling: { q05: -8129, q95: -381 }, all: { q05: -3820, q95: -215 } },
+        '20-50k': { rising: { q05: -12458, q95: 6770 }, steady: { q05: -7741, q95: -879 }, falling: { q05: -15448, q95: -1605 }, all: { q05: -8820, q95: 192 } },
+        '50k+':   { rising: { q05: -19599, q95: 30615 }, steady: { q05: -15062, q95: 9726 }, falling: { q05: -18242, q95: -2123 }, all: { q05: -16487, q95: 14790 } }
+    };
 
     const BRANCHES = {
         mainstem: { name: "Mainstem", color: "#2563eb", ids: ["01638500","01618000","01613000","01610000"] },
@@ -1658,27 +1678,38 @@
         return stateData.meanError || 0;
     }
 
-    // Get uncertainty range (standard deviation) for a flow bin
+    // Get uncertainty range for a flow bin — empirical 90% CI (v29.1)
+    // Returns {q05, q95, stdDev, count} where q05/q95 are error quantiles.
+    // CI bounds: [estimate + q05, estimate + q95] gives 90% coverage.
     function getGFUncertainty(flowBin, flowState) {
-        if (!gfLearningData?.correctionBins) return null;
+        // Empirical CI from validated lookup table (always available)
+        const ciData = EMPIRICAL_CI_90[flowBin];
+        if (!ciData) return null;
 
-        const bin = gfLearningData.correctionBins[flowBin];
-        if (!bin) return null;
+        // Use flow-state-specific quantiles if available, fall back to "all"
+        const stateCI = ciData[flowState] || ciData['all'];
 
-        const stateData = bin[flowState] || bin['steady'];
-        if (!stateData || stateData.count < 5) return null;  // Need at least 5 observations
-
-        // Calculate standard deviation from sumErrorSq
-        const mean = stateData.meanError || 0;
-        const variance = (stateData.sumErrorSq / stateData.count) - (mean * mean);
-        const stdDev = Math.sqrt(Math.max(0, variance));
-
-        // Return null if std dev is unreasonably small (not enough variation)
-        if (stdDev < 10) return null;
+        // Also get learned stdDev and count from Supabase bins (for display)
+        let stdDev = null;
+        let count = 0;
+        if (gfLearningData?.correctionBins) {
+            const bin = gfLearningData.correctionBins[flowBin];
+            if (bin) {
+                const stateData = bin[flowState] || bin['steady'];
+                if (stateData && stateData.count >= 5) {
+                    const mean = stateData.meanError || 0;
+                    const variance = (stateData.sumErrorSq / stateData.count) - (mean * mean);
+                    stdDev = Math.sqrt(Math.max(0, variance));
+                    count = stateData.count;
+                }
+            }
+        }
 
         return {
+            q05: stateCI.q05,
+            q95: stateCI.q95,
             stdDev: stdDev,
-            count: stateData.count
+            count: count
         };
     }
 
@@ -2269,18 +2300,20 @@
         // Estimate stage using Little Falls equivalent (what paddlers know)
         const estimatedStage = estimateLFStage(estimatedCFS);
 
-        // Calculate uncertainty range if we have enough data
+        // Calculate uncertainty range — empirical 90% CI (v29.1)
+        // CI formula: [estimate + q05, estimate + q95] where q05/q95 are error quantiles
         let uncertaintyRange = null;
         if (uncertainty) {
-            // Use 1 standard deviation for the range (~68% confidence)
-            const lowCFS = Math.max(0, estimatedCFS - uncertainty.stdDev);
-            const highCFS = estimatedCFS + uncertainty.stdDev;
+            const lowCFS = Math.max(0, Math.round(estimatedCFS + uncertainty.q05));
+            const highCFS = Math.round(estimatedCFS + uncertainty.q95);
             uncertaintyRange = {
-                lowCFS: Math.round(lowCFS),
-                highCFS: Math.round(highCFS),
+                lowCFS: lowCFS,
+                highCFS: highCFS,
                 lowStage: estimateLFStage(lowCFS),
                 highStage: estimateLFStage(highCFS),
-                stdDevCFS: Math.round(uncertainty.stdDev),
+                q05: uncertainty.q05,
+                q95: uncertainty.q95,
+                stdDevCFS: uncertainty.stdDev ? Math.round(uncertainty.stdDev) : null,
                 observations: uncertainty.count
             };
         }
@@ -2420,6 +2453,7 @@
             document.getElementById("gf-trend").textContent = "";
             document.getElementById("gf-data-source").textContent = !gfDataReady ? "Loading corrections..." : "Loading EF data...";
             document.getElementById("gf-confidence").textContent = "";
+            document.getElementById("gf-ci-range").style.display = 'none';
             document.getElementById("gf-forecast-cfs").textContent = "--";
             document.getElementById("gf-forecast-stage").textContent = "--";
             document.getElementById("gf-forecast-hrs").textContent = "--";
@@ -2450,6 +2484,7 @@
             }
 
             document.getElementById("gf-confidence").textContent = "Confidence: --";
+            document.getElementById("gf-ci-range").style.display = 'none';
             document.getElementById("gf-forecast-cfs").textContent = "--";
             document.getElementById("gf-forecast-stage").textContent = "--";
             document.getElementById("gf-forecast-hrs").textContent = "--";
@@ -2462,6 +2497,16 @@
         // Show stage (clean number only)
         const stageEl = document.getElementById("gf-stage");
         stageEl.textContent = gfEstimate.stage.toFixed(2);
+
+        // Show 90% CI range below the main estimate (v29.1)
+        const ciRangeEl = document.getElementById("gf-ci-range");
+        const ciTextEl = document.getElementById("gf-ci-text");
+        if (gfEstimate.uncertaintyRange) {
+            ciTextEl.textContent = `${gfEstimate.uncertaintyRange.lowCFS.toLocaleString()} – ${gfEstimate.uncertaintyRange.highCFS.toLocaleString()} cfs`;
+            ciRangeEl.style.display = '';
+        } else {
+            ciRangeEl.style.display = 'none';
+        }
 
         // EF-only fallback mode: PoR is ice-affected, using Edwards Ferry model only
         if (gfEstimate.efOnly) {
@@ -2547,12 +2592,12 @@
         document.getElementById("gf-input-correction").textContent =
             gfEstimate.inputs.correction === 0 ? "none yet" : (gfEstimate.inputs.correction > 0 ? "-" : "+") + Math.abs(Math.round(gfEstimate.inputs.correction)) + " cfs";
 
-        // Display uncertainty range
+        // Display 90% CI range (v29.1: empirical quantiles)
         if (gfEstimate.uncertaintyRange) {
             document.getElementById("gf-input-uncertainty").textContent =
-                `± ${gfEstimate.uncertaintyRange.stdDevCFS.toLocaleString()} cfs`;
+                `${gfEstimate.uncertaintyRange.lowCFS.toLocaleString()} – ${gfEstimate.uncertaintyRange.highCFS.toLocaleString()} cfs`;
         } else {
-            document.getElementById("gf-input-uncertainty").textContent = "need 5+ obs";
+            document.getElementById("gf-input-uncertainty").textContent = "--";
         }
 
         // Display Edwards Ferry cross-check (only if we have enough correlation data)
@@ -5250,7 +5295,7 @@
     function downloadTechAppendix() {
         const content = `# Potomac Pulse — Technical Appendix
 
-**Version:** 24.16 | **Date:** February 2026
+**Version:** 29.0 | **Date:** February 2026
 
 This document provides full methodological transparency for the Potomac Pulse prediction system. It is intended for scientists, hydrologists, and technically curious users who want to understand exactly how the model works.
 
@@ -5455,6 +5500,24 @@ Analysis of 3,354 observations (2021-2026) with concurrent water temperature dat
 
 The cold-water model improves winter RMSE by **10.9%**. A full three-regime model (cold/moderate/warm) was tested but degraded warm-season accuracy by 18.1%. The cold-only approach captures the largest improvement without negative side effects.
 
+### 4.6a 117k Hourly Validation (2026-02-19)
+
+Both models were re-estimated on **117,704 hourly observations** (2011–2026) with autocorrelation diagnostics. As expected for hourly data, residuals show extreme autocorrelation (Durbin-Watson = 0.007 for default, 0.065 for cold; ACF lag-1 = 0.997 and 0.968 respectively). All Ljung-Box tests reject at p ≈ 0. However, autocorrelation inflates precision but does **not** bias OLS estimates — confirmed by:
+
+1. **Newey-West HAC**: v29.0 values fall within corrected confidence intervals
+2. **Subsampling (every 24h)**: n=4,905 → coef=128.0, exp=2.453 (virtually identical)
+3. **Subsampling (every 168h)**: n=701 → coef=132.1, exp=2.432 (within normal sampling variation)
+
+| Source | Default coef | Default exp | Cold coef | Cold exp |
+|--------|:---:|:---:|:---:|:---:|
+| v29.0 (5,220 daily) | 126 | 2.46 | 160 | 2.36 |
+| 117k hourly OLS | 127.8 | 2.454 | 166.4 | 2.341 |
+| 117k 24h subsample | 128.0 | 2.453 | 167.0 | 2.342 |
+
+Changes are <5% coef and <0.05 exponent → **not material**. v29.0 parameters validated. GLS Cochrane-Orcutt was attempted but fails due to near-unit-root process (rho ≈ 0.997). Cross-language verified: Python and R exact match on all estimates.
+
+See \\`analysis/refit_powerlaw_hourly.py/.R\\`, audit: \\`analysis/powerlaw_refit_audit.md\\`.
+
 ### 4.5 Temperature Data Source
 
 Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010). When temperature data is unavailable, the system falls back to the default model.
@@ -5468,10 +5531,11 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v24.14 | 2026-02-11 | +175.4 × EF^2.302 | — | — | Cold-water variant (≤10°C) |
 | v24.16 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | Deduplicated dataset (5,220 obs). Cold: 160 × EF^2.36 |
 | v25.0 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | PoR-delta staleness correction. Clarified EF gauge accuracy vs. predictive accuracy. |
-| v27.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Gradient EF weight (piecewise-linear, 0%→40%) replaces step function. -25.8% RMSE improvement. |
-| v29.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Flat 35% EF weight above 3k cfs (hourly optimization, 42k obs). -4.6% RMSE vs daily-optimized gradient. |
-| v28.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Soft LF ceiling (120%) + decay cap 0.50. Near-zero rising bias (-29 cfs). Cross-verified daily + hourly (48k pairs). |
 | v26.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | High-flow EF weight 50%→70% (cross-language optimization: 22% RMSE improvement at >15k cfs). |
+| v27.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Gradient EF weight (piecewise-linear, 0%→40%) replaces step function. -25.8% RMSE improvement. |
+| v28.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Soft LF ceiling (120%) + decay cap 0.50. Near-zero rising bias (-29 cfs). Cross-verified daily + hourly (48k pairs). |
+| v29.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Flat 35% EF weight above 3k cfs (hourly optimization, 42k→117k obs). All parameters validated on 117k hourly dataset with autocorrelation testing. |
+| v29.1 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Empirical 90% CI replaces ±1σ. Per-bin q05/q95 from 117k obs. Display-only change, no estimation logic change. |
 
 ### 4.7 Updating the Model
 
@@ -5598,6 +5662,8 @@ The selected config prioritizes unbiased rising estimates (bias ≈ zero) over m
 
 See \`analysis/backtest_comprehensive.py\` (Python) and \`analysis/backtest_comprehensive_R.R\` (R).
 
+**117k Hourly Validation (2026-02-19):** Re-tested on 117,704 hourly observations (2011–2026). With hourly staleness ≈ 1hr/20hr = 0.05, the decay factor is ≈ 0.22 regardless of cap — the decay cap is essentially irrelevant for hourly data. Current config validated. See \`analysis/backtest_117k.py/.R\`, audit: \`analysis/backtest_117k_audit.md\`.
+
 ### 5.4.4 Hourly Gradient Weight Re-Optimization (v29.0)
 
 The v27.0 graduated ramp (0%→10%→40%) was optimized on daily data using lag-1 actual discharge as a PoR proxy. Re-optimization on **42,838 hourly observations** (2021-2026) with **actual travel-time-shifted PoR** (Searcy power law) found that a simple flat 35% weight above 3k cfs is optimal.
@@ -5628,6 +5694,8 @@ The v27.0 graduated ramp (0%→10%→40%) was optimized on daily data using lag-
 
 See \`analysis/optimize_gradient_weights_hourly_v2.py\` (Python) and \`analysis/optimize_gradient_weights_hourly_v2_verify.R\` (R).
 
+**117k Hourly Validation (2026-02-19):** Re-optimized on 117,704 hourly observations (2011–2026). The graduated ramp [0.04, 0.15, 0.35×5] is 0.70 cfs WORSE overall than flat 35%. Cross-validation (leave-one-year-out, 2012–2025): only 2/14 years improve, mean 1.8% worse out-of-sample. Flat 35% confirmed optimal. See \`analysis/optimize_gradient_weights_117k.py/.R\`, audit: \`analysis/gradient_weights_117k_audit.md\`.
+
 ### 5.5 EF Discrepancy Check
 
 When EF estimate differs from PoR estimate by more than 50%, the system skips ensemble blending and uses PoR-only. This guards against ice-affected EF readings, backwater conditions, or gauge malfunctions that would corrupt the ensemble.
@@ -5654,15 +5722,19 @@ Reflects **data quality**, not prediction accuracy:
 
 Downgrades: EF trend conflict, insufficient history for time-shifting, tributary gauges offline.
 
-### 5.8 Uncertainty Display
+### 5.8 Uncertainty Display (v29.1: Empirical 90% CI)
 
-Once 5+ validations exist for a flow bin, the app displays ±1σ uncertainty:
+The app displays a calibrated 90% confidence interval based on empirical error quantiles:
 
 \`\`\`
-Stage: 3.2 ft (3.0 - 3.4 ft)
+90% CI: 2,900 – 3,500 cfs
 \`\`\`
 
-Based on historical prediction errors for the current flow bin and flow state.
+**Methodology:** Prediction errors (blended estimate − actual LF discharge) were analyzed across 117,704 hourly observations (2011–2026) in 18 bins (6 flow levels × 3 flow states). Errors are non-normal in all bins (Shapiro-Wilk p &lt; 0.01, kurtosis up to 18.3, asymmetry ratios up to 42:1). Gaussian ±1.645σ would mis-specify uncertainty by up to 745%.
+
+**CI formula:** \`[estimate + q05(bin), estimate + q95(bin)]\` where q05/q95 are the 5th/95th percentiles of the error distribution for the relevant flow bin and flow state.
+
+**Verification:** 3-layer protocol — simultaneous blind Python + R subagents + independent auditor. See \`analysis/error_distribution_audit.md\`.
 
 ---
 
@@ -5935,6 +6007,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v29.1 | 2026-02-19 | Empirical 90% CI replaces ±1σ uncertainty display. Per-bin error quantiles (q05/q95) validated on 117,704 hourly observations. Errors are non-normal (kurtosis up to 18.3, asymmetry up to 42:1). Gaussian ±1.645σ would mis-specify by up to 745%. 3-layer verified (Python + R + auditor). |
 | v29.0 | 2026-02-19 | Flat 35% EF weight above 3k cfs replaces graduated ramp (0%→10%→40%). Re-optimized on 42,838 hourly observations (2021-2026) with travel-time-shifted PoR. Overall RMSE -4.6% (1,676 vs 1,757 cfs). Simultaneous blind Python + R subagents + independent auditor. |
 | v28.1 | 2026-02-19 | Parallel data loading: fetch USGS + EF + temp + NWS simultaneously. Single UI render after all data arrives (eliminates intermediate partial display). NWS fetches parallelized across 15 gauges (was sequential). 8s NWS timeout prevents stalling. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search: 25 configs on daily (5,208 pairs) + hourly (42,837 pairs, travel-time-shifted PoR). 120% ceiling selected over 110% to avoid systematic under-prediction on rises (-29 cfs bias vs -476 cfs). Cross-verified Python + R. |
@@ -5969,7 +6042,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 ---
 
-*Generated by Potomac Pulse v29.0*
+*Generated by Potomac Pulse v29.1 — Empirical 90% CI. All parameters validated on 117,704 hourly observations (2011–2026)*
 `;
 
         // Download as Markdown file

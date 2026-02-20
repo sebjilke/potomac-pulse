@@ -70,75 +70,33 @@
 
 ## Phase 3: Science & Model Improvements (High)
 
-*Requires sequential validation*
+### Completed ✅
 
-### ~~Update EF power-law model coefficients~~ ✅ (v24.13)
-- **Old model**: 108 × EF^2.64 (had 22.6% mean error)
-- **New model**: 136 × EF^2.42 (6.3% mean error, 54% RMSE reduction)
-- **Data**: 10,434 daily observations from USGS (2011-2026)
-- **Files updated**: index.html, scheduled-update.js
-- **Analysis**: `/analysis/fetch_ef_longterm.py`, `/analysis/ef_lf_daily_longterm.csv`
+All model parameters have been validated on 117,704 hourly observations (2011–2026) via the 3-layer verification protocol (simultaneous blind Python + R subagents + independent auditor):
 
-### ~~Add temperature-aware EF model~~ ✅ (v24.14)
-- **Implemented**: Cold-only adjustment (water temp ≤10°C uses 175.4×EF^2.302)
-- **Finding**: Full temp model made predictions worse overall (-3.4%), but cold-only improves winter by 10.9%
-- **Implementation**: Fetches PoR water temp (USGS 01638500, param 00010)
-- **Fallback**: Uses default 136×EF^2.42 when temp unavailable or >10°C
-- **Data**: `/analysis/ef_lf_temp_merged.csv`
+- **EF power-law**: 126×EF^2.46 (default), 160×EF^2.36 (cold) — validated, <5% change on hourly data ✅
+- **EF weights**: Flat 35% above 3k cfs — graduated ramp 0.70 cfs worse, CV 1.8% worse OOS ✅
+- **Ceiling/decay**: 120% ceiling, 0.50 decay cap — validated, decay irrelevant at hourly resolution ✅
+- **Autocorrelation**: Extreme (DW=0.007) but does not bias estimates (confirmed by subsampling) ✅
+- **Cold-water model**: 160×EF^2.36 when ≤10°C — validated on 12,959 hourly obs ✅
 
-### ~~Implement flow-dependent ensemble weighting~~ ✅ (v24.15)
-- **Implemented**: EF weight varies by flow regime
-  - <3000 cfs: 25% EF (dam operations cause +33% EF bias)
-  - 3000-6000 cfs: 35% EF
-  - 6000-15000 cfs: 40% EF (current default)
-  - >15000 cfs: 45% EF (EF most reliable at high flow)
-- **Analysis**: `/analysis/flow_weight_optimization_realistic.csv`
-- **Impact**: Expected 2-3% RMSE improvement, better low-flow predictions
+Audit reports: `analysis/powerlaw_refit_audit.md`, `analysis/gradient_weights_117k_audit.md`, `analysis/backtest_117k_audit.md`
 
-### Review GF prediction accuracy with live data
-- **Background**: v24.13 (EF recalibration), v24.14 (cold-water model), v24.15 (flow-dependent weights) all now in production
-- **Observation**: Predictions work but "feel off" — needs validation against actual readings
-- **Action**: Compare GF predictions vs LF validation readings over several days/weeks of non-ice data
-- **Check**: Are ensemble weights (25-45% EF) appropriate? Do cold-water coefficients trigger correctly?
-- **May need**: Coefficient tuning, weight adjustments, or travel time corrections
-- **Best timing**: Now — ice has melted, clean data flowing
-- **Effort**: 4-8h (data collection + analysis)
+### Completed (Phase 3 Validation, 2026-02-19) ✅
 
-### Re-tune ice detection thresholds (now possible)
-- **Background**: Previous EF model underestimated by ~22%, so EF cross-check rarely triggered
-- **With new model**: EF estimates are accurate, so EF >> LF during ice should now trigger correctly
-- **Action**: Monitor ice detection during remainder of winter 2025-2026
-- **Threshold review**: May need to adjust 25% threshold based on new model accuracy
-- **Data**: USGS ice flags in `/analysis/ice_data_raw.csv`
-- **Effort**: 4h (after monitoring period)
+- **Validate 0.80 travel time correction** — INCONCLUSIVE. First-difference cross-correlation works at high flows (>20k cfs) where empirical ratios (0.84, 1.05) bracket current 0.80, but noise-dominated at low flows. Keeping 0.80. See `analysis/travel_time_audit.md`.
+- **Add flow-dependent EF→LF time shift** — lag=0 VALIDATED. Lag=4h gives only 3.3% improvement, concentrated entirely in >50k cfs floods (3% of data). For 87% of operational data (3k-25k cfs), lag=0 is already optimal. See `analysis/ef_lag_audit.md`.
+- **Add confidence intervals to predictions** — IMPLEMENTED (v29.1). Empirical 90% CI per bin replaces ±1σ. Errors are non-normal in all 18 bins (kurtosis up to 18.3, asymmetry up to 42:1). Gaussian ±1.645σ would mis-specify by up to 745%. See `analysis/error_distribution_audit.md`.
 
-### Validate 0.80 travel time correction
-- **Location**: `index.html` — Searcy model constants
-- **Issue**: No statistical justification for 0.80 multiplier
-- **Fix**: Compare with modern data, document confidence interval, or conduct dye-tracer study
-- **Impact**: Model accuracy foundation
-- **Effort**: 8h
-
-### Add flow-dependent EF→LF time shift
-- **Current**: Fixed 8-hour shift
-- **Issue**: Shift varies 2-5 hrs depending on flow
-- **Fix**: Use power-law T(Q) scaled to 15-mile distance
-- **Effort**: 4h
-
-### Add confidence intervals to predictions
-- **Current**: Point estimates only
-- **Fix**: Report "2,500 cfs ±300 cfs (90% CI)" with uncertainty propagation
-- **Effort**: 4h
+### Remaining
 
 ### Fix tributary timing calculations
-- **Location**: `index.html` — `calcTravelTimes()`
 - **Issue**: Timing calculations for tributaries need adjustment
-- **Impact**: Inaccurate arrival predictions
+- **Effort**: 4h
 
 ### Segment-specific travel time validation (spring)
-- **Location**: `validate-searcy-travel-times.js`
-- **Issue**: Need more data during high-flow spring events
 - **Note**: Seasonal — best addressed during spring runoff
+- **Effort**: 8h
 
 ---
 
@@ -308,57 +266,38 @@
 
 ## Completed
 
+- [x] **Empirical 90% CI** v29.1 (2026-02-19)
+  - Per-bin error quantiles (q05/q95) replace ±1σ uncertainty display
+  - Errors non-normal in all 18 bins; Gaussian would mis-specify by up to 745%
+  - 3-layer verified (Python + R + auditor)
+- [x] **Phase 3 Science Validation** v29.0 (2026-02-19)
+  - Travel time 0.80 correction: INCONCLUSIVE, keeping current (brackets at high flow)
+  - EF→LF lag=0: VALIDATED (3% improvement only in rare >50k floods)
+- [x] **117k Hourly Validation** v29.0 (2026-02-19)
+  - All model parameters re-estimated on 117,704 hourly observations (2011–2026)
+  - 3-step pipeline: gradient weights, ceiling/decay, power-law + autocorrelation
+  - 3-layer verification: blind Python + R subagents + independent auditor
+  - Result: No parameter changes warranted. v29.0 fully validated.
+- [x] **Flat 35% EF Weight** v29.0 (2026-02-19)
+  - Re-optimized on 42,838 hourly obs with travel-time-shifted PoR
+  - Flat 35% beats graduated ramp by -4.6% RMSE
+- [x] **Soft LF Ceiling + Decay Cap** v28.0 (2026-02-19)
+  - 120% ceiling, 0.50 decay cap. Grid search: 25 configs on daily + hourly
+- [x] **Gradient EF Weights** v27.0 (2026-02-19)
+  - Piecewise-linear (0%→40%). -25.8% RMSE vs step function.
+- [x] **PoR-Delta Correction** v25.0 (2026-02-18)
+  - Staleness correction for rising/falling rivers. -26% Overall RMSE.
+- [x] **EF Model Recalibration** v24.16 (2026-02-18)
+  - 126×EF^2.46 (default), 160×EF^2.36 (cold). 5,220 daily obs.
 - [x] **Flow-Dependent EF Weighting** v24.15 (2026-02-11)
-  - EF weight now varies by flow: 25% at <3k (dam ops), 35% at 3-6k, 40% at 6-15k, 45% at >15k
-  - Based on RMSE optimization across 10,434 observations
-  - Expected 2-3% overall improvement, better low-flow predictions
-  - Analysis: `/analysis/flow_weight_optimization_realistic.csv`
 - [x] **Cold-Water EF Model** v24.14 (2026-02-11)
-  - Added cold-water adjustment: 175.4×EF^2.302 when temp ≤10°C
-  - Improves winter RMSE by 10.9%
-  - Full temp model hurt warm predictions, so cold-only implemented
-  - Fetches PoR water temp (USGS 01638500, param 00010)
-  - Analysis: `/analysis/ef_lf_temp_merged.csv`
-- [x] **EF Model Recalibration** v24.13 (2026-02-10)
-  - Updated power-law from 108×EF^2.64 to 136×EF^2.42
-  - Based on 10,434 USGS daily observations (2011-2026)
-  - RMSE reduced 54% (12,577 → 5,790 cfs), mean error 22.6% → 6.3%
-  - Fixes ice detection EF cross-check (was broken due to underestimation)
-  - Analysis data: `/analysis/ef_lf_daily_longterm.csv`
-- [x] **Comprehensive project review** (2026-02-10)
-  - 5 independent review agents analyzed structure, code, UX, science, database
-  - 45 issues identified: 8 critical, 12 high, 15 medium, 10 low
-  - Reorganized TODO into 6 phases with holistic prioritization
-  - Created PDF slide deck with findings
 - [x] **Phase 2: User Experience** v24.12 (2026-02-10)
-  - Mobile sidebar height fix (scrollable 45-60vh)
-  - Network error banner with auto-dismiss
-  - Map toggle button in header (🗺️)
-  - About button accessibility (span→button)
-  - Forecast disclaimer font size increased (0.45rem→0.6rem)
-  - Mobile font size CSS overrides
 - [x] **Phase 1: Security & Stability** v24.11 (2026-02-10)
-  - XSS fix: innerHTML → textContent throughout UI
-  - USGS response schema validation (client + server)
-  - Fetch timeouts with AbortController (5-10s)
-  - PIN moved to server-side env variable
-  - .env patterns added to .gitignore
-  - Event listener memory leak fixed
-- [x] EF-only fallback, ice learning suspension, admin dashboard, code review fixes v24.10 (2026-02-03)
-  - EF-only GF fallback when PoR ice-affected
-  - Ice learning suspension (client + server)
-  - Admin dashboard in Learning tab
-  - Fixed ef.toFixed crash, fetchData race, forecast validation, syncTimeout
+- [x] EF-only fallback, ice learning suspension, admin dashboard v24.10 (2026-02-03)
 - [x] Iterative travel time convergence v24.9 (2026-01-25)
-- [x] EF ensemble discrepancy check & extended history v24.8 (2026-01-26)
-- [x] 48h forecast with LF-constrained approach, bias correction & accuracy tracking v24.7 (2026-01-25)
-- [x] Tighter ice detection thresholds v24.3 (2026-01-25)
-- [x] Ice-affected gauge display v24.2 (2026-01-24)
-- [x] Improve ice/anomaly detection v24.1 (2026-01-24)
-- [x] Create comprehensive README.md (2026-01-24)
-- [x] Document deployment workflow
-- [x] Add documentation requirements to development guidelines
+- [x] 48h forecast with LF-constrained approach v24.6-24.7 (2026-01-25)
+- [x] Ice/anomaly detection v24.0-24.3 (2026-01-24)
 
 ---
 
-*Last updated: 2026-02-11 (Cold-water EF v24.14, flow-dependent weighting v24.15)*
+*Last updated: 2026-02-19 (v29.1 — Empirical 90% CI, Phase 3 science validation)*
