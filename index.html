@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v30</title>
+    <title>Potomac Pulse v31</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -612,6 +612,14 @@
                                     <span id="gf-input-goose" style="color:#4ade80;">+ -- cfs</span>
                                 </div>
                                 <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                    <span style="color:#94a3b8;">+ Broad Run (0.7%)</span>
+                                    <span id="gf-input-broadrun" style="color:#4ade80;">+ -- cfs</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
+                                    <span style="color:#94a3b8;">+ Seneca (0.9%)</span>
+                                    <span id="gf-input-seneca" style="color:#4ade80;">+ -- cfs</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
                                     <span style="color:#94a3b8;">Travel time PoR→GF</span>
                                     <span id="gf-input-travel" style="color:#fbbf24;">-- hrs</span>
                                 </div>
@@ -760,7 +768,7 @@
 
                             <!-- Tributary note -->
                             <div style="font-size:0.55rem;color:#64748b;text-align:center;margin-top:10px;padding-top:8px;border-top:1px solid #334155;">
-                                + Monocacy &amp; Goose Creek added at their confluence points
+                                + Monocacy, Goose Creek, Broad Run &amp; Seneca added at their confluence points
                             </div>
                         </div>
 
@@ -805,7 +813,7 @@
                         <!-- 7. BASIN COVERAGE (condensed) -->
                         <h3>Basin Coverage</h3>
                         <p style="font-size:0.65rem;color:#94a3b8;line-height:1.6;margin-bottom:8px;">
-                        18 USGS gauges feed the model. Point of Rocks carries about 84% of the flow, with Monocacy and Goose Creek adding the rest. Edwards Ferry provides a nearby cross-check just 2 miles above Great Falls. Upstream gauges (Hancock, Cumberland, Shenandoah) give multi-day advance notice when a pulse is coming.
+                        19 USGS gauges feed the model. Point of Rocks carries about 84% of the flow, with Monocacy, Goose Creek, Broad Run, and Seneca Creek adding the rest. Edwards Ferry provides a nearby cross-check just 2 miles above Great Falls. Upstream gauges (Hancock, Cumberland, Shenandoah) give multi-day advance notice when a pulse is coming.
                         </p>
 
                         <!-- 8. DATA SOURCES -->
@@ -1015,7 +1023,7 @@
     //
     // 1. GREAT FALLS PREDICTION (estimateGreatFalls, ~line 1696)
     //    Ensemble model: flow-dependent blend of Point of Rocks + Edwards Ferry
-    //    - PoR component: Time-shifted PoR reading + Monocacy + Goose Creek
+    //    - PoR component: Time-shifted PoR reading + Monocacy + Goose Creek + Broad Run + Seneca
     //    - EF component: Power-law model (CFS = 126 × stage^2.46, R²=0.91)
     //
     // 2. TRAVEL TIME MODEL (getFlowMultiplier, ~line 1049)
@@ -1092,6 +1100,7 @@
         "01631000": { name: "Front Royal", lat: 38.9140, lon: -78.2117, area: 1642, pctLF: 14.2, baseHrs: 64, branch: "shenandoah" },
         "01643000": { name: "Monocacy", lat: 39.4143, lon: -77.4080, area: 817, pctLF: 7.1, baseHrs: 14, branch: "belowPtR" },
         "01644000": { name: "Goose Creek", lat: 39.0559, lon: -77.5191, area: 332, pctLF: 3.0, baseHrs: 10, branch: "belowPtR" },
+        "01644280": { name: "Broad Run", lat: 39.0464, lon: -77.4324, area: 76, pctLF: 0.7, baseHrs: 8, branch: "belowPtR" },
         "01645000": { name: "Seneca Creek", lat: 39.1273, lon: -77.3386, area: 101, pctLF: 0.9, baseHrs: 5, branch: "belowPtR" },
         "01611500": { name: "Cacapon", lat: 39.5832, lon: -78.3011, area: 675, pctLF: 5.8, baseHrs: 128, branch: "tribs" },
         "01614500": { name: "Conococheague", lat: 39.6510, lon: -77.9239, area: 494, pctLF: 4.9, baseHrs: 112, branch: "tribs" },
@@ -1105,7 +1114,7 @@
         lat: 38.9985,
         lon: -77.2519,
         area: 10000,  // Approx drainage area at GF (PoR + Goose - some ungauged)
-        pctLF: 86.5,  // PoR (83.5%) + Goose (3%)
+        pctLF: 88.1,  // PoR (83.5%) + Goose (3.0%) + Broad Run (0.7%) + Seneca (0.9%)
         estimated: true
     };
 
@@ -1215,7 +1224,7 @@
         northBranch: { name: "North Branch", color: "#0891b2", ids: ["01603000","01595500"] },
         southBranch: { name: "South Branch", color: "#7c3aed", ids: ["01608500","01606500","01604500"] },
         shenandoah: { name: "Shenandoah", color: "#c026d3", ids: ["01636500","01631000"] },
-        belowPtR: { name: "Below Pt Rocks ⚠️", color: "#dc2626", warn: true, ids: ["01643000","01644000","01645000"] },
+        belowPtR: { name: "Below Pt Rocks ⚠️", color: "#dc2626", warn: true, ids: ["01643000","01644000","01644280","01645000"] },
         tribs: { name: "Tributaries", color: "#059669", ids: ["01611500","01614500","01619500"] }
     };
 
@@ -2042,7 +2051,7 @@
     }
 
     // Estimate Great Falls flow from upstream gauges
-    // GF = PoR (time-shifted) + Monocacy + Goose Creek
+    // GF = PoR (time-shifted) + Monocacy + Goose Creek + Broad Run + Seneca Creek
     // All three confluences are ABOVE Great Falls
     // Check if any critical gauge (PoR, LF, EF) is ice-affected or unavailable
     // Used to suppress learning/validation during unreliable conditions
@@ -2057,6 +2066,8 @@
         const por = data["01638500"];      // Point of Rocks (83.5% of LF)
         const monocacy = data["01643000"]; // Monocacy (7.1% of LF) - joins 6mi below PoR
         const goose = data["01644000"];    // Goose Creek (3.0% of LF) - joins 12mi below PoR
+        const broadRun = data["01644280"]; // Broad Run (0.7% of LF) - enters between Goose Ck and EF
+        const seneca = data["01645000"];   // Seneca Creek (0.9% of LF) - enters below EF, above GF
         const lf = data[LF.id];            // Little Falls
 
         if (!lf?.q) {
@@ -2121,6 +2132,8 @@
         // Tributary contributions (use actual if available, else estimate from LF %)
         const monocacyFlow = monocacy?.q || (lf.q * 0.071);  // 7.1% of LF
         const gooseFlow = goose?.q || (lf.q * GOOSE_CREEK_PCT);  // 3.0% of LF
+        const broadRunFlow = broadRun?.q || (lf.q * 0.0066);     // 0.66% of LF (v31.0)
+        const senecaFlow = seneca?.q || (lf.q * 0.0087);         // 0.87% of LF (v31.0)
 
         // ==================== ITERATIVE TRAVEL TIME CALCULATION ====================
         // Problem: Travel time depends on flow, but we're looking up historical flow.
@@ -2180,7 +2193,7 @@
 
         if (historicPoR) {
             // Base estimate from time-shifted PoR
-            estimatedCFS = historicPoR.cfs + monocacyFlow + gooseFlow;
+            estimatedCFS = historicPoR.cfs + monocacyFlow + gooseFlow + broadRunFlow + senecaFlow;
             useTimeShifted = true;
             timeShiftedHoursAgo = historicPoR.actualHoursAgo;
 
@@ -2231,7 +2244,7 @@
         } else {
             // No historic data yet - use current PoR as forecast
             // This represents "what's arriving at GF in ~travelPoRtoGF hours"
-            estimatedCFS = por.q + monocacyFlow + gooseFlow;
+            estimatedCFS = por.q + monocacyFlow + gooseFlow + broadRunFlow + senecaFlow;
         }
 
         // Flow state (must be computed before correction lookup)
@@ -2349,7 +2362,7 @@
         }
 
         // Calculate forecast (current readings arriving at GF)
-        const forecastTotal = por.q + monocacyFlow + gooseFlow;
+        const forecastTotal = por.q + monocacyFlow + gooseFlow + broadRunFlow + senecaFlow;
 
         return {
             cfs: Math.round(estimatedCFS),
@@ -2371,6 +2384,10 @@
                 monocacyActual: !!monocacy?.q,
                 gooseCFS: Math.round(gooseFlow),
                 gooseActual: !!goose?.q,
+                broadRunCFS: Math.round(broadRunFlow),
+                broadRunActual: !!broadRun?.q,
+                senecaCFS: Math.round(senecaFlow),
+                senecaActual: !!seneca?.q,
                 travelPoRtoGF: travelPoRtoGF,
                 travelGFtoLF: travelGFtoLF,
                 correction: correction,
@@ -2583,6 +2600,10 @@
             (gfEstimate.inputs.monocacyActual ? "+ " : "~+ ") + gfEstimate.inputs.monocacyCFS.toLocaleString() + " cfs";
         document.getElementById("gf-input-goose").textContent =
             (gfEstimate.inputs.gooseActual ? "+ " : "~+ ") + gfEstimate.inputs.gooseCFS.toLocaleString() + " cfs";
+        document.getElementById("gf-input-broadrun").textContent =
+            (gfEstimate.inputs.broadRunActual ? "+ " : "~+ ") + gfEstimate.inputs.broadRunCFS.toLocaleString() + " cfs";
+        document.getElementById("gf-input-seneca").textContent =
+            (gfEstimate.inputs.senecaActual ? "+ " : "~+ ") + gfEstimate.inputs.senecaCFS.toLocaleString() + " cfs";
         document.getElementById("gf-input-travel").textContent = gfEstimate.inputs.travelPoRtoGF.toFixed(1) + " hrs";
         document.getElementById("gf-input-travel-gf-lf").textContent = gfEstimate.inputs.travelGFtoLF.toFixed(1) + " hrs";
 
@@ -5310,7 +5331,7 @@ Potomac Pulse is a real-time web application that estimates water conditions at 
 
 **Core approach:**
 1. Look up what Point of Rocks was reading when today's Great Falls water passed through (~19-33 hours ago)
-2. Add tributary contributions (Monocacy, Goose Creek) at their confluence points
+2. Add tributary contributions (Monocacy, Goose Creek, Broad Run, Seneca Creek) at their confluence points
 3. Blend with a nearby stage-only gauge (Edwards Ferry) using flow-dependent weights
 4. Validate every prediction ~6 hours later when water reaches Little Falls
 5. Learn correction factors by flow regime and flow state
@@ -5540,6 +5561,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v29.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Flat 35% EF weight above 3k cfs (hourly optimization, 42k→117k obs). All parameters validated on 117k hourly dataset with autocorrelation testing. |
 | v29.1 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Empirical 90% CI replaces ±1σ. Per-bin q05/q95 from 117k obs. Display-only change, no estimation logic change. |
 | v30.0 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | Logistic EF weight ramp (0%→40%, midpoint 10k cfs) replaces flat 35% step. Horse race of 7 approaches on 117k hourly obs. OOS RMSE −4.6%. |
+| v31.0 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | Add Broad Run (01644280) + Seneca Creek (01645000) to GF estimation. Closes ~1,100 cfs of tributary gap. Independent auditor caught Catoctin Creek double-count risk. |
 
 ### 4.7 Updating the Model
 
@@ -5560,13 +5582,15 @@ No USGS gauge exists at Great Falls. The estimation combines upstream gauge read
 ### 5.2 Estimation Formula
 
 \`\`\`
-GF_estimated = PoR(t - T_converged) + Monocacy + Goose Creek - Correction
+GF_estimated = PoR(t - T_converged) + Monocacy + Goose Creek + Broad Run + Seneca Creek - Correction
 \`\`\`
 
 Where:
 - PoR(t - T_converged) = Point of Rocks reading from T hours ago (T = converged travel time, §3.5)
 - Monocacy = current Monocacy discharge (joins 6 mi below PoR)
 - Goose Creek = current Goose Creek discharge (joins 12 mi below PoR)
+- Broad Run = current Broad Run discharge (0.66% of LF, joins between Goose Creek and EF)
+- Seneca Creek = current Seneca Creek discharge (0.87% of LF, joins below EF, above GF)
 - Correction = learned correction factor for current flow bin and flow state (§6)
 
 ### 5.3 Ensemble Blending
@@ -5953,7 +5977,7 @@ When NWS forecast is unavailable, the system uses linear extrapolation from rece
 
 | Factor | Impact |
 |--------|--------|
-| Tributary timing | Monocacy/Goose readings are current, not time-shifted to confluence arrival |
+| Tributary timing | Monocacy/Goose/Broad Run/Seneca readings are current, not time-shifted to confluence arrival |
 | Water withdrawals | DC Aqueduct, WSSC, Fairfax Water remove 5-15% at low flows |
 | EF dam influence | At <3,000 cfs, dam operations cause ±33% EF bias (mitigated by flow-dependent weighting) |
 | Temperature data gaps | When PoR temp unavailable, cold-water model cannot activate |
@@ -6033,6 +6057,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v31.0 | 2026-02-20 | Add Broad Run (01644280, 76 mi², 0.66% of LF) and Seneca Creek (01645000, 101 mi², 0.87% of LF) to GF estimation model. Both tributaries enter between Point of Rocks and Great Falls. Closes ~1,100 cfs of the PoR-to-LF tributary gap. Catoctin Creek (01638480) excluded after independent auditor identified it enters 0.3 mi above PoR gauge (already captured in PoR reading). |
 | v30.0 | 2026-02-20 | Logistic EF weight ramp (0%→40%, midpoint 10k cfs, k=5.0) replaces flat 35% step function. Winner of 7-approach horse race on 117,704 hourly obs with Leave-One-Year-Out CV (14 folds). OOS RMSE 1,907 cfs (−4.6% vs v29.0 baseline). Smooth sigmoid eliminates hard 3k cfs cutoff. 3-layer verified (blind Python + R + independent auditor). |
 | v29.1 | 2026-02-19 | Empirical 90% CI replaces ±1σ uncertainty display. Per-bin error quantiles (q05/q95) validated on 117,704 hourly observations. Errors are non-normal (kurtosis up to 18.3, asymmetry up to 42:1). Gaussian ±1.645σ would mis-specify by up to 745%. 3-layer verified (Python + R + auditor). |
 | v29.0 | 2026-02-19 | Flat 35% EF weight above 3k cfs replaces graduated ramp (0%→10%→40%). Re-optimized on 42,838 hourly observations (2021-2026) with travel-time-shifted PoR. Overall RMSE -4.6% (1,676 vs 1,757 cfs). Simultaneous blind Python + R subagents + independent auditor. |
@@ -6069,7 +6094,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 ---
 
-*Generated by Potomac Pulse v30.0 — Logistic EF weight ramp. All parameters validated on 117,704 hourly observations (2011–2026)*
+*Generated by Potomac Pulse v31.0 — Add Broad Run + Seneca Creek tributaries. All parameters validated on 117,704 hourly observations (2011–2026)*
 `;
 
         // Download as Markdown file

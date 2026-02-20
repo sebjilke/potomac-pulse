@@ -155,6 +155,7 @@ async function fetchUSGSData() {
         lf: '01646500',       // Little Falls
         monocacy: '01643000', // Monocacy
         goose: '01644000',    // Goose Creek
+        broadRun: '01644280', // Broad Run (v31.0)
         seneca: '01645000',   // Seneca Creek
         ef: '01644148'        // Edwards Ferry (stage only)
     };
@@ -394,6 +395,8 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
     const por = data[gauges.por];
     const monocacy = data[gauges.monocacy];
     const goose = data[gauges.goose];
+    const broadRun = data[gauges.broadRun];
+    const seneca = data[gauges.seneca];
     const ef = data[gauges.ef];
 
     if (!lf?.q || !por?.q) {
@@ -412,12 +415,14 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
     // Tributary contributions
     const monocacyFlow = monocacy?.q || (lf.q * 0.071);
     const gooseFlow = goose?.q || (lf.q * 0.03);
+    const broadRunFlow = broadRun?.q || (lf.q * 0.0066);   // 0.66% of LF (v31.0)
+    const senecaFlow = seneca?.q || (lf.q * 0.0087);       // 0.87% of LF (v31.0)
 
     let porEstimateCFS;
     let useTimeShifted = false;
 
     if (historicPoR) {
-        porEstimateCFS = historicPoR.cfs + monocacyFlow + gooseFlow;
+        porEstimateCFS = historicPoR.cfs + monocacyFlow + gooseFlow + broadRunFlow + senecaFlow;
         useTimeShifted = true;
 
         // PoR-delta staleness correction: if PoR has changed significantly
@@ -436,7 +441,7 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
                 `Decay: ${(decayFactor*100).toFixed(0)}%. Estimate: ${rawEstimate} → ${porEstimateCFS} cfs`);
         }
     } else {
-        porEstimateCFS = por.q + monocacyFlow + gooseFlow;
+        porEstimateCFS = por.q + monocacyFlow + gooseFlow + broadRunFlow + senecaFlow;
     }
 
     // Edwards Ferry power-law estimate with cold-water adjustment
