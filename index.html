@@ -669,7 +669,7 @@
                         <span id="gf-forecast-arrival" style="display:none;">--</span>
 
                         <div id="gf-forecast-timeline" style="margin-bottom:15px;">
-                            <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:4px;text-align:center;">48-HOUR FORECAST*</div>
+                            <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:4px;text-align:center;">6H HISTORY + 48H FORECAST*</div>
                             <div style="font-size:0.6rem;color:#fbbf24;margin-bottom:8px;text-align:center;">*Experimental — collecting data to validate accuracy</div>
 
                             <!-- Interactive Graph -->
@@ -2095,6 +2095,43 @@
         };
     }
 
+    // ==================== GF HISTORY FROM PoR ====================
+    // Compute approximate GF estimates from stored PoR history for the forecast graph.
+    // Uses simplified PoR-only formula (no EF blending or tributary data for past readings).
+    // This is display-only — shows trend direction, not exact GF values.
+    function computeGFHistoryFromPoR(hoursBack = 6) {
+        if (porHistory.length === 0) return [];
+
+        const cutoff = Date.now() - hoursBack * 3600000;
+        const historyPoints = [];
+
+        for (const entry of porHistory) {
+            if (entry.timestamp < cutoff) continue;
+
+            // Simplified GF estimate: PoR cfs + flow-bin correction + stage
+            // (No EF ensemble, no tributary adjustment, no PoR-delta — we just have PoR)
+            let estCFS = entry.cfs;
+            const flowBin = getGFFlowBin(estCFS);
+            const correction = getGFCorrection(flowBin, 'steady');  // Use 'steady' for historical
+            estCFS = estCFS - correction;
+            if (estCFS < 0) estCFS = 0;
+            const stage = estimateLFStage(estCFS);
+
+            const hrsAgo = (Date.now() - entry.timestamp) / 3600000;
+            historyPoints.push({
+                hrs: -hrsAgo,  // Negative = past
+                cfs: Math.round(estCFS),
+                stage: stage,
+                time: new Date(entry.timestamp),
+                isHistory: true
+            });
+        }
+
+        // Sort chronologically (oldest first)
+        historyPoints.sort((a, b) => a.hrs - b.hrs);
+        return historyPoints;
+    }
+
     // Calculate travel time PoR → Great Falls (scales with flow multiplier)
     // Applies wave celerity adjustment for rising events
     function getPoRtoGFTravelTime(mult, riseRate = null) {
@@ -3125,8 +3162,11 @@
             `;
         }).join('');
 
-        // Render interactive graph with ALL periods (including intermediate points for smooth curve)
-        renderForecastGraph(periods, currentCFS, hasNWSForecast);
+        // Compute GF history from PoR readings (last 6 hours) for trend visualization
+        const gfHistory = computeGFHistoryFromPoR(6);
+
+        // Render interactive graph with ALL periods + history
+        renderForecastGraph(periods, currentCFS, hasNWSForecast, gfHistory);
 
         // Store forecast predictions for accuracy tracking (throttled, async)
         storeForecastPredictions(periods).catch(e => console.warn('Forecast storage error:', e));
@@ -3154,12 +3194,13 @@
         return `${days[date.getDay()]} ${hour12}${ampm}`;
     }
 
-    // Render interactive SVG forecast graph
+    // Render interactive SVG forecast graph with optional 6h history
     // Uses periods data (already computed with GF ensemble model) to draw smooth curve
+    // historyPoints: optional array of {hrs (negative), cfs, stage, time, isHistory} from porHistory
     let forecastGraphData = []; // Store for tooltip lookups
     let graphScales = {}; // Store scale functions for marker positioning
 
-    function renderForecastGraph(periods, currentCFS, hasNWSForecast) {
+    function renderForecastGraph(periods, currentCFS, hasNWSForecast, historyPoints = []) {
         const svg = document.getElementById('gf-forecast-graph');
         if (!svg) return;
 
@@ -3170,28 +3211,45 @@
         const graphWidth = width - padding.left - padding.right;
         const graphHeight = height - padding.top - padding.bottom;
 
+        // Determine x-axis range based on whether we have history
+        const hasHistory = historyPoints.length >= 2;
+        const xMin = hasHistory ? -6 : 0;
+        const xMax = 48;
+        const xRange = xMax - xMin; // 54 if history, 48 if not
+
         // Generate smooth curve from periods data (interpolate to 2-hour intervals)
         const now = new Date();
         forecastGraphData = [];
 
-        // Build interpolation points from periods (0, 6, 12, 24, 48 hours)
+        // Prepend history points (already computed from porHistory)
+        if (hasHistory) {
+            for (const hp of historyPoints) {
+                forecastGraphData.push({
+                    hrs: hp.hrs,
+                    time: hp.time,
+                    cfs: hp.cfs,
+                    stage: hp.stage,
+                    isHistory: true
+                });
+            }
+        }
+
+        // Build interpolation points from forecast periods (0, 6, 12, 24, 48 hours)
         const periodPoints = periods.map(p => ({
             hrs: p.isCurrent ? 0 : parseInt(p.label.replace('+', '').replace('h', '')),
             cfs: p.cfs,
             stage: p.stage
         }));
 
-        // Generate smooth curve every 2 hours by interpolating between period points
+        // Generate smooth forecast curve every 2 hours
         for (let hrs = 0; hrs <= 48; hrs += 2) {
             const time = new Date(now.getTime() + hrs * 60 * 60 * 1000);
 
-            // Find bracketing period points
             const before = periodPoints.filter(p => p.hrs <= hrs).pop();
             const after = periodPoints.find(p => p.hrs >= hrs);
 
             let cfs, stage;
             if (before && after && before !== after) {
-                // Linear interpolation between period points
                 const t = (hrs - before.hrs) / (after.hrs - before.hrs);
                 cfs = before.cfs + t * (after.cfs - before.cfs);
                 stage = before.stage + t * (after.stage - before.stage);
@@ -3206,28 +3264,56 @@
                 stage = estimateLFStage(cfs);
             }
 
-            forecastGraphData.push({ hrs, time, cfs: Math.round(cfs), stage });
+            forecastGraphData.push({ hrs, time, cfs: Math.round(cfs), stage, isHistory: false });
         }
 
-        // Find min/max for scaling
+        // Find min/max for scaling (include both history and forecast)
         const stages = forecastGraphData.map(d => d.stage);
         const minStage = Math.floor(Math.min(...stages) * 2) / 2 - 0.5;
         const maxStage = Math.ceil(Math.max(...stages) * 2) / 2 + 0.5;
         const stageRange = maxStage - minStage || 1;
+        const bottom = padding.top + graphHeight;
 
-        // Scale functions
-        const xScale = (hrs) => padding.left + (hrs / 48) * graphWidth;
+        // Scale functions — domain [xMin, xMax] → [padding.left, padding.left + graphWidth]
+        const xScale = (hrs) => padding.left + ((hrs - xMin) / xRange) * graphWidth;
         const yScale = (stage) => padding.top + (1 - (stage - minStage) / stageRange) * graphHeight;
 
         // Store scales for external marker positioning
         graphScales = { xScale, yScale, padding, graphHeight };
 
-        // Build path
-        const pathPoints = forecastGraphData.map(d => `${xScale(d.hrs)},${yScale(d.stage)}`);
-        const linePath = `M ${pathPoints.join(' L ')}`;
+        // Separate history and forecast data points
+        const histData = forecastGraphData.filter(d => d.isHistory);
+        const fcstData = forecastGraphData.filter(d => !d.isHistory);
 
-        // Area fill path (to bottom)
-        const areaPath = `M ${xScale(0)},${yScale(forecastGraphData[0].stage)} L ${pathPoints.join(' L ')} L ${xScale(48)},${padding.top + graphHeight} L ${xScale(0)},${padding.top + graphHeight} Z`;
+        // Build forecast line path
+        const fcstPathPoints = fcstData.map(d => `${xScale(d.hrs)},${yScale(d.stage)}`);
+        const fcstLinePath = fcstPathPoints.length > 0 ? `M ${fcstPathPoints.join(' L ')}` : '';
+
+        // Build forecast area fill (from NOW to +48h)
+        let fcstAreaPath = '';
+        if (fcstData.length > 0) {
+            fcstAreaPath = `M ${xScale(0)},${yScale(fcstData[0].stage)} L ${fcstPathPoints.join(' L ')} L ${xScale(48)},${bottom} L ${xScale(0)},${bottom} Z`;
+        }
+
+        // Build history line path (connect to NOW point for continuity)
+        let histLinePath = '';
+        let histAreaPath = '';
+        let histDotsSVG = '';
+        if (hasHistory && fcstData.length > 0) {
+            // History line: all history points + connect to the NOW (hrs=0) forecast point
+            const histPlusBridge = [...histData, { hrs: 0, stage: fcstData[0].stage }];
+            const histPathPoints = histPlusBridge.map(d => `${xScale(d.hrs)},${yScale(d.stage)}`);
+            histLinePath = `M ${histPathPoints.join(' L ')}`;
+
+            // History area fill (dimmer)
+            const firstHistHrs = histData[0].hrs;
+            histAreaPath = `M ${xScale(firstHistHrs)},${yScale(histData[0].stage)} L ${histPathPoints.join(' L ')} L ${xScale(0)},${bottom} L ${xScale(firstHistHrs)},${bottom} Z`;
+
+            // History dots (small dots at each data point, ~15 min intervals)
+            histDotsSVG = histData.map(d =>
+                `<circle cx="${xScale(d.hrs)}" cy="${yScale(d.stage)}" r="2" fill="#60a5fa" opacity="0.7"/>`
+            ).join('');
+        }
 
         // Y-axis labels
         const yTicks = [];
@@ -3236,48 +3322,84 @@
             yTicks.push(s);
         }
 
-        // X-axis labels (0h, 12h, 24h, 36h, 48h)
-        const xLabels = [0, 12, 24, 36, 48];
+        // X-axis labels — responsive: on narrow screens, drop -6h/-3h labels
+        const isNarrow = graphWidth < 280;
+        let xLabels;
+        if (hasHistory) {
+            xLabels = isNarrow
+                ? [{ hrs: 0, label: 'Now' }, { hrs: 12, label: '+12h' }, { hrs: 24, label: '+24h' }, { hrs: 48, label: '+48h' }]
+                : [{ hrs: -6, label: '-6h' }, { hrs: -3, label: '-3h' }, { hrs: 0, label: 'Now' }, { hrs: 12, label: '+12h' }, { hrs: 24, label: '+24h' }, { hrs: 36, label: '+36h' }, { hrs: 48, label: '+48h' }];
+        } else {
+            xLabels = [{ hrs: 0, label: 'Now' }, { hrs: 12, label: '+12h' }, { hrs: 24, label: '+24h' }, { hrs: 36, label: '+36h' }, { hrs: 48, label: '+48h' }];
+        }
+
+        // X-axis grid lines — only at labeled positions
+        const xGridLines = xLabels.map(l => l.hrs);
+
+        // NOW divider line (vertical line at hrs=0, separating history from forecast)
+        let nowDividerSVG = '';
+        if (hasHistory) {
+            const nowX = xScale(0);
+            nowDividerSVG = `
+                <line x1="${nowX}" y1="${padding.top}" x2="${nowX}" y2="${bottom}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3,2" opacity="0.6"/>
+            `;
+        }
 
         svg.setAttribute('width', width);
         svg.setAttribute('height', height);
         svg.innerHTML = `
-            <!-- Grid lines -->
-            ${yTicks.map(s => `<line x1="${padding.left}" y1="${yScale(s)}" x2="${width - padding.right}" y2="${yScale(s)}" stroke="#334155" stroke-width="1" stroke-dasharray="2,2"/>`).join('')}
-            ${xLabels.map(h => `<line x1="${xScale(h)}" y1="${padding.top}" x2="${xScale(h)}" y2="${padding.top + graphHeight}" stroke="#334155" stroke-width="1" stroke-dasharray="2,2"/>`).join('')}
-
-            <!-- Area fill -->
-            <path d="${areaPath}" fill="url(#graphGradient)" opacity="0.3"/>
-
-            <!-- Line -->
-            <path d="${linePath}" fill="none" stroke="#4ade80" stroke-width="2"/>
-
-            <!-- Current point marker -->
-            <circle cx="${xScale(0)}" cy="${yScale(forecastGraphData[0].stage)}" r="4" fill="#4ade80" stroke="#0f172a" stroke-width="2"/>
-
-            <!-- Y-axis labels -->
-            ${yTicks.map(s => `<text x="${padding.left - 5}" y="${yScale(s) + 3}" fill="#94a3b8" font-size="9" text-anchor="end">${s.toFixed(2)}</text>`).join('')}
-
-            <!-- X-axis labels -->
-            ${xLabels.map(h => `<text x="${xScale(h)}" y="${height - 5}" fill="#94a3b8" font-size="9" text-anchor="middle">${h === 0 ? 'Now' : '+' + h + 'h'}</text>`).join('')}
-
-            <!-- Y-axis title -->
-            <text x="10" y="${padding.top + graphHeight / 2}" fill="#4ade80" font-size="9" text-anchor="middle" transform="rotate(-90, 10, ${padding.top + graphHeight / 2})">ft</text>
-
-            <!-- Gradient definition -->
+            <!-- Gradient definitions -->
             <defs>
                 <linearGradient id="graphGradient" x1="0%" y1="0%" x2="0%" y2="100%">
                     <stop offset="0%" stop-color="#4ade80" stop-opacity="0.4"/>
                     <stop offset="100%" stop-color="#4ade80" stop-opacity="0"/>
                 </linearGradient>
+                <linearGradient id="histGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.25"/>
+                    <stop offset="100%" stop-color="#60a5fa" stop-opacity="0"/>
+                </linearGradient>
             </defs>
+
+            <!-- Grid lines -->
+            ${yTicks.map(s => `<line x1="${padding.left}" y1="${yScale(s)}" x2="${width - padding.right}" y2="${yScale(s)}" stroke="#334155" stroke-width="1" stroke-dasharray="2,2"/>`).join('')}
+            ${xGridLines.map(h => `<line x1="${xScale(h)}" y1="${padding.top}" x2="${xScale(h)}" y2="${bottom}" stroke="#334155" stroke-width="1" stroke-dasharray="2,2"/>`).join('')}
+
+            <!-- History area fill (dimmer blue) -->
+            ${histAreaPath ? `<path d="${histAreaPath}" fill="url(#histGradient)" opacity="0.3"/>` : ''}
+
+            <!-- Forecast area fill (green) -->
+            ${fcstAreaPath ? `<path d="${fcstAreaPath}" fill="url(#graphGradient)" opacity="0.3"/>` : ''}
+
+            <!-- History line (solid blue) -->
+            ${histLinePath ? `<path d="${histLinePath}" fill="none" stroke="#60a5fa" stroke-width="2"/>` : ''}
+
+            <!-- History data dots -->
+            ${histDotsSVG}
+
+            <!-- Forecast line (green) -->
+            ${fcstLinePath ? `<path d="${fcstLinePath}" fill="none" stroke="#4ade80" stroke-width="2"/>` : ''}
+
+            <!-- NOW divider line -->
+            ${nowDividerSVG}
+
+            <!-- Current point marker (at junction of history and forecast) -->
+            ${fcstData.length > 0 ? `<circle cx="${xScale(0)}" cy="${yScale(fcstData[0].stage)}" r="4" fill="#4ade80" stroke="#0f172a" stroke-width="2"/>` : ''}
+
+            <!-- Y-axis labels -->
+            ${yTicks.map(s => `<text x="${padding.left - 5}" y="${yScale(s) + 3}" fill="#94a3b8" font-size="9" text-anchor="end">${s.toFixed(2)}</text>`).join('')}
+
+            <!-- X-axis labels -->
+            ${xLabels.map(l => `<text x="${xScale(l.hrs)}" y="${height - 5}" fill="${l.hrs === 0 ? '#f59e0b' : '#94a3b8'}" font-size="9" text-anchor="middle" font-weight="${l.hrs === 0 ? '600' : 'normal'}">${l.label}</text>`).join('')}
+
+            <!-- Y-axis title -->
+            <text x="10" y="${padding.top + graphHeight / 2}" fill="#4ade80" font-size="9" text-anchor="middle" transform="rotate(-90, 10, ${padding.top + graphHeight / 2})">ft</text>
 
             <!-- Invisible hover area -->
             <rect id="gf-graph-hover" x="${padding.left}" y="${padding.top}" width="${graphWidth}" height="${graphHeight}" fill="transparent"/>
 
             <!-- Selected period marker (hidden by default) -->
             <g id="gf-graph-marker" style="display:none;">
-                <line id="gf-marker-line" x1="0" y1="${padding.top}" x2="0" y2="${padding.top + graphHeight}" stroke="#60a5fa" stroke-width="2" stroke-dasharray="4,2"/>
+                <line id="gf-marker-line" x1="0" y1="${padding.top}" x2="0" y2="${bottom}" stroke="#60a5fa" stroke-width="2" stroke-dasharray="4,2"/>
                 <circle id="gf-marker-dot" cx="0" cy="0" r="6" fill="#60a5fa" stroke="#0f172a" stroke-width="2"/>
             </g>
         `;
@@ -3289,14 +3411,18 @@
         function showTooltip(e) {
             const rect = svg.getBoundingClientRect();
             const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-            const hrs = Math.max(0, Math.min(48, ((x - padding.left) / graphWidth) * 48));
+            const hrs = Math.max(xMin, Math.min(xMax, ((x - padding.left) / graphWidth) * xRange + xMin));
 
             // Find closest data point
             const closest = forecastGraphData.reduce((prev, curr) =>
                 Math.abs(curr.hrs - hrs) < Math.abs(prev.hrs - hrs) ? curr : prev
             );
 
-            document.getElementById('gf-tooltip-time').textContent = formatForecastTime(closest.time);
+            // Show label with history indicator
+            const timeLabel = closest.isHistory
+                ? `${formatForecastTime(closest.time)} (observed)`
+                : formatForecastTime(closest.time);
+            document.getElementById('gf-tooltip-time').textContent = timeLabel;
             document.getElementById('gf-tooltip-stage').textContent = closest.stage.toFixed(2);
             document.getElementById('gf-tooltip-cfs').textContent = closest.cfs.toLocaleString();
 
@@ -5879,6 +6005,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v31.0 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | Add Broad Run (01644280) + Seneca Creek (01645000) to GF estimation. Closes ~1,100 cfs of tributary gap. Independent auditor caught Catoctin Creek double-count risk. |
 | v31.1 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | New "Creeks" tab: rain-dependent whitewater runs (Rock Creek, NW Branch Anacostia, Difficult Run, Sligo Creek). Display-only — no estimation logic change. |
 | v31.2 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | Aqueduct withdrawal documentation: WA/WSSC/Fairfax Water divert ~400–700 cfs above GF. Investigation + auditor confirmed already absorbed by LF-calibrated model. Documentation-only. |
+| v31.3 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | 6-hour history on forecast graph: retroactively computes GF estimates from PoR history (already in localStorage), extends graph from [0,48h] to [-6h,48h]. NOW divider, blue history line/dots, responsive x-axis labels. Display-only. |
 
 ### 4.7 Updating the Model
 
@@ -6374,6 +6501,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v31.3 | 2026-02-20 | 6-hour history on forecast graph: extends graph from [0, 48h] to [-6h, 48h] by retroactively computing GF estimates from existing PoR history in localStorage. Blue history line with data dots, amber NOW divider, responsive x-axis labels. Tooltip shows "(observed)" for history points. No new localStorage — reuses porHistory backfill. Display-only. |
 | v31.2 | 2026-02-20 | Aqueduct withdrawal investigation: Washington Aqueduct (at GF), WSSC (Swain's Lock), and Fairfax Water (Seneca) divert ~400–700 cfs above the falls. 3-agent investigation (2 researchers + independent auditor) confirmed withdrawals already absorbed by LF-calibrated model. Systematic errors are 2–7× larger than total withdrawals and scale proportionally — driven by ungauged area, not withdrawals. Documentation-only update. |
 | v31.1 | 2026-02-20 | New "Creeks" tab showing rain-dependent whitewater runs near DC: Rock Creek (01648000, ≥400 cfs), NW Branch Anacostia (01650500, ≥200 cfs), Difficult Run (01646000, ≥200 cfs), Sligo Creek (01650800, ≥200 cfs). Binary green-light model with localStorage "last ran" tracking. Separate USGS fetch (P1D, discharge only). Display-only — no estimation logic change. |
 | v31.0 | 2026-02-20 | Add Broad Run (01644280, 76 mi², 0.66% of LF) and Seneca Creek (01645000, 101 mi², 0.87% of LF) to GF estimation model. Both tributaries enter between Point of Rocks and Great Falls. Closes ~1,100 cfs of the PoR-to-LF tributary gap. Catoctin Creek (01638480) excluded after independent auditor identified it enters 0.3 mi above PoR gauge (already captured in PoR reading). |
@@ -6413,7 +6541,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 ---
 
-*Generated by Potomac Pulse v31.2 — Aqueduct withdrawal documentation. All parameters validated on 117,704 hourly observations (2011–2026)*
+*Generated by Potomac Pulse v31.3 — 6h history on forecast graph. All parameters validated on 117,704 hourly observations (2011–2026)*
 `;
 
         // Download as Markdown file
