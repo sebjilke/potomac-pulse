@@ -1332,7 +1332,7 @@
         "01648000": { name: "Rock Creek", class: "II-III+(V)", runnable: 400, awId: 2587, area: 62, estimated: false },
         "01650500": { name: "NW Branch Anacostia", class: "I-III(V+)", runnable: 200, awId: 706, area: 21, estimated: false },
         "01646000": { name: "Difficult Run", class: "III-IV(V+)", runnable: 200, awId: 1930, area: 58, estimated: true },
-        "01650800": { name: "Sligo Creek", class: "~II", runnable: 30, awId: null, area: 6.5, estimated: true, microRun: true }
+        "01650800": { name: "Sligo Creek", class: "~II", runnable: 200, awId: null, area: 6.5, estimated: false, microRun: true }
     };
     let creekData = {};  // Populated by fetchCreekData(), keyed by USGS site ID
 
@@ -6375,7 +6375,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 | Version | Date | Changes |
 |---------|------|---------|
 | v31.2 | 2026-02-20 | Aqueduct withdrawal investigation: Washington Aqueduct (at GF), WSSC (Swain's Lock), and Fairfax Water (Seneca) divert ~400–700 cfs above the falls. 3-agent investigation (2 researchers + independent auditor) confirmed withdrawals already absorbed by LF-calibrated model. Systematic errors are 2–7× larger than total withdrawals and scale proportionally — driven by ungauged area, not withdrawals. Documentation-only update. |
-| v31.1 | 2026-02-20 | New "Creeks" tab showing rain-dependent whitewater runs near DC: Rock Creek (01648000, ≥400 cfs), NW Branch Anacostia (01650500, ≥200 cfs), Difficult Run (01646000, ≥200 cfs), Sligo Creek (01650800, ≥30 cfs). Binary green-light model with localStorage "last ran" tracking. Separate USGS fetch (P1D, discharge only). Display-only — no estimation logic change. |
+| v31.1 | 2026-02-20 | New "Creeks" tab showing rain-dependent whitewater runs near DC: Rock Creek (01648000, ≥400 cfs), NW Branch Anacostia (01650500, ≥200 cfs), Difficult Run (01646000, ≥200 cfs), Sligo Creek (01650800, ≥200 cfs). Binary green-light model with localStorage "last ran" tracking. Separate USGS fetch (P1D, discharge only). Display-only — no estimation logic change. |
 | v31.0 | 2026-02-20 | Add Broad Run (01644280, 76 mi², 0.66% of LF) and Seneca Creek (01645000, 101 mi², 0.87% of LF) to GF estimation model. Both tributaries enter between Point of Rocks and Great Falls. Closes ~1,100 cfs of the PoR-to-LF tributary gap. Catoctin Creek (01638480) excluded after independent auditor identified it enters 0.3 mi above PoR gauge (already captured in PoR reading). |
 | v30.0 | 2026-02-20 | Logistic EF weight ramp (0%→40%, midpoint 10k cfs, k=5.0) replaces flat 35% step function. Winner of 7-approach horse race on 117,704 hourly obs with Leave-One-Year-Out CV (14 folds). OOS RMSE 1,907 cfs (−4.6% vs v29.0 baseline). Smooth sigmoid eliminates hard 3k cfs cutoff. 3-layer verified (blind Python + R + independent auditor). |
 | v29.1 | 2026-02-19 | Empirical 90% CI replaces ±1σ uncertainty display. Per-bin error quantiles (q05/q95) validated on 117,704 hourly observations. Errors are non-normal (kurtosis up to 18.3, asymmetry up to 42:1). Gaussian ±1.645σ would mis-specify by up to 745%. 3-layer verified (Python + R + auditor). |
