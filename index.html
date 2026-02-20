@@ -222,9 +222,96 @@
         @media (max-width: 768px) {
             .tab { font-size: 0.75rem; padding: 8px 4px; }
         }
+        @media (max-width: 420px) {
+            .tab { font-size: 0.65rem; padding: 6px 2px; letter-spacing: -0.3px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        }
 
         .tab-content { display: none; flex: 1; overflow-y: auto; }
         .tab-content.active { display: block; }
+
+        /* Tab indicator dot — green when any creek is running */
+        .tab[data-tab="creeks"] { position: relative; }
+        .tab[data-tab="creeks"].has-running::after {
+            content: '';
+            width: 6px; height: 6px;
+            background: #4ade80;
+            border-radius: 50%;
+            position: absolute;
+            top: 4px; right: 4px;
+            box-shadow: 0 0 4px rgba(74,222,128,0.6);
+        }
+
+        /* ==================== CREEK RUNS ==================== */
+        .creeks-banner {
+            padding: 10px 12px;
+            text-align: center;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border-bottom: 1px solid #334155;
+        }
+        .creeks-banner.running { color: #4ade80; background: rgba(74,222,128,0.08); }
+        .creeks-banner.quiet { color: #94a3b8; background: rgba(0,0,0,0.15); }
+
+        .creek-card {
+            margin: 6px 8px;
+            padding: 10px 12px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            background: rgba(0,0,0,0.15);
+            transition: border-color 0.3s;
+        }
+        .creek-top {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .creek-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: #64748b;
+            flex-shrink: 0;
+        }
+        .creek-name {
+            flex: 1;
+            font-weight: 500;
+            color: #e2e8f0;
+            font-size: 0.85rem;
+        }
+        .creek-cfs {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #94a3b8;
+            text-align: right;
+            min-width: 60px;
+        }
+        .creek-trend {
+            font-size: 0.9rem;
+            width: 16px;
+            text-align: center;
+        }
+        .creek-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 4px;
+            padding-left: 18px;
+            font-size: 0.55rem;
+            color: #8494a7;
+        }
+        .creek-meta span::after { content: '·'; margin-left: 6px; color: #64748b; }
+        .creek-meta span:last-of-type::after { content: ''; }
+        .creek-status {
+            margin-top: 3px;
+            padding-left: 18px;
+            font-size: 0.6rem;
+        }
+        @media (max-width: 420px) {
+            .creek-card { margin: 4px 4px; padding: 8px; }
+            .creek-name { font-size: 0.75rem; }
+            .creek-cfs { font-size: 0.75rem; min-width: 50px; }
+            .creek-meta { font-size: 0.5rem; gap: 4px; }
+            .creeks-banner { font-size: 0.75rem; padding: 8px; }
+        }
 
         /* ==================== FORECAST PERIODS ==================== */
         .forecast-period {
@@ -531,9 +618,17 @@
                 </div>
                 <div class="tabs" role="tablist" aria-label="Data views">
                     <div class="tab active" data-tab="greatfalls" role="tab" aria-selected="true" aria-controls="tab-greatfalls" tabindex="0">🌊 Great Falls</div>
+                    <div class="tab" data-tab="creeks" role="tab" aria-selected="false" aria-controls="tab-creeks" tabindex="-1">🏞️ Creeks</div>
                     <div class="tab" data-tab="gauges" role="tab" aria-selected="false" aria-controls="tab-gauges" tabindex="-1">📊 All Gauges</div>
                     <div class="tab" data-tab="docs" role="tab" aria-selected="false" aria-controls="tab-docs" tabindex="-1">📖 How It Works</div>
                     <div class="tab" data-tab="learn" id="learnTab" role="tab" aria-selected="false" aria-controls="tab-learn" tabindex="-1">🔒 Learning</div>
+                </div>
+                <div id="tab-creeks" class="tab-content">
+                    <div id="creeks-status" style="padding:12px;text-align:center;"><div class="creeks-banner quiet">Loading creek data...</div></div>
+                    <div id="creeks-list" style="padding:0 8px;"></div>
+                    <div style="font-size:0.55rem;color:#8494a7;padding:10px;text-align:center;border-top:1px solid #1e293b;margin-top:8px;">
+                        ⚠ Thresholds are approximate — always scout unfamiliar runs.
+                    </div>
                 </div>
                 <div id="tab-gauges" class="tab-content">
                     <div id="branches"></div>
@@ -1227,6 +1322,19 @@
         belowPtR: { name: "Below Pt Rocks ⚠️", color: "#dc2626", warn: true, ids: ["01643000","01644000","01644280","01645000"] },
         tribs: { name: "Tributaries", color: "#059669", ids: ["01611500","01614500","01619500"] }
     };
+
+    // ==================== CREEK RUNS (RAIN-DEPENDENT WHITEWATER) ====================
+    // Display-only — NOT used in GF estimation. These are small rain-dependent
+    // streams near DC that become runnable whitewater for brief windows after rain.
+    // Difficult Run (01646000) enters below Great Falls; Rock Creek (01648000)
+    // enters below Little Falls. Independent of the Potomac mainstem model.
+    const CREEK_RUNS = {
+        "01648000": { name: "Rock Creek", class: "II-III+(V)", runnable: 400, awId: 2587, area: 62, estimated: false },
+        "01650500": { name: "NW Branch Anacostia", class: "I-III(V+)", runnable: 200, awId: 706, area: 21, estimated: false },
+        "01646000": { name: "Difficult Run", class: "III-IV(V+)", runnable: 200, awId: 1930, area: 58, estimated: true },
+        "01650800": { name: "Sligo Creek", class: "~II", runnable: 30, awId: null, area: 6.5, estimated: true, microRun: true }
+    };
+    let creekData = {};  // Populated by fetchCreekData(), keyed by USGS site ID
 
     // ==================== TRAVEL TIME MODEL ====================
     // Based on Searcy & Davis 1961 (USGS Circular 438) - Figure 3
@@ -4397,7 +4505,8 @@
         const [usgsJson] = await Promise.all([
             fetchUSGS(),
             fetchEdwardsFerry(),
-            fetchWaterTemp()
+            fetchWaterTemp(),
+            fetchCreekData()
         ]);
 
         if (!usgsJson) {
@@ -4427,6 +4536,7 @@
         setStatus(dataSource === "live" ? "ok" : (dataSource === "stale" ? "stale" : "cached"));
         updateUI();
         updateLearningUI();
+        updateCreeksUI();
 
         } finally {
             isFetching = false;
@@ -4500,6 +4610,59 @@
         } catch(e) {
             console.warn('Water temp fetch failed:', e);
             // waterTempC remains null, will use default model
+        }
+    }
+
+    // Fetch creek run data (separate from main USGS fetch — display-only, not for GF estimation)
+    async function fetchCreekData() {
+        const sites = Object.keys(CREEK_RUNS).join(',');
+        const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${sites}&parameterCd=00060&period=P1D&format=json`;
+        try {
+            const r = await fetchWithTimeout(url, 5000);
+            if (!r.ok) return;
+            const json = await r.json();
+            if (!json?.value?.timeSeries) return;
+
+            for (const ts of json.value.timeSeries) {
+                const siteCode = ts.sourceInfo?.siteCode?.[0]?.value;
+                if (!siteCode || !CREEK_RUNS[siteCode]) continue;
+                const paramCode = ts.variable?.variableCode?.[0]?.value;
+                if (paramCode !== '00060') continue;  // Discharge only
+
+                const values = ts.values?.[0]?.value;
+                if (!values?.length) continue;
+
+                // Get latest valid reading
+                const latest = values[values.length - 1];
+                const q = parseFloat(latest.value);
+                if (isNaN(q) || q < 0) continue;
+
+                // Compute trend from last ~2 hours of readings
+                let trend = 'steady';
+                if (values.length >= 8) {
+                    const twoHoursAgo = parseFloat(values[Math.max(0, values.length - 9)].value);
+                    if (!isNaN(twoHoursAgo) && twoHoursAgo > 0) {
+                        const pctChange = ((q - twoHoursAgo) / twoHoursAgo) * 100;
+                        if (pctChange > 10) trend = 'rising';
+                        else if (pctChange < -10) trend = 'falling';
+                    }
+                }
+
+                creekData[siteCode] = {
+                    q: q,
+                    trend: trend,
+                    time: new Date(latest.dateTime),
+                    running: q >= CREEK_RUNS[siteCode].runnable
+                };
+
+                // Track "last ran" in localStorage (try/catch for private browsing)
+                if (q >= CREEK_RUNS[siteCode].runnable) {
+                    try { localStorage.setItem(`creek_lastran_${siteCode}`, new Date().toISOString()); } catch(e) {}
+                }
+            }
+            console.log(`🏞️ Creek data: ${Object.keys(creekData).length}/${Object.keys(CREEK_RUNS).length} gauges loaded`);
+        } catch(e) {
+            console.warn('Creek data fetch failed:', e);
         }
     }
 
@@ -4712,6 +4875,7 @@
         processData(json);
         updateUI();
         updateLearningUI();
+        updateCreeksUI();
     }
 
     // Backfill PoR history from USGS time series data
@@ -5078,6 +5242,155 @@
         document.getElementById("branches").innerHTML = html;
     }
 
+    // ==================== CREEK RUNS UI ====================
+    function buildCreeks() {
+        let html = '';
+        for (const [id, c] of Object.entries(CREEK_RUNS)) {
+            const awLink = c.awId ? `<a href="https://www.americanwhitewater.org/content/River/detail/id/${c.awId}" target="_blank" rel="noopener" aria-label="View ${c.name} on American Whitewater" style="color:#60a5fa;text-decoration:none;" title="American Whitewater">🔗 AW</a>` : '';
+            const estMark = c.estimated ? ' <span title="Threshold is estimated" style="color:#f59e0b;cursor:help;">⚠</span>' : '';
+            const microTag = c.microRun ? ' <span style="font-size:0.5rem;color:#94a3b8;background:rgba(148,163,184,0.15);padding:1px 4px;border-radius:3px;">micro-run</span>' : '';
+            html += `<div class="creek-card" id="creek-${id}" style="${c.estimated ? 'border-style:dashed;' : ''}">
+                <div class="creek-top">
+                    <div class="creek-dot" id="creek-dot-${id}"></div>
+                    <div class="creek-name">${c.name}${microTag}${estMark}</div>
+                    <div class="creek-cfs" id="creek-cfs-${id}">--</div>
+                    <div class="creek-trend" id="creek-trend-${id}"></div>
+                </div>
+                <div class="creek-meta">
+                    <span>Class ${c.class}</span>
+                    <span id="creek-lastran-${id}"></span>
+                    <span>USGS ${id}</span>
+                    ${awLink}
+                </div>
+                <div class="creek-status" id="creek-status-${id}"></div>
+            </div>`;
+        }
+        document.getElementById("creeks-list").innerHTML = html;
+    }
+
+    function updateCreeksUI() {
+        const entries = Object.entries(CREEK_RUNS);
+        let runningCount = 0;
+        const cardOrder = [];
+
+        for (const [id, c] of entries) {
+            const d = creekData[id];
+            const dot = document.getElementById(`creek-dot-${id}`);
+            const cfsEl = document.getElementById(`creek-cfs-${id}`);
+            const trendEl = document.getElementById(`creek-trend-${id}`);
+            const statusEl = document.getElementById(`creek-status-${id}`);
+            const lastranEl = document.getElementById(`creek-lastran-${id}`);
+            const card = document.getElementById(`creek-${id}`);
+
+            if (!dot) continue;  // Card not built yet
+
+            if (d) {
+                const running = d.running;
+                if (running) runningCount++;
+                cardOrder.push({ id, running, q: d.q });
+
+                // Dot color
+                dot.style.background = running ? '#4ade80' : '#64748b';
+                // CFS
+                cfsEl.textContent = `${Math.round(d.q)} cfs`;
+                cfsEl.style.color = running ? '#4ade80' : '#94a3b8';
+                // Trend arrow
+                const arrows = { rising: '↑', falling: '↓', steady: '→' };
+                const colors = { rising: '#4ade80', falling: '#f87171', steady: '#94a3b8' };
+                const titles = { rising: 'Flow rising', falling: 'Flow falling', steady: 'Flow steady' };
+                trendEl.textContent = arrows[d.trend] || '→';
+                trendEl.style.color = colors[d.trend] || '#94a3b8';
+                trendEl.title = titles[d.trend] || 'Flow steady';
+                // Status text
+                if (running) {
+                    statusEl.textContent = `Running! (≥${c.runnable} cfs)`;
+                    statusEl.style.color = '#4ade80';
+                } else {
+                    statusEl.textContent = `Needs ≥${c.runnable} cfs${c.microRun ? ' (micro-run)' : ''}`;
+                    statusEl.style.color = '#94a3b8';
+                }
+                // Card border glow for running creeks
+                card.style.borderColor = running ? '#4ade80' : '#334155';
+            } else {
+                // No data
+                dot.style.background = '#475569';
+                cfsEl.textContent = '❓ No data';
+                cfsEl.style.color = '#94a3b8';
+                trendEl.textContent = '';
+                statusEl.textContent = 'Gauge offline or no response';
+                statusEl.style.color = '#94a3b8';
+                card.style.borderColor = '#334155';
+                cardOrder.push({ id, running: false, q: -1 });
+            }
+
+            // Last ran (try/catch for localStorage disabled in private browsing)
+            try {
+                const lastRanStr = localStorage.getItem(`creek_lastran_${id}`);
+                if (lastRanStr) {
+                    const lastRan = new Date(lastRanStr);
+                    const now = new Date();
+                    const daysAgo = Math.round((now - lastRan) / 86400000);
+                    if (d?.running) {
+                        lastranEl.textContent = 'Last ran: now';
+                    } else if (daysAgo === 0) {
+                        lastranEl.textContent = 'Last ran: today';
+                    } else if (daysAgo === 1) {
+                        lastranEl.textContent = 'Last ran: yesterday';
+                    } else {
+                        lastranEl.textContent = `Last ran: ${daysAgo}d ago`;
+                    }
+                } else {
+                    lastranEl.textContent = 'Last ran: unknown';
+                }
+            } catch(e) { lastranEl.textContent = ''; }
+        }
+
+        // Sort: running creeks first (by cfs descending), then non-running
+        cardOrder.sort((a, b) => {
+            if (a.running && !b.running) return -1;
+            if (!a.running && b.running) return 1;
+            return b.q - a.q;
+        });
+        const listEl = document.getElementById("creeks-list");
+        for (const item of cardOrder) {
+            const card = document.getElementById(`creek-${item.id}`);
+            if (card) listEl.appendChild(card);
+        }
+
+        // Master status banner
+        const statusEl = document.getElementById("creeks-status");
+        const total = entries.length;
+        if (runningCount > 0) {
+            statusEl.innerHTML = `<div class="creeks-banner running">🟢 CREEKS ARE RUNNING — ${runningCount} of ${total} runnable</div>`;
+        } else {
+            // Find most recent "last ran" across all creeks
+            let lastActivity = '';
+            try {
+                let latestStr = null;
+                let latestId = null;
+                for (const [id] of entries) {
+                    const lr = localStorage.getItem(`creek_lastran_${id}`);
+                    if (lr && (!latestStr || lr > latestStr)) {
+                        latestStr = lr;
+                        latestId = id;
+                    }
+                }
+                if (latestStr && latestId) {
+                    const daysAgo = Math.round((new Date() - new Date(latestStr)) / 86400000);
+                    const name = CREEK_RUNS[latestId].name;
+                    lastActivity = ` — Last activity: ${name}, ${daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : daysAgo + 'd ago'}`;
+                }
+            } catch(e) {}
+            statusEl.innerHTML = `<div class="creeks-banner quiet">⚫ Nothing running${lastActivity}</div>`;
+        }
+
+        // Tab indicator dot
+        const creeksTab = document.querySelector('.tab[data-tab="creeks"]');
+        if (creeksTab) {
+            creeksTab.classList.toggle('has-running', runningCount > 0);
+        }
+    }
+
     function panTo(id) {
         const g = GAUGES[id];
         if (g && map) {
@@ -5247,6 +5560,7 @@
             // Initialize UI
             initMap();
             buildBranches();
+            buildCreeks();
             updateLearningUI();
 
             // Fetch current data
@@ -5257,6 +5571,7 @@
             learningData = createEmptyLearning();
             initMap();
             buildBranches();
+            buildCreeks();
             fetchData();
         }
     }
@@ -5562,6 +5877,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v29.1 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Empirical 90% CI replaces ±1σ. Per-bin q05/q95 from 117k obs. Display-only change, no estimation logic change. |
 | v30.0 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | Logistic EF weight ramp (0%→40%, midpoint 10k cfs) replaces flat 35% step. Horse race of 7 approaches on 117k hourly obs. OOS RMSE −4.6%. |
 | v31.0 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | Add Broad Run (01644280) + Seneca Creek (01645000) to GF estimation. Closes ~1,100 cfs of tributary gap. Independent auditor caught Catoctin Creek double-count risk. |
+| v31.1 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | New "Creeks" tab: rain-dependent whitewater runs (Rock Creek, NW Branch Anacostia, Difficult Run, Sligo Creek). Display-only — no estimation logic change. |
 
 ### 4.7 Updating the Model
 
@@ -6057,6 +6373,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v31.1 | 2026-02-20 | New "Creeks" tab showing rain-dependent whitewater runs near DC: Rock Creek (01648000, ≥400 cfs), NW Branch Anacostia (01650500, ≥200 cfs), Difficult Run (01646000, ≥200 cfs), Sligo Creek (01650800, ≥30 cfs). Binary green-light model with localStorage "last ran" tracking. Separate USGS fetch (P1D, discharge only). Display-only — no estimation logic change. |
 | v31.0 | 2026-02-20 | Add Broad Run (01644280, 76 mi², 0.66% of LF) and Seneca Creek (01645000, 101 mi², 0.87% of LF) to GF estimation model. Both tributaries enter between Point of Rocks and Great Falls. Closes ~1,100 cfs of the PoR-to-LF tributary gap. Catoctin Creek (01638480) excluded after independent auditor identified it enters 0.3 mi above PoR gauge (already captured in PoR reading). |
 | v30.0 | 2026-02-20 | Logistic EF weight ramp (0%→40%, midpoint 10k cfs, k=5.0) replaces flat 35% step function. Winner of 7-approach horse race on 117,704 hourly obs with Leave-One-Year-Out CV (14 folds). OOS RMSE 1,907 cfs (−4.6% vs v29.0 baseline). Smooth sigmoid eliminates hard 3k cfs cutoff. 3-layer verified (blind Python + R + independent auditor). |
 | v29.1 | 2026-02-19 | Empirical 90% CI replaces ±1σ uncertainty display. Per-bin error quantiles (q05/q95) validated on 117,704 hourly observations. Errors are non-normal (kurtosis up to 18.3, asymmetry up to 42:1). Gaussian ±1.645σ would mis-specify by up to 745%. 3-layer verified (Python + R + auditor). |
@@ -6094,7 +6411,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 ---
 
-*Generated by Potomac Pulse v31.0 — Add Broad Run + Seneca Creek tributaries. All parameters validated on 117,704 hourly observations (2011–2026)*
+*Generated by Potomac Pulse v31.1 — Creeks tab (rain-dependent whitewater runs). All parameters validated on 117,704 hourly observations (2011–2026)*
 `;
 
         // Download as Markdown file
