@@ -672,9 +672,15 @@ async function saveGFLearningData(client, data) {
                     .single();
 
                 const metaData = meta?.data || { totalValidations: 0, totalPredictions: 0, sumAbsErrorPercent: 0 };
+
+                // v32.3 one-time migration: if validValidations doesn't exist yet, the existing
+                // sumAbsErrorPercent is polluted with flagged observation errors. Reset to start fresh.
+                if (!metaData.validValidations && metaData.sumAbsErrorPercent > 0) {
+                    console.log(`🔄 v32.3 migration: resetting polluted sumAbsErrorPercent (was ${metaData.sumAbsErrorPercent})`);
+                    metaData.sumAbsErrorPercent = 0;
+                }
+
                 metaData.totalValidations += 1;
-                metaData.sumAbsErrorPercent = (metaData.sumAbsErrorPercent || 0) + Math.abs(errorPercent);
-                metaData.avgErrorPercent = metaData.sumAbsErrorPercent / metaData.totalValidations;
                 metaData.lastValidation = new Date().toISOString();
 
                 // Track anomaly detection statistics (v24)
@@ -682,7 +688,16 @@ async function saveGFLearningData(client, data) {
                     metaData.flaggedValidations = (metaData.flaggedValidations || 0) + 1;
                     metaData.lastFlagged = new Date().toISOString();
                     metaData.lastFlaggedReason = anomalyFlags.join(', ');
+                } else {
+                    // v32.3: Only include non-flagged observations in accuracy calculation
+                    // Flagged (ice-affected) observations have large errors that artificially depress accuracy
+                    metaData.validValidations = (metaData.validValidations || 0) + 1;
+                    metaData.sumAbsErrorPercent = (metaData.sumAbsErrorPercent || 0) + Math.abs(errorPercent);
                 }
+
+                // Compute accuracy from valid (non-flagged) observations only
+                const validCount = metaData.validValidations || (metaData.totalValidations - (metaData.flaggedValidations || 0));
+                metaData.avgErrorPercent = validCount > 0 ? metaData.sumAbsErrorPercent / validCount : null;
 
                 await client.from('potomac_observations').upsert({
                     observation_type: 'gf_metadata',
@@ -773,6 +788,7 @@ async function saveGFLearningData(client, data) {
             const newMeta = {
                 // Reset learning stats
                 totalValidations: 0,
+                validValidations: 0,
                 totalPredictions: 0,
                 avgErrorPercent: null,
                 sumAbsErrorPercent: 0,
@@ -828,10 +844,12 @@ async function saveGFLearningData(client, data) {
             const oldMeta = meta?.data || {};
             const newMeta = {
                 totalValidations: 0,
+                validValidations: 0,
                 totalPredictions: 0,
                 avgErrorPercent: null,
                 sumAbsErrorPercent: 0,
                 lastValidation: null,
+                flaggedValidations: 0,
                 lastPrediction: oldMeta.lastPrediction,  // Keep for health tracking
                 consecutiveRuns: oldMeta.consecutiveRuns,
                 missedRuns: oldMeta.missedRuns,

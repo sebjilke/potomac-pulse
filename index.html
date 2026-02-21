@@ -1874,17 +1874,20 @@
         if (learnValLast) learnValLast.textContent = statusText;
 
         // Update historical accuracy display in main GF panel
-        // Only show when we have at least 5 validations for statistical relevance
+        // v32.3: Use valid (non-flagged) observation count for accuracy
         const accuracyPct = document.getElementById('gf-accuracy-pct');
         const accuracyCount = document.getElementById('gf-accuracy-count');
         const accuracyDiv = document.getElementById('gf-accuracy');
 
+        // Valid count: use new field if available, else subtract flagged from total (backward compat)
+        const validCount = meta.validValidations || (meta.totalValidations - (meta.flaggedValidations || 0));
+
         if (accuracyDiv) {
-            if (meta.totalValidations >= 5) {
+            if (validCount >= 5) {
                 accuracyDiv.style.display = 'block';
                 const accuracy = 100 - (meta.avgErrorPercent || 0);
                 accuracyPct.textContent = `${accuracy.toFixed(1)}%`;
-                accuracyCount.textContent = meta.totalValidations.toLocaleString();
+                accuracyCount.textContent = validCount.toLocaleString();
 
                 // Color code based on accuracy
                 const dot = accuracyDiv.querySelector('span');
@@ -4101,7 +4104,10 @@
         // GF Learning stats
         if (gfLearningData?.metadata) {
             const meta = gfLearningData.metadata;
-            document.getElementById("dash-gf-validations").textContent = meta.totalValidations || 0;
+            // v32.3: Show valid/total split in dashboard
+            const dashValid = meta.validValidations || (meta.totalValidations - (meta.flaggedValidations || 0));
+            document.getElementById("dash-gf-validations").textContent =
+                `${dashValid} valid / ${meta.totalValidations || 0} total`;
             document.getElementById("dash-gf-error").textContent = meta.avgErrorPercent ?
                 `${meta.avgErrorPercent.toFixed(0)}%` : "--";
             document.getElementById("dash-flagged").textContent = meta.flaggedValidations || 0;
@@ -6030,6 +6036,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v32.0 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Flow state from observed PoR rate (2h lookback) instead of NWS 48h forecast. Matches server-side logic. Fixes "STEADY" display during actual rises. Falls back to NWS on cold start. |
 | v32.1 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Forecast graph history extended from 6h to 12h. Junction gap fix: history line ends at last observed point instead of bridging to forecast NOW point (different models). Display-only. |
 | v32.2 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Fix missing estimation inputs in EF-only (ice) mode: correction, 90% CI, flow bin, tributaries now show "N/A — EF only" instead of dashes. Display-only. |
+| v32.3 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Fix accuracy metric: exclude flagged (ice-affected) observations from avgErrorPercent. Was including ~60 flagged obs with 15-30% errors, depressing reported accuracy by ~10pp. Now tracks validValidations separately. |
 
 ### 4.7 Updating the Model
 
@@ -6525,6 +6532,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v32.3 | 2026-02-21 | Fix accuracy metric inflated by flagged observations. The accuracy formula (100 − avgErrorPercent) included all observations in the denominator, including ~60 ice-flagged ones with 15–30% errors. These were correctly excluded from learning (correction bins) but incorrectly included in the accuracy metric. Fix: only non-flagged observations contribute to sumAbsErrorPercent and avgErrorPercent. New validValidations counter tracks clean observations. Dashboard shows "N valid / M total" split. Both sync-learning.js and scheduled-update.js fixed. |
 | v32.2 | 2026-02-21 | Fix missing estimation inputs in EF-only (ice) mode. The EF-only early return in updateGreatFallsUI() skipped the inputs section (lines 2743-2804), leaving correction, 90% CI, flow bin, tributaries, and travel times at HTML defaults (all dashes). Now populates with "N/A — EF only" for PoR-based fields and "❄️ ice-affected" for PoR. Display-only fix. |
 | v32.1 | 2026-02-21 | Forecast graph history extended from 6h to 12h: leverages existing 72h porHistory backfill. Junction gap fix: removed bridge from history line to forecast NOW point — the two models (PoR-only history vs full ensemble forecast) produce different values, so bridging created a visible jump. History line now ends naturally at last observed data point. X-axis labels updated (-12h, -6h). Display-only. |
 | v32.0 | 2026-02-21 | Flow state classification fix: use observed PoR rate (2-hour lookback from porHistory) instead of NWS 48-hour forecast for rising/falling/steady detection. Matches server-side getFlowState() which already uses observed data. Fixes bug where display showed "STEADY" during actual rising events (NWS forecast flat or unavailable). Falls back to NWS on cold start (porHistory < 4 entries). Affects correction bin lookups and empirical CI selection. |
@@ -6568,7 +6576,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 ---
 
-*Generated by Potomac Pulse v32.2 — EF-only inputs fix. All parameters validated on 117,704 hourly observations (2011–2026)*
+*Generated by Potomac Pulse v32.3 — Accuracy metric fix. All parameters validated on 117,704 hourly observations (2011–2026)*
 `;
 
         // Download as Markdown file
