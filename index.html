@@ -669,7 +669,7 @@
                         <span id="gf-forecast-arrival" style="display:none;">--</span>
 
                         <div id="gf-forecast-timeline" style="margin-bottom:15px;">
-                            <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:4px;text-align:center;">6H HISTORY + 48H FORECAST*</div>
+                            <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:4px;text-align:center;">12H HISTORY + 48H FORECAST*</div>
                             <div style="font-size:0.6rem;color:#fbbf24;margin-bottom:8px;text-align:center;">*Experimental — collecting data to validate accuracy</div>
 
                             <!-- Interactive Graph -->
@@ -3168,8 +3168,8 @@
             `;
         }).join('');
 
-        // Compute GF history from PoR readings (last 6 hours) for trend visualization
-        const gfHistory = computeGFHistoryFromPoR(6);
+        // Compute GF history from PoR readings (last 12 hours) for trend visualization
+        const gfHistory = computeGFHistoryFromPoR(12);
 
         // Render interactive graph with ALL periods + history
         renderForecastGraph(periods, currentCFS, hasNWSForecast, gfHistory);
@@ -3219,9 +3219,9 @@
 
         // Determine x-axis range based on whether we have history
         const hasHistory = historyPoints.length >= 2;
-        const xMin = hasHistory ? -6 : 0;
+        const xMin = hasHistory ? -12 : 0;
         const xMax = 48;
-        const xRange = xMax - xMin; // 54 if history, 48 if not
+        const xRange = xMax - xMin; // 60 if history, 48 if not
 
         // Generate smooth curve from periods data (interpolate to 2-hour intervals)
         const now = new Date();
@@ -3301,19 +3301,20 @@
             fcstAreaPath = `M ${xScale(0)},${yScale(fcstData[0].stage)} L ${fcstPathPoints.join(' L ')} L ${xScale(48)},${bottom} L ${xScale(0)},${bottom} Z`;
         }
 
-        // Build history line path (connect to NOW point for continuity)
+        // Build history line path (ends at last history point — no bridge to forecast)
         let histLinePath = '';
         let histAreaPath = '';
         let histDotsSVG = '';
-        if (hasHistory && fcstData.length > 0) {
-            // History line: all history points + connect to the NOW (hrs=0) forecast point
-            const histPlusBridge = [...histData, { hrs: 0, stage: fcstData[0].stage }];
-            const histPathPoints = histPlusBridge.map(d => `${xScale(d.hrs)},${yScale(d.stage)}`);
+        if (hasHistory) {
+            // History line: ends at last history data point (no bridge to forecast NOW point)
+            // The two models differ (PoR-only vs full ensemble), so bridging creates a visible jump
+            const histPathPoints = histData.map(d => `${xScale(d.hrs)},${yScale(d.stage)}`);
             histLinePath = `M ${histPathPoints.join(' L ')}`;
 
-            // History area fill (dimmer)
+            // History area fill (dimmer) — from first to last history point
             const firstHistHrs = histData[0].hrs;
-            histAreaPath = `M ${xScale(firstHistHrs)},${yScale(histData[0].stage)} L ${histPathPoints.join(' L ')} L ${xScale(0)},${bottom} L ${xScale(firstHistHrs)},${bottom} Z`;
+            const lastHistHrs = histData[histData.length - 1].hrs;
+            histAreaPath = `M ${xScale(firstHistHrs)},${yScale(histData[0].stage)} L ${histPathPoints.join(' L ')} L ${xScale(lastHistHrs)},${bottom} L ${xScale(firstHistHrs)},${bottom} Z`;
 
             // History dots (small dots at each data point, ~15 min intervals)
             histDotsSVG = histData.map(d =>
@@ -3328,13 +3329,13 @@
             yTicks.push(s);
         }
 
-        // X-axis labels — responsive: on narrow screens, drop -6h/-3h labels
+        // X-axis labels — responsive: on narrow screens, drop history labels
         const isNarrow = graphWidth < 280;
         let xLabels;
         if (hasHistory) {
             xLabels = isNarrow
                 ? [{ hrs: 0, label: 'Now' }, { hrs: 12, label: '+12h' }, { hrs: 24, label: '+24h' }, { hrs: 48, label: '+48h' }]
-                : [{ hrs: -6, label: '-6h' }, { hrs: -3, label: '-3h' }, { hrs: 0, label: 'Now' }, { hrs: 12, label: '+12h' }, { hrs: 24, label: '+24h' }, { hrs: 36, label: '+36h' }, { hrs: 48, label: '+48h' }];
+                : [{ hrs: -12, label: '-12h' }, { hrs: -6, label: '-6h' }, { hrs: 0, label: 'Now' }, { hrs: 12, label: '+12h' }, { hrs: 24, label: '+24h' }, { hrs: 36, label: '+36h' }, { hrs: 48, label: '+48h' }];
         } else {
             xLabels = [{ hrs: 0, label: 'Now' }, { hrs: 12, label: '+12h' }, { hrs: 24, label: '+24h' }, { hrs: 36, label: '+36h' }, { hrs: 48, label: '+48h' }];
         }
@@ -6013,6 +6014,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v31.2 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | Aqueduct withdrawal documentation: WA/WSSC/Fairfax Water divert ~400–700 cfs above GF. Investigation + auditor confirmed already absorbed by LF-calibrated model. Documentation-only. |
 | v31.3 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | 6-hour history on forecast graph: retroactively computes GF estimates from PoR history (already in localStorage), extends graph from [0,48h] to [-6h,48h]. NOW divider, blue history line/dots, responsive x-axis labels. Display-only. |
 | v32.0 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Flow state from observed PoR rate (2h lookback) instead of NWS 48h forecast. Matches server-side logic. Fixes "STEADY" display during actual rises. Falls back to NWS on cold start. |
+| v32.1 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Forecast graph history extended from 6h to 12h. Junction gap fix: history line ends at last observed point instead of bridging to forecast NOW point (different models). Display-only. |
 
 ### 4.7 Updating the Model
 
@@ -6508,6 +6510,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v32.1 | 2026-02-21 | Forecast graph history extended from 6h to 12h: leverages existing 72h porHistory backfill. Junction gap fix: removed bridge from history line to forecast NOW point — the two models (PoR-only history vs full ensemble forecast) produce different values, so bridging created a visible jump. History line now ends naturally at last observed data point. X-axis labels updated (-12h, -6h). Display-only. |
 | v32.0 | 2026-02-21 | Flow state classification fix: use observed PoR rate (2-hour lookback from porHistory) instead of NWS 48-hour forecast for rising/falling/steady detection. Matches server-side getFlowState() which already uses observed data. Fixes bug where display showed "STEADY" during actual rising events (NWS forecast flat or unavailable). Falls back to NWS on cold start (porHistory < 4 entries). Affects correction bin lookups and empirical CI selection. |
 | v31.3 | 2026-02-20 | 6-hour history on forecast graph: extends graph from [0, 48h] to [-6h, 48h] by retroactively computing GF estimates from existing PoR history in localStorage. Blue history line with data dots, amber NOW divider, responsive x-axis labels. Tooltip shows "(observed)" for history points. No new localStorage — reuses porHistory backfill. Display-only. |
 | v31.2 | 2026-02-20 | Aqueduct withdrawal investigation: Washington Aqueduct (at GF), WSSC (Swain's Lock), and Fairfax Water (Seneca) divert ~400–700 cfs above the falls. 3-agent investigation (2 researchers + independent auditor) confirmed withdrawals already absorbed by LF-calibrated model. Systematic errors are 2–7× larger than total withdrawals and scale proportionally — driven by ungauged area, not withdrawals. Documentation-only update. |
@@ -6549,7 +6552,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 ---
 
-*Generated by Potomac Pulse v32.0 — Observed flow state classification. All parameters validated on 117,704 hourly observations (2011–2026)*
+*Generated by Potomac Pulse v32.1 — 12h history + junction gap fix. All parameters validated on 117,704 hourly observations (2011–2026)*
 `;
 
         // Download as Markdown file
