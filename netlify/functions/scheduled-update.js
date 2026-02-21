@@ -621,17 +621,17 @@ async function validatePendingPredictions(client, usgsData) {
             }
 
             // ============================================
-            // ICE/ANOMALY DETECTION (v24.1)
-            // Uses multiple signals to detect suspicious readings
-            // When flagged, skip learning but still record validation
+            // TWO-TIER ANOMALY DETECTION (v33.0)
+            // Hard flags: physical data corruption → skip learning AND accuracy
+            // Soft flags: model disagreement → INCLUDE in learning (with EMA clamp) AND accuracy
+            // USGS ice flags are separate (upstream) — anomaly detection only runs on clean data
             // ============================================
-            let suspiciousScore = 0;
+            let hardScore = 0;
+            let softScore = 0;
             const anomalyFlags = [];
             // Note: actualStage already declared above for stage error calculation
 
-            // Check 1: EF cross-check at VALIDATION TIME (not prediction time)
-            // Calculate fresh EF estimate from current EF stage data
-            // If EF predicts much higher flow than LF shows, LF may be ice-affected
+            // Check 1: EF cross-check → SOFT (model disagreement, not data corruption)
             const currentEfStage = ef?.h;
             let efEstimateNow = null;
             if (currentEfStage && currentEfStage >= EF_MODEL.minStage && currentEfStage <= EF_MODEL.maxStage) {
@@ -639,47 +639,34 @@ async function validatePendingPredictions(client, usgsData) {
             }
             if (efEstimateNow && actualCFS) {
                 const efDiscrepancy = (efEstimateNow - actualCFS) / actualCFS;
-                // v24.3: Lowered threshold from 30% to 25% for better ice detection
-                if (efDiscrepancy > 0.25) {  // EF says >25% more flow than LF shows
-                    suspiciousScore += 2;
+                if (efDiscrepancy > 0.25) {
+                    softScore += 2;
                     anomalyFlags.push(`EF_DISCREPANCY:${(efDiscrepancy * 100).toFixed(0)}%,EF_est=${Math.round(efEstimateNow)},LF=${Math.round(actualCFS)}`);
                 }
             }
 
-            // Check 2: Stage-discharge inconsistency (more sensitive threshold)
-            // If stage suggests higher flow than ADVM reports, velocity measurement may be compromised
+            // Check 2: Stage-discharge inconsistency → HARD (LF data corrupted)
             if (actualStage && actualCFS) {
                 const expectedFlowFromStage = estimateLFFlowFromStage(actualStage);
                 if (expectedFlowFromStage > 0) {
                     const stageDiscrepancy = (expectedFlowFromStage - actualCFS) / actualCFS;
-                    // Lower threshold from 50% to 35% for better ice detection
-                    if (stageDiscrepancy > 0.35) {  // Stage suggests >35% more flow
-                        suspiciousScore += 2;
+                    if (stageDiscrepancy > 0.35) {
+                        hardScore += 2;
                         anomalyFlags.push(`STAGE_DISCHARGE:expected=${Math.round(expectedFlowFromStage)},actual=${Math.round(actualCFS)},disc=${(stageDiscrepancy*100).toFixed(0)}%`);
                     }
                 }
             }
 
-            // Check 3: Low flow sanity check (raised threshold for better detection)
-            // Low CFS with normal/high stage is a classic ice signature
-            // v24.3: Increased weight from +1 to +2 (this is THE ice signature)
+            // Check 3: Low flow + high stage → HARD (classic ice signature)
             if (actualCFS < 1500 && actualStage > 2.45) {
-                suspiciousScore += 2;  // v24.3: Was +1, now +2 (classic ice signature)
+                hardScore += 2;
                 anomalyFlags.push(`LOW_FLOW_HIGH_STAGE:${Math.round(actualCFS)}cfs@${actualStage}ft`);
             }
 
-            // Check 4: Large prediction error (new check)
-            // If error is >50%, something is likely wrong with the data
+            // Check 4: Large prediction error → SOFT (model error, not data corruption)
             if (Math.abs(errorPercent) > 50) {
-                suspiciousScore += 1;
+                softScore += 1;
                 anomalyFlags.push(`LARGE_ERROR:${errorPercent.toFixed(0)}%`);
-            }
-
-            const isSuspicious = suspiciousScore >= 2;
-            if (isSuspicious) {
-                console.log(`🧊 ANOMALY DETECTED (score=${suspiciousScore}): ${anomalyFlags.join(', ')}`);
-                console.log(`   LF reading: ${Math.round(actualCFS)} cfs @ ${actualStage}ft`);
-                console.log(`   Skipping learning update to preserve model integrity`);
             }
 
             // Update correction bin
@@ -695,7 +682,7 @@ async function validatePendingPredictions(client, usgsData) {
                 count: 0, sumError: 0, sumErrorSq: 0, meanError: 0, emaMeanError: 0
             };
 
-            // Statistical outlier detection (Check 4 for anomaly scoring)
+            // Check 5: Statistical outlier → HARD (transient event, not systematic bias)
             const EMA_ALPHA = 0.3;
             let isOutlier = false;
 
@@ -706,25 +693,49 @@ async function validatePendingPredictions(client, usgsData) {
                     const zScore = Math.abs((errorCFS - binData.meanError) / stdDev);
                     isOutlier = zScore > 3;
                     if (isOutlier) {
-                        suspiciousScore += 2;
+                        hardScore += 2;  // v33.0: statistical outliers are hard flags
                         anomalyFlags.push(`STATISTICAL_OUTLIER:z=${zScore.toFixed(1)}`);
                     }
                 }
             }
 
-            // Final suspicious determination (re-check after outlier detection)
-            const skipLearning = isSuspicious || isOutlier;
+            // v33.0: Two-tier flag determination
+            const isHardFlagged = hardScore >= 2;
+            const isSoftFlagged = !isHardFlagged && softScore >= 2;
+            const skipLearning = isHardFlagged;  // Only hard flags skip learning
 
-            if (!skipLearning) {
+            if (isHardFlagged) {
+                console.log(`🧊 HARD FLAG (score=${hardScore}): ${anomalyFlags.join(', ')}`);
+                console.log(`   LF reading: ${Math.round(actualCFS)} cfs — skipping learning + accuracy`);
+            } else if (isSoftFlagged) {
+                console.log(`⚠️ SOFT FLAG (score=${softScore}): ${anomalyFlags.join(', ')}`);
+                console.log(`   LF reading: ${Math.round(actualCFS)} cfs — included in learning (EMA clamped) + accuracy`);
+            }
+
+            // Update learning: hard flags skip entirely, soft flags use EMA clamping
+            if (!isHardFlagged) {
                 binData.count += 1;
                 binData.sumError += errorCFS;
                 binData.sumErrorSq += errorCFS * errorCFS;
                 binData.meanError = binData.sumError / binData.count;
 
+                // EMA update with clamping for soft-flagged observations (R1)
+                let learningError = errorCFS;
+                if (isSoftFlagged && binData.count >= 10) {
+                    const variance = (binData.sumErrorSq / binData.count) - (binData.meanError * binData.meanError);
+                    const stdDev = Math.sqrt(Math.max(0, variance));
+                    const maxDelta = 2 * stdDev;
+                    learningError = Math.max(binData.meanError - maxDelta,
+                                    Math.min(binData.meanError + maxDelta, errorCFS));
+                    if (learningError !== errorCFS) {
+                        console.log(`   EMA clamped: ${Math.round(errorCFS)} → ${Math.round(learningError)} cfs (±2σ = ±${Math.round(maxDelta)})`);
+                    }
+                }
+
                 if (binData.count === 1) {
-                    binData.emaMeanError = errorCFS;
+                    binData.emaMeanError = learningError;
                 } else {
-                    binData.emaMeanError = EMA_ALPHA * errorCFS + (1 - EMA_ALPHA) * (binData.emaMeanError || binData.meanError);
+                    binData.emaMeanError = EMA_ALPHA * learningError + (1 - EMA_ALPHA) * (binData.emaMeanError || binData.meanError);
                 }
 
                 await client.from('potomac_observations').upsert({
@@ -758,9 +769,8 @@ async function validatePendingPredictions(client, usgsData) {
                         stageBinData.emaMeanError = EMA_ALPHA * errorStage + (1 - EMA_ALPHA) * (stageBinData.emaMeanError || stageBinData.meanError);
                     }
 
-                    // Calculate standard deviation
-                    const variance = (stageBinData.sumErrorSq / stageBinData.count) - (stageBinData.meanError * stageBinData.meanError);
-                    stageBinData.stdDev = Math.round(Math.sqrt(Math.max(0, variance)) * 1000) / 1000;
+                    const stageVariance = (stageBinData.sumErrorSq / stageBinData.count) - (stageBinData.meanError * stageBinData.meanError);
+                    stageBinData.stdDev = Math.round(Math.sqrt(Math.max(0, stageVariance)) * 1000) / 1000;
 
                     await client.from('potomac_observations').upsert({
                         observation_type: 'gf_correction_bin',
@@ -839,9 +849,9 @@ async function validatePendingPredictions(client, usgsData) {
                 console.log(`🔗 EF correlation: n=${corrData.count}, slope=${corrData.slope?.toFixed(0)}, R²=${corrData.rSquared || 'N/A'}`);
             }
 
-            // Move to validated (include anomaly detection results)
+            // Move to validated/hard_flagged/soft_flagged
             await client.from('potomac_observations').update({
-                gauge_id: skipLearning ? 'flagged' : 'validated',
+                gauge_id: isHardFlagged ? 'hard_flagged' : (isSoftFlagged ? 'soft_flagged' : 'validated'),
                 data: {
                     ...pred.data,
                     actualCFS,
@@ -851,11 +861,16 @@ async function validatePendingPredictions(client, usgsData) {
                     errorPercent,
                     validatedAt: new Date().toISOString(),
                     isOutlier,
-                    // v24 anomaly detection fields
-                    isSuspicious,
-                    suspiciousScore,
+                    // v33.0 two-tier anomaly detection fields
+                    isHardFlagged,
+                    isSoftFlagged,
+                    hardScore,
+                    softScore,
                     anomalyFlags: anomalyFlags.length > 0 ? anomalyFlags : null,
-                    skipLearning
+                    skipLearning,
+                    // Backward compat
+                    isSuspicious: isHardFlagged,
+                    suspiciousScore: hardScore + softScore
                 }
             }).eq('id', pred.id);
 
@@ -869,30 +884,36 @@ async function validatePendingPredictions(client, usgsData) {
 
             const metaData = meta?.data || { totalValidations: 0, totalPredictions: 0, sumAbsErrorPercent: 0 };
 
-            // v32.3 one-time migration: if validValidations doesn't exist yet, the existing
-            // sumAbsErrorPercent is polluted with flagged observation errors. Reset to start fresh.
-            if (!metaData.validValidations && metaData.sumAbsErrorPercent > 0) {
-                console.log(`🔄 v32.3 migration: resetting polluted sumAbsErrorPercent (was ${metaData.sumAbsErrorPercent})`);
+            // v33.0 one-time migration: reset accuracy counters for two-tier system
+            if (metaData.hardFlaggedValidations === undefined) {
+                console.log(`🔄 v33.0 migration: initializing two-tier flagging counters`);
+                metaData.hardFlaggedValidations = metaData.flaggedValidations || 0;
+                metaData.softFlaggedValidations = 0;
+                metaData.validValidations = 0;
                 metaData.sumAbsErrorPercent = 0;
+                metaData.avgErrorPercent = null;
             }
 
             metaData.totalValidations += 1;
             metaData.lastValidation = new Date().toISOString();
 
-            // Track anomaly detection statistics (v24)
-            if (skipLearning) {
-                metaData.flaggedValidations = (metaData.flaggedValidations || 0) + 1;
+            // v33.0: Two-tier anomaly tracking
+            if (isHardFlagged) {
+                metaData.hardFlaggedValidations = (metaData.hardFlaggedValidations || 0) + 1;
+                metaData.flaggedValidations = (metaData.flaggedValidations || 0) + 1;  // backward compat
                 metaData.lastFlagged = new Date().toISOString();
                 metaData.lastFlaggedReason = anomalyFlags.join(', ');
             } else {
-                // v32.3: Only include non-flagged observations in accuracy calculation
-                // Flagged (ice-affected) observations have large errors that artificially depress accuracy
+                // Both validated AND soft-flagged contribute to accuracy
+                if (isSoftFlagged) {
+                    metaData.softFlaggedValidations = (metaData.softFlaggedValidations || 0) + 1;
+                }
                 metaData.validValidations = (metaData.validValidations || 0) + 1;
                 metaData.sumAbsErrorPercent = (metaData.sumAbsErrorPercent || 0) + Math.abs(errorPercent);
             }
 
-            // Compute accuracy from valid (non-flagged) observations only
-            const validCount = metaData.validValidations || (metaData.totalValidations - (metaData.flaggedValidations || 0));
+            // Compute accuracy from valid (non-hard-flagged) observations only
+            const validCount = metaData.validValidations || 0;
             metaData.avgErrorPercent = validCount > 0 ? metaData.sumAbsErrorPercent / validCount : null;
 
             // Track stage error in metadata

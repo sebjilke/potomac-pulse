@@ -492,51 +492,47 @@ async function saveGFLearningData(client, data) {
                 const flowState = pred.data.flowState || 'steady';
 
                 // ============================================
-                // ICE/ANOMALY DETECTION (v24.1)
-                // Uses multiple signals to detect suspicious readings
-                // When flagged, skip learning but still record validation
-                // Thresholds aligned with scheduled-update.js
+                // TWO-TIER ANOMALY DETECTION (v33.0)
+                // Hard flags: physical data corruption → skip learning AND accuracy
+                // Soft flags: model disagreement → INCLUDE in learning (with EMA clamp) AND accuracy
+                // USGS ice flags are separate (upstream) — anomaly detection only runs on clean data
                 // ============================================
-                let suspiciousScore = 0;
+                let hardScore = 0;
+                let softScore = 0;
                 const anomalyFlags = [];
 
-                // Check 1: EF cross-check (if EF estimate available)
+                // Check 1: EF cross-check → SOFT (model disagreement, not data corruption)
                 const efEstimate = efEstimateCFS || pred.data.efEstimateCFS;
                 if (efEstimate && actualCFS) {
                     const efDiscrepancy = (efEstimate - actualCFS) / actualCFS;
-                    if (efDiscrepancy > 0.30) {
-                        suspiciousScore += 2;
+                    if (efDiscrepancy > 0.25) {  // v33.0: standardized to 0.25 (was 0.30)
+                        softScore += 2;
                         anomalyFlags.push(`EF_DISCREPANCY:${(efDiscrepancy * 100).toFixed(0)}%`);
                     }
                 }
 
-                // Check 2: Stage-discharge inconsistency (v24.1: lowered from 50% to 35%)
+                // Check 2: Stage-discharge inconsistency → HARD (LF data corrupted)
                 if (actualStage && actualCFS) {
                     const expectedFlowFromStage = estimateLFFlowFromStage(actualStage);
                     if (expectedFlowFromStage > 0) {
                         const stageDiscrepancy = (expectedFlowFromStage - actualCFS) / actualCFS;
                         if (stageDiscrepancy > 0.35) {
-                            suspiciousScore += 2;
+                            hardScore += 2;
                             anomalyFlags.push(`STAGE_DISCHARGE:expected=${Math.round(expectedFlowFromStage)},actual=${Math.round(actualCFS)},disc=${(stageDiscrepancy*100).toFixed(0)}%`);
                         }
                     }
                 }
 
-                // Check 3: Low flow sanity check (v24.1: raised from 1000 to 1500 cfs, lowered stage from 2.50 to 2.45)
+                // Check 3: Low flow + high stage → HARD (classic ice signature)
                 if (actualCFS < 1500 && actualStage > 2.45) {
-                    suspiciousScore += 1;
+                    hardScore += 2;  // v33.0: standardized to +2 (was +1)
                     anomalyFlags.push(`LOW_FLOW_HIGH_STAGE:${Math.round(actualCFS)}cfs@${actualStage}ft`);
                 }
 
-                // Check 4: Large prediction error (v24.1: new check)
+                // Check 4: Large prediction error → SOFT (model error, not data corruption)
                 if (Math.abs(errorPercent) > 50) {
-                    suspiciousScore += 1;
+                    softScore += 1;
                     anomalyFlags.push(`LARGE_ERROR:${errorPercent.toFixed(0)}%`);
-                }
-
-                const isSuspicious = suspiciousScore >= 2;
-                if (isSuspicious) {
-                    console.log(`🧊 ANOMALY DETECTED (score=${suspiciousScore}): ${anomalyFlags.join(', ')}`);
                 }
 
                 // Update correction bin
@@ -552,9 +548,8 @@ async function saveGFLearningData(client, data) {
                     count: 0, sumError: 0, sumErrorSq: 0, meanError: 0, emaMeanError: 0
                 };
 
-                // Outlier detection (skip if error is > 3 std devs from mean)
+                // Check 5: Statistical outlier → HARD (transient event, not systematic bias)
                 const EMA_ALPHA = 0.3;
-                const OUTLIER_THRESHOLD = 3;
                 let isOutlier = false;
 
                 if (binData.count >= 10) {
@@ -562,37 +557,61 @@ async function saveGFLearningData(client, data) {
                     const stdDev = Math.sqrt(Math.max(0, variance));
                     if (stdDev > 0) {
                         const zScore = Math.abs((errorCFS - binData.meanError) / stdDev);
-                        isOutlier = zScore > OUTLIER_THRESHOLD;
+                        isOutlier = zScore > 3;
                         if (isOutlier) {
-                            suspiciousScore += 2;
+                            hardScore += 2;  // v33.0: statistical outliers are hard flags
                             anomalyFlags.push(`STATISTICAL_OUTLIER:z=${zScore.toFixed(1)}`);
                         }
                     }
                 }
 
-                // Final determination
-                const skipLearning = isSuspicious || isOutlier;
+                // v33.0: Two-tier flag determination
+                const isHardFlagged = hardScore >= 2;
+                const isSoftFlagged = !isHardFlagged && softScore >= 2;
+                const skipLearning = isHardFlagged;  // Only hard flags skip learning
 
-                // Only update learning if not suspicious/outlier
-                if (!skipLearning) {
+                if (isHardFlagged) {
+                    console.log(`🧊 HARD FLAG (score=${hardScore}): ${anomalyFlags.join(', ')}`);
+                    console.log(`   LF reading: ${Math.round(actualCFS)} cfs — skipping learning + accuracy`);
+                } else if (isSoftFlagged) {
+                    console.log(`⚠️ SOFT FLAG (score=${softScore}): ${anomalyFlags.join(', ')}`);
+                    console.log(`   LF reading: ${Math.round(actualCFS)} cfs — included in learning (EMA clamped) + accuracy`);
+                }
+
+                // Update learning: hard flags skip entirely, soft flags use EMA clamping
+                if (!isHardFlagged) {
                     binData.count += 1;
                     binData.sumError += errorCFS;
                     binData.sumErrorSq += errorCFS * errorCFS;
                     binData.meanError = binData.sumError / binData.count;
 
-                    // Update EMA (exponential moving average)
-                    if (binData.count === 1) {
-                        binData.emaMeanError = errorCFS;
-                    } else {
-                        binData.emaMeanError = EMA_ALPHA * errorCFS + (1 - EMA_ALPHA) * (binData.emaMeanError || binData.meanError);
+                    // EMA update with clamping for soft-flagged observations (R1)
+                    // Soft-flagged obs contribute to running sums (count, sumError, sumErrorSq)
+                    // but their EMA contribution is clamped at ±2σ from bin mean
+                    let learningError = errorCFS;
+                    if (isSoftFlagged && binData.count >= 10) {
+                        const variance = (binData.sumErrorSq / binData.count) - (binData.meanError * binData.meanError);
+                        const stdDev = Math.sqrt(Math.max(0, variance));
+                        const maxDelta = 2 * stdDev;
+                        learningError = Math.max(binData.meanError - maxDelta,
+                                        Math.min(binData.meanError + maxDelta, errorCFS));
+                        if (learningError !== errorCFS) {
+                            console.log(`   EMA clamped: ${Math.round(errorCFS)} → ${Math.round(learningError)} cfs (±2σ = ±${Math.round(maxDelta)})`);
+                        }
                     }
-                }
 
-                await client.from('potomac_observations').upsert({
-                    observation_type: 'gf_correction_bin',
-                    gauge_id: binKey,
-                    data: binData
-                }, { onConflict: 'observation_type,gauge_id' });
+                    if (binData.count === 1) {
+                        binData.emaMeanError = learningError;
+                    } else {
+                        binData.emaMeanError = EMA_ALPHA * learningError + (1 - EMA_ALPHA) * (binData.emaMeanError || binData.meanError);
+                    }
+
+                    await client.from('potomac_observations').upsert({
+                        observation_type: 'gf_correction_bin',
+                        gauge_id: binKey,
+                        data: binData
+                    }, { onConflict: 'observation_type,gauge_id' });
+                }
 
                 // Update Edwards Ferry to GF CFS correlation (if we have EF stage data)
                 const efStage = pred.data.efStage;
@@ -644,9 +663,9 @@ async function saveGFLearningData(client, data) {
                     }, { onConflict: 'observation_type,gauge_id' });
                 }
 
-                // Move prediction from pending to validated/flagged
+                // Move prediction from pending to validated/hard_flagged/soft_flagged
                 await client.from('potomac_observations').update({
-                    gauge_id: skipLearning ? 'flagged' : 'validated',
+                    gauge_id: isHardFlagged ? 'hard_flagged' : (isSoftFlagged ? 'soft_flagged' : 'validated'),
                     data: {
                         ...pred.data,
                         actualCFS,
@@ -655,11 +674,16 @@ async function saveGFLearningData(client, data) {
                         errorPercent,
                         validatedAt: new Date().toISOString(),
                         isOutlier,
-                        // v24 anomaly detection fields
-                        isSuspicious,
-                        suspiciousScore,
+                        // v33.0 two-tier anomaly detection fields
+                        isHardFlagged,
+                        isSoftFlagged,
+                        hardScore,
+                        softScore,
                         anomalyFlags: anomalyFlags.length > 0 ? anomalyFlags : null,
-                        skipLearning
+                        skipLearning,
+                        // Backward compat
+                        isSuspicious: isHardFlagged,
+                        suspiciousScore: hardScore + softScore
                     }
                 }).eq('id', pred.id);
 
@@ -673,30 +697,38 @@ async function saveGFLearningData(client, data) {
 
                 const metaData = meta?.data || { totalValidations: 0, totalPredictions: 0, sumAbsErrorPercent: 0 };
 
-                // v32.3 one-time migration: if validValidations doesn't exist yet, the existing
-                // sumAbsErrorPercent is polluted with flagged observation errors. Reset to start fresh.
-                if (!metaData.validValidations && metaData.sumAbsErrorPercent > 0) {
-                    console.log(`🔄 v32.3 migration: resetting polluted sumAbsErrorPercent (was ${metaData.sumAbsErrorPercent})`);
+                // v33.0 one-time migration: reset accuracy counters for two-tier system
+                // Map old flaggedValidations → hardFlaggedValidations, reset accuracy to start fresh
+                if (metaData.hardFlaggedValidations === undefined) {
+                    console.log(`🔄 v33.0 migration: initializing two-tier flagging counters`);
+                    metaData.hardFlaggedValidations = metaData.flaggedValidations || 0;
+                    metaData.softFlaggedValidations = 0;
+                    // Reset accuracy counters — old data mixed hard+soft in ways we can't untangle
+                    metaData.validValidations = 0;
                     metaData.sumAbsErrorPercent = 0;
+                    metaData.avgErrorPercent = null;
                 }
 
                 metaData.totalValidations += 1;
                 metaData.lastValidation = new Date().toISOString();
 
-                // Track anomaly detection statistics (v24)
-                if (skipLearning) {
-                    metaData.flaggedValidations = (metaData.flaggedValidations || 0) + 1;
+                // v33.0: Two-tier anomaly tracking
+                if (isHardFlagged) {
+                    metaData.hardFlaggedValidations = (metaData.hardFlaggedValidations || 0) + 1;
+                    metaData.flaggedValidations = (metaData.flaggedValidations || 0) + 1;  // backward compat
                     metaData.lastFlagged = new Date().toISOString();
                     metaData.lastFlaggedReason = anomalyFlags.join(', ');
                 } else {
-                    // v32.3: Only include non-flagged observations in accuracy calculation
-                    // Flagged (ice-affected) observations have large errors that artificially depress accuracy
+                    // Both validated AND soft-flagged contribute to accuracy
+                    if (isSoftFlagged) {
+                        metaData.softFlaggedValidations = (metaData.softFlaggedValidations || 0) + 1;
+                    }
                     metaData.validValidations = (metaData.validValidations || 0) + 1;
                     metaData.sumAbsErrorPercent = (metaData.sumAbsErrorPercent || 0) + Math.abs(errorPercent);
                 }
 
-                // Compute accuracy from valid (non-flagged) observations only
-                const validCount = metaData.validValidations || (metaData.totalValidations - (metaData.flaggedValidations || 0));
+                // Compute accuracy from valid (non-hard-flagged) observations only
+                const validCount = metaData.validValidations || 0;
                 metaData.avgErrorPercent = validCount > 0 ? metaData.sumAbsErrorPercent / validCount : null;
 
                 await client.from('potomac_observations').upsert({
@@ -710,12 +742,18 @@ async function saveGFLearningData(client, data) {
                     action: 'recordValidation',
                     errorCFS,
                     errorPercent: errorPercent.toFixed(1),
-                    binUpdated: skipLearning ? null : binKey,
+                    binUpdated: isHardFlagged ? null : binKey,
                     isOutlier,
-                    isSuspicious,
-                    suspiciousScore,
+                    // v33.0 two-tier fields
+                    isHardFlagged,
+                    isSoftFlagged,
+                    hardScore,
+                    softScore,
                     anomalyFlags,
                     skipLearning,
+                    // Backward compat
+                    isSuspicious: isHardFlagged,
+                    suspiciousScore: hardScore + softScore,
                     binCount: binData.count
                 };
             } else {
@@ -794,6 +832,8 @@ async function saveGFLearningData(client, data) {
                 sumAbsErrorPercent: 0,
                 lastValidation: null,
                 flaggedValidations: 0,
+                hardFlaggedValidations: 0,
+                softFlaggedValidations: 0,
                 // Keep health tracking
                 lastPrediction: oldMeta.lastPrediction,
                 consecutiveRuns: oldMeta.consecutiveRuns,
@@ -850,6 +890,8 @@ async function saveGFLearningData(client, data) {
                 sumAbsErrorPercent: 0,
                 lastValidation: null,
                 flaggedValidations: 0,
+                hardFlaggedValidations: 0,
+                softFlaggedValidations: 0,
                 lastPrediction: oldMeta.lastPrediction,  // Keep for health tracking
                 consecutiveRuns: oldMeta.consecutiveRuns,
                 missedRuns: oldMeta.missedRuns,

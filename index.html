@@ -1747,11 +1747,13 @@
 
             if (response.ok) {
                 const result = await response.json();
-                // v24: Log anomaly detection results if present
-                if (result.skipLearning) {
-                    console.log('🧊 GF validation FLAGGED (anomaly detected):', result);
+                // v33.0: Two-tier anomaly detection logging
+                if (result.isHardFlagged) {
+                    console.log('🧊 GF validation HARD FLAGGED (data corruption):', result);
+                } else if (result.isSoftFlagged) {
+                    console.log('⚠️ GF validation SOFT FLAGGED (model disagreement, included in learning):', result);
                 } else {
-                    console.log('🌊 GF validation recorded:', result);
+                    console.log('🌊 GF validation CLEAN:', result);
                 }
                 return true;
             } else if (retries < 2) {
@@ -1874,13 +1876,13 @@
         if (learnValLast) learnValLast.textContent = statusText;
 
         // Update historical accuracy display in main GF panel
-        // v32.3: Use valid (non-flagged) observation count for accuracy
+        // v33.0: Exclude only hard flags from accuracy (soft flags are included)
         const accuracyPct = document.getElementById('gf-accuracy-pct');
         const accuracyCount = document.getElementById('gf-accuracy-count');
         const accuracyDiv = document.getElementById('gf-accuracy');
 
-        // Valid count: use new field if available, else subtract flagged from total (backward compat)
-        const validCount = meta.validValidations || (meta.totalValidations - (meta.flaggedValidations || 0));
+        // Valid count: non-hard-flagged observations (includes soft-flagged)
+        const validCount = meta.validValidations || (meta.totalValidations - (meta.hardFlaggedValidations || meta.flaggedValidations || 0));
 
         if (accuracyDiv) {
             if (validCount >= 5) {
@@ -4104,13 +4106,15 @@
         // GF Learning stats
         if (gfLearningData?.metadata) {
             const meta = gfLearningData.metadata;
-            // v32.3: Show valid/total split in dashboard
-            const dashValid = meta.validValidations || (meta.totalValidations - (meta.flaggedValidations || 0));
+            // v33.0: Show valid/total split and hard/soft flags in dashboard
+            const dashValid = meta.validValidations || (meta.totalValidations - (meta.hardFlaggedValidations || meta.flaggedValidations || 0));
             document.getElementById("dash-gf-validations").textContent =
                 `${dashValid} valid / ${meta.totalValidations || 0} total`;
             document.getElementById("dash-gf-error").textContent = meta.avgErrorPercent ?
                 `${meta.avgErrorPercent.toFixed(0)}%` : "--";
-            document.getElementById("dash-flagged").textContent = meta.flaggedValidations || 0;
+            const hardCount = meta.hardFlaggedValidations || meta.flaggedValidations || 0;
+            const softCount = meta.softFlaggedValidations || 0;
+            document.getElementById("dash-flagged").textContent = `${hardCount} hard / ${softCount} soft`;
             document.getElementById("dash-runs").textContent = meta.consecutiveRuns || "--";
         }
 
@@ -6037,6 +6041,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v32.1 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Forecast graph history extended from 6h to 12h. Junction gap fix: history line ends at last observed point instead of bridging to forecast NOW point (different models). Display-only. |
 | v32.2 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Fix missing estimation inputs in EF-only (ice) mode: correction, 90% CI, flow bin, tributaries now show "N/A — EF only" instead of dashes. Display-only. |
 | v32.3 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Fix accuracy metric: exclude flagged (ice-affected) observations from avgErrorPercent. Was including ~60 flagged obs with 15-30% errors, depressing reported accuracy by ~10pp. Now tracks validValidations separately. |
+| v33.0 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Two-tier anomaly flagging: hard flags (stage-discharge, low-flow+high-stage, 3σ outlier) skip learning + accuracy; soft flags (EF discrepancy, large error) INCLUDED in learning (EMA clamped ±2σ) + accuracy. EF threshold standardized to 0.25. |
 
 ### 4.7 Updating the Model
 
@@ -6343,30 +6348,44 @@ Color coding: 🟢 ≥95% (excellent), 🟡 90-95% (good), 🔴 <90% (needs refi
 
 USGS Little Falls uses an Acoustic Doppler Velocity Meter (ADVM). Frazil ice — small crystals suspended in supercooled water — scatters and absorbs the acoustic signal, causing artificially low velocity readings even when stage (pressure transducer) remains accurate. This produces CFS readings far below actual discharge.
 
-### 7.2 Multi-Signal Scoring System
+### 7.2 Two-Tier Scoring System (v33.0)
 
-The system uses sensor fusion to detect unreliable measurements:
+The system uses sensor fusion with two flag tiers. USGS ice flags are a separate upstream system — anomaly detection only runs when USGS says data is clean.
 
-| Check | Signal | Threshold | Score |
-|-------|--------|-----------|-------|
-| EF Cross-Check | EF predicts higher flow than LF reports | >30% discrepancy | +2 |
-| Stage-Discharge | LF stage suggests higher flow than CFS reports | >35% discrepancy | +2 |
+**Hard Flags** — physical data corruption → skip learning AND accuracy:
+
+| Check | Signal | Threshold | Hard Score |
+|-------|--------|-----------|------------|
+| Stage-Discharge | LF stage vs ADVM velocity contradict | >35% discrepancy | +2 |
+| Low Flow Sanity | Low CFS with elevated stage (classic ice) | <1,500 cfs @ >2.45 ft | +2 |
+| Statistical Outlier | Error exceeds 3σ from bin mean | z-score > 3 | +2 |
+
+**Soft Flags** — model disagreement → INCLUDE in learning (EMA clamped) AND accuracy:
+
+| Check | Signal | Threshold | Soft Score |
+|-------|--------|-----------|------------|
+| EF Cross-Check | EF predicts higher flow than LF reports | >25% discrepancy | +2 |
 | Large Error | Prediction error exceeds reasonable bounds | >50% error | +1 |
-| Low Flow Sanity | Low CFS with elevated stage | <1,500 cfs @ >2.45 ft | +1 |
-| Statistical Outlier | Error exceeds 3σ from historical mean | z-score > 3 | +2 |
+
+**Flag determination:** `isHardFlagged = hardScore ≥ 2`, `isSoftFlagged = !isHardFlagged && softScore ≥ 2`.
 
 ### 7.3 Learning Protection
 
-**When score ≥ 2:**
-- Validation is recorded (for analysis)
-- Learning update is **skipped** (protects model integrity)
-- Record is marked "flagged" rather than "validated"
+**Hard flag (score ≥ 2):**
+- Validation is recorded (for analysis) but skips learning AND accuracy
+- Record is marked "hard_flagged" — the LF reading itself is corrupted
+
+**Soft flag (score ≥ 2, no hard flag):**
+- INCLUDED in learning and accuracy — the model is probably wrong, not the data
+- EMA contribution clamped at ±2σ from bin mean (prevents single large-error obs from spiking correction)
+- Running sums (count, sumError, sumErrorSq) use raw values; only EMA uses clamped value
+- Record is marked "soft_flagged"
 
 **Scientific basis:**
 - Stage (pressure transducer): unaffected by ice crystals
 - ADVM (velocity): biased low by ice scattering
 - Edwards Ferry (stage-only): provides independent check unaffected by ADVM interference
-- The learning system targets CFS (mass balance) but uses stage as a "sanity check"
+- Check 1 (EF discrepancy) alone is equally consistent with model error as with ice — hence soft flag
 
 ### 7.4 Trend Validation
 
@@ -6375,11 +6394,17 @@ If Edwards Ferry trend (rising/falling) disagrees with PoR trend, confidence is 
 ### 7.5 Example Detection
 
 \`\`\`
+Example 1 — HARD flag (ice):
 LF reports:  1,120 cfs @ 2.60 ft stage
 Expected:    ~2,000 cfs (from stage rating curve)
-EF estimate: ~2,100 cfs (from 2.86 ft stage)
-→ Score: 2 (EF 87% discrepancy) + 2 (stage-discharge 79%) + 1 (large error) = 5
-→ FLAGGED: Skip learning, preserve model
+→ hardScore: 2 (stage-discharge 79%) + 2 (low flow @ high stage) = 4
+→ HARD FLAGGED: Skip learning + accuracy
+
+Example 2 — SOFT flag (model error):
+LF reports:  8,500 cfs @ 3.10 ft stage
+EF estimate: 11,200 cfs (from 3.50 ft stage)
+→ softScore: 2 (EF 32% discrepancy)
+→ SOFT FLAGGED: Included in learning (EMA clamped) + accuracy
 \`\`\`
 
 ---
@@ -6532,6 +6557,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v33.0 | 2026-02-21 | Two-tier anomaly flagging. Many of the ~60 flagged observations were likely legitimate estimation errors, not ice — USGS ice flags are a separate upstream system. Hard flags (Checks 2, 3, 5: stage-discharge contradiction, low-flow+high-stage, 3σ outlier) skip learning AND accuracy. Soft flags (Checks 1, 4: EF discrepancy, large error) are INCLUDED in learning with EMA clamped at ±2σ from bin mean, and INCLUDED in accuracy. Three-tier gauge_id: hard_flagged, soft_flagged, validated. EF threshold standardized to 0.25 (was 0.30 in sync-learning.js). Check 3 score standardized to +2 (was +1 in sync-learning.js). Independent auditor reviewed: accepted EMA clamping (R1), STATISTICAL_OUTLIER as hard (R2), three-tier DB (R3), Tech Appendix update (R5). |
 | v32.3 | 2026-02-21 | Fix accuracy metric inflated by flagged observations. The accuracy formula (100 − avgErrorPercent) included all observations in the denominator, including ~60 ice-flagged ones with 15–30% errors. These were correctly excluded from learning (correction bins) but incorrectly included in the accuracy metric. Fix: only non-flagged observations contribute to sumAbsErrorPercent and avgErrorPercent. New validValidations counter tracks clean observations. Dashboard shows "N valid / M total" split. Both sync-learning.js and scheduled-update.js fixed. |
 | v32.2 | 2026-02-21 | Fix missing estimation inputs in EF-only (ice) mode. The EF-only early return in updateGreatFallsUI() skipped the inputs section (lines 2743-2804), leaving correction, 90% CI, flow bin, tributaries, and travel times at HTML defaults (all dashes). Now populates with "N/A — EF only" for PoR-based fields and "❄️ ice-affected" for PoR. Display-only fix. |
 | v32.1 | 2026-02-21 | Forecast graph history extended from 6h to 12h: leverages existing 72h porHistory backfill. Junction gap fix: removed bridge from history line to forecast NOW point — the two models (PoR-only history vs full ensemble forecast) produce different values, so bridging created a visible jump. History line now ends naturally at last observed data point. X-axis labels updated (-12h, -6h). Display-only. |
@@ -6576,7 +6602,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 ---
 
-*Generated by Potomac Pulse v32.3 — Accuracy metric fix. All parameters validated on 117,704 hourly observations (2011–2026)*
+*Generated by Potomac Pulse v33.0 — Two-tier anomaly flagging. All parameters validated on 117,704 hourly observations (2011–2026)*
 `;
 
         // Download as Markdown file
