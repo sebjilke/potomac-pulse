@@ -3246,6 +3246,17 @@
             };
         }).sort((a, b) => a.hrs - b.hrs);
 
+        // Anchor history line to current estimate at NOW
+        if (gfHistoryPoints.length > 0) {
+            gfHistoryPoints.push({
+                hrs: 0,
+                cfs: currentCFS,
+                stage: gfEst.stage,
+                time: new Date(),
+                isHistory: true
+            });
+        }
+
         // Render interactive graph with ALL periods + history
         renderForecastGraph(periods, currentCFS, hasNWSForecast, gfHistoryPoints);
 
