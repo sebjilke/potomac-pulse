@@ -1088,6 +1088,77 @@
                             <button class="learn-btn" style="background:#0ea5e9;margin-top:8px;" onclick="resetLowFlowBins()">🧊 Reset Low-Flow Bins (Ice Cleanup)</button>
                             <p style="font-size:0.45rem;color:#64748b;margin-top:5px;">Clears only 0-6k cfs bins (ice-affected). Preserves higher flow data.</p>
                         </div>
+
+                        <!-- SHADOW MODEL HORSE RACE -->
+                        <div style="margin-top:20px;padding-top:15px;border-top:2px solid #7c3aed;">
+                            <h3 style="color:#a78bfa;font-size:0.8rem;margin-bottom:12px;">🏇 Shadow Model Horse Race</h3>
+                            <p style="font-size:0.5rem;color:#64748b;margin-bottom:12px;">
+                                Three alternative GF estimation approaches running alongside production. Display-only — never affects the main estimate.
+                            </p>
+
+                            <!-- 2×2 Model Comparison Grid -->
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+                                <!-- Production (reference) -->
+                                <div style="background:#1e293b;padding:10px;border-radius:6px;text-align:center;border:2px solid #4ade80;">
+                                    <div style="font-size:0.45rem;color:#64748b;">🟢 PRODUCTION</div>
+                                    <div id="shadow-prod-cfs" style="font-size:0.9rem;color:#4ade80;font-weight:700;">--</div>
+                                    <div id="shadow-prod-stage" style="font-size:0.55rem;color:#94a3b8;">-- ft</div>
+                                </div>
+                                <!-- LF Feedback -->
+                                <div style="background:#1e293b;padding:10px;border-radius:6px;text-align:center;border:2px solid #f97316;">
+                                    <div style="font-size:0.45rem;color:#64748b;">🔶 LF FEEDBACK</div>
+                                    <div id="shadow-lf-cfs" style="font-size:0.9rem;color:#f97316;font-weight:700;">--</div>
+                                    <div id="shadow-lf-stage" style="font-size:0.55rem;color:#94a3b8;">-- ft</div>
+                                    <div id="shadow-lf-delta" style="font-size:0.45rem;color:#64748b;margin-top:2px;">--</div>
+                                </div>
+                                <!-- Online Regression -->
+                                <div style="background:#1e293b;padding:10px;border-radius:6px;text-align:center;border:2px solid #06b6d4;">
+                                    <div style="font-size:0.45rem;color:#64748b;">🔷 ONLINE REGRESSION</div>
+                                    <div id="shadow-reg-cfs" style="font-size:0.9rem;color:#06b6d4;font-weight:700;">--</div>
+                                    <div id="shadow-reg-stage" style="font-size:0.55rem;color:#94a3b8;">-- ft</div>
+                                    <div id="shadow-reg-delta" style="font-size:0.45rem;color:#64748b;margin-top:2px;">--</div>
+                                </div>
+                                <!-- Kalman Filter -->
+                                <div style="background:#1e293b;padding:10px;border-radius:6px;text-align:center;border:2px solid #a78bfa;">
+                                    <div style="font-size:0.45rem;color:#64748b;">🟣 KALMAN FILTER</div>
+                                    <div id="shadow-kal-cfs" style="font-size:0.9rem;color:#a78bfa;font-weight:700;">--</div>
+                                    <div id="shadow-kal-stage" style="font-size:0.55rem;color:#94a3b8;">-- ft</div>
+                                    <div id="shadow-kal-delta" style="font-size:0.45rem;color:#64748b;margin-top:2px;">--</div>
+                                </div>
+                            </div>
+
+                            <!-- Leaderboard (Phase 2 — empty placeholder) -->
+                            <div style="background:#0f172a;border-radius:6px;padding:10px;margin-bottom:10px;">
+                                <div style="font-size:0.55rem;color:#64748b;text-align:center;margin-bottom:6px;">LEADERBOARD (awaiting validated predictions)</div>
+                                <div id="shadow-leaderboard" style="font-size:0.5rem;color:#475569;text-align:center;">
+                                    📊 Leaderboard will populate after Phase 2 (server-side validation)
+                                </div>
+                            </div>
+
+                            <!-- Diagnostics (collapsible) -->
+                            <details style="margin-bottom:10px;">
+                                <summary style="font-size:0.55rem;color:#a78bfa;cursor:pointer;">🔧 Model Diagnostics</summary>
+                                <div style="background:#0f172a;border-radius:6px;padding:10px;margin-top:6px;">
+                                    <div style="font-size:0.5rem;color:#64748b;margin-bottom:6px;">LF Feedback</div>
+                                    <div id="shadow-diag-lf" style="font-size:0.45rem;color:#94a3b8;font-family:monospace;">
+                                        Correction: 0.0% | Pending prediction: none
+                                    </div>
+                                    <div style="font-size:0.5rem;color:#64748b;margin-top:8px;margin-bottom:6px;">Online Regression</div>
+                                    <div id="shadow-diag-reg" style="font-size:0.45rem;color:#94a3b8;font-family:monospace;">
+                                        Weights: not initialized | Train count: 0
+                                    </div>
+                                    <div style="font-size:0.5rem;color:#64748b;margin-top:8px;margin-bottom:6px;">Kalman Filter</div>
+                                    <div id="shadow-diag-kal" style="font-size:0.45rem;color:#94a3b8;font-family:monospace;">
+                                        State: not initialized | P: --
+                                    </div>
+                                </div>
+                            </details>
+
+                            <!-- Reset button -->
+                            <button class="learn-btn" style="background:#7c3aed;margin-top:5px;" onclick="resetShadowModels()">🏇 Reset All Shadow Models</button>
+                            <p style="font-size:0.45rem;color:#64748b;margin-top:5px;">Clears all shadow model learned state. Models restart from scratch.</p>
+                        </div>
+
                         <button class="learn-btn" style="background:#475569;margin-top:10px;" onclick="lockLearning()">🔒 Lock Section</button>
                     </div>
                 </div>
@@ -1157,6 +1228,40 @@
     const GF_HISTORY_KEY = "potomac_gf_history";
     const GF_HISTORY_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
     let gfHistory = []; // Array of { timestamp, cfs, stage }
+
+    // ==================== SHADOW MODEL HORSE RACE (developmental) ====================
+    // Three alternative GF estimation approaches running alongside production.
+    // Display-only in Learning tab — never affects production estimate.
+    const SHADOW_STATE_KEY = "potomac_shadow_models";
+    const SHADOW_PREDICTION_KEY = "potomac_shadow_predictions";
+    let shadowModelState = {
+        // LF Feedback: tracks recent GF→LF discrepancy with fast EMA
+        lfFeedback: {
+            correctionFactor: 0,  // EMA of (actual_LF - predicted_LF) / predicted_LF
+            lastPredictedLF: null,  // CFS we predicted at LF (for validation when LF updates)
+            lastPredictionTime: null,
+            alpha: 0.4  // EMA decay — faster than production's α=0.2
+        },
+        // Online Regression: multi-feature SGD
+        onlineRegression: {
+            weights: null,  // Float64Array [w0(bias), w1(PoR), w2(PoR_roc), w3(EF), w4(trib), w5(LF), w6(sin_hr), w7(cos_hr), w8(error)]
+            learningRate: 0.001,
+            nFeatures: 9,
+            trainCount: 0
+        },
+        // Kalman Filter: state-space model
+        kalman: {
+            x: null,   // State estimate (GF CFS)
+            P: null,   // Error covariance
+            Q_base: 0.0001,  // Process noise (fraction of state²)
+            initialized: false
+        }
+    };
+    let shadowResults = {
+        lfFeedback: { cfs: null, stage: null, label: 'LF Feedback' },
+        onlineRegression: { cfs: null, stage: null, label: 'Online Regression' },
+        kalman: { cfs: null, stage: null, label: 'Kalman Filter' }
+    };
 
     let dataSource = "loading"; // "live", "cached", "estimated"
     let lastFetchTime = null;
@@ -1514,7 +1619,13 @@
             travelTimeGFtoLF: actualValidationHours,
             validationDue: validationDue,
             efStage: efStage,  // Edwards Ferry stage at prediction time
-            efTrend: efTrend   // Edwards Ferry trend (rising/falling/steady) for hysteresis learning
+            efTrend: efTrend,   // Edwards Ferry trend (rising/falling/steady) for hysteresis learning
+            // Shadow model predictions (horse race) — ride along with production prediction
+            shadowModels: {
+                lfFeedback: shadowResults.lfFeedback.cfs,
+                onlineRegression: shadowResults.onlineRegression.cfs,
+                kalman: shadowResults.kalman.cfs
+            }
         };
 
         const success = await sendGFPrediction(predictionData);
@@ -2661,6 +2772,299 @@
         return 150000 + ((stage - 10.93) / 2.5) * 100000;
     }
 
+    // ==================== SHADOW MODEL FUNCTIONS (Horse Race) ====================
+    // Three alternative GF estimation approaches. Display-only — never affect production.
+    // Each takes the production estimate + current data and returns {cfs, stage} or null.
+
+    // --- Shadow Model 1: Real-Time LF Feedback ---
+    // Takes production estimate, applies correction based on most recent GF→LF discrepancy.
+    // When we predicted GF X hours ago, that water should now be at LF. Compare prediction to actual.
+    // EMA α=0.4 (faster than production's bin-averaged α=0.2 corrections).
+    function shadowEstimateLFFeedback(productionCFS) {
+        if (!productionCFS || productionCFS <= 0) return null;
+        const lf = data[LF.id];
+        if (!lf?.q) return null;
+
+        const state = shadowModelState.lfFeedback;
+        const lfActualCFS = lf.q;
+
+        // Step 1: If we have a pending prediction, validate it against current LF
+        if (state.lastPredictedLF !== null && state.lastPredictionTime !== null) {
+            const hoursSincePrediction = (Date.now() - state.lastPredictionTime) / 3600000;
+            // GF→LF travel time is ~6.5h at median flow. Check if enough time has passed.
+            // Use a window: if 4-12h have passed, this LF reading is influenced by our past GF prediction.
+            if (hoursSincePrediction >= 4 && hoursSincePrediction <= 12) {
+                // Discrepancy: (actual - predicted) / predicted
+                const discrepancy = (lfActualCFS - state.lastPredictedLF) / state.lastPredictedLF;
+                // Clamp to ±30% to prevent outlier corruption
+                const clampedDisc = Math.max(-0.30, Math.min(0.30, discrepancy));
+                // Update EMA correction
+                state.correctionFactor = state.alpha * clampedDisc + (1 - state.alpha) * state.correctionFactor;
+                // Clear the pending prediction (consumed)
+                state.lastPredictedLF = null;
+                state.lastPredictionTime = null;
+                console.log(`🏇 LF Feedback: discrepancy=${(clampedDisc*100).toFixed(1)}%, correction=${(state.correctionFactor*100).toFixed(1)}%`);
+            }
+        }
+
+        // Step 2: Apply correction to production estimate
+        const correctedCFS = Math.round(productionCFS * (1 + state.correctionFactor));
+
+        // Step 3: Store this prediction for future validation
+        // Our GF estimate will flow down to LF in ~6.5 hours
+        if (state.lastPredictedLF === null) {
+            state.lastPredictedLF = correctedCFS;
+            state.lastPredictionTime = Date.now();
+        }
+
+        if (correctedCFS <= 0) return null;
+        return { cfs: correctedCFS, stage: estimateLFStage(correctedCFS) };
+    }
+
+    // --- Shadow Model 2: Online Regression (Browser-Friendly ML) ---
+    // Multi-feature weighted regression with online SGD.
+    // Features: [bias, PoR, PoR_rateOfChange, EF_estimate, tributary_sum, LF_actual, sin(hour), cos(hour), recent_error]
+    // Initialized to approximate production model; weights learned via gradient descent.
+    function shadowEstimateOnlineRegression(productionCFS) {
+        if (!productionCFS || productionCFS <= 0) return null;
+        const lf = data[LF.id];
+        if (!lf?.q) return null;
+        const por = data["01638500"];
+        if (!por?.q) return null;
+
+        const state = shadowModelState.onlineRegression;
+
+        // Initialize weights to approximate production model on first run
+        if (!state.weights) {
+            state.weights = new Array(state.nFeatures).fill(0);
+            // bias=0, PoR weight=1.0 (primary input), rest=0 → starts ≈ PoR value
+            state.weights[0] = 0;      // bias
+            state.weights[1] = 1.0;    // PoR CFS (dominant feature)
+            state.weights[2] = 0;      // PoR rate of change
+            state.weights[3] = 0;      // EF estimate (will learn)
+            state.weights[4] = 0;      // tributary sum (will learn)
+            state.weights[5] = 0;      // LF actual (will learn)
+            state.weights[6] = 0;      // sin(hour)
+            state.weights[7] = 0;      // cos(hour)
+            state.weights[8] = 0;      // recent error signal
+        }
+
+        // Build feature vector (all normalized to ~0-1 scale)
+        const porCFS = por.q;
+        const riseRate = getPoRRiseRate();
+        const porROC = riseRate ? riseRate.ratePerHour / 10 : 0;  // Normalize: 10%/hr → 1.0
+        const efEst = estimateGFFromEdwardsFerry();
+        const efCFS = efEst ? efEst.cfs / 10000 : 0;  // Normalize: 10k cfs → 1.0
+        const monocacy = data["01643000"];
+        const goose = data["01644000"];
+        const broadRun = data["01644280"];
+        const seneca = data["01645000"];
+        const tribSum = ((monocacy?.q || 0) + (goose?.q || 0) + (broadRun?.q || 0) + (seneca?.q || 0)) / 1000;  // Normalize: 1k → 1.0
+        const lfCFS = lf.q / 10000;  // Normalize
+        const hour = new Date().getHours() + new Date().getMinutes() / 60;
+        const sinHr = Math.sin(2 * Math.PI * hour / 24);
+        const cosHr = Math.cos(2 * Math.PI * hour / 24);
+        const recentError = (productionCFS - lf.q) / Math.max(1, lf.q);  // Production's error vs LF
+
+        const features = [
+            1,                     // bias
+            porCFS / 10000,        // PoR (normalized)
+            porROC,                // PoR rate of change
+            efCFS,                 // EF estimate
+            tribSum,               // tributary sum
+            lfCFS,                 // LF actual
+            sinHr,                 // sin(hour)
+            cosHr,                 // cos(hour)
+            recentError            // recent error signal
+        ];
+
+        // Forward pass: weighted sum
+        let prediction = 0;
+        for (let i = 0; i < state.nFeatures; i++) {
+            prediction += state.weights[i] * features[i];
+        }
+        // Scale back to CFS (prediction is in 10k-normalized space via PoR weight)
+        prediction *= 10000;
+
+        // SGD update: use LF actual as target (delayed signal — GF ≈ LF within travel time)
+        // Only update after warm-up period (10 cycles) and with throttle
+        const target = lf.q / 10000;  // Normalized target
+        const predNorm = prediction / 10000;
+        const error = target - predNorm;
+
+        // Gradient step (only if we have meaningful data)
+        if (Math.abs(error) > 0.001) {
+            const lr = state.learningRate / (1 + state.trainCount * 0.0001);  // Decay learning rate
+            for (let i = 0; i < state.nFeatures; i++) {
+                state.weights[i] += lr * error * features[i];
+            }
+            state.trainCount++;
+        }
+
+        const resultCFS = Math.round(Math.max(0, prediction));
+        if (resultCFS <= 0) return null;
+        return { cfs: resultCFS, stage: estimateLFStage(resultCFS) };
+    }
+
+    // --- Shadow Model 3: Kalman Filter ---
+    // State: GF flow (CFS). Predict step: propagate using production model delta.
+    // Update step: sequentially assimilate LF (R=2%), PoR time-shifted (R=5%), EF power-law (R=10%).
+    // Process noise scales with flow state (4× on rising).
+    function shadowEstimateKalman(productionCFS) {
+        if (!productionCFS || productionCFS <= 0) return null;
+        const lf = data[LF.id];
+        if (!lf?.q) return null;
+
+        const state = shadowModelState.kalman;
+
+        // Initialize on first run
+        if (!state.initialized) {
+            state.x = productionCFS;  // Initial state = production estimate
+            state.P = (productionCFS * 0.10) ** 2;  // Initial covariance: ±10%
+            state.initialized = true;
+            console.log(`🏇 Kalman: initialized at ${productionCFS} cfs, P=${state.P.toFixed(0)}`);
+        }
+
+        // === PREDICT STEP ===
+        // Use the delta from production model as our process model
+        // State transition: x_new = x_old + (production_delta)
+        // We don't have previous production, so use: x_predict = production (track production closely)
+        // But add process noise to allow observations to pull us away
+        const x_prior = state.x;
+        const innovation = productionCFS - x_prior;
+        // Blend: 70% follow production delta, 30% hold position (inertia)
+        const x_predict = x_prior + 0.7 * innovation;
+
+        // Process noise scales with flow state
+        const riseRate = getPoRRiseRate();
+        const isRising = riseRate && riseRate.flowState === 'rising';
+        const Q_mult = isRising ? 4.0 : 1.0;
+        const Q = state.Q_base * (x_predict ** 2) * Q_mult;  // Proportional to state²
+        let P_predict = state.P + Q;
+
+        // === UPDATE STEP: Sequential assimilation ===
+        let x_updated = x_predict;
+        let P_updated = P_predict;
+
+        // Observation 1: LF actual (R = 2% of LF² — LF is the most reliable gauge)
+        // GF ≈ LF (they're close, ~10 river miles apart)
+        const lfCFS = lf.q;
+        const R_lf = (lfCFS * 0.02) ** 2;
+        let K = P_updated / (P_updated + R_lf);  // Kalman gain
+        x_updated = x_updated + K * (lfCFS - x_updated);
+        P_updated = (1 - K) * P_updated;
+
+        // Observation 2: PoR time-shifted (R = 5% — more uncertainty due to travel time)
+        const por = data["01638500"];
+        if (por?.q) {
+            const porCFS = por.q;
+            // PoR accounts for ~83.5% of LF, scale up
+            const porEstimate = porCFS / 0.835;
+            const R_por = (porEstimate * 0.05) ** 2;
+            K = P_updated / (P_updated + R_por);
+            x_updated = x_updated + K * (porEstimate - x_updated);
+            P_updated = (1 - K) * P_updated;
+        }
+
+        // Observation 3: EF power-law estimate (R = 10% — high variance at low flows)
+        const efEst = estimateGFFromEdwardsFerry();
+        if (efEst && efEst.cfs > 0) {
+            const R_ef = (efEst.cfs * 0.10) ** 2;
+            K = P_updated / (P_updated + R_ef);
+            x_updated = x_updated + K * (efEst.cfs - x_updated);
+            P_updated = (1 - K) * P_updated;
+        }
+
+        // Store updated state
+        state.x = x_updated;
+        state.P = P_updated;
+
+        const resultCFS = Math.round(Math.max(0, x_updated));
+        if (resultCFS <= 0) return null;
+        return { cfs: resultCFS, stage: estimateLFStage(resultCFS) };
+    }
+
+    // --- Shadow Model State Management ---
+    function loadShadowModelState() {
+        try {
+            const stored = localStorage.getItem(SHADOW_STATE_KEY);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                // Merge with defaults (in case new fields were added)
+                if (parsed.lfFeedback) {
+                    Object.assign(shadowModelState.lfFeedback, parsed.lfFeedback);
+                }
+                if (parsed.onlineRegression) {
+                    Object.assign(shadowModelState.onlineRegression, parsed.onlineRegression);
+                }
+                if (parsed.kalman) {
+                    Object.assign(shadowModelState.kalman, parsed.kalman);
+                }
+                console.log('🏇 Shadow model state loaded from localStorage');
+            }
+        } catch (e) {
+            console.warn('Failed to load shadow model state:', e);
+        }
+    }
+
+    function saveShadowModelState() {
+        try {
+            localStorage.setItem(SHADOW_STATE_KEY, JSON.stringify(shadowModelState));
+        } catch (e) {
+            console.warn('Failed to save shadow model state:', e);
+        }
+    }
+
+    // Run all shadow models and store results. Called after estimateGreatFalls().
+    // Wrapped in try/catch — shadow model failure must never affect production.
+    function runShadowModels(productionEstimate) {
+        if (!productionEstimate?.cfs) return;
+        const prodCFS = productionEstimate.cfs;
+
+        try {
+            const t0 = performance.now();
+
+            // Model 1: LF Feedback
+            try {
+                const result = shadowEstimateLFFeedback(prodCFS);
+                shadowResults.lfFeedback.cfs = result?.cfs || null;
+                shadowResults.lfFeedback.stage = result?.stage || null;
+            } catch (e) {
+                console.warn('🏇 LF Feedback failed:', e);
+                shadowResults.lfFeedback.cfs = null;
+            }
+
+            // Model 2: Online Regression
+            try {
+                const result = shadowEstimateOnlineRegression(prodCFS);
+                shadowResults.onlineRegression.cfs = result?.cfs || null;
+                shadowResults.onlineRegression.stage = result?.stage || null;
+            } catch (e) {
+                console.warn('🏇 Online Regression failed:', e);
+                shadowResults.onlineRegression.cfs = null;
+            }
+
+            // Model 3: Kalman Filter
+            try {
+                const result = shadowEstimateKalman(prodCFS);
+                shadowResults.kalman.cfs = result?.cfs || null;
+                shadowResults.kalman.stage = result?.stage || null;
+            } catch (e) {
+                console.warn('🏇 Kalman failed:', e);
+                shadowResults.kalman.cfs = null;
+            }
+
+            const elapsed = performance.now() - t0;
+            console.log(`🏇 Shadow models: LF=${shadowResults.lfFeedback.cfs}, Reg=${shadowResults.onlineRegression.cfs}, Kal=${shadowResults.kalman.cfs} (${elapsed.toFixed(1)}ms)`);
+
+            // Save state after each run
+            saveShadowModelState();
+
+        } catch (e) {
+            console.error('🏇 Shadow models wrapper failed:', e);
+        }
+    }
+
     // Update Great Falls display in UI
     function updateGreatFallsUI() {
         // Show loading state until GF corrections AND Edwards Ferry data are loaded
@@ -2712,6 +3116,10 @@
 
         // Record GF estimate for forecast graph history (stores actual full-model output)
         recordGFEstimate(gfEstimate.cfs, gfEstimate.stage);
+
+        // Run shadow models (horse race) — display-only, never affects production
+        runShadowModels(gfEstimate);
+        updateShadowModelUI();
 
         // Main display - "ESTIMATED NOW" section
         document.getElementById("gf-cfs").textContent = gfEstimate.cfs.toLocaleString();
@@ -4262,6 +4670,89 @@
                 list.appendChild(div);
             }
         }
+
+        // Update shadow model horse race display
+        updateShadowModelUI();
+    }
+
+    // ==================== SHADOW MODEL UI ====================
+    function updateShadowModelUI() {
+        // Only update if Learning tab is unlocked (elements exist in DOM)
+        const prodEl = document.getElementById('shadow-prod-cfs');
+        if (!prodEl) return;
+
+        // Production reference
+        if (gfEstimate?.cfs) {
+            prodEl.textContent = gfEstimate.cfs.toLocaleString();
+            document.getElementById('shadow-prod-stage').textContent = (gfEstimate.stage || 0).toFixed(2) + ' ft';
+        }
+
+        const prodCFS = gfEstimate?.cfs || 0;
+
+        // Helper: format delta vs production
+        function formatDelta(shadowCFS) {
+            if (!shadowCFS || !prodCFS) return '--';
+            const diff = shadowCFS - prodCFS;
+            const pct = ((diff / prodCFS) * 100).toFixed(1);
+            const sign = diff >= 0 ? '+' : '';
+            return `${sign}${diff.toLocaleString()} cfs (${sign}${pct}%)`;
+        }
+
+        // LF Feedback
+        if (shadowResults.lfFeedback.cfs !== null) {
+            document.getElementById('shadow-lf-cfs').textContent = shadowResults.lfFeedback.cfs.toLocaleString();
+            document.getElementById('shadow-lf-stage').textContent = (shadowResults.lfFeedback.stage || 0).toFixed(2) + ' ft';
+            document.getElementById('shadow-lf-delta').textContent = formatDelta(shadowResults.lfFeedback.cfs);
+        }
+
+        // Online Regression
+        if (shadowResults.onlineRegression.cfs !== null) {
+            document.getElementById('shadow-reg-cfs').textContent = shadowResults.onlineRegression.cfs.toLocaleString();
+            document.getElementById('shadow-reg-stage').textContent = (shadowResults.onlineRegression.stage || 0).toFixed(2) + ' ft';
+            document.getElementById('shadow-reg-delta').textContent = formatDelta(shadowResults.onlineRegression.cfs);
+        }
+
+        // Kalman Filter
+        if (shadowResults.kalman.cfs !== null) {
+            document.getElementById('shadow-kal-cfs').textContent = shadowResults.kalman.cfs.toLocaleString();
+            document.getElementById('shadow-kal-stage').textContent = (shadowResults.kalman.stage || 0).toFixed(2) + ' ft';
+            document.getElementById('shadow-kal-delta').textContent = formatDelta(shadowResults.kalman.cfs);
+        }
+
+        // Diagnostics
+        const lfState = shadowModelState.lfFeedback;
+        document.getElementById('shadow-diag-lf').textContent =
+            `Correction: ${(lfState.correctionFactor * 100).toFixed(1)}% | α: ${lfState.alpha} | Pending: ${lfState.lastPredictedLF ? lfState.lastPredictedLF.toLocaleString() + ' cfs' : 'none'}`;
+
+        const regState = shadowModelState.onlineRegression;
+        if (regState.weights) {
+            const wStr = regState.weights.map(w => w.toFixed(3)).join(', ');
+            document.getElementById('shadow-diag-reg').textContent =
+                `W: [${wStr}] | Train: ${regState.trainCount} | LR: ${(regState.learningRate / (1 + regState.trainCount * 0.0001)).toFixed(6)}`;
+        }
+
+        const kalState = shadowModelState.kalman;
+        if (kalState.initialized) {
+            document.getElementById('shadow-diag-kal').textContent =
+                `State: ${Math.round(kalState.x).toLocaleString()} cfs | P: ${Math.round(Math.sqrt(kalState.P)).toLocaleString()} cfs (1σ) | Q_base: ${kalState.Q_base}`;
+        }
+    }
+
+    function resetShadowModels() {
+        if (!confirm('Reset all shadow models? Learned state (Kalman covariance, regression weights, LF feedback) will be lost.')) return;
+        shadowModelState = {
+            lfFeedback: { correctionFactor: 0, lastPredictedLF: null, lastPredictionTime: null, alpha: 0.4 },
+            onlineRegression: { weights: null, learningRate: 0.001, nFeatures: 9, trainCount: 0 },
+            kalman: { x: null, P: null, Q_base: 0.0001, initialized: false }
+        };
+        shadowResults = {
+            lfFeedback: { cfs: null, stage: null, label: 'LF Feedback' },
+            onlineRegression: { cfs: null, stage: null, label: 'Online Regression' },
+            kalman: { cfs: null, stage: null, label: 'Kalman Filter' }
+        };
+        localStorage.removeItem(SHADOW_STATE_KEY);
+        updateShadowModelUI();
+        console.log('🏇 Shadow models reset');
     }
 
     // ==================== NWS FORECAST INTEGRATION ====================
@@ -5771,6 +6262,9 @@
 
             // Load GF estimate history for forecast graph
             loadGFHistory();
+
+            // Load shadow model state (horse race)
+            loadShadowModelState();
 
             // Load EF hysteresis corrections (local learning)
             loadEFHysteresis();
