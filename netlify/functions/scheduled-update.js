@@ -1077,6 +1077,31 @@ async function validateForecastPredictions(client, usgsData) {
         metaData.lastValidation = now.toISOString();
         metaData.lastErrorPercent = errorPercent;
 
+        // Score NWS LF baseline — raw NWS forecast for Little Falls
+        if (pred.data.nwsLfRawCFS) {
+            const nwsRawError = Math.abs((pred.data.nwsLfRawCFS - actualCFS) / actualCFS) * 100;
+            metaData.nwsRawValidations = (metaData.nwsRawValidations || 0) + 1;
+            metaData.nwsRawSumAbsErrorPercent = (metaData.nwsRawSumAbsErrorPercent || 0) + nwsRawError;
+            metaData.nwsRawAvgErrorPercent = metaData.nwsRawSumAbsErrorPercent / metaData.nwsRawValidations;
+            console.log(`📈 NWS raw baseline ${horizonKey}: ${pred.data.nwsLfRawCFS} cfs, error=${nwsRawError.toFixed(1)}%`);
+        }
+
+        // Score NWS LF bias-corrected baseline
+        if (pred.data.nwsLfBiasCorrectedCFS) {
+            const nwsCorrError = Math.abs((pred.data.nwsLfBiasCorrectedCFS - actualCFS) / actualCFS) * 100;
+            metaData.nwsCorrectedValidations = (metaData.nwsCorrectedValidations || 0) + 1;
+            metaData.nwsCorrectedSumAbsErrorPercent = (metaData.nwsCorrectedSumAbsErrorPercent || 0) + nwsCorrError;
+            metaData.nwsCorrectedAvgErrorPercent = metaData.nwsCorrectedSumAbsErrorPercent / metaData.nwsCorrectedValidations;
+        }
+
+        // Score persistence baseline (assume flow stays the same)
+        if (pred.data.persistenceCFS) {
+            const persistError = Math.abs((pred.data.persistenceCFS - actualCFS) / actualCFS) * 100;
+            metaData.persistenceValidations = (metaData.persistenceValidations || 0) + 1;
+            metaData.persistenceSumAbsErrorPercent = (metaData.persistenceSumAbsErrorPercent || 0) + persistError;
+            metaData.persistenceAvgErrorPercent = metaData.persistenceSumAbsErrorPercent / metaData.persistenceValidations;
+        }
+
         await client.from('potomac_observations').upsert({
             observation_type: 'gf_forecast_metadata',
             gauge_id: horizonKey,

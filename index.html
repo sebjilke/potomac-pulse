@@ -1717,7 +1717,11 @@
                         predictedCFS: p.cfs,
                         predictedStage: p.stage,
                         source: p.source,
-                        createdAt: new Date().toISOString()
+                        createdAt: new Date().toISOString(),
+                        // Baselines for accuracy comparison
+                        nwsLfRawCFS: p.nwsLfRawCFS || null,
+                        nwsLfBiasCorrectedCFS: p.nwsLfBiasCorrectedCFS || null,
+                        persistenceCFS: p.persistenceCFS || null
                     }))
                 })
             });
@@ -1774,7 +1778,34 @@
             return `<span style="color:${color};">+${h}h: ${accuracy.toFixed(0)}%</span>`;
         }).join(' • ');
 
-        container.innerHTML = `<span style="color:#64748b;">Forecast accuracy:</span> ${horizonStats} <span style="color:#475569;">(${totalValidations} validations)</span>`;
+        let html = `<span style="color:#64748b;">Forecast accuracy:</span> ${horizonStats} <span style="color:#475569;">(${totalValidations} validations)</span>`;
+
+        // NWS LF baseline comparison — show delta (our model vs raw NWS)
+        const totalNwsValidations = Object.values(forecastAccuracyData.horizons)
+            .reduce((sum, h) => sum + (h.nwsRawValidations || 0), 0);
+
+        if (totalNwsValidations >= 10) {
+            const nwsDeltaStats = FORECAST_HORIZONS.map(h => {
+                const stats = forecastAccuracyData.horizons[h] || {};
+                const ourAccuracy = stats.validations >= 3 && stats.avgErrorPercent !== null
+                    ? 100 - stats.avgErrorPercent : null;
+                const nwsAccuracy = stats.nwsRawValidations >= 3 && stats.nwsRawAvgErrorPercent !== null
+                    ? 100 - stats.nwsRawAvgErrorPercent : null;
+
+                if (ourAccuracy === null || nwsAccuracy === null) {
+                    return `<span style="color:#64748b;">+${h}h: --</span>`;
+                }
+                const delta = ourAccuracy - nwsAccuracy;
+                const sign = delta >= 0 ? '+' : '';
+                const color = delta > 0 ? '#4ade80' : (delta < -1 ? '#f87171' : '#fbbf24');
+                const title = `Our model: ${ourAccuracy.toFixed(0)}% vs NWS: ${nwsAccuracy.toFixed(0)}%`;
+                return `<span style="color:${color};" title="${title}">+${h}h: ${sign}${delta.toFixed(0)}%</span>`;
+            }).join(' • ');
+
+            html += `<br><span style="color:#64748b;" title="Our model predicts Great Falls; NWS predicts Little Falls directly">vs NWS LF forecast:</span> ${nwsDeltaStats}`;
+        }
+
+        container.innerHTML = html;
     }
 
     // Check if any pending predictions are ready for validation (debounced)
@@ -3568,6 +3599,20 @@
                 // Mark whether this period should be displayed as a card
                 const isDisplayPeriod = displayHours.includes(targetHrs);
 
+                // NWS LF baseline values for accuracy comparison
+                // Raw NWS LF forecast at this horizon (direct NWS prediction of LF)
+                let nwsLfRawCFS = null;
+                let nwsLfBiasCorrectedCFS = null;
+                if (hasLFForecast && lfPoints.length > 0) {
+                    const rawLf = interpolateForecast(lfPoints, targetHrs);
+                    if (rawLf && rawLf > 0) {
+                        nwsLfRawCFS = Math.round(rawLf);
+                        nwsLfBiasCorrectedCFS = Math.round(rawLf + lfBiasOffset);
+                    }
+                }
+                // Persistence baseline: assume current LF flow stays the same
+                const persistenceCFS = Math.round(observedLfCFS);
+
                 periods.push({
                     label: `+${targetHrs}h`,
                     time: futureTime,
@@ -3575,7 +3620,11 @@
                     stage: forecastStage,
                     isCurrent: false,
                     source: sourceLabel,
-                    isDisplayPeriod: isDisplayPeriod  // Only true for 6, 12, 24, 48h
+                    isDisplayPeriod: isDisplayPeriod,  // Only true for 6, 12, 24, 48h
+                    // Baselines for accuracy comparison (NWS LF forecast + persistence)
+                    nwsLfRawCFS: nwsLfRawCFS,
+                    nwsLfBiasCorrectedCFS: nwsLfBiasCorrectedCFS,
+                    persistenceCFS: persistenceCFS
                 });
             }
 

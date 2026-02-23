@@ -969,7 +969,15 @@ async function loadForecastAccuracy(client) {
             horizons[horizon] = {
                 validations: row.data?.validations || 0,
                 avgErrorPercent: row.data?.avgErrorPercent || null,
-                sumAbsErrorPercent: row.data?.sumAbsErrorPercent || 0
+                sumAbsErrorPercent: row.data?.sumAbsErrorPercent || 0,
+                // NWS LF baseline accuracy
+                nwsRawValidations: row.data?.nwsRawValidations || 0,
+                nwsRawAvgErrorPercent: row.data?.nwsRawAvgErrorPercent || null,
+                nwsCorrectedValidations: row.data?.nwsCorrectedValidations || 0,
+                nwsCorrectedAvgErrorPercent: row.data?.nwsCorrectedAvgErrorPercent || null,
+                // Persistence baseline accuracy
+                persistenceValidations: row.data?.persistenceValidations || 0,
+                persistenceAvgErrorPercent: row.data?.persistenceAvgErrorPercent || null
             };
         }
 
