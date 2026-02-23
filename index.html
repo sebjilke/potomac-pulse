@@ -669,7 +669,7 @@
                         <span id="gf-forecast-arrival" style="display:none;">--</span>
 
                         <div id="gf-forecast-timeline" style="margin-bottom:15px;">
-                            <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:4px;text-align:center;">12H HISTORY + 48H FORECAST*</div>
+                            <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:4px;text-align:center;">24H HISTORY + 48H FORECAST*</div>
                             <div style="font-size:0.6rem;color:#fbbf24;margin-bottom:8px;text-align:center;">*Experimental — collecting data to validate accuracy</div>
 
                             <!-- Interactive Graph -->
@@ -1152,6 +1152,11 @@
     const POR_HISTORY_KEY = "potomac_por_history";
     const POR_HISTORY_MAX_AGE = 72 * 60 * 60 * 1000; // Keep 72 hours of history (covers low-flow travel times ~50h)
     let porHistory = []; // Array of { timestamp, cfs, stage }
+
+    // GF estimate history for forecast graph (stores actual estimateGreatFalls() output)
+    const GF_HISTORY_KEY = "potomac_gf_history";
+    const GF_HISTORY_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
+    let gfHistory = []; // Array of { timestamp, cfs, stage }
 
     let dataSource = "loading"; // "live", "cached", "estimated"
     let lastFetchTime = null;
@@ -2011,6 +2016,44 @@
         console.log(`📊 Recorded PoR: ${cfs} cfs, history has ${porHistory.length} entries`);
     }
 
+    // ==================== GF ESTIMATE HISTORY MANAGEMENT ====================
+    // Store actual estimateGreatFalls() output for the forecast graph history line
+
+    function loadGFHistory() {
+        try {
+            const stored = localStorage.getItem(GF_HISTORY_KEY);
+            if (stored) {
+                gfHistory = JSON.parse(stored);
+                const cutoff = Date.now() - GF_HISTORY_MAX_AGE;
+                gfHistory = gfHistory.filter(entry => entry.timestamp > cutoff);
+                console.log(`📈 Loaded ${gfHistory.length} GF history entries`);
+            }
+        } catch (e) {
+            console.warn('Failed to load GF history:', e);
+            gfHistory = [];
+        }
+    }
+
+    function saveGFHistory() {
+        try {
+            localStorage.setItem(GF_HISTORY_KEY, JSON.stringify(gfHistory));
+        } catch (e) {
+            console.warn('Failed to save GF history:', e);
+        }
+    }
+
+    function recordGFEstimate(cfs, stage) {
+        if (!cfs || cfs <= 0) return;
+        const now = Date.now();
+        const recentEntry = gfHistory.find(e => (now - e.timestamp) < 10 * 60 * 1000);
+        if (recentEntry) return;
+        gfHistory.push({ timestamp: now, cfs: cfs, stage: stage || null });
+        const cutoff = now - GF_HISTORY_MAX_AGE;
+        gfHistory = gfHistory.filter(entry => entry.timestamp > cutoff);
+        saveGFHistory();
+        console.log(`📈 Recorded GF estimate: ${cfs} cfs, history has ${gfHistory.length} entries`);
+    }
+
     // Get PoR reading from X hours ago (for time-shifted GF estimate)
     function getPoRFromHoursAgo(hoursAgo) {
         if (porHistory.length === 0) {
@@ -2667,6 +2710,9 @@
             return;
         }
 
+        // Record GF estimate for forecast graph history (stores actual full-model output)
+        recordGFEstimate(gfEstimate.cfs, gfEstimate.stage);
+
         // Main display - "ESTIMATED NOW" section
         document.getElementById("gf-cfs").textContent = gfEstimate.cfs.toLocaleString();
 
@@ -3187,11 +3233,27 @@
             `;
         }).join('');
 
-        // Compute GF history from PoR readings (last 12 hours) for trend visualization
-        const gfHistory = computeGFHistoryFromPoR(12);
+        // Build GF history for graph from stored estimates (full model output)
+        // Falls back to simplified PoR-only re-estimation on cold start
+        let gfHistoryPoints;
+        if (gfHistory.length >= 2) {
+            gfHistoryPoints = gfHistory.map(entry => {
+                const hrsAgo = (Date.now() - entry.timestamp) / 3600000;
+                return {
+                    hrs: -hrsAgo,
+                    cfs: entry.cfs,
+                    stage: entry.stage,
+                    time: new Date(entry.timestamp),
+                    isHistory: true
+                };
+            }).sort((a, b) => a.hrs - b.hrs);
+        } else {
+            // Cold start fallback: use simplified PoR-based estimation
+            gfHistoryPoints = computeGFHistoryFromPoR(24);
+        }
 
         // Render interactive graph with ALL periods + history
-        renderForecastGraph(periods, currentCFS, hasNWSForecast, gfHistory);
+        renderForecastGraph(periods, currentCFS, hasNWSForecast, gfHistoryPoints);
 
         // Store forecast predictions for accuracy tracking (throttled, async)
         storeForecastPredictions(periods).catch(e => console.warn('Forecast storage error:', e));
@@ -3238,7 +3300,7 @@
 
         // Determine x-axis range based on whether we have history
         const hasHistory = historyPoints.length >= 2;
-        const xMin = hasHistory ? -12 : 0;
+        const xMin = hasHistory ? -24 : 0;
         const xMax = 48;
         const xRange = xMax - xMin; // 60 if history, 48 if not
 
@@ -3353,8 +3415,8 @@
         let xLabels;
         if (hasHistory) {
             xLabels = isNarrow
-                ? [{ hrs: 0, label: 'Now' }, { hrs: 12, label: '+12h' }, { hrs: 24, label: '+24h' }, { hrs: 48, label: '+48h' }]
-                : [{ hrs: -12, label: '-12h' }, { hrs: -6, label: '-6h' }, { hrs: 0, label: 'Now' }, { hrs: 12, label: '+12h' }, { hrs: 24, label: '+24h' }, { hrs: 36, label: '+36h' }, { hrs: 48, label: '+48h' }];
+                ? [{ hrs: -12, label: '-12h' }, { hrs: 0, label: 'Now' }, { hrs: 12, label: '+12h' }, { hrs: 24, label: '+24h' }, { hrs: 48, label: '+48h' }]
+                : [{ hrs: -24, label: '-24h' }, { hrs: -12, label: '-12h' }, { hrs: 0, label: 'Now' }, { hrs: 12, label: '+12h' }, { hrs: 24, label: '+24h' }, { hrs: 36, label: '+36h' }, { hrs: 48, label: '+48h' }];
         } else {
             xLabels = [{ hrs: 0, label: 'Now' }, { hrs: 12, label: '+12h' }, { hrs: 24, label: '+24h' }, { hrs: 36, label: '+36h' }, { hrs: 48, label: '+48h' }];
         }
@@ -5702,6 +5764,9 @@
             // Load PoR history for Great Falls time-shifting
             loadPoRHistory();
 
+            // Load GF estimate history for forecast graph
+            loadGFHistory();
+
             // Load EF hysteresis corrections (local learning)
             loadEFHysteresis();
 
@@ -6042,6 +6107,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v32.2 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Fix missing estimation inputs in EF-only (ice) mode: correction, 90% CI, flow bin, tributaries now show "N/A — EF only" instead of dashes. Display-only. |
 | v32.3 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Fix accuracy metric: exclude flagged (ice-affected) observations from avgErrorPercent. Was including ~60 flagged obs with 15-30% errors, depressing reported accuracy by ~10pp. Now tracks validValidations separately. |
 | v33.0 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Two-tier anomaly flagging: hard flags (stage-discharge, low-flow+high-stage, 3σ outlier) skip learning + accuracy; soft flags (EF discrepancy, large error) INCLUDED in learning (EMA clamped ±2σ) + accuracy. EF threshold standardized to 0.25. |
+| v33.1 | 2026-02-23 | 126 × EF^2.46 | 0.91 | — | 24h stored GF history on forecast graph: stores actual estimateGreatFalls() output in localStorage instead of simplified PoR-only re-estimation. Fixes low baseline and jump at NOW junction. Graph extended from [-12h, 48h] to [-24h, 48h]. Cold-start fallback to PoR-based estimation. Display-only. |
 
 ### 4.7 Updating the Model
 
@@ -6557,6 +6623,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v33.1 | 2026-02-23 | 24h stored GF history on forecast graph. Stores actual estimateGreatFalls() output in localStorage (mirroring porHistory pattern) instead of simplified PoR-only re-estimation. Fixes low baseline and visible jump at NOW junction caused by model mismatch (history was missing ~12% tributary flows, EF blending, flow-state corrections, LF ceiling). Graph extended from [-12h, 48h] to [-24h, 48h]. Cold-start fallback to computeGFHistoryFromPoR(). Display-only. |
 | v33.0 | 2026-02-21 | Two-tier anomaly flagging. Many of the ~60 flagged observations were likely legitimate estimation errors, not ice — USGS ice flags are a separate upstream system. Hard flags (Checks 2, 3, 5: stage-discharge contradiction, low-flow+high-stage, 3σ outlier) skip learning AND accuracy. Soft flags (Checks 1, 4: EF discrepancy, large error) are INCLUDED in learning with EMA clamped at ±2σ from bin mean, and INCLUDED in accuracy. Three-tier gauge_id: hard_flagged, soft_flagged, validated. EF threshold standardized to 0.25 (was 0.30 in sync-learning.js). Check 3 score standardized to +2 (was +1 in sync-learning.js). Independent auditor reviewed: accepted EMA clamping (R1), STATISTICAL_OUTLIER as hard (R2), three-tier DB (R3), Tech Appendix update (R5). |
 | v32.3 | 2026-02-21 | Fix accuracy metric inflated by flagged observations. The accuracy formula (100 − avgErrorPercent) included all observations in the denominator, including ~60 ice-flagged ones with 15–30% errors. These were correctly excluded from learning (correction bins) but incorrectly included in the accuracy metric. Fix: only non-flagged observations contribute to sumAbsErrorPercent and avgErrorPercent. New validValidations counter tracks clean observations. Dashboard shows "N valid / M total" split. Both sync-learning.js and scheduled-update.js fixed. |
 | v32.2 | 2026-02-21 | Fix missing estimation inputs in EF-only (ice) mode. The EF-only early return in updateGreatFallsUI() skipped the inputs section (lines 2743-2804), leaving correction, 90% CI, flow bin, tributaries, and travel times at HTML defaults (all dashes). Now populates with "N/A — EF only" for PoR-based fields and "❄️ ice-affected" for PoR. Display-only fix. |
@@ -6602,7 +6669,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 ---
 
-*Generated by Potomac Pulse v33.0 — Two-tier anomaly flagging. All parameters validated on 117,704 hourly observations (2011–2026)*
+*Generated by Potomac Pulse v33.1 — 24h stored GF history on forecast graph. All parameters validated on 117,704 hourly observations (2011–2026)*
 `;
 
         // Download as Markdown file
