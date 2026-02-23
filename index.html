@@ -3292,9 +3292,9 @@
         const graphWidth = width - padding.left - padding.right;
         const graphHeight = height - padding.top - padding.bottom;
 
-        // Determine x-axis range based on whether we have history
-        const hasHistory = historyPoints.length >= 2;
-        const xMin = hasHistory ? -24 : 0;
+        // Always show 24h history layout; data fills in over time
+        const hasHistory = true;
+        const xMin = -24;
         const xMax = 48;
         const xRange = xMax - xMin; // 60 if history, 48 if not
 
