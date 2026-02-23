@@ -3233,24 +3233,18 @@
             `;
         }).join('');
 
-        // Build GF history for graph from stored estimates (full model output)
-        // Falls back to simplified PoR-only re-estimation on cold start
-        let gfHistoryPoints;
-        if (gfHistory.length >= 2) {
-            gfHistoryPoints = gfHistory.map(entry => {
-                const hrsAgo = (Date.now() - entry.timestamp) / 3600000;
-                return {
-                    hrs: -hrsAgo,
-                    cfs: entry.cfs,
-                    stage: entry.stage,
-                    time: new Date(entry.timestamp),
-                    isHistory: true
-                };
-            }).sort((a, b) => a.hrs - b.hrs);
-        } else {
-            // Cold start fallback: use simplified PoR-based estimation
-            gfHistoryPoints = computeGFHistoryFromPoR(24);
-        }
+        // Build GF history for graph from stored estimates (full model output only)
+        // No fallback to PoR-only re-estimation — history builds up naturally over 24h
+        const gfHistoryPoints = gfHistory.map(entry => {
+            const hrsAgo = (Date.now() - entry.timestamp) / 3600000;
+            return {
+                hrs: -hrsAgo,
+                cfs: entry.cfs,
+                stage: entry.stage,
+                time: new Date(entry.timestamp),
+                isHistory: true
+            };
+        }).sort((a, b) => a.hrs - b.hrs);
 
         // Render interactive graph with ALL periods + history
         renderForecastGraph(periods, currentCFS, hasNWSForecast, gfHistoryPoints);
