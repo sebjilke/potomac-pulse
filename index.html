@@ -2168,11 +2168,60 @@
                 gfHistory = JSON.parse(stored);
                 const cutoff = Date.now() - GF_HISTORY_MAX_AGE;
                 gfHistory = gfHistory.filter(entry => entry.timestamp > cutoff);
-                console.log(`📈 Loaded ${gfHistory.length} GF history entries`);
+                console.log(`📈 Loaded ${gfHistory.length} GF history entries from localStorage`);
             }
         } catch (e) {
             console.warn('Failed to load GF history:', e);
             gfHistory = [];
+        }
+
+        // Also fetch server-side history (fills gaps when browser was closed)
+        fetchServerGFHistory();
+    }
+
+    // Fetch server-side GF history and merge with localStorage entries
+    // Server stores estimates every 2h; client stores every 10min
+    // Merge: deduplicate entries within 5min of each other, keep client version (higher resolution)
+    async function fetchServerGFHistory() {
+        try {
+            const response = await fetch(SYNC_API + '?endpoint=gf-history');
+            if (!response.ok) return;
+
+            const result = await response.json();
+            const serverReadings = result.readings || [];
+            if (serverReadings.length === 0) return;
+
+            const cutoff = Date.now() - GF_HISTORY_MAX_AGE;
+            const DEDUP_WINDOW = 5 * 60 * 1000;  // 5 minutes
+
+            // Filter server readings to 24h window
+            const validServerReadings = serverReadings.filter(r => r.timestamp > cutoff);
+
+            // Find server entries that don't overlap with existing client entries
+            let newFromServer = 0;
+            for (const serverEntry of validServerReadings) {
+                const hasNearby = gfHistory.some(
+                    local => Math.abs(local.timestamp - serverEntry.timestamp) < DEDUP_WINDOW
+                );
+                if (!hasNearby) {
+                    gfHistory.push({
+                        timestamp: serverEntry.timestamp,
+                        cfs: serverEntry.cfs,
+                        stage: serverEntry.stage
+                    });
+                    newFromServer++;
+                }
+            }
+
+            if (newFromServer > 0) {
+                // Sort chronologically and save
+                gfHistory.sort((a, b) => a.timestamp - b.timestamp);
+                gfHistory = gfHistory.filter(entry => entry.timestamp > cutoff);
+                saveGFHistory();
+                console.log(`📈 Merged ${newFromServer} server GF history entries, total: ${gfHistory.length}`);
+            }
+        } catch (e) {
+            console.warn('Failed to fetch server GF history (non-fatal):', e);
         }
     }
 

@@ -271,6 +271,46 @@ async function storePoRHistory(client, history) {
     console.log(`Stored ${newReadings.length} new PoR readings, total: ${trimmedReadings.length}`);
 }
 
+// Store GF estimate in rolling 24h server-side history
+// Ensures continuous history for graph display even when no browser is open
+// Pattern: single row with array of {timestamp, cfs, stage} readings
+async function storeGFHistory(client, prediction) {
+    if (!prediction?.predictedCFS) return;
+
+    const now = Date.now();
+    const newEntry = {
+        timestamp: now,
+        cfs: prediction.predictedCFS,
+        stage: prediction.predictedStage
+    };
+
+    // Load existing history
+    const { data: existing } = await client
+        .from('potomac_observations')
+        .select('data')
+        .eq('observation_type', 'gf_history')
+        .eq('gauge_id', 'system')
+        .single();
+
+    const existingReadings = existing?.data?.readings || [];
+
+    // Add new entry, trim to last 24h
+    const allReadings = [...existingReadings, newEntry];
+    const cutoff = now - (24 * 60 * 60 * 1000);
+    const trimmedReadings = allReadings.filter(r => r.timestamp > cutoff);
+
+    await client.from('potomac_observations').upsert({
+        observation_type: 'gf_history',
+        gauge_id: 'system',
+        data: {
+            readings: trimmedReadings,
+            lastUpdate: new Date().toISOString()
+        }
+    }, { onConflict: 'observation_type,gauge_id' });
+
+    console.log(`📈 GF history: stored ${prediction.predictedCFS} cfs, ${trimmedReadings.length} entries in 24h window`);
+}
+
 // Get PoR reading from X hours ago
 function getPoRFromHistory(history, hoursAgo) {
     if (!history?.length) return null;
@@ -1194,6 +1234,10 @@ exports.handler = async (event, context) => {
             if (prediction) {
                 await storePrediction(client, prediction);
                 console.log(`📊 New prediction: ${prediction.predictedCFS} cfs (${prediction.flowBin}, ${prediction.flowState})`);
+
+                // Store GF estimate in rolling 24h history for graph display
+                // This ensures the history line is continuous even when no browser is open
+                await storeGFHistory(client, prediction);
             }
         }
 

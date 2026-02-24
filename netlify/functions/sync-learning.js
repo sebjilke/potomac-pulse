@@ -66,6 +66,13 @@ exports.handler = async (event, context) => {
             }
         }
 
+        // GF history endpoint — server-side 24h history for graph display
+        if (endpoint === 'gf-history') {
+            if (event.httpMethod === 'GET') {
+                return await loadGFHistory(client);
+            }
+        }
+
         // Default: Original learning endpoints
         if (event.httpMethod === 'GET') {
             return await loadLearningData(client);
@@ -993,6 +1000,38 @@ async function loadForecastAccuracy(client) {
             statusCode: 500,
             headers,
             body: JSON.stringify({ error: 'Failed to load forecast accuracy' })
+        };
+    }
+}
+
+// Load server-side GF history (24h rolling) for graph display
+// Returns array of {timestamp, cfs, stage} readings
+async function loadGFHistory(client) {
+    try {
+        const { data: row, error } = await client
+            .from('potomac_observations')
+            .select('data')
+            .eq('observation_type', 'gf_history')
+            .eq('gauge_id', 'system')
+            .single();
+
+        if (error && error.code !== 'PGRST116') throw error;  // PGRST116 = no rows
+
+        const readings = row?.data?.readings || [];
+        const lastUpdate = row?.data?.lastUpdate || null;
+
+        return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ readings, lastUpdate })
+        };
+
+    } catch (error) {
+        console.error('Load GF history error:', error);
+        return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to load GF history' })
         };
     }
 }
