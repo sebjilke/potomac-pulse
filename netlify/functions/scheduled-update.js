@@ -294,6 +294,15 @@ async function storeGFHistory(client, prediction) {
 
     const existingReadings = existing?.data?.readings || [];
 
+    // Dedup guard: skip if last entry is within 30 minutes (prevents duplicates on retries)
+    if (existingReadings.length > 0) {
+        const lastEntry = existingReadings[existingReadings.length - 1];
+        if (now - lastEntry.timestamp < 30 * 60 * 1000) {
+            console.log(`📈 GF history: skipped — last entry is ${((now - lastEntry.timestamp) / 60000).toFixed(0)}min old`);
+            return;
+        }
+    }
+
     // Add new entry, trim to last 24h
     const allReadings = [...existingReadings, newEntry];
     const cutoff = now - (24 * 60 * 60 * 1000);

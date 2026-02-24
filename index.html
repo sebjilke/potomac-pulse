@@ -2219,6 +2219,12 @@
                 gfHistory = gfHistory.filter(entry => entry.timestamp > cutoff);
                 saveGFHistory();
                 console.log(`📈 Merged ${newFromServer} server GF history entries, total: ${gfHistory.length}`);
+
+                // Re-render forecast graph if it already rendered (fixes first-load race condition
+                // where graph draws before server history arrives)
+                if (gfEstimate) {
+                    updateForecastPeriods(gfEstimate);
+                }
             }
         } catch (e) {
             console.warn('Failed to fetch server GF history (non-fatal):', e);
