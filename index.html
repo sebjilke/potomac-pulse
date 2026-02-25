@@ -2119,11 +2119,75 @@
                 // Clean up old entries
                 const cutoff = Date.now() - POR_HISTORY_MAX_AGE;
                 porHistory = porHistory.filter(entry => entry.timestamp > cutoff);
-                console.log(`📊 Loaded ${porHistory.length} PoR history entries`);
+                console.log(`📊 Loaded ${porHistory.length} PoR history entries from localStorage`);
             }
         } catch (e) {
             console.warn('Failed to load PoR history:', e);
             porHistory = [];
+        }
+
+        // Also fetch server-side PoR history (fills gaps when device was closed)
+        // This is the key fix for cross-device consistency: without server PoR history,
+        // a fresh device can't time-shift and produces wrong GF estimates
+        fetchServerPoRHistory();
+    }
+
+    // Fetch server-side PoR history and merge with localStorage entries
+    // Server stores 48h of 15-min USGS readings (via storePoRHistory in scheduled-update.js)
+    // Client stores 72h of 10-min readings. Merge fills gaps from when device was closed.
+    // Re-triggers GF estimation if server data expands a cold-start device's history.
+    async function fetchServerPoRHistory() {
+        try {
+            const response = await fetch(SYNC_API + '?endpoint=por-history');
+            if (!response.ok) return;
+
+            const result = await response.json();
+            const serverReadings = result.readings || [];
+            if (serverReadings.length === 0) return;
+
+            const cutoff = Date.now() - POR_HISTORY_MAX_AGE;
+            const DEDUP_WINDOW = 5 * 60 * 1000;  // 5 minutes
+
+            // Filter server readings to 72h window (client keeps more than server's 48h)
+            const validServerReadings = serverReadings.filter(r => r.timestamp > cutoff);
+
+            // Track pre-merge count for re-trigger decision
+            const countBefore = porHistory.length;
+
+            // Find server entries that don't overlap with existing client entries
+            let newFromServer = 0;
+            for (const serverEntry of validServerReadings) {
+                const hasNearby = porHistory.some(
+                    local => Math.abs(local.timestamp - serverEntry.timestamp) < DEDUP_WINDOW
+                );
+                if (!hasNearby) {
+                    porHistory.push({
+                        timestamp: serverEntry.timestamp,
+                        cfs: serverEntry.cfs,
+                        stage: serverEntry.stage || null  // Server entries lack stage
+                    });
+                    newFromServer++;
+                }
+            }
+
+            if (newFromServer > 0) {
+                // Sort chronologically and trim
+                porHistory.sort((a, b) => a.timestamp - b.timestamp);
+                porHistory = porHistory.filter(entry => entry.timestamp > cutoff);
+                savePoRHistory();
+                console.log(`📊 Merged ${newFromServer} server PoR history entries, total: ${porHistory.length}`);
+
+                // Re-trigger GF estimation if server data significantly expanded
+                // a cold-start device's history (had <4 entries, now has ≥4).
+                // getPoRRiseRate() requires ≥4 entries — without them, flow state
+                // falls back to NWS forecast and correction bins differ.
+                if (gfDataReady && countBefore < 4 && porHistory.length >= 4) {
+                    console.log(`📊 PoR history expanded from ${countBefore} to ${porHistory.length} entries — re-running GF estimation`);
+                    updateGreatFallsUI();
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to fetch server PoR history (non-fatal):', e);
         }
     }
 

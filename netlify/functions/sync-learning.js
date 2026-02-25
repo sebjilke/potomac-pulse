@@ -73,6 +73,13 @@ exports.handler = async (event, context) => {
             }
         }
 
+        // PoR history endpoint — server-side 48h history for cross-device time-shifting
+        if (endpoint === 'por-history') {
+            if (event.httpMethod === 'GET') {
+                return await loadPoRHistory(client);
+            }
+        }
+
         // Default: Original learning endpoints
         if (event.httpMethod === 'GET') {
             return await loadLearningData(client);
@@ -1032,6 +1039,39 @@ async function loadGFHistory(client) {
             statusCode: 500,
             headers,
             body: JSON.stringify({ error: 'Failed to load GF history' })
+        };
+    }
+}
+
+// Load server-side PoR history (48h rolling) for cross-device time-shifting
+// Written by storePoRHistory() in scheduled-update.js every 2h
+// Returns array of {timestamp, cfs} readings from USGS 15-min data
+async function loadPoRHistory(client) {
+    try {
+        const { data: row, error } = await client
+            .from('potomac_observations')
+            .select('data')
+            .eq('observation_type', 'por_history')
+            .eq('gauge_id', 'system')
+            .single();
+
+        if (error && error.code !== 'PGRST116') throw error;  // PGRST116 = no rows
+
+        const readings = row?.data?.readings || [];
+        const lastUpdate = row?.data?.lastUpdate || null;
+
+        return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ readings, lastUpdate })
+        };
+
+    } catch (error) {
+        console.error('Load PoR history error:', error);
+        return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to load PoR history' })
         };
     }
 }
