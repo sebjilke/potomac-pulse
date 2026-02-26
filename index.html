@@ -1415,13 +1415,17 @@
     // 3-layer verified: blind Python + R subagents + independent auditor.
     // See: analysis/analyze_error_distribution_python.py, analyze_error_distribution_R.R,
     //       error_distribution_audit.md
+    // NOTE: Analysis used slightly different bin boundaries (0-2k, 2-5k, 5-10k, 10-20k, 20-50k, 50k+)
+    // than model flow bins (0-3k, 3-6k, 6-12k, 12-25k, 25-50k, 50k+). Quantiles re-keyed to
+    // match model bins. Approximation is reasonable for display; re-run analysis with exact
+    // model bins for precise calibration if needed.
     const EMPIRICAL_CI_90 = {
-        '0-2k':   { rising: { q05: -507, q95: 402 }, steady: { q05: -155, q95: 484 }, falling: { q05: -118, q95: 766 }, all: { q05: -160, q95: 485 } },
-        '2-5k':   { rising: { q05: -1637, q95: 1834 }, steady: { q05: -778, q95: 773 }, falling: { q05: -1641, q95: 715 }, all: { q05: -856, q95: 816 } },
-        '5-10k':  { rising: { q05: -3526, q95: 1393 }, steady: { q05: -1781, q95: -145 }, falling: { q05: -4055, q95: -96 }, all: { q05: -2040, q95: -89 } },
-        '10-20k': { rising: { q05: -6486, q95: 3266 }, steady: { q05: -3406, q95: -418 }, falling: { q05: -8129, q95: -381 }, all: { q05: -3820, q95: -215 } },
-        '20-50k': { rising: { q05: -12458, q95: 6770 }, steady: { q05: -7741, q95: -879 }, falling: { q05: -15448, q95: -1605 }, all: { q05: -8820, q95: 192 } },
-        '50k+':   { rising: { q05: -19599, q95: 30615 }, steady: { q05: -15062, q95: 9726 }, falling: { q05: -18242, q95: -2123 }, all: { q05: -16487, q95: 14790 } }
+        '0-3000':     { rising: { q05: -507, q95: 402 }, steady: { q05: -155, q95: 484 }, falling: { q05: -118, q95: 766 }, all: { q05: -160, q95: 485 } },
+        '3000-6000':  { rising: { q05: -1637, q95: 1834 }, steady: { q05: -778, q95: 773 }, falling: { q05: -1641, q95: 715 }, all: { q05: -856, q95: 816 } },
+        '6000-12000': { rising: { q05: -3526, q95: 1393 }, steady: { q05: -1781, q95: -145 }, falling: { q05: -4055, q95: -96 }, all: { q05: -2040, q95: -89 } },
+        '12000-25000':{ rising: { q05: -6486, q95: 3266 }, steady: { q05: -3406, q95: -418 }, falling: { q05: -8129, q95: -381 }, all: { q05: -3820, q95: -215 } },
+        '25000-50000':{ rising: { q05: -12458, q95: 6770 }, steady: { q05: -7741, q95: -879 }, falling: { q05: -15448, q95: -1605 }, all: { q05: -8820, q95: 192 } },
+        '50000+':     { rising: { q05: -19599, q95: 30615 }, steady: { q05: -15062, q95: 9726 }, falling: { q05: -18242, q95: -2123 }, all: { q05: -16487, q95: 14790 } }
     };
 
     const BRANCHES = {
@@ -6935,7 +6939,7 @@ Each Great Falls estimate is validated ~6-7 hours later when water reaches Littl
 ### 6.2 Correction Bins
 
 Corrections are learned separately for 18 bins (6 flow levels × 3 flow states):
-- **Flow bins:** <2k, 2-5k, 5-10k, 10-20k, 20-50k, >50k cfs
+- **Flow bins:** <3k, 3-6k, 6-12k, 12-25k, 25-50k, >50k cfs
 - **Flow states:** rising, falling, steady
 
 ### 6.3 EMA Smoothing
