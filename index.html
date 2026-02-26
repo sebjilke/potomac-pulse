@@ -1412,20 +1412,16 @@
     // Gaussian ±1.645σ would mis-specify uncertainty by up to 745%.
     // Per-bin empirical quantiles (q05, q95) provide calibrated 90% CI.
     // CI formula: [estimate + q05, estimate + q95]
-    // 3-layer verified: blind Python + R subagents + independent auditor.
-    // See: analysis/analyze_error_distribution_python.py, analyze_error_distribution_R.R,
-    //       error_distribution_audit.md
-    // NOTE: Analysis used slightly different bin boundaries (0-2k, 2-5k, 5-10k, 10-20k, 20-50k, 50k+)
-    // than model flow bins (0-3k, 3-6k, 6-12k, 12-25k, 25-50k, 50k+). Quantiles re-keyed to
-    // match model bins. Approximation is reasonable for display; re-run analysis with exact
-    // model bins for precise calibration if needed.
+    // v2 recalibration: correct model bin boundaries + v30.0 logistic ramp EF weight.
+    // 3-layer verified: blind Python + R subagents on 117,704 hourly obs.
+    // See: analysis/error_distribution_v2_python.py, error_distribution_v2_R.R
     const EMPIRICAL_CI_90 = {
-        '0-3000':     { rising: { q05: -507, q95: 402 }, steady: { q05: -155, q95: 484 }, falling: { q05: -118, q95: 766 }, all: { q05: -160, q95: 485 } },
-        '3000-6000':  { rising: { q05: -1637, q95: 1834 }, steady: { q05: -778, q95: 773 }, falling: { q05: -1641, q95: 715 }, all: { q05: -856, q95: 816 } },
-        '6000-12000': { rising: { q05: -3526, q95: 1393 }, steady: { q05: -1781, q95: -145 }, falling: { q05: -4055, q95: -96 }, all: { q05: -2040, q95: -89 } },
-        '12000-25000':{ rising: { q05: -6486, q95: 3266 }, steady: { q05: -3406, q95: -418 }, falling: { q05: -8129, q95: -381 }, all: { q05: -3820, q95: -215 } },
-        '25000-50000':{ rising: { q05: -12458, q95: 6770 }, steady: { q05: -7741, q95: -879 }, falling: { q05: -15448, q95: -1605 }, all: { q05: -8820, q95: 192 } },
-        '50000+':     { rising: { q05: -19599, q95: 30615 }, steady: { q05: -15062, q95: 9726 }, falling: { q05: -18242, q95: -2123 }, all: { q05: -16487, q95: 14790 } }
+        '0-3000':     { rising: { q05: -1039, q95: 280 }, steady: { q05: -467, q95: 440 }, falling: { q05: -875, q95: 560 }, all: { q05: -489, q95: 440 } },
+        '3000-6000':  { rising: { q05: -2451, q95: 431 }, steady: { q05: -1230, q95: 251 }, falling: { q05: -2497, q95: 254 }, all: { q05: -1399, q95: 254 } },
+        '6000-12000': { rising: { q05: -4560, q95: 1174 }, steady: { q05: -2377, q95: -159 }, falling: { q05: -5041, q95: -77 }, all: { q05: -2786, q95: -128 } },
+        '12000-25000':{ rising: { q05: -7695, q95: 3921 }, steady: { q05: -4003, q95: -450 }, falling: { q05: -9093, q95: -540 }, all: { q05: -4588, q95: -146 } },
+        '25000-50000':{ rising: { q05: -12368, q95: 7884 }, steady: { q05: -7709, q95: -707 }, falling: { q05: -15543, q95: -1861 }, all: { q05: -8824, q95: 976 } },
+        '50000+':     { rising: { q05: -17648, q95: 34116 }, steady: { q05: -13163, q95: 12622 }, falling: { q05: -16344, q95: -1048 }, all: { q05: -14377, q95: 17848 } }
     };
 
     const BRANCHES = {
