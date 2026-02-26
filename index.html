@@ -3201,15 +3201,7 @@
         const stageEl = document.getElementById("gf-stage");
         stageEl.textContent = gfEstimate.stage.toFixed(2);
 
-        // Show 90% CI range below the main estimate (v29.1)
-        const ciRangeEl = document.getElementById("gf-ci-range");
-        const ciTextEl = document.getElementById("gf-ci-text");
-        if (gfEstimate.uncertaintyRange) {
-            ciTextEl.textContent = `${gfEstimate.uncertaintyRange.lowCFS.toLocaleString()} – ${gfEstimate.uncertaintyRange.highCFS.toLocaleString()} cfs`;
-            ciRangeEl.style.display = '';
-        } else {
-            ciRangeEl.style.display = 'none';
-        }
+        // 90% CI is shown only in the estimation inputs section below, not in the main estimate card
 
         // EF-only fallback mode: PoR is ice-affected, using Edwards Ferry model only
         if (gfEstimate.efOnly) {
