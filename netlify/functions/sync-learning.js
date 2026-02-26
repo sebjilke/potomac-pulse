@@ -3,12 +3,15 @@
 
 const { getSupabase, GF_FLOW_BINS, getFlowBin, estimateLFFlowFromStage } = require('./shared/model');
 
-// Admin PIN from environment variable (defaults to legacy value if not set)
-const ADMIN_PIN = process.env.ADMIN_PIN || '1506';
+// Admin PIN from environment variable (no hardcoded fallback for security)
+const ADMIN_PIN = process.env.ADMIN_PIN;
 
 // CORS headers for browser requests
+// Production default locks to Netlify domain; set CORS_ORIGIN=* for deploy previews/localhost
+const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || 'https://potomac-pulse.netlify.app';
+
 const headers = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Content-Type': 'application/json'
@@ -672,8 +675,8 @@ async function saveGFLearningData(client, data) {
         // Keeps higher flow bins which are less likely to be contaminated
         if (action === 'resetLowFlowBins') {
             const { pin } = data;
-            if (pin !== ADMIN_PIN) {
-                return { statusCode: 403, headers, body: JSON.stringify({ error: 'Invalid PIN' }) };
+            if (!ADMIN_PIN || pin !== ADMIN_PIN) {
+                return { statusCode: !ADMIN_PIN ? 503 : 403, headers, body: JSON.stringify({ error: !ADMIN_PIN ? 'Admin PIN not configured' : 'Invalid PIN' }) };
             }
 
             // Only delete low-flow bins (0-3000 and 3000-6000) - most affected by ice
@@ -743,9 +746,8 @@ async function saveGFLearningData(client, data) {
         // Action: Reset all GF learning data (admin only, requires PIN)
         if (action === 'resetGFLearning') {
             const { pin } = data;
-            // Simple PIN protection (same as client-side learning tab)
-            if (pin !== ADMIN_PIN) {
-                return { statusCode: 403, headers, body: JSON.stringify({ error: 'Invalid PIN' }) };
+            if (!ADMIN_PIN || pin !== ADMIN_PIN) {
+                return { statusCode: !ADMIN_PIN ? 503 : 403, headers, body: JSON.stringify({ error: !ADMIN_PIN ? 'Admin PIN not configured' : 'Invalid PIN' }) };
             }
 
             // Delete all correction bins
@@ -798,8 +800,8 @@ async function saveGFLearningData(client, data) {
         // Action: Reset forecast accuracy data (admin only, requires PIN)
         if (action === 'resetForecastAccuracy') {
             const { pin } = data;
-            if (pin !== ADMIN_PIN) {
-                return { statusCode: 403, headers, body: JSON.stringify({ error: 'Invalid PIN' }) };
+            if (!ADMIN_PIN || pin !== ADMIN_PIN) {
+                return { statusCode: !ADMIN_PIN ? 503 : 403, headers, body: JSON.stringify({ error: !ADMIN_PIN ? 'Admin PIN not configured' : 'Invalid PIN' }) };
             }
 
             // Delete all forecast metadata (accuracy stats)
