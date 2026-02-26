@@ -1517,7 +1517,7 @@
     let gfLearningData = null;  // GF correction bins and metadata
     let gfDataReady = false;  // True when all GF dependencies are loaded
     let lastGFPredictionTime = 0;  // Throttle prediction storage
-    let lastGFValidationCheck = 0;  // Throttle validation checks
+    // v34.0: lastGFValidationCheck removed (client validation disabled)
     let gfPredictionRetryQueue = [];  // Queue for failed prediction stores
     const GF_PREDICTION_INTERVAL = 30 * 60 * 1000;  // Store prediction every 30 mins
     const GF_VALIDATION_CHECK_INTERVAL = 60 * 1000;  // Check validations every 1 min
@@ -1820,58 +1820,8 @@
     // Function signature preserved for backward compatibility with callers.
     async function checkGFValidations() { return; }
 
-    // Send validation to server with retry logic
-    // v24: Added actualStage and efEstimateCFS for anomaly detection
-    async function sendGFValidation(actualCFS, lfCFS, senecaCFS, actualStage = null, efEstimateCFS = null, retries = 0) {
-        try {
-            const response = await fetch(SYNC_API + '?endpoint=gf', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'recordValidation',
-                    actualCFS: actualCFS,
-                    lfCFS: lfCFS,
-                    senecaCFS: senecaCFS,
-                    actualStage: actualStage,      // v24: LF stage for anomaly detection
-                    efEstimateCFS: efEstimateCFS   // v24: EF estimate for cross-check
-                })
-            });
-
-            if (response.ok) {
-                const result = await response.json();
-                // v33.0: Two-tier anomaly detection logging
-                if (result.isHardFlagged) {
-                    console.log('🧊 GF validation HARD FLAGGED (data corruption):', result);
-                } else if (result.isSoftFlagged) {
-                    console.log('⚠️ GF validation SOFT FLAGGED (model disagreement, included in learning):', result);
-                } else {
-                    console.log('🌊 GF validation CLEAN:', result);
-                }
-                return true;
-            } else if (retries < 2) {
-                // Retry up to 2 times
-                console.warn('GF validation failed, retrying...');
-                await new Promise(r => setTimeout(r, 1000));  // Wait 1 second
-                return sendGFValidation(actualCFS, lfCFS, senecaCFS, actualStage, efEstimateCFS, retries + 1);
-            }
-            return false;
-        } catch (e) {
-            if (retries < 2) {
-                console.warn('GF validation error, retrying...', e);
-                await new Promise(r => setTimeout(r, 1000));
-                return sendGFValidation(actualCFS, lfCFS, senecaCFS, actualStage, efEstimateCFS, retries + 1);
-            }
-            console.warn('Failed to record GF validation after retries:', e);
-            return false;
-        }
-    }
-
-    // Manual validation trigger (for testing)
-    window.triggerGFValidation = async function() {
-        lastGFValidationCheck = 0;  // Reset debounce
-        await checkGFValidations();
-        console.log('🌊 Manual GF validation check triggered');
-    };
+    // v34.0: sendGFValidation() and triggerGFValidation() removed — dead code.
+    // Client-side validation disabled; server handles all validations.
 
     // Get learned correction for current conditions
     // Uses EMA-weighted mean and filters outliers
@@ -2695,12 +2645,13 @@
         // Estimate stage using Little Falls equivalent (what paddlers know)
         const estimatedStage = estimateLFStage(estimatedCFS);
 
-        // Calculate uncertainty range — empirical 90% CI (v29.1)
-        // CI formula: [estimate + q05, estimate + q95] where q05/q95 are error quantiles
+        // Calculate uncertainty range — empirical 90% CI (v29.1, formula fixed v34.0)
+        // error = blended - actual, so actual = estimate - error
+        // CI for actual: [estimate - q95, estimate - q05]
         let uncertaintyRange = null;
         if (uncertainty) {
-            const lowCFS = Math.max(0, Math.round(estimatedCFS + uncertainty.q05));
-            const highCFS = Math.round(estimatedCFS + uncertainty.q95);
+            const lowCFS = Math.max(0, Math.round(estimatedCFS - uncertainty.q95));
+            const highCFS = Math.round(estimatedCFS - uncertainty.q05);
             uncertaintyRange = {
                 lowCFS: lowCFS,
                 highCFS: highCFS,
