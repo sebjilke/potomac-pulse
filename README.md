@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v34.2 (February 2026)
+**Current Version**: v34.3 (February 2026)
 
 ## Quick Start
 
@@ -38,6 +38,7 @@ files/potomac-site/
 ├── netlify.toml                  # Build config, function routing
 ├── package.json                  # Dependencies (@supabase/supabase-js)
 └── netlify/functions/
+    ├── shared/model.js           # Shared server module (Supabase init, flow bins, rating curve)
     ├── sync-learning.js          # Cloud sync API (learning data, predictions, PoR/GF history)
     ├── scheduled-update.js       # 2-hour background job (data collection, validation, predictions)
     ├── build-ef-correlation*.js  # EF correlation builders
@@ -45,7 +46,7 @@ files/potomac-site/
     └── analyze-stage-errors.js
 ```
 
-## Current Model (v34.2)
+## Current Model (v34.3)
 
 All estimation parameters validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits.
 
@@ -165,6 +166,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v34.3 | 2026-02-26 | Extract shared server module (shared/model.js) — deduplicate Supabase init, flow bins, rating curve |
 | v34.2 | 2026-02-26 | Client-side cleanup: collapsible estimation inputs, null-check guards, Tech Appendix version fix, temperature docs |
 | v34.1 | 2026-02-26 | Fix 90% CI display (center on corrected estimate) and Learning tab bin data race condition |
 | v34.0 | 2026-02-26 | EMA learning fix: drop Seneca noise, 2.5h validation window, server-only updates, eliminate race conditions |
@@ -179,8 +181,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See Technical Appendix for complete version history (v16–v34.2).
+See Technical Appendix for complete version history (v16–v34.3).
 
 ---
 
-*Last updated: 2026-02-26 (v34.2 — Client-side cleanup: collapsible inputs, null guards, version fix, temp docs)*
+*Last updated: 2026-02-26 (v34.3 — Shared server module extraction)*

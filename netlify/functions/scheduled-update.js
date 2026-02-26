@@ -2,19 +2,7 @@
 // Runs every 2 hours to fetch data, store history, and validate predictions
 // This allows the learning system to work even when no browsers are open
 
-const { createClient } = require('@supabase/supabase-js');
-
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
-let supabase = null;
-
-function getSupabase() {
-    if (!supabase && supabaseUrl && supabaseKey) {
-        supabase = createClient(supabaseUrl, supabaseKey);
-    }
-    return supabase;
-}
+const { getSupabase, GF_FLOW_BINS, getFlowBin, estimateLFFlowFromStage } = require('./shared/model');
 
 // Constants matching client-side code
 // EMPIRICAL CORRECTION (Jan 2026): Searcy × 0.80 based on cross-correlation analysis
@@ -58,16 +46,7 @@ function getEFWeight(estimatedFlow) {
     return W_MAX / (1 + Math.exp(-K * (Math.log(estimatedFlow) - MIDPOINT)));
 }
 
-const GF_FLOW_BINS = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
-
-function getFlowBin(cfs) {
-    if (cfs < 3000) return '0-3000';
-    if (cfs < 6000) return '3000-6000';
-    if (cfs < 12000) return '6000-12000';
-    if (cfs < 25000) return '12000-25000';
-    if (cfs < 50000) return '25000-50000';
-    return '50000+';
-}
+// GF_FLOW_BINS and getFlowBin imported from ./shared/model
 
 function getFlowMultiplier(lfFlow) {
     const flow = Math.max(lfFlow, 1000);
@@ -348,32 +327,7 @@ function getPoRFromHistory(history, hoursAgo) {
     return null;
 }
 
-// Estimate LF flow from stage (inverse rating curve)
-// Used for ice/anomaly detection - if actual CFS is much lower than expected from stage,
-// likely indicates frazil ice affecting ADVM velocity measurement
-// SYNC WARNING: This function is duplicated in index.html. Keep both in sync!
-function estimateLFFlowFromStage(stage) {
-    // Inverse of estimateLFStage - find CFS that produces given stage
-    // Uses piecewise linear interpolation (same breakpoints as estimateLFStage)
-    if (stage < 2.40) return 0;
-    if (stage < 2.46) return ((stage - 2.40) / 0.06) * 600;
-    if (stage < 2.69) return 600 + ((stage - 2.46) / 0.23) * 700;
-    if (stage < 2.83) return 1300 + ((stage - 2.69) / 0.14) * 700;
-    if (stage < 2.96) return 2000 + ((stage - 2.83) / 0.13) * 600;
-    if (stage < 3.09) return 2600 + ((stage - 2.96) / 0.13) * 600;
-    if (stage < 3.16) return 3200 + ((stage - 3.09) / 0.07) * 400;
-    if (stage < 3.23) return 3600 + ((stage - 3.16) / 0.07) * 600;
-    if (stage < 3.35) return 4200 + ((stage - 3.23) / 0.12) * 800;
-    if (stage < 3.46) return 5000 + ((stage - 3.35) / 0.11) * 700;
-    if (stage < 3.67) return 5700 + ((stage - 3.46) / 0.21) * 1800;
-    if (stage < 3.95) return 7500 + ((stage - 3.67) / 0.28) * 2500;
-    if (stage < 4.29) return 10000 + ((stage - 3.95) / 0.34) * 3000;
-    if (stage < 5.50) return 13000 + ((stage - 4.29) / 1.21) * 15000;
-    if (stage < 6.79) return 28000 + ((stage - 5.50) / 1.29) * 22000;
-    if (stage < 8.36) return 50000 + ((stage - 6.79) / 1.57) * 30000;
-    if (stage < 10.93) return 80000 + ((stage - 8.36) / 2.57) * 70000;
-    return 150000 + ((stage - 10.93) / 2.5) * 100000;
-}
+// estimateLFFlowFromStage imported from ./shared/model
 
 // Estimate LF-equivalent stage from flow
 // Based on USGS field measurements at Little Falls (01646500), 2015-2025
