@@ -388,25 +388,43 @@
         .branch-list { display: none; padding: 4px 8px 8px; }
         .branch.open .branch-list { display: block; }
 
+        /* ==================== GAUGE HEADER (sticky) ==================== */
+        .gauge-header {
+            display: grid;
+            grid-template-columns: 8px 1fr 55px 44px 50px 46px;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            font-size: 0.65rem;
+            color: #94a3b8;
+            letter-spacing: 0.02em;
+        }
+
         /* ==================== GAUGE ROWS ==================== */
         .gauge {
             display: grid;
-            grid-template-columns: 8px 1fr 26px 50px 40px 55px;
+            grid-template-columns: 8px 1fr 55px 44px 50px 46px;
             align-items: center;
-            gap: 6px;
-            padding: 8px 10px;
-            margin: 2px 0;
-            border-radius: 4px;
+            gap: 8px;
+            padding: 10px 10px;
+            margin: 0;
+            border-bottom: 1px solid rgba(51,65,85,0.4);
             cursor: pointer;
             font-size: 0.8rem;
-            min-height: 40px;
+            min-height: 44px;
             transition: background 0.15s;
         }
+        .gauge:last-child { border-bottom: none; }
         .gauge:hover { background: rgba(96,165,250,0.1); }
         .gauge:focus { outline: 2px solid #60a5fa; outline-offset: -2px; }
         .gauge-dot { width: 6px; height: 6px; border-radius: 50%; }
         .gauge-nm { color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .gauge-trend { font-size: 0.9rem; text-align: center; }
+        .gauge-trend { font-size: 0.72rem; text-align: right; font-weight: 600; white-space: nowrap; }
         .gauge-pct { color: #a78bfa; text-align: right; font-size: 0.7rem; }
         .gauge-q { color: #60a5fa; text-align: right; font-size: 0.8rem; font-weight: 500; }
         .gauge-q.estimated { color: #94a3b8; font-style: italic; }
@@ -417,16 +435,16 @@
 
         @media (max-width: 768px) {
             .gauge, .gauge-header {
-                grid-template-columns: 8px 1fr 20px 36px 36px 42px !important;
+                grid-template-columns: 8px 1fr 48px 38px 42px 38px !important;
                 font-size: 0.75rem;
-                padding: 8px 8px;
-                gap: 4px !important;
+                padding: 9px 8px;
+                gap: 5px !important;
             }
             .gauge-nm { font-size: 0.7rem; }
-            .gauge-trend { font-size: 0.8rem; }
+            .gauge-trend { font-size: 0.65rem; }
             .gauge-pct { font-size: 0.6rem; }
             .gauge-q { font-size: 0.7rem; }
-            .gauge-t { font-size: 0.65rem; }
+            .gauge-t { font-size: 0.62rem; }
         }
 
         .trend-up { color: #ef4444; }
@@ -5967,13 +5985,13 @@
 
     function buildBranches() {
         // Column header to explain what each number means (matches .gauge grid layout)
-        let html = `<div class="gauge-header" style="display:grid;grid-template-columns:8px 1fr 26px 50px 40px 55px;align-items:center;gap:6px;padding:6px 10px 8px;margin-bottom:4px;border-bottom:1px solid #334155;font-size:0.65rem;color:#94a3b8;">
+        let html = `<div class="gauge-header">
             <div></div>
             <div>Gauge</div>
-            <div style="text-align:center;">Trend</div>
-            <div class="hdr-basin" style="text-align:right;">Basin</div>
+            <div style="text-align:right;">Trend</div>
+            <div style="text-align:right;">Basin</div>
             <div style="text-align:right;">CFS</div>
-            <div class="hdr-hrs" style="text-align:right;">Hrs→LF</div>
+            <div style="text-align:right;">Hrs→LF</div>
         </div>`;
         for (const [bk, b] of Object.entries(BRANCHES)) {
             const open = bk === "mainstem" ? "open" : "";
