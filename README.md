@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v34.1 (February 2026)
+**Current Version**: v34.2 (February 2026)
 
 ## Quick Start
 
@@ -45,7 +45,7 @@ files/potomac-site/
     └── analyze-stage-errors.js
 ```
 
-## Current Model (v34.0)
+## Current Model (v34.2)
 
 All estimation parameters validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits.
 
@@ -165,6 +165,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v34.2 | 2026-02-26 | Client-side cleanup: collapsible estimation inputs, null-check guards, Tech Appendix version fix, temperature docs |
 | v34.1 | 2026-02-26 | Fix 90% CI display (center on corrected estimate) and Learning tab bin data race condition |
 | v34.0 | 2026-02-26 | EMA learning fix: drop Seneca noise, 2.5h validation window, server-only updates, eliminate race conditions |
 | v33.1 | 2026-02-23 | 24h stored GF history replaces PoR-only re-estimation on forecast graph |
@@ -178,8 +179,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See Technical Appendix for complete version history (v16–v34.1).
+See Technical Appendix for complete version history (v16–v34.2).
 
 ---
 
-*Last updated: 2026-02-26 (v34.1 — Fix CI display + Learning tab bin data)*
+*Last updated: 2026-02-26 (v34.2 — Client-side cleanup: collapsible inputs, null guards, version fix, temp docs)*

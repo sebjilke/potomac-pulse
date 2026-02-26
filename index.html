@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v34</title>
+    <title>Potomac Pulse v34.2</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -689,8 +689,8 @@
                             </div>
                         </div>
 
-                        <div style="margin-bottom:15px;">
-                            <div style="font-size:0.7rem;color:#60a5fa;padding:8px 0;border-bottom:1px solid #334155;margin-bottom:8px;">📥 Estimation Inputs</div>
+                        <details style="margin-bottom:15px;">
+                            <summary style="font-size:0.7rem;color:#60a5fa;cursor:pointer;padding:8px 0;border-bottom:1px solid #334155;margin-bottom:8px;list-style:none;">📥 Estimation Inputs ▸</summary>
                             <div style="background:rgba(0,0,0,0.15);padding:10px;border-radius:6px;">
                                 <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
                                     <span style="color:#94a3b8;">Point of Rocks (83.5%)</span>
@@ -740,7 +740,7 @@
                                     <div style="font-size:0.5rem;color:#64748b;margin-top:2px;">Edwards Ferry power-law estimate</div>
                                 </div>
                             </div>
-                        </div>
+                        </details>
 
                         <!-- Hidden validation elements for JS compatibility - moved display to Learning tab -->
                         <div id="gf-validation" style="display:none;">
@@ -1386,8 +1386,9 @@
     };
     const EF_HISTORY_MAX = 48;  // Keep ~12 hours of readings at 15-min intervals
 
-    // Water temperature for EF model cold adjustment
-    // Fetched from Point of Rocks (01638500) which has temp sensor
+    // Water temperature for cold-water EF model selection (≤10°C → cold coefficients)
+    // NOTE: Fetched from Point of Rocks (01638500), NOT Edwards Ferry (no temp sensor).
+    // Analysis CSVs use column name 'ef_temp_c' — this is a legacy misnomer.
     let waterTempC = null;  // null = unavailable, use default model
 
     // Flow-dependent EF weight for ensemble model
@@ -3093,6 +3094,7 @@
 
     // Update Great Falls display in UI
     function updateGreatFallsUI() {
+        if (!document.getElementById("gf-cfs")) return; // DOM not ready
         // Show loading state until GF corrections AND Edwards Ferry data are loaded
         // This prevents the GF value from "jumping" when EF arrives
         const efReady = edwardsFerryData.current !== null;
@@ -4576,6 +4578,7 @@
         const ef = edwardsFerryData.current;
 
         // LF Actual
+        if (!document.getElementById("dash-lf-cfs")) return; // Dashboard not rendered
         document.getElementById("dash-lf-cfs").textContent = lf?.q ? Math.round(lf.q).toLocaleString() : "--";
         document.getElementById("dash-lf-stage").textContent = lf?.h ? `${lf.h.toFixed(2)} ft` : "-- ft";
 
@@ -6388,10 +6391,12 @@
     });
     
     // ==================== TECHNICAL APPENDIX DOWNLOAD ====================
+    // TODO: Tech Appendix methodology text needs comprehensive update for v30-v34 changes
+    // (logistic ramp, tributaries, two-tier flagging, EMA fix, etc.)
     function downloadTechAppendix() {
         const content = `# Potomac Pulse — Technical Appendix
 
-**Version:** 29.0 | **Date:** February 2026
+**Version:** 34.2 | **Date:** February 2026
 
 This document provides full methodological transparency for the Potomac Pulse prediction system. It is intended for scientists, hydrologists, and technically curious users who want to understand exactly how the model works.
 
@@ -6644,6 +6649,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v33.0 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Two-tier anomaly flagging: hard flags (stage-discharge, low-flow+high-stage, 3σ outlier) skip learning + accuracy; soft flags (EF discrepancy, large error) INCLUDED in learning (EMA clamped ±2σ) + accuracy. EF threshold standardized to 0.25. |
 | v33.1 | 2026-02-23 | 126 × EF^2.46 | 0.91 | — | 24h stored GF history on forecast graph: stores actual estimateGreatFalls() output in localStorage instead of simplified PoR-only re-estimation. Fixes low baseline and jump at NOW junction. Graph extended from [-12h, 48h] to [-24h, 48h]. Cold-start fallback to PoR-based estimation. Display-only. |
 | v34.0 | 2026-02-26 | 126 × EF^2.46 | 0.91 | — | Fix EMA learning system: (1) validate against raw LF instead of LF−Seneca estimate, eliminating ±50-200 cfs Seneca approximation noise; (2) cap validation delay at 2.5h to reject stale validations; (3) disable client-side validation — server is single source of truth, eliminating bin/metadata/EF-correlation race conditions. Audited by independent coding + hydrology experts. |
+| v34.2 | 2026-02-26 | 126 × EF^2.46 | 0.91 | — | Client-side cleanup: collapse Estimation Inputs (details/summary), null-check guards for DOM functions, fix Tech Appendix version (was stuck at v29.0), improve waterTempC documentation. No estimation logic changes. |
 | v34.1 | 2026-02-26 | 126 × EF^2.46 | 0.91 | — | Fix 90% CI display: center empirical CI on corrected estimate (was using pre-correction error quantiles, causing CI to not bracket the point estimate in biased bins). Fix Learning tab bin data: add updateGFBinStats() to updateGFLearningUI() so bin corrections display after data loads. Display-only fixes. |
 
 ### 4.7 Updating the Model
@@ -7207,7 +7213,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 ---
 
-*Generated by Potomac Pulse v34.1 — Fix 90% CI display (center on corrected estimate) and Learning tab bin data race condition. All parameters validated on 117,704 hourly observations (2011–2026)*
+*Generated by Potomac Pulse v34.2 — Client-side cleanup: collapsible estimation inputs, null-check guards, Tech Appendix version fix, improved temperature docs. All parameters validated on 117,704 hourly observations (2011–2026)*
 `;
 
         // Download as Markdown file
