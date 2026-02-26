@@ -645,10 +645,21 @@ async function validatePendingPredictions(client, usgsData) {
             continue;
         }
 
-        if (now >= validationDue) {
-            // Calculate actual GF CFS
-            const senecaFlow = seneca?.q || (lf.q * 0.01);
-            const actualCFS = lf.q - senecaFlow;
+        // v34.0: Reject validations >2.5h after due time
+        // With 2h cron, normal delay is 0-2h; beyond that, flow conditions have changed too much
+        // Predictions that miss the window remain pending until 48h stale cleanup expires them
+        const validationDelayMs = now - validationDue;
+        const VALIDATION_MAX_DELAY_MS = 2.5 * 60 * 60 * 1000;
+        if (now >= validationDue && validationDelayMs <= VALIDATION_MAX_DELAY_MS) {
+            const delayMinutes = Math.round(validationDelayMs / 60000);
+            console.log(`⏱️ Validation delay: ${delayMinutes}min after due time`);
+
+            // v34.0: Validate against raw LF discharge (not LF - Seneca estimate)
+            // Eliminates ±50-200 cfs noise from 1% Seneca approximation
+            // Correction naturally absorbs Seneca error + ungauged area signal
+            // Also makes anomaly checks more consistent (EF model and stage-discharge
+            // both predict LF-scale flow, so comparing to actual LF is more correct)
+            const actualCFS = lf.q;
 
             // Calculate CFS error
             const predictedCFS = pred.data.predictedCFS;

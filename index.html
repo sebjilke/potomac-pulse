@@ -1808,72 +1808,17 @@
         container.innerHTML = html;
     }
 
-    // Check if any pending predictions are ready for validation (debounced)
-    async function checkGFValidations() {
-        const now = Date.now();
-
-        // Debounce: only check every minute
-        if (now - lastGFValidationCheck < GF_VALIDATION_CHECK_INTERVAL) return;
-        lastGFValidationCheck = now;
-
-        if (!gfLearningData?.pendingPredictions?.length) return;
-
-        const lf = data[LF.id];
-        const seneca = data["01645000"];
-        if (!lf?.q) return;
-
-        const nowDate = new Date();
-
-        for (const pred of gfLearningData.pendingPredictions) {
-            // Validate date parsing
-            let validationDue;
-            try {
-                validationDue = new Date(pred.validationDue);
-                if (isNaN(validationDue.getTime())) {
-                    console.warn('Invalid validationDue date:', pred.validationDue);
-                    continue;
-                }
-            } catch (e) {
-                console.warn('Failed to parse validationDue:', e);
-                continue;
-            }
-
-            // Check if this prediction is ready for validation (due time has passed)
-            if (nowDate >= validationDue) {
-                // Sanity check: Skip validation if LF reading is unrealistic
-                // (gauge malfunction, freezing, or data error)
-                if (lf.q < 500 || lf.q > 500000) {
-                    console.warn(`⚠️ Skipping GF validation: LF reading ${lf.q} cfs is outside valid range (500-500k)`);
-                    continue;
-                }
-
-                // Back-calculate what GF was based on current LF
-                // GF_actual = LF - Seneca (roughly)
-                const senecaFlow = seneca?.q || (lf.q * 0.01);  // 1% estimate if no data
-                const actualGFCFS = lf.q - senecaFlow;
-
-                // Update EF hysteresis learning if we have EF trend from prediction
-                if (pred.efTrend && pred.predictedCFS) {
-                    updateEFHysteresis(pred.efTrend, pred.predictedCFS, actualGFCFS);
-                }
-
-                // Pass LF stage and EF estimate for anomaly detection (v24)
-                const lfStage = lf.h || null;  // LF stage at validation time
-                const efEstimate = pred.efEstimateCFS || null;  // EF estimate from prediction
-
-                const success = await sendGFValidation(actualGFCFS, lf.q, senecaFlow, lfStage, efEstimate);
-
-                if (success) {
-                    // Reload learning data to get updated corrections
-                    await loadGFLearningData();
-                    updateGFLearningUI();
-                }
-
-                // Only process one validation per cycle
-                break;
-            }
-        }
-    }
+    // v34.0: Client-side validation disabled — server is single source of truth
+    // The server's validatePendingPredictions() runs every 2h and handles all validations,
+    // including correction bin updates, metadata tracking, and EF correlation.
+    // Client-side validation created race conditions where both paths independently
+    // updated correction bins, metadata counters, and EF correlation concurrently.
+    // EF hysteresis learning (updateEFHysteresis) was only called from here — it now
+    // freezes at current converged values. This is acceptable: hysteresis applies a
+    // minor ±8% multiplier to the EF component (which is itself weighted 0-40%),
+    // and the multipliers have converged from extended operation.
+    // Function signature preserved for backward compatibility with callers.
+    async function checkGFValidations() { return; }
 
     // Send validation to server with retry logic
     // v24: Added actualStage and efEstimateCFS for anomaly detection
@@ -6749,6 +6694,7 @@ Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010
 | v32.3 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Fix accuracy metric: exclude flagged (ice-affected) observations from avgErrorPercent. Was including ~60 flagged obs with 15-30% errors, depressing reported accuracy by ~10pp. Now tracks validValidations separately. |
 | v33.0 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Two-tier anomaly flagging: hard flags (stage-discharge, low-flow+high-stage, 3σ outlier) skip learning + accuracy; soft flags (EF discrepancy, large error) INCLUDED in learning (EMA clamped ±2σ) + accuracy. EF threshold standardized to 0.25. |
 | v33.1 | 2026-02-23 | 126 × EF^2.46 | 0.91 | — | 24h stored GF history on forecast graph: stores actual estimateGreatFalls() output in localStorage instead of simplified PoR-only re-estimation. Fixes low baseline and jump at NOW junction. Graph extended from [-12h, 48h] to [-24h, 48h]. Cold-start fallback to PoR-based estimation. Display-only. |
+| v34.0 | 2026-02-26 | 126 × EF^2.46 | 0.91 | — | Fix EMA learning system: (1) validate against raw LF instead of LF−Seneca estimate, eliminating ±50-200 cfs Seneca approximation noise; (2) cap validation delay at 2.5h to reject stale validations; (3) disable client-side validation — server is single source of truth, eliminating bin/metadata/EF-correlation race conditions. Audited by independent coding + hydrology experts. |
 
 ### 4.7 Updating the Model
 
@@ -7264,6 +7210,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v34.0 | 2026-02-26 | Fix EMA learning system. Three structural flaws in nowcast validation: (1) Seneca noise — was subtracting noisy 1% Seneca estimate from LF to approximate GF, adding ±50-200 cfs noise; now validates against raw LF, correction naturally absorbs Seneca + ungauged area signal. (2) Timing jitter — was accepting validations with unbounded delay (0-48h); now capped at 2.5h after validationDue, rejecting stale validations where flow conditions changed too much. (3) Race condition — both client (every 30min) and server (every 2h) independently updated correction bins, metadata, and EF correlation; now server-only. Client checkGFValidations() disabled. EF hysteresis learning freezes at converged values (minor: ±8% on EF component weighted 0-40%). Originally proposed switching to +6h forecast-based learning, but two independent auditors (coding + hydrology) identified critical domain mismatch: forecast uses NWS inputs, nowcast uses observed gauge data — learning from NWS-contaminated errors would inject forecast bias into clean estimates. Revised approach fixes the nowcast path instead. |
 | v33.1 | 2026-02-23 | 24h stored GF history on forecast graph. Stores actual estimateGreatFalls() output in localStorage (mirroring porHistory pattern) instead of simplified PoR-only re-estimation. Fixes low baseline and visible jump at NOW junction caused by model mismatch (history was missing ~12% tributary flows, EF blending, flow-state corrections, LF ceiling). Graph extended from [-12h, 48h] to [-24h, 48h]. Cold-start fallback to computeGFHistoryFromPoR(). Display-only. |
 | v33.0 | 2026-02-21 | Two-tier anomaly flagging. Many of the ~60 flagged observations were likely legitimate estimation errors, not ice — USGS ice flags are a separate upstream system. Hard flags (Checks 2, 3, 5: stage-discharge contradiction, low-flow+high-stage, 3σ outlier) skip learning AND accuracy. Soft flags (Checks 1, 4: EF discrepancy, large error) are INCLUDED in learning with EMA clamped at ±2σ from bin mean, and INCLUDED in accuracy. Three-tier gauge_id: hard_flagged, soft_flagged, validated. EF threshold standardized to 0.25 (was 0.30 in sync-learning.js). Check 3 score standardized to +2 (was +1 in sync-learning.js). Independent auditor reviewed: accepted EMA clamping (R1), STATISTICAL_OUTLIER as hard (R2), three-tier DB (R3), Tech Appendix update (R5). |
 | v32.3 | 2026-02-21 | Fix accuracy metric inflated by flagged observations. The accuracy formula (100 − avgErrorPercent) included all observations in the denominator, including ~60 ice-flagged ones with 15–30% errors. These were correctly excluded from learning (correction bins) but incorrectly included in the accuracy metric. Fix: only non-flagged observations contribute to sumAbsErrorPercent and avgErrorPercent. New validValidations counter tracks clean observations. Dashboard shows "N valid / M total" split. Both sync-learning.js and scheduled-update.js fixed. |
@@ -7310,7 +7257,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 ---
 
-*Generated by Potomac Pulse v33.1 — 24h stored GF history on forecast graph. All parameters validated on 117,704 hourly observations (2011–2026)*
+*Generated by Potomac Pulse v34.0 — EMA learning system fix: validate against raw LF, 2.5h timing window, server-only updates. All parameters validated on 117,704 hourly observations (2011–2026)*
 `;
 
         // Download as Markdown file

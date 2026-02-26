@@ -592,90 +592,11 @@ async function saveGFLearningData(client, data) {
                     console.log(`   LF reading: ${Math.round(actualCFS)} cfs — included in learning (EMA clamped) + accuracy`);
                 }
 
-                // Update learning: hard flags skip entirely, soft flags use EMA clamping
-                if (!isHardFlagged) {
-                    binData.count += 1;
-                    binData.sumError += errorCFS;
-                    binData.sumErrorSq += errorCFS * errorCFS;
-                    binData.meanError = binData.sumError / binData.count;
-
-                    // EMA update with clamping for soft-flagged observations (R1)
-                    // Soft-flagged obs contribute to running sums (count, sumError, sumErrorSq)
-                    // but their EMA contribution is clamped at ±2σ from bin mean
-                    let learningError = errorCFS;
-                    if (isSoftFlagged && binData.count >= 10) {
-                        const variance = (binData.sumErrorSq / binData.count) - (binData.meanError * binData.meanError);
-                        const stdDev = Math.sqrt(Math.max(0, variance));
-                        const maxDelta = 2 * stdDev;
-                        learningError = Math.max(binData.meanError - maxDelta,
-                                        Math.min(binData.meanError + maxDelta, errorCFS));
-                        if (learningError !== errorCFS) {
-                            console.log(`   EMA clamped: ${Math.round(errorCFS)} → ${Math.round(learningError)} cfs (±2σ = ±${Math.round(maxDelta)})`);
-                        }
-                    }
-
-                    if (binData.count === 1) {
-                        binData.emaMeanError = learningError;
-                    } else {
-                        binData.emaMeanError = EMA_ALPHA * learningError + (1 - EMA_ALPHA) * (binData.emaMeanError || binData.meanError);
-                    }
-
-                    await client.from('potomac_observations').upsert({
-                        observation_type: 'gf_correction_bin',
-                        gauge_id: binKey,
-                        data: binData
-                    }, { onConflict: 'observation_type,gauge_id' });
-                }
-
-                // Update Edwards Ferry to GF CFS correlation (if we have EF stage data)
-                const efStage = pred.data.efStage;
-                if (efStage && actualCFS) {
-                    // Load existing correlation data
-                    const { data: efCorr } = await client
-                        .from('potomac_observations')
-                        .select('data')
-                        .eq('observation_type', 'ef_gf_correlation')
-                        .eq('gauge_id', 'system')
-                        .single();
-
-                    const corrData = efCorr?.data || {
-                        points: [],      // Array of {stage, cfs} pairs
-                        count: 0,
-                        sumStage: 0,
-                        sumCFS: 0,
-                        sumStageCFS: 0,  // For linear regression
-                        sumStageSq: 0
-                    };
-
-                    // Add new data point (keep last 200 points)
-                    corrData.points.push({ stage: efStage, cfs: actualCFS, timestamp: new Date().toISOString() });
-                    if (corrData.points.length > 200) {
-                        corrData.points = corrData.points.slice(-200);
-                    }
-
-                    // Update running sums for linear regression
-                    corrData.count += 1;
-                    corrData.sumStage += efStage;
-                    corrData.sumCFS += actualCFS;
-                    corrData.sumStageCFS += efStage * actualCFS;
-                    corrData.sumStageSq += efStage * efStage;
-
-                    // Calculate linear regression: CFS = slope * stage + intercept
-                    if (corrData.count >= 5) {
-                        const n = corrData.count;
-                        const slope = (n * corrData.sumStageCFS - corrData.sumStage * corrData.sumCFS) /
-                                      (n * corrData.sumStageSq - corrData.sumStage * corrData.sumStage);
-                        const intercept = (corrData.sumCFS - slope * corrData.sumStage) / n;
-                        corrData.slope = slope;
-                        corrData.intercept = intercept;
-                    }
-
-                    await client.from('potomac_observations').upsert({
-                        observation_type: 'ef_gf_correlation',
-                        gauge_id: 'system',
-                        data: corrData
-                    }, { onConflict: 'observation_type,gauge_id' });
-                }
+                // v34.0: Correction bin updates disabled in client path
+                // Server-side validatePendingPredictions() is the single source of truth
+                // for EMA bin updates and EF correlation. This eliminates the client/server
+                // race condition where both paths independently updated the same bins,
+                // metadata counters, and EF correlation data.
 
                 // Move prediction from pending to validated/hard_flagged/soft_flagged
                 await client.from('potomac_observations').update({
@@ -756,7 +677,7 @@ async function saveGFLearningData(client, data) {
                     action: 'recordValidation',
                     errorCFS,
                     errorPercent: errorPercent.toFixed(1),
-                    binUpdated: isHardFlagged ? null : binKey,
+                    binUpdated: null,  // v34.0: server-only bin updates
                     isOutlier,
                     // v33.0 two-tier fields
                     isHardFlagged,
