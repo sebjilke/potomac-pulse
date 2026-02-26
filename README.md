@@ -46,7 +46,7 @@ files/potomac-site/
     └── analyze-stage-errors.js
 ```
 
-## Current Model (v34.4)
+## Current Model (v34.5)
 
 All estimation parameters validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits.
 
