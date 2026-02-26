@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v34.4 (February 2026)
+**Current Version**: v34.5 (February 2026)
 
 ## Quick Start
 
@@ -166,6 +166,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v34.5 | 2026-02-26 | All Gauges UIX: sticky headers, row separators, trend column fix, responsive mobile |
 | v34.4 | 2026-02-26 | Security hardening: remove hardcoded PIN, lock CORS to production domain |
 | v34.3 | 2026-02-26 | Extract shared server module (shared/model.js) — deduplicate Supabase init, flow bins, rating curve |
 | v34.2 | 2026-02-26 | Client-side cleanup: collapsible estimation inputs, null-check guards, Tech Appendix version fix, temperature docs |
@@ -182,8 +183,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See Technical Appendix for complete version history (v16–v34.4).
+See Technical Appendix for complete version history (v16–v34.5).
 
 ---
 
-*Last updated: 2026-02-26 (v34.4 — Security hardening: PIN + CORS)*
+*Last updated: 2026-02-26 (v34.5 — All Gauges UIX improvements)*
