@@ -997,7 +997,7 @@
                                     <div id="dash-gf-validations" style="font-size:0.7rem;color:#a78bfa;">--</div>
                                 </div>
                                 <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
-                                    <div style="font-size:0.45rem;color:#64748b;">GF Error</div>
+                                    <div style="font-size:0.45rem;color:#64748b;" title="Mean error from delayed LF validation — noisy due to 2-4h timing lag and flow state changes during transit. Feeds EMA corrections.">Validation Err*</div>
                                     <div id="dash-gf-error" style="font-size:0.7rem;color:#94a3b8;">--</div>
                                 </div>
                                 <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
@@ -1009,6 +1009,8 @@
                                     <div id="dash-runs" style="font-size:0.7rem;color:#94a3b8;">--</div>
                                 </div>
                             </div>
+
+                            <div style="font-size:0.4rem;color:#475569;margin-bottom:6px;">*Validation error is approximate — compares GF predictions from ~7h ago against LF readings taken 2-4h late. Feeds EMA corrections but overstates true model error. See forecast accuracy for clean metrics.</div>
 
                             <!-- Row 4: Ice Status -->
                             <div id="dash-ice-row" style="background:#1e3a5f;padding:8px;border-radius:6px;display:none;">
