@@ -6659,39 +6659,7 @@ See \`analysis/refit_powerlaw_hourly.py/.R\`, audit: \`analysis/powerlaw_refit_a
 
 Water temperature is fetched from Point of Rocks (USGS 01638500, parameter 00010). When temperature data is unavailable, the system falls back to the default model.
 
-### 4.6 Model History
-
-| Version | Date | Formula | R² | Median Error | Notes |
-|---------|------|---------|-----|-------------|-------|
-| v19 | 2026-01-17 | 108 × EF^2.64 | 0.91 | 22.6% | Initial model, limited dataset |
-| v24.13 | 2026-02-10 | 136 × EF^2.42 | 0.89 | 6.3% | 15-year USGS daily values (had duplicate rows) |
-| v24.14 | 2026-02-11 | +175.4 × EF^2.302 | — | — | Cold-water variant (≤10°C) |
-| v24.16 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | Deduplicated dataset (5,220 obs). Cold: 160 × EF^2.36 |
-| v25.0 | 2026-02-18 | 126 × EF^2.46 | 0.91 | — | PoR-delta staleness correction. Clarified EF gauge accuracy vs. predictive accuracy. |
-| v26.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | High-flow EF weight 50%→70% (cross-language optimization: 22% RMSE improvement at >15k cfs). |
-| v27.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Gradient EF weight (piecewise-linear, 0%→40%) replaces step function. -25.8% RMSE improvement. |
-| v28.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Soft LF ceiling (120%) + decay cap 0.50. Near-zero rising bias (-29 cfs). Cross-verified daily + hourly (48k pairs). |
-| v29.0 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Flat 35% EF weight above 3k cfs (hourly optimization, 42k→117k obs). All parameters validated on 117k hourly dataset with autocorrelation testing. |
-| v29.1 | 2026-02-19 | 126 × EF^2.46 | 0.91 | — | Empirical 90% CI replaces ±1σ. Per-bin q05/q95 from 117k obs. Display-only change, no estimation logic change. |
-| v30.0 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | Logistic EF weight ramp (0%→40%, midpoint 10k cfs) replaces flat 35% step. Horse race of 7 approaches on 117k hourly obs. OOS RMSE −4.6%. |
-| v31.0 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | Add Broad Run (01644280) + Seneca Creek (01645000) to GF estimation. Closes ~1,100 cfs of tributary gap. Independent auditor caught Catoctin Creek double-count risk. |
-| v31.1 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | New "Creeks" tab: rain-dependent whitewater runs (Rock Creek, NW Branch Anacostia, Difficult Run, Sligo Creek). Display-only — no estimation logic change. |
-| v31.2 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | Aqueduct withdrawal documentation: WA/WSSC/Fairfax Water divert ~400–700 cfs above GF. Investigation + auditor confirmed already absorbed by LF-calibrated model. Documentation-only. |
-| v31.3 | 2026-02-20 | 126 × EF^2.46 | 0.91 | — | 6-hour history on forecast graph: retroactively computes GF estimates from PoR history (already in localStorage), extends graph from [0,48h] to [-6h,48h]. NOW divider, blue history line/dots, responsive x-axis labels. Display-only. |
-| v32.0 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Flow state from observed PoR rate (2h lookback) instead of NWS 48h forecast. Matches server-side logic. Fixes "STEADY" display during actual rises. Falls back to NWS on cold start. |
-| v32.1 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Forecast graph history extended from 6h to 12h. Junction gap fix: history line ends at last observed point instead of bridging to forecast NOW point (different models). Display-only. |
-| v32.2 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Fix missing estimation inputs in EF-only (ice) mode: correction, 90% CI, flow bin, tributaries now show "N/A — EF only" instead of dashes. Display-only. |
-| v32.3 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Fix accuracy metric: exclude flagged (ice-affected) observations from avgErrorPercent. Was including ~60 flagged obs with 15-30% errors, depressing reported accuracy by ~10pp. Now tracks validValidations separately. |
-| v33.0 | 2026-02-21 | 126 × EF^2.46 | 0.91 | — | Two-tier anomaly flagging: hard flags (stage-discharge, low-flow+high-stage, 3σ outlier) skip learning + accuracy; soft flags (EF discrepancy, large error) INCLUDED in learning (EMA clamped ±2σ) + accuracy. EF threshold standardized to 0.25. |
-| v33.1 | 2026-02-23 | 126 × EF^2.46 | 0.91 | — | 24h stored GF history on forecast graph: stores actual estimateGreatFalls() output in localStorage instead of simplified PoR-only re-estimation. Fixes low baseline and jump at NOW junction. Graph extended from [-12h, 48h] to [-24h, 48h]. Cold-start fallback to PoR-based estimation. Display-only. |
-| v34.0 | 2026-02-26 | 126 × EF^2.46 | 0.91 | — | Fix EMA learning system: (1) validate against raw LF instead of LF−Seneca estimate, eliminating ±50-200 cfs Seneca approximation noise; (2) cap validation delay at 2.5h to reject stale validations; (3) disable client-side validation — server is single source of truth, eliminating bin/metadata/EF-correlation race conditions. Audited by independent coding + hydrology experts. |
-| v34.5 | 2026-02-26 | 126 × EF^2.46 | 0.91 | — | All Gauges UIX: sticky column headers, wider trend column, row separators, responsive mobile layout. Human-centered design improvements — no estimation logic changes. |
-| v34.4 | 2026-02-26 | 126 × EF^2.46 | 0.91 | — | Security hardening: remove hardcoded admin PIN fallback (server env-only), replace client hardcoded PIN with prompt(), lock CORS to production Netlify domain (env var override for previews). No estimation logic changes. |
-| v34.3 | 2026-02-26 | 126 × EF^2.46 | 0.91 | — | Extract shared server module (shared/model.js): deduplicate getSupabase(), GF_FLOW_BINS, getFlowBin(), estimateLFFlowFromStage() across scheduled-update.js and sync-learning.js. No estimation logic changes. |
-| v34.2 | 2026-02-26 | 126 × EF^2.46 | 0.91 | — | Client-side cleanup: collapse Estimation Inputs (details/summary), null-check guards for DOM functions, fix Tech Appendix version (was stuck at v29.0), improve waterTempC documentation. No estimation logic changes. |
-| v34.1 | 2026-02-26 | 126 × EF^2.46 | 0.91 | — | Fix 90% CI display: center empirical CI on corrected estimate (was using pre-correction error quantiles, causing CI to not bracket the point estimate in biased bins). Fix Learning tab bin data: add updateGFBinStats() to updateGFLearningUI() so bin corrections display after data loads. Display-only fixes. |
-
-### 4.7 Updating the Model
+### 4.6 Updating the Model
 
 To regenerate with more data:
 \`\`\`
@@ -7207,6 +7175,11 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v34.5 | 2026-02-26 | All Gauges UIX improvements: sticky column headers, consistent CSS grid layout, row separators, trend column font fix, responsive mobile breakpoint. Documentation sync across Tech Appendix, README, and How It Works tab. Deleted redundant Model History table (§4.6). |
+| v34.4 | 2026-02-26 | Security hardening: remove hardcoded admin PIN fallback (env-only), lock down CORS to production origin with env var override for deploy previews. |
+| v34.3 | 2026-02-26 | Extract shared server module (netlify/functions/shared/model.js): deduplicate getSupabase(), GF_FLOW_BINS, getFlowBin(), estimateLFFlowFromStage() across scheduled-update.js and sync-learning.js. |
+| v34.2 | 2026-02-26 | Client-side cleanup: collapsible estimation inputs (details/summary), null-check guards for updateGreatFallsUI() and dashboard, fix stale Tech Appendix version string, improve water temperature variable documentation. |
+| v34.1 | 2026-02-26 | Fix 90% CI display centering (halfWidth formula) and Learning tab bin data race condition (defer render until after fetch completes). |
 | v34.0 | 2026-02-26 | Fix EMA learning system. Three structural flaws in nowcast validation: (1) Seneca noise — was subtracting noisy 1% Seneca estimate from LF to approximate GF, adding ±50-200 cfs noise; now validates against raw LF, correction naturally absorbs Seneca + ungauged area signal. (2) Timing jitter — was accepting validations with unbounded delay (0-48h); now capped at 2.5h after validationDue, rejecting stale validations where flow conditions changed too much. (3) Race condition — both client (every 30min) and server (every 2h) independently updated correction bins, metadata, and EF correlation; now server-only. Client checkGFValidations() disabled. EF hysteresis learning freezes at converged values (minor: ±8% on EF component weighted 0-40%). Originally proposed switching to +6h forecast-based learning, but two independent auditors (coding + hydrology) identified critical domain mismatch: forecast uses NWS inputs, nowcast uses observed gauge data — learning from NWS-contaminated errors would inject forecast bias into clean estimates. Revised approach fixes the nowcast path instead. |
 | v33.1 | 2026-02-23 | 24h stored GF history on forecast graph. Stores actual estimateGreatFalls() output in localStorage (mirroring porHistory pattern) instead of simplified PoR-only re-estimation. Fixes low baseline and visible jump at NOW junction caused by model mismatch (history was missing ~12% tributary flows, EF blending, flow-state corrections, LF ceiling). Graph extended from [-12h, 48h] to [-24h, 48h]. Cold-start fallback to computeGFHistoryFromPoR(). Display-only. |
 | v33.0 | 2026-02-21 | Two-tier anomaly flagging. Many of the ~60 flagged observations were likely legitimate estimation errors, not ice — USGS ice flags are a separate upstream system. Hard flags (Checks 2, 3, 5: stage-discharge contradiction, low-flow+high-stage, 3σ outlier) skip learning AND accuracy. Soft flags (Checks 1, 4: EF discrepancy, large error) are INCLUDED in learning with EMA clamped at ±2σ from bin mean, and INCLUDED in accuracy. Three-tier gauge_id: hard_flagged, soft_flagged, validated. EF threshold standardized to 0.25 (was 0.30 in sync-learning.js). Check 3 score standardized to +2 (was +1 in sync-learning.js). Independent auditor reviewed: accepted EMA clamping (R1), STATISTICAL_OUTLIER as hard (R2), three-tier DB (R3), Tech Appendix update (R5). |
