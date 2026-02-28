@@ -1,0 +1,125 @@
+{
+  "value": {
+    "timeSeries": [
+      {
+        "sourceInfo": {
+          "siteCode": [{ "value": "01638500" }]
+        },
+        "variable": {
+          "variableCode": [{ "value": "00060" }]
+        },
+        "values": [{
+          "value": [
+            { "value": "8500", "dateTime": "2026-02-25T10:00:00.000-05:00", "qualifiers": [] },
+            { "value": "8600", "dateTime": "2026-02-25T11:00:00.000-05:00", "qualifiers": [] },
+            { "value": "8700", "dateTime": "2026-02-25T12:00:00.000-05:00", "qualifiers": [] },
+            { "value": "8800", "dateTime": "2026-02-25T13:00:00.000-05:00", "qualifiers": [] },
+            { "value": "8900", "dateTime": "2026-02-25T14:00:00.000-05:00", "qualifiers": [] },
+            { "value": "9000", "dateTime": "2026-02-25T15:00:00.000-05:00", "qualifiers": [] },
+            { "value": "9100", "dateTime": "2026-02-25T16:00:00.000-05:00", "qualifiers": [] },
+            { "value": "9200", "dateTime": "2026-02-25T17:00:00.000-05:00", "qualifiers": [] },
+            { "value": "9300", "dateTime": "2026-02-25T18:00:00.000-05:00", "qualifiers": [] },
+            { "value": "9400", "dateTime": "2026-02-25T19:00:00.000-05:00", "qualifiers": [] },
+            { "value": "9500", "dateTime": "2026-02-25T20:00:00.000-05:00", "qualifiers": [] },
+            { "value": "9600", "dateTime": "2026-02-25T21:00:00.000-05:00", "qualifiers": [] },
+            { "value": "9700", "dateTime": "2026-02-25T22:00:00.000-05:00", "qualifiers": [] },
+            { "value": "9800", "dateTime": "2026-02-25T23:00:00.000-05:00", "qualifiers": [] },
+            { "value": "9900", "dateTime": "2026-02-26T00:00:00.000-05:00", "qualifiers": [] },
+            { "value": "10000", "dateTime": "2026-02-26T01:00:00.000-05:00", "qualifiers": [] }
+          ]
+        }]
+      },
+      {
+        "sourceInfo": {
+          "siteCode": [{ "value": "01646500" }]
+        },
+        "variable": {
+          "variableCode": [{ "value": "00060" }]
+        },
+        "values": [{
+          "value": [
+            { "value": "11000", "dateTime": "2026-02-26T01:00:00.000-05:00", "qualifiers": [] }
+          ]
+        }]
+      },
+      {
+        "sourceInfo": {
+          "siteCode": [{ "value": "01646500" }]
+        },
+        "variable": {
+          "variableCode": [{ "value": "00065" }]
+        },
+        "values": [{
+          "value": [
+            { "value": "3.85", "dateTime": "2026-02-26T01:00:00.000-05:00", "qualifiers": [] }
+          ]
+        }]
+      },
+      {
+        "sourceInfo": {
+          "siteCode": [{ "value": "01643000" }]
+        },
+        "variable": {
+          "variableCode": [{ "value": "00060" }]
+        },
+        "values": [{
+          "value": [
+            { "value": "800", "dateTime": "2026-02-26T01:00:00.000-05:00", "qualifiers": [] }
+          ]
+        }]
+      },
+      {
+        "sourceInfo": {
+          "siteCode": [{ "value": "01644000" }]
+        },
+        "variable": {
+          "variableCode": [{ "value": "00060" }]
+        },
+        "values": [{
+          "value": [
+            { "value": "350", "dateTime": "2026-02-26T01:00:00.000-05:00", "qualifiers": [] }
+          ]
+        }]
+      },
+      {
+        "sourceInfo": {
+          "siteCode": [{ "value": "01644280" }]
+        },
+        "variable": {
+          "variableCode": [{ "value": "00060" }]
+        },
+        "values": [{
+          "value": [
+            { "value": "75", "dateTime": "2026-02-26T01:00:00.000-05:00", "qualifiers": [] }
+          ]
+        }]
+      },
+      {
+        "sourceInfo": {
+          "siteCode": [{ "value": "01645000" }]
+        },
+        "variable": {
+          "variableCode": [{ "value": "00060" }]
+        },
+        "values": [{
+          "value": [
+            { "value": "100", "dateTime": "2026-02-26T01:00:00.000-05:00", "qualifiers": [] }
+          ]
+        }]
+      },
+      {
+        "sourceInfo": {
+          "siteCode": [{ "value": "01644148" }]
+        },
+        "variable": {
+          "variableCode": [{ "value": "00065" }]
+        },
+        "values": [{
+          "value": [
+            { "value": "4.50", "dateTime": "2026-02-26T01:00:00.000-05:00", "qualifiers": [] }
+          ]
+        }]
+      }
+    ]
+  }
+}

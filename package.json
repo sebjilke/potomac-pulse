@@ -2,6 +2,9 @@
   "name": "potomac-forecaster",
   "version": "1.0.0",
   "private": true,
+  "scripts": {
+    "test": "node --test 'test/**/*.test.js'"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0"
   }

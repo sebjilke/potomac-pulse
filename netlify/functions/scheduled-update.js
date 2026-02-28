@@ -1049,6 +1049,12 @@ async function validateForecastPredictions(client, usgsData) {
     return { validated, cleaned };
 }
 
+// Expose internals for testing
+exports._test = {
+    validateUSGSResponse, fetchWithTimeout, fetchWaterTemp,
+    fetchUSGSData, getPoRFromHistory, estimateLFStage, makeGFPrediction,
+};
+
 // Main handler
 exports.handler = async (event, context) => {
     console.log('=== Scheduled Update Starting ===');
