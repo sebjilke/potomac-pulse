@@ -36,12 +36,15 @@ import './ui/about.js';
 
 // Application initialization
 import { init } from './init.js';
-import { fetchData } from './data/fetch.js';
+import { fetchData, updateStalenessDisplay } from './data/fetch.js';
 
 // Boot the application
 init().catch(e => console.error('Init failed:', e));
 
 // Refresh every 15 minutes
 setInterval(fetchData, 900000);
+
+// Update staleness display every minute
+setInterval(updateStalenessDisplay, 60000);
 
 console.log('Potomac Pulse main.js loaded');

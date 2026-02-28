@@ -1,6 +1,7 @@
 // Potomac Pulse — Map (Leaflet) initialization and controls
 // Extracted from index.html inline script
 
+import L from 'leaflet';
 import { LF, GAUGES, BRANCHES, GREAT_FALLS } from '../model/constants.js';
 import { map, setMap, markers } from '../state/store.js';
 import { popup } from '../ui/gauges-ui.js';
