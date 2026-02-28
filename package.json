@@ -3,9 +3,16 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "test": "node --test 'test/**/*.test.js'"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.0"
+    "@supabase/supabase-js": "^2.39.0",
+    "leaflet": "^1.9.4"
+  },
+  "devDependencies": {
+    "vite": "^7.3.1"
   }
 }

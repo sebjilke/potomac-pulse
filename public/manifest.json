@@ -1,0 +1,18 @@
+{
+  "name": "Potomac Pulse",
+  "short_name": "Potomac Pulse",
+  "description": "Real-time Potomac River flow tracking and Great Falls predictions for paddlers",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
