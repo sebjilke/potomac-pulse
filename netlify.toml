@@ -1,14 +1,14 @@
 # Netlify Configuration for Potomac Basin Forecaster
 
 [build]
-  # Directory containing the site files
-  publish = "."
+  # Vite builds to dist/
+  publish = "dist"
 
   # Functions directory
   functions = "netlify/functions"
 
-  # Install dependencies
-  command = "npm install"
+  # Install dependencies and build
+  command = "npm install && npm run build"
 
 [functions]
   # Use Node.js 18 for serverless functions
@@ -21,7 +21,7 @@
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.basemaps.cartocdn.com; connect-src 'self' https://waterservices.usgs.gov https://api.water.noaa.gov https://*.supabase.co https://potomacpulse.goatcounter.com https://corsproxy.io https://api.allorigins.win; frame-ancestors 'none'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.basemaps.cartocdn.com; connect-src 'self' https://waterservices.usgs.gov https://api.water.noaa.gov https://*.supabase.co https://potomacpulse.goatcounter.com https://corsproxy.io https://api.allorigins.win; frame-ancestors 'none'"
 
 # Redirect API calls to serverless function
 [[redirects]]

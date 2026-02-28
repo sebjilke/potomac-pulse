@@ -4,11 +4,6 @@
 import { updateGFBinStats } from '../ui/learning-ui.js';
 
 // ==================== PIN PROTECTION ====================
-// To change your PIN:
-// 1. Pick a PIN (e.g., "mypin123")
-// 2. Generate SHA-256 hash at: https://emn178.github.io/online-tools/sha256.html
-// 3. Replace the hash below with your new hash
-//
 const LEARN_PIN_HASH = "e97776493f213d50b346f81e3f93a78aad1fd0f19c051a38bd8f88b43e46e5b5";
 
 export async function hashPIN(pin) {
@@ -29,7 +24,7 @@ export async function checkLearnAccess() {
         document.getElementById('pinError').style.display = 'none';
         document.getElementById('learnTab').textContent = '🧠 Learning';
         sessionStorage.setItem('learnUnlocked', 'true');
-        updateGFBinStats();  // Show bin statistics
+        updateGFBinStats();
     } else {
         document.getElementById('pinError').style.display = 'block';
         document.getElementById('learnPIN').value = '';
@@ -52,7 +47,7 @@ export function initAuth() {
         document.getElementById('learnLocked').style.display = 'none';
         document.getElementById('learnUnlocked').style.display = 'block';
         document.getElementById('learnTab').textContent = '🧠 Learning';
-        updateGFBinStats();  // Show bin statistics
+        updateGFBinStats();
     }
 
     // Allow Enter key to submit PIN
@@ -60,7 +55,6 @@ export function initAuth() {
         if (e.key === 'Enter') checkLearnAccess();
     });
 
-    // Expose to global scope for onclick handlers in HTML
-    window.checkLearnAccess = checkLearnAccess;
-    window.lockLearning = lockLearning;
+    // Bind unlock button
+    document.getElementById('learnUnlockBtn')?.addEventListener('click', checkLearnAccess);
 }

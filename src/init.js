@@ -3,20 +3,21 @@
 
 import { setLearningData } from './state/store.js';
 import { initCloudSync, updateSyncStatus } from './learning/cloud-sync.js';
-import { loadPoRHistory } from './data/history.js';
-import { loadGFHistory } from './data/history.js';
+import { loadPoRHistory, loadGFHistory } from './data/history.js';
 import { loadShadowModelState } from './estimation/shadow-models.js';
 import { loadEFHysteresis } from './estimation/edwards-ferry.js';
 import { loadLearning, createEmptyLearning } from './learning/gauge-learning.js';
-import { loadGFLearningData, loadForecastAccuracy } from './learning/gf-learning.js';
-import { fetchData } from './data/fetch.js';
-import { initMap } from './ui/map.js';
+import { loadGFLearningData, loadForecastAccuracy, resetGFLearning, resetLowFlowBins } from './learning/gf-learning.js';
+import { fetchData, dismissErrorBanner } from './data/fetch.js';
+import { initMap, toggleMap } from './ui/map.js';
 import { buildBranches } from './ui/gauges-ui.js';
 import { buildCreeks } from './ui/creeks-ui.js';
-import { updateLearningUI } from './ui/learning-ui.js';
+import { updateLearningUI, resetShadowModels } from './ui/learning-ui.js';
 import { initTabs } from './ui/tabs.js';
 import { initAuth } from './ui/auth.js';
 import { initAbout } from './ui/about.js';
+import { downloadTechAppendix } from './ui/tech-appendix.js';
+import { lockLearning } from './ui/auth.js';
 
 // Wire up cross-module lazy callbacks
 import { setUpdateGFLearningUI, setUpdateGFBinStats, setUpdateForecastAccuracyUI } from './learning/gf-learning.js';
@@ -30,11 +31,9 @@ import { updateGreatFallsUI, updateForecastPeriods } from './ui/great-falls-ui.j
 // Wire up great-falls-ui lazy callback
 import { setUpdateGFLearningUIRef as setGFUILearningCallback } from './ui/great-falls-ui.js';
 
-// Expose functions to global scope for inline onclick handlers
-import { toggleMap } from './ui/map.js';
-import { toggleLearning, resetShadowModels } from './ui/learning-ui.js';
-import { resetGFLearning, resetLowFlowBins } from './learning/gf-learning.js';
-import { downloadTechAppendix } from './ui/tech-appendix.js';
+function bindButton(id, handler) {
+    document.getElementById(id)?.addEventListener('click', handler);
+}
 
 export async function init() {
     try {
@@ -46,13 +45,15 @@ export async function init() {
         setHistoryUpdateForecast(updateForecastPeriods);
         setGFUILearningCallback(updateGFLearningUI);
 
-        // Expose functions to global scope for onclick handlers in HTML
-        window.toggleMap = toggleMap;
-        window.toggleLearning = toggleLearning;
-        window.resetShadowModels = resetShadowModels;
-        window.resetGFLearning = resetGFLearning;
-        window.resetLowFlowBins = resetLowFlowBins;
-        window.downloadTechAppendix = downloadTechAppendix;
+        // Bind event listeners (replaces inline onclick handlers)
+        bindButton('mapToggleBtn', toggleMap);
+        bindButton('refreshBtn', fetchData);
+        bindButton('dismissErrorBtn', dismissErrorBanner);
+        bindButton('techAppendixBtn', downloadTechAppendix);
+        bindButton('resetGFLearningBtn', resetGFLearning);
+        bindButton('resetLowFlowBinsBtn', resetLowFlowBins);
+        bindButton('resetShadowModelsBtn', resetShadowModels);
+        bindButton('lockLearningBtn', lockLearning);
 
         // Initialize cloud sync via serverless function
         initCloudSync();

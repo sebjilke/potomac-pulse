@@ -26,7 +26,7 @@ export function buildBranches() {
         const open = bk === "mainstem" ? "open" : "";
         const gaugeRows = b.ids.map(id => {
             const g = GAUGES[id];
-            return `<div class="gauge" id="gauge-${id}" onclick="panTo('${id}')">
+            return `<div class="gauge" id="gauge-${id}" data-gauge-id="${id}">
                 <div class="gauge-dot" style="background:${b.color}"></div>
                 <div class="gauge-nm">${g.name}</div>
                 <div class="gauge-trend" id="trend-${id}"></div>
@@ -37,7 +37,7 @@ export function buildBranches() {
         }).join("");
 
         html += `<div class="branch ${open}" id="b-${bk}">
-            <div class="branch-hd" onclick="document.getElementById('b-${bk}').classList.toggle('open')">
+            <div class="branch-hd" data-branch="${bk}">
                 <div class="branch-clr" style="background:${b.color}"></div>
                 <div class="branch-nm">${b.name}</div>
                 <div class="branch-arr">▼</div>
@@ -45,10 +45,24 @@ export function buildBranches() {
             <div class="branch-list">${gaugeRows}</div>
         </div>`;
     }
-    document.getElementById("branches").innerHTML = html;
+    const container = document.getElementById("branches");
+    container.innerHTML = html;
 
-    // Expose panTo globally for onclick handlers
-    window.panTo = panTo;
+    // Event delegation for gauge rows and branch headers
+    container.addEventListener('click', (e) => {
+        // Gauge row click → panTo
+        const gaugeRow = e.target.closest('.gauge[data-gauge-id]');
+        if (gaugeRow) {
+            panTo(gaugeRow.dataset.gaugeId);
+            return;
+        }
+        // Branch header click → toggle open/close
+        const branchHd = e.target.closest('.branch-hd[data-branch]');
+        if (branchHd) {
+            const branchEl = document.getElementById(`b-${branchHd.dataset.branch}`);
+            if (branchEl) branchEl.classList.toggle('open');
+        }
+    });
 }
 
 // ==================== UPDATE UI ====================
