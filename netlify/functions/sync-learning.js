@@ -10,6 +10,57 @@ const ADMIN_PIN = process.env.ADMIN_PIN;
 // Production default locks to Netlify domain; set CORS_ORIGIN=* for deploy previews/localhost
 const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || 'https://potomac-pulse.netlify.app';
 
+// === Rate limiting (in-memory, per-instance — lightweight protection) ===
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_GET = 60;   // GET requests per minute per IP
+const RATE_LIMIT_POST = 10;  // POST requests per minute per IP
+
+function checkRateLimit(ip, method) {
+    const key = `${ip}:${method}`;
+    const now = Date.now();
+    const limit = method === 'POST' ? RATE_LIMIT_POST : RATE_LIMIT_GET;
+
+    let entry = rateLimitMap.get(key);
+    if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+        entry = { windowStart: now, count: 0 };
+        rateLimitMap.set(key, entry);
+    }
+    entry.count++;
+
+    // Prune stale entries periodically (prevent memory growth)
+    if (rateLimitMap.size > 1000) {
+        for (const [k, v] of rateLimitMap) {
+            if (now - v.windowStart > RATE_LIMIT_WINDOW_MS) rateLimitMap.delete(k);
+        }
+    }
+
+    return entry.count <= limit;
+}
+
+// === POST body validation ===
+function validatePostBody(body, endpoint) {
+    if (!body || typeof body !== 'object') return 'Request body must be a JSON object';
+    // Reject oversized payloads (checked as serialized string)
+    const bodyStr = JSON.stringify(body);
+    if (bodyStr.length > 10240) return 'Request body exceeds 10KB limit';
+    // Reject NaN/Infinity in numeric fields
+    for (const [key, val] of Object.entries(body)) {
+        if (typeof val === 'number' && (!isFinite(val) || isNaN(val))) {
+            return `Invalid numeric value for field "${key}"`;
+        }
+    }
+    // Reject future timestamps (more than 1 hour ahead)
+    if (body.timestamp && body.timestamp > Date.now() + 3600000) {
+        return 'Timestamp cannot be more than 1 hour in the future';
+    }
+    // Reject negative CFS values
+    if (body.predictedCFS !== undefined && body.predictedCFS < 0) {
+        return 'CFS values cannot be negative';
+    }
+    return null; // valid
+}
+
 const headers = {
     'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -21,6 +72,16 @@ exports.handler = async (event, context) => {
     // Handle preflight CORS requests
     if (event.httpMethod === 'OPTIONS') {
         return { statusCode: 204, headers, body: '' };
+    }
+
+    // Rate limiting
+    const clientIP = (event.headers['x-forwarded-for'] || event.headers['client-ip'] || 'unknown').split(',')[0].trim();
+    if (!checkRateLimit(clientIP, event.httpMethod)) {
+        return {
+            statusCode: 429,
+            headers: { ...headers, 'Retry-After': '60' },
+            body: JSON.stringify({ error: 'Too many requests. Try again in 60 seconds.' })
+        };
     }
 
     const client = getSupabase();
@@ -45,6 +106,10 @@ exports.handler = async (event, context) => {
             }
             if (event.httpMethod === 'POST') {
                 const body = JSON.parse(event.body || '{}');
+                const validationError = validatePostBody(body, 'gf');
+                if (validationError) {
+                    return { statusCode: 400, headers, body: JSON.stringify({ error: validationError }) };
+                }
                 return await saveGFLearningData(client, body);
             }
         }
@@ -77,6 +142,10 @@ exports.handler = async (event, context) => {
 
         if (event.httpMethod === 'POST') {
             const body = JSON.parse(event.body || '{}');
+            const validationError = validatePostBody(body, endpoint);
+            if (validationError) {
+                return { statusCode: 400, headers, body: JSON.stringify({ error: validationError }) };
+            }
             return await saveLearningData(client, body);
         }
 

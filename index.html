@@ -23,9 +23,9 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌊</text></svg>">
 
     <!-- GoatCounter Analytics -->
-    <script data-goatcounter="https://potomacpulse.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+    <script data-goatcounter="https://potomacpulse.goatcounter.com/count" async src="https://gc.zgo.at/count.js" integrity="sha384-ibA+WLRCY3W4rrf/Qi6Z02iu3FWDJOW41oKXAKzGUka17bnDTswba03X3emshpZS" crossorigin="anonymous"></script>
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous" />
     <style>
         /* ==================== BASE & RESET ==================== */
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -161,12 +161,12 @@
         .target-icon { font-size: 1.3rem; }
         .target-info { flex: 1; }
         .target-name { font-weight: 600; color: #f97316; font-size: 0.95rem; }
-        .target-sub { font-size: 0.75rem; color: #94a3b8; margin-top: 2px; }
+        .target-sub { font-size: 0.75rem; color: #b0bec9; margin-top: 2px; }
         .target-vals { display: flex; gap: 12px; text-align: right; }
         .target-num { font-size: 1.2rem; font-weight: 600; }
         .target-num.q { color: #60a5fa; }
         .target-num.h { color: #4ade80; }
-        .target-unit { font-size: 0.65rem; color: #94a3b8; }
+        .target-unit { font-size: 0.65rem; color: #b0bec9; }
         .target-trend { font-size: 1rem; margin-left: 2px; }
 
         /* ==================== FLOW INDICATOR BAR ==================== */
@@ -208,7 +208,7 @@
             font-size: 0.8rem;
             cursor: pointer;
             border-bottom: 2px solid transparent;
-            color: #94a3b8;
+            color: #b0bec9;
             min-height: 44px;
             display: flex;
             align-items: center;
@@ -335,7 +335,7 @@
         }
         .forecast-period .fp-time {
             font-size: 0.6rem;
-            color: #94a3b8;
+            color: #b0bec9;
             margin-bottom: 4px;
         }
         .forecast-period .fp-stage {
@@ -383,7 +383,7 @@
         .branch-hd:focus { outline: 2px solid #60a5fa; outline-offset: -2px; }
         .branch-clr { width: 14px; height: 4px; border-radius: 2px; }
         .branch-nm { flex: 1; font-weight: 500; color: #e2e8f0; }
-        .branch-arr { font-size: 0.6rem; color: #94a3b8; transition: transform 0.15s; }
+        .branch-arr { font-size: 0.6rem; color: #b0bec9; transition: transform 0.15s; }
         .branch.open .branch-arr { transform: rotate(180deg); }
         .branch-list { display: none; padding: 4px 8px 8px; }
         .branch.open .branch-list { display: block; }
@@ -401,7 +401,7 @@
             background: #1e293b;
             border-bottom: 1px solid #334155;
             font-size: 0.65rem;
-            color: #94a3b8;
+            color: #b0bec9;
             letter-spacing: 0.02em;
         }
 
@@ -515,7 +515,7 @@
         .leaflet-popup-tip { background: #1e293b; }
         .leaflet-popup-content { margin: 10px 12px; min-width: 200px; font-size: 14px; }
         .pop-nm { font-weight: 600; color: #60a5fa; font-size: 1rem; }
-        .pop-area { font-size: 0.75rem; color: #94a3b8; margin-bottom: 8px; }
+        .pop-area { font-size: 0.75rem; color: #b0bec9; margin-bottom: 8px; }
         .pop-row { display: flex; gap: 8px; margin-bottom: 6px; }
         .pop-cell { background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; text-align: center; flex: 1; }
         .pop-val { font-size: 1.1rem; font-weight: 600; }
@@ -523,7 +523,7 @@
         .pop-val.green { color: #4ade80; }
         .pop-val.yellow { color: #fbbf24; }
         .pop-val.purple { color: #a78bfa; }
-        .pop-lbl { font-size: 0.65rem; color: #94a3b8; margin-top: 2px; }
+        .pop-lbl { font-size: 0.65rem; color: #b0bec9; margin-top: 2px; }
         .pop-arr { margin-top: 6px; padding: 6px 8px; background: rgba(251,191,36,0.1); border-left: 2px solid #fbbf24; font-size: 0.8rem; border-radius: 0 4px 4px 0; }
         .pop-trend { margin-top: 6px; padding: 6px 8px; background: rgba(96,165,250,0.1); border-radius: 4px; font-size: 0.75rem; }
         .pop-trend-title { color: #60a5fa; font-weight: 600; margin-bottom: 4px; font-size: 0.8rem; }
@@ -611,6 +611,13 @@
             <span id="error-banner-text" style="flex:1;">Unable to fetch data. Showing cached data.</span>
             <button onclick="dismissErrorBanner()" aria-label="Dismiss error" style="background:none;border:none;color:#fca5a5;cursor:pointer;font-size:1rem;padding:4px 8px;min-width:44px;min-height:44px;">✕</button>
         </div>
+        <!-- Persistent safety disclaimer — always visible until dismissed per session -->
+        <div id="safety-banner" role="alert" style="background:rgba(245,158,11,0.12);border-bottom:1px solid rgba(245,158,11,0.4);padding:6px 16px;display:flex;align-items:center;gap:8px;font-size:0.75rem;color:#fbbf24;">
+            <span aria-hidden="true">⚠️</span>
+            <span style="flex:1;">Estimates only — not for navigation or life-safety decisions. <a href="https://water.weather.gov" target="_blank" rel="noopener" style="color:#60a5fa;text-decoration:underline;">Check NWS warnings</a></span>
+            <button onclick="document.getElementById('safety-banner').style.display='none';sessionStorage.setItem('safety-dismissed','1')" aria-label="Dismiss safety notice" style="background:none;border:none;color:#fbbf24;cursor:pointer;font-size:1rem;padding:4px 8px;min-width:44px;min-height:44px;">✕</button>
+        </div>
+        <script>if(sessionStorage.getItem('safety-dismissed')==='1')document.getElementById('safety-banner').style.display='none';</script>
         <main id="main-content" role="main">
             <div id="map" role="application" aria-label="River gauge map"></div>
             <div id="sidebar" role="complementary" aria-label="Gauge data sidebar">
@@ -620,7 +627,7 @@
                         <div class="target-name">Little Falls</div>
                         <div class="target-sub">11,560 sq mi • Target gauge</div>
                     </div>
-                    <div class="target-vals">
+                    <div class="target-vals" aria-live="polite" aria-atomic="true">
                         <div>
                             <div class="target-num q"><span id="lfQ" aria-label="Flow rate">--</span><span class="target-trend" id="lfTrend" aria-label="Trend"></span></div>
                             <div class="target-unit" title="cubic feet per second">cfs</div>
@@ -635,23 +642,23 @@
                     <span>PoR → LF: <span class="mult" id="multVal" aria-label="Current travel time from Point of Rocks to Little Falls">--</span></span>
                 </div>
                 <div class="tabs" role="tablist" aria-label="Data views">
-                    <div class="tab active" data-tab="greatfalls" role="tab" aria-selected="true" aria-controls="tab-greatfalls" tabindex="0">🌊 Great Falls</div>
-                    <div class="tab" data-tab="creeks" role="tab" aria-selected="false" aria-controls="tab-creeks" tabindex="-1">🏞️ Creeks</div>
-                    <div class="tab" data-tab="gauges" role="tab" aria-selected="false" aria-controls="tab-gauges" tabindex="-1">📊 All Gauges</div>
-                    <div class="tab" data-tab="docs" role="tab" aria-selected="false" aria-controls="tab-docs" tabindex="-1">📖 How It Works</div>
-                    <div class="tab" data-tab="learn" id="learnTab" role="tab" aria-selected="false" aria-controls="tab-learn" tabindex="-1">🔒 Learning</div>
+                    <div class="tab active" id="greatfalls-tab" data-tab="greatfalls" role="tab" aria-selected="true" aria-controls="tab-greatfalls" tabindex="0">🌊 Great Falls</div>
+                    <div class="tab" id="creeks-tab" data-tab="creeks" role="tab" aria-selected="false" aria-controls="tab-creeks" tabindex="-1">🏞️ Creeks</div>
+                    <div class="tab" id="gauges-tab" data-tab="gauges" role="tab" aria-selected="false" aria-controls="tab-gauges" tabindex="-1">📊 All Gauges</div>
+                    <div class="tab" id="docs-tab" data-tab="docs" role="tab" aria-selected="false" aria-controls="tab-docs" tabindex="-1">📖 How It Works</div>
+                    <div class="tab" id="learnTab" data-tab="learn" role="tab" aria-selected="false" aria-controls="tab-learn" tabindex="-1">🔒 Learning</div>
                 </div>
-                <div id="tab-creeks" class="tab-content">
+                <div id="tab-creeks" class="tab-content" role="tabpanel" aria-labelledby="creeks-tab" tabindex="0">
                     <div id="creeks-status" style="padding:12px;text-align:center;"><div class="creeks-banner quiet">Loading creek data...</div></div>
                     <div id="creeks-list" style="padding:0 8px;"></div>
                     <div style="font-size:0.55rem;color:#8494a7;padding:10px;text-align:center;border-top:1px solid #1e293b;margin-top:8px;">
                         ⚠ Thresholds are approximate — always scout unfamiliar runs.
                     </div>
                 </div>
-                <div id="tab-gauges" class="tab-content">
+                <div id="tab-gauges" class="tab-content" role="tabpanel" aria-labelledby="gauges-tab" tabindex="0">
                     <div id="branches"></div>
                 </div>
-                <div id="tab-greatfalls" class="tab-content active">
+                <div id="tab-greatfalls" class="tab-content active" role="tabpanel" aria-labelledby="greatfalls-tab" tabindex="0">
                     <div class="docs-panel" style="max-height:calc(100vh - 280px);overflow-y:auto;">
                         <div style="text-align:center;padding:10px 0 15px;border-bottom:1px solid #334155;margin-bottom:15px;">
                             <div style="font-size:0.6rem;color:#64748b;margin-bottom:5px;">ESTIMATED CONDITIONS AT</div>
@@ -659,7 +666,7 @@
                             <div style="font-size:0.5rem;color:#64748b;">Above the aqueduct • No USGS gauge</div>
                         </div>
 
-                        <div id="gf-estimate-display" style="text-align:center;padding:15px 0;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:15px;">
+                        <div id="gf-estimate-display" aria-live="polite" aria-atomic="true" style="text-align:center;padding:15px 0;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:15px;">
                             <div id="gf-estimate-label" style="font-size:0.6rem;color:#64748b;margin-bottom:8px;">ESTIMATED NOW</div>
                             <div style="display:flex;justify-content:center;gap:30px;">
                                 <div>
@@ -767,7 +774,7 @@
                         </div>
                     </div>
                 </div>
-                <div id="tab-docs" class="tab-content">
+                <div id="tab-docs" class="tab-content" role="tabpanel" aria-labelledby="docs-tab" tabindex="0">
                     <div class="docs-panel" style="max-height:calc(100vh - 280px);overflow-y:auto;">
 
                         <!-- 1. HOOK -->
@@ -960,7 +967,7 @@
                         </div>
                     </div>
                 </div>
-                <div id="tab-learn" class="tab-content">
+                <div id="tab-learn" class="tab-content" role="tabpanel" aria-labelledby="learnTab" tabindex="0">
                     <div id="learnLocked" class="learn-panel" style="text-align:center;padding:40px 20px;">
                         <h3 style="color:#a78bfa;font-size:0.9rem;margin-bottom:15px;">🔒 Protected Section</h3>
                         <p style="font-size:0.65rem;color:#94a3b8;margin-bottom:20px;">
@@ -1202,7 +1209,7 @@
         </footer>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
     <script>
     // =====================================================
     // POTOMAC PULSE v24
@@ -6310,14 +6317,44 @@
         if (map && show) map.invalidateSize();
     }
 
-    document.querySelectorAll(".tab").forEach(tab => {
-        tab.addEventListener("click", () => {
-            document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-            document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-            tab.classList.add("active");
-            document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
-            updateMapVisibility(tab.dataset.tab);
+    function activateTab(tab) {
+        const allTabs = document.querySelectorAll(".tab");
+        const allPanels = document.querySelectorAll(".tab-content");
+        allTabs.forEach(t => {
+            t.classList.remove("active");
+            t.setAttribute("aria-selected", "false");
+            t.setAttribute("tabindex", "-1");
         });
+        allPanels.forEach(c => c.classList.remove("active"));
+        tab.classList.add("active");
+        tab.setAttribute("aria-selected", "true");
+        tab.setAttribute("tabindex", "0");
+        document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
+        updateMapVisibility(tab.dataset.tab);
+    }
+
+    document.querySelectorAll(".tab").forEach(tab => {
+        tab.addEventListener("click", () => activateTab(tab));
+    });
+
+    // Keyboard arrow navigation for tabs (WAI-ARIA Tabs pattern)
+    document.querySelector('.tabs').addEventListener('keydown', e => {
+        const tabs = Array.from(document.querySelectorAll('.tab'));
+        const current = tabs.indexOf(document.activeElement);
+        if (current === -1) return;
+        let target;
+        switch (e.key) {
+            case 'ArrowRight': target = tabs[(current + 1) % tabs.length]; break;
+            case 'ArrowLeft':  target = tabs[(current - 1 + tabs.length) % tabs.length]; break;
+            case 'Home':       target = tabs[0]; break;
+            case 'End':        target = tabs[tabs.length - 1]; break;
+            case 'Enter':
+            case ' ':          e.preventDefault(); activateTab(tabs[current]); return;
+            default: return;
+        }
+        e.preventDefault();
+        target.focus();
+        activateTab(target);
     });
 
     // Initialize map visibility (map hidden by default since Great Falls is now default tab)

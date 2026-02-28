@@ -2,57 +2,15 @@
 // Runs every 2 hours to fetch data, store history, and validate predictions
 // This allows the learning system to work even when no browsers are open
 
-const { getSupabase, GF_FLOW_BINS, getFlowBin, estimateLFFlowFromStage } = require('./shared/model');
-
-// Constants matching client-side code
-// EMPIRICAL CORRECTION (Jan 2026): Searcy × 0.80 based on cross-correlation analysis
-const TRAVEL_COEF = 4139;        // Adjusted (5174 × 0.80)
-const TRAVEL_EXP = -0.5963;      // Searcy exponent (unchanged)
-const MEDIAN_TRAVEL = 25.8;      // Adjusted (32.3 × 0.80)
-const TRAVEL_POR_GF_BASELINE = 19.4;  // Adjusted (24.3 × 0.80)
-const TRAVEL_GF_LF_BASELINE = 6.5;    // Adjusted (8.1 × 0.80)
-
-// Edwards Ferry → Little Falls power-law model
-// Updated 2026-02-18: Deduped dataset (v24.16)
-// Cold water (≤10°C): 160 × EF^2.36 (deduped fit, R²=0.96)
-// Default (>10°C): 126 × EF^2.46 (deduped fit, R²=0.91)
-// SYNC WARNING: Keep in sync with EF_MODEL in index.html
-const EF_MODEL = {
-    // Default coefficients (temp > 10°C or temp unavailable)
-    coef: 126,
-    exp: 2.46,
-    // Cold water coefficients (temp ≤ 10°C)
-    coldCoef: 160,
-    coldExp: 2.36,
-    coldMaxTemp: 10,      // Temperature threshold in °C
-    // Static params (weight now flow-dependent, see getEFWeight)
-    minStage: 2.5,        // Minimum valid EF stage (ft)
-    maxStage: 20.0        // Maximum valid EF stage (ft)
-};
-
-// Flow-dependent EF weight for ensemble model
-// v30.0: Logistic EF weight ramp — smooth 0% → 40%, midpoint 10k cfs.
-// Calibrated via Approach 5 (EF-Dominant) horse race on 117,704 hourly obs (2011-2026).
-// Leave-One-Year-Out CV (14 folds), OOS RMSE: 1,907 cfs (-4.6% vs v29.0 baseline).
-// Blind Python + R subagents + independent auditor verified.
-// See analysis/horserace_v2_python.py and horserace_v2_R.R
-// SYNC WARNING: Keep in sync with getEFWeight() in index.html
-function getEFWeight(estimatedFlow) {
-    // Logistic ramp: near 0% at low flows, 20% at 10k, approaching 40% at high flows
-    if (estimatedFlow < 1000) return 0.0;  // Short-circuit: negligible weight below 1k
-    const W_MAX = 0.40;
-    const K = 5.0;
-    const MIDPOINT = Math.log(10000);
-    return W_MAX / (1 + Math.exp(-K * (Math.log(estimatedFlow) - MIDPOINT)));
-}
-
-// GF_FLOW_BINS and getFlowBin imported from ./shared/model
-
-function getFlowMultiplier(lfFlow) {
-    const flow = Math.max(lfFlow, 1000);
-    const travelHrs = TRAVEL_COEF * Math.pow(flow, TRAVEL_EXP);
-    return travelHrs / MEDIAN_TRAVEL;
-}
+const {
+    getSupabase,
+    GF_FLOW_BINS, getFlowBin, estimateLFFlowFromStage,
+    TRAVEL_COEF, TRAVEL_EXP, MEDIAN_TRAVEL, TRAVEL_POR_GF_BASELINE, TRAVEL_GF_LF_BASELINE,
+    EF_MODEL,
+    getEFWeight, getFlowMultiplier, getFlowState,
+    CEILING_RATIO, DECAY_CAP,
+    TRIB_FALLBACK
+} = require('./shared/model');
 
 // Validate USGS API response schema
 function validateUSGSResponse(json) {
@@ -352,42 +310,7 @@ function estimateLFStage(cfs) {
     return 10.93 + ((cfs - 150000) / 100000) * 2.5;
 }
 
-// Determine flow state from recent history
-// Threshold scales with flow: max(100 cfs, 2% of flow) to filter noise at low flows
-// while still detecting real changes at high flows
-function getFlowState(history, currentCFS) {
-    if (!history?.length || history.length < 8) return 'steady';
-
-    // Get reading from ~2 hours ago
-    const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
-    let pastReading = null;
-
-    for (const r of history) {
-        if (r.timestamp <= twoHoursAgo) {
-            pastReading = r;
-        }
-    }
-
-    if (!pastReading) return 'steady';
-
-    const change = currentCFS - pastReading.cfs;
-    const absChange = Math.abs(change);
-
-    // Threshold: at least 100 cfs change OR 2% of flow, whichever is larger
-    // At 2,000 cfs: threshold = 100 cfs (5%)
-    // At 5,000 cfs: threshold = 100 cfs (2%)
-    // At 10,000 cfs: threshold = 200 cfs (2%)
-    // At 50,000 cfs: threshold = 1,000 cfs (2%)
-    const minAbsChange = 100;  // Minimum 100 cfs to count as change
-    const minPctChange = 0.02; // Minimum 2% to count as change
-    const threshold = Math.max(minAbsChange, currentCFS * minPctChange);
-
-    if (absChange >= threshold) {
-        if (change > 0) return 'rising';
-        if (change < 0) return 'falling';
-    }
-    return 'steady';
-}
+// getFlowState imported from shared/model.js
 
 // Make GF prediction
 // waterTempC: water temperature in Celsius for cold-water EF model adjustment
@@ -415,11 +338,11 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
     // Get time-shifted PoR
     const historicPoR = getPoRFromHistory(porHistory, travelPoRtoGF);
 
-    // Tributary contributions
-    const monocacyFlow = monocacy?.q || (lf.q * 0.071);
-    const gooseFlow = goose?.q || (lf.q * 0.03);
-    const broadRunFlow = broadRun?.q || (lf.q * 0.0066);   // 0.66% of LF (v31.0)
-    const senecaFlow = seneca?.q || (lf.q * 0.0087);       // 0.87% of LF (v31.0)
+    // Tributary contributions (real-time gauge data, with drainage-area fallbacks)
+    const monocacyFlow = monocacy?.q || (lf.q * TRIB_FALLBACK.monocacy);
+    const gooseFlow = goose?.q || (lf.q * TRIB_FALLBACK.goose);
+    const broadRunFlow = broadRun?.q || (lf.q * TRIB_FALLBACK.broadRun);
+    const senecaFlow = seneca?.q || (lf.q * TRIB_FALLBACK.seneca);
 
     let porEstimateCFS;
     let useTimeShifted = false;
@@ -436,7 +359,7 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
 
         if (Math.abs(porChangePct) > 5) {
             const fractionElapsed = Math.min(1.0, (historicPoR.actualHoursAgo || 0) / Math.max(1, travelPoRtoGF));
-            const decayFactor = Math.min(0.50, Math.sqrt(fractionElapsed));  // v28.0: lowered from 0.75
+            const decayFactor = Math.min(DECAY_CAP, Math.sqrt(fractionElapsed));  // v28.0: lowered from 0.75
             const appliedRatio = 1 + (porChangeRatio - 1) * decayFactor;
             const rawEstimate = porEstimateCFS;
             porEstimateCFS = Math.round(porEstimateCFS * appliedRatio);
@@ -493,12 +416,8 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
         estimatedCFS = porEstimateCFS;
     }
 
-    // Soft LF ceiling (v28.0): cap GF estimate at 120% of LF actual.
-    // decay=0.50 + 120% ceiling: near-zero rising bias (-29 cfs hourly).
-    // 120% avoids systematic under-prediction (110% had -476 cfs bias).
-    // Cross-verified on 5,208 daily + 42,837 hourly pairs (Python + R).
+    // Soft LF ceiling — CEILING_RATIO imported from shared/model.js
     let ceilingApplied = false;
-    const CEILING_RATIO = 1.20;
     if (lf?.q > 0) {
         const maxEstimate = lf.q * CEILING_RATIO;
         if (estimatedCFS > maxEstimate) {
