@@ -1268,6 +1268,17 @@ exports.handler = async (event, context) => {
         console.log('=== Scheduled Update Complete ===');
         console.log(JSON.stringify(summary, null, 2));
 
+        // Heartbeat ping — tells healthchecks.io "cron ran successfully"
+        if (process.env.HEALTHCHECKS_PING_URL) {
+            try {
+                await fetch(process.env.HEALTHCHECKS_PING_URL, {
+                    signal: AbortSignal.timeout(5000)
+                });
+            } catch (pingErr) {
+                console.warn('Healthchecks ping failed (non-fatal):', pingErr.message);
+            }
+        }
+
         return {
             statusCode: 200,
             body: JSON.stringify(summary)
@@ -1275,6 +1286,18 @@ exports.handler = async (event, context) => {
 
     } catch (e) {
         console.error('Scheduled update error:', e);
+
+        // Heartbeat failure ping — tells healthchecks.io "cron errored"
+        if (process.env.HEALTHCHECKS_PING_URL) {
+            try {
+                await fetch(process.env.HEALTHCHECKS_PING_URL + '/fail', {
+                    signal: AbortSignal.timeout(5000)
+                });
+            } catch (pingErr) {
+                console.warn('Healthchecks fail-ping failed (non-fatal):', pingErr.message);
+            }
+        }
+
         return {
             statusCode: 500,
             body: JSON.stringify({ error: e.message })

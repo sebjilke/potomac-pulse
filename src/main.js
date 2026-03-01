@@ -2,6 +2,10 @@
 import 'leaflet/dist/leaflet.css';
 import './styles/main.css';
 
+// Error monitoring (initialize first to capture loading errors)
+import { initSentry, Sentry } from './monitoring/sentry.js';
+initSentry();
+
 // Core modules (side-effect imports to ensure they're bundled)
 import './model/constants.js';
 import './model/shared-model.js';
@@ -39,7 +43,10 @@ import { init } from './init.js';
 import { fetchData, updateStalenessDisplay } from './data/fetch.js';
 
 // Boot the application
-init().catch(e => console.error('Init failed:', e));
+init().catch(e => {
+    console.error('Init failed:', e);
+    Sentry.captureException(e);
+});
 
 // Refresh every 15 minutes
 setInterval(fetchData, 900000);

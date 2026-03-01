@@ -9,6 +9,7 @@
     "test": "node --test 'test/**/*.test.js'"
   },
   "dependencies": {
+    "@sentry/browser": "^10.40.0",
     "@supabase/supabase-js": "^2.39.0",
     "leaflet": "^1.9.4"
   },
