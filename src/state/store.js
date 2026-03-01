@@ -64,6 +64,9 @@ export let gfDataReady = false;
 export let lastGFPredictionTime = 0;
 export let gfPredictionRetryQueue = [];
 
+// --- Shadow leaderboard ---
+export let shadowLeaderboard = null;
+
 // --- Forecast accuracy ---
 export let lastForecastPredictionTime = 0;
 export let forecastAccuracyData = null;
@@ -107,6 +110,7 @@ export function setGfLearningData(v) { gfLearningData = v; }
 export function setGfDataReady(v) { gfDataReady = v; }
 export function setLastGFPredictionTime(v) { lastGFPredictionTime = v; }
 export function setGfPredictionRetryQueue(v) { gfPredictionRetryQueue = v; }
+export function setShadowLeaderboard(v) { shadowLeaderboard = v; }
 export function setLastForecastPredictionTime(v) { lastForecastPredictionTime = v; }
 export function setForecastAccuracyData(v) { forecastAccuracyData = v; }
 export function setForecastGraphData(v) { forecastGraphData = v; }

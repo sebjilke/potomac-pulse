@@ -17,7 +17,8 @@ import {
     gfPredictionRetryQueue,
     lastForecastPredictionTime, setLastForecastPredictionTime,
     forecastAccuracyData, setForecastAccuracyData,
-    shadowResults
+    shadowResults,
+    setShadowLeaderboard
 } from '../state/store.js';
 
 import { getEdwardsFerryTrend } from '../estimation/edwards-ferry.js';
@@ -53,6 +54,12 @@ export async function loadGFLearningData() {
             if (gfLearningData.efCorrelation?.slope) {
                 edwardsFerryData.correlation = gfLearningData.efCorrelation;
                 console.log(`📍 EF correlation loaded: CFS = ${gfLearningData.efCorrelation.slope.toFixed(0)} × stage + ${gfLearningData.efCorrelation.intercept.toFixed(0)}`);
+            }
+
+            // Store shadow leaderboard for UI rendering
+            if (gfLearningData.shadowLeaderboard) {
+                setShadowLeaderboard(gfLearningData.shadowLeaderboard);
+                console.log(`🏇 Shadow leaderboard loaded: ${gfLearningData.shadowLeaderboard.totalRounds} rounds`);
             }
         } else {
             console.warn('GF learning API returned:', response.status);

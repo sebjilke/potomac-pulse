@@ -373,6 +373,14 @@ async function loadGFLearningData(client) {
             .eq('gauge_id', 'system')
             .single();
 
+        // Load shadow model leaderboard
+        const { data: shadowLB } = await client
+            .from('potomac_observations')
+            .select('data')
+            .eq('observation_type', 'shadow_leaderboard')
+            .eq('gauge_id', 'system')
+            .single();
+
         // Build correction bins structure
         const correctionBins = {};
         GF_FLOW_BINS.forEach(bin => {
@@ -411,7 +419,8 @@ async function loadGFLearningData(client) {
                     avgErrorPercent: null,
                     lastValidation: null
                 },
-                efCorrelation: efCorr?.data || null  // Edwards Ferry stage to GF CFS correlation
+                efCorrelation: efCorr?.data || null,  // Edwards Ferry stage to GF CFS correlation
+                shadowLeaderboard: shadowLB?.data || null  // Shadow model horse race leaderboard
             })
         };
 
@@ -451,7 +460,8 @@ async function saveGFLearningData(client, data) {
                     flowState: prediction.flowState,
                     travelTimeGFtoLF: prediction.travelTimeGFtoLF,
                     validationDue: prediction.validationDue,
-                    efStage: prediction.efStage || null  // Edwards Ferry stage at prediction time
+                    efStage: prediction.efStage || null,  // Edwards Ferry stage at prediction time
+                    shadowModels: prediction.shadowModels || null  // Shadow model predictions for leaderboard
                 }
             });
 
@@ -771,6 +781,12 @@ async function saveGFLearningData(client, data) {
                 }
             }
 
+            // Delete shadow leaderboard (accuracy starts fresh)
+            await client.from('potomac_observations')
+                .delete()
+                .eq('observation_type', 'shadow_leaderboard')
+                .eq('gauge_id', 'system');
+
             // Reset metadata - accuracy metrics are no longer valid after partial bin reset
             // Keep health tracking stats, reset learning stats
             const { data: meta } = await client
@@ -829,6 +845,12 @@ async function saveGFLearningData(client, data) {
                 .delete()
                 .eq('observation_type', 'gf_prediction')
                 .eq('gauge_id', 'pending');
+
+            // Delete shadow leaderboard (accuracy starts fresh)
+            await client.from('potomac_observations')
+                .delete()
+                .eq('observation_type', 'shadow_leaderboard')
+                .eq('gauge_id', 'system');
 
             // Reset metadata (keep health stats, reset learning stats)
             const { data: meta } = await client

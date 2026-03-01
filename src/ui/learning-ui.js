@@ -6,7 +6,8 @@ import {
     data, learningData, learningEnabled, setLearningEnabled,
     gfLearningData, gfEstimate,
     edwardsFerryData, lastFetchTime,
-    shadowModelState, shadowResults, setShadowModelState, setShadowResults
+    shadowModelState, shadowResults, setShadowModelState, setShadowResults,
+    shadowLeaderboard
 } from '../state/store.js';
 
 // ==================== UPDATE GF LEARNING UI ====================
@@ -323,6 +324,9 @@ export function updateLearningUI() {
 
     // Update shadow model horse race display
     updateShadowModelUI();
+
+    // Update shadow leaderboard
+    updateShadowLeaderboardUI();
 }
 
 // ==================== SHADOW MODEL UI ====================
@@ -386,6 +390,71 @@ export function updateShadowModelUI() {
     if (kalState.initialized) {
         document.getElementById('shadow-diag-kal').textContent =
             `State: ${Math.round(kalState.x).toLocaleString()} cfs | P: ${Math.round(Math.sqrt(kalState.P)).toLocaleString()} cfs (1σ) | Q_base: ${kalState.Q_base}`;
+    }
+
+    // Update leaderboard when shadow models refresh
+    updateShadowLeaderboardUI();
+}
+
+// ==================== SHADOW LEADERBOARD UI ====================
+
+export function updateShadowLeaderboardUI() {
+    const container = document.getElementById('shadow-leaderboard');
+    const header = document.getElementById('shadow-leaderboard-header');
+    if (!container) return;
+
+    if (!shadowLeaderboard || !shadowLeaderboard.totalRounds) {
+        container.textContent = 'Awaiting validated predictions...';
+        if (header) header.textContent = 'LEADERBOARD (awaiting validated predictions)';
+        return;
+    }
+
+    if (header) {
+        header.textContent = `LEADERBOARD (${shadowLeaderboard.totalRounds} round${shadowLeaderboard.totalRounds === 1 ? '' : 's'})`;
+    }
+
+    const modelLabels = {
+        production: { name: 'Production', color: '#4ade80' },
+        lfFeedback: { name: 'LF Feedback', color: '#38bdf8' },
+        onlineRegression: { name: 'Online Regression', color: '#fbbf24' },
+        kalman: { name: 'Kalman Filter', color: '#a78bfa' }
+    };
+    const medals = ['1st', '2nd', '3rd', '4th'];
+
+    // Rank models by meanAbsErrorPercent (lowest = best), skip models with no data
+    const ranked = Object.entries(shadowLeaderboard.models)
+        .filter(([, m]) => m.count > 0)
+        .sort((a, b) => a[1].meanAbsErrorPercent - b[1].meanAbsErrorPercent);
+
+    container.textContent = '';
+
+    ranked.forEach(([key, model], idx) => {
+        const label = modelLabels[key] || { name: key, color: '#94a3b8' };
+        const isWinner = key === shadowLeaderboard.lastWinner;
+
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:3px 0;';
+        if (idx === 0) row.style.borderBottom = '1px solid #1e293b';
+
+        const left = document.createElement('span');
+        left.style.color = label.color;
+        left.textContent = `${medals[idx] || ''} ${label.name}`;
+
+        const right = document.createElement('span');
+        right.style.color = '#94a3b8';
+        right.textContent = `${model.meanAbsErrorPercent.toFixed(1)}% avg | n=${model.count}${isWinner ? ' \u2190 last winner' : ''}`;
+
+        row.appendChild(left);
+        row.appendChild(right);
+        container.appendChild(row);
+    });
+
+    // Footer
+    if (shadowLeaderboard.lastValidationTime) {
+        const footer = document.createElement('div');
+        footer.style.cssText = 'font-size:0.4rem;color:#475569;text-align:center;margin-top:6px;';
+        footer.textContent = `Last scored: ${new Date(shadowLeaderboard.lastValidationTime).toLocaleString()}`;
+        container.appendChild(footer);
     }
 }
 

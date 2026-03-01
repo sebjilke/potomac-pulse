@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const {
     validateUSGSResponse, fetchWithTimeout, fetchWaterTemp,
     getPoRFromHistory, estimateLFStage, makeGFPrediction,
+    scoreShadowPredictions,
 } = require('../netlify/functions/scheduled-update')._test;
 
 const { estimateLFFlowFromStage, EF_MODEL } = require('../netlify/functions/shared/model');
@@ -427,5 +428,111 @@ describe('makeGFPrediction', () => {
         assert.ok(result);
         assert.equal(result.useEfEnsemble, false);
         assert.equal(result.efEstimateCFS, null);
+    });
+});
+
+// ─── scoreShadowPredictions ─────────────────────────────────────────────────
+
+describe('scoreShadowPredictions', () => {
+    it('returns null for null shadowModels', () => {
+        const result = scoreShadowPredictions(null, 10000, 5.0, null);
+        assert.equal(result, null);
+    });
+
+    it('returns null for zero actualCFS', () => {
+        const shadows = { lfFeedback: 10500, onlineRegression: 9800, kalman: 10200 };
+        const result = scoreShadowPredictions(shadows, 0, 5.0, null);
+        assert.equal(result, null);
+    });
+
+    it('initializes leaderboard from scratch with correct error calculations', (t) => {
+        t.mock.timers.enable({ apis: ['Date'] });
+        t.mock.timers.setTime(1700000000000);
+
+        const shadows = { lfFeedback: 10500, onlineRegression: 9800, kalman: 10200 };
+        const actualCFS = 10000;
+        const productionErrorPercent = 3.0;  // production predicted 10300
+
+        const result = scoreShadowPredictions(shadows, actualCFS, productionErrorPercent, null);
+        assert.ok(result);
+        assert.equal(result.totalRounds, 1);
+
+        // Production: |3.0| = 3.0%
+        assert.equal(result.models.production.count, 1);
+        assert.equal(result.models.production.meanAbsErrorPercent, 3.0);
+
+        // LF Feedback: |((10500 - 10000) / 10000) * 100| = 5.0%
+        assert.equal(result.models.lfFeedback.count, 1);
+        assert.equal(result.models.lfFeedback.meanAbsErrorPercent, 5.0);
+
+        // Online Regression: |((9800 - 10000) / 10000) * 100| = 2.0%
+        assert.equal(result.models.onlineRegression.count, 1);
+        assert.equal(result.models.onlineRegression.meanAbsErrorPercent, 2.0);
+
+        // Kalman: |((10200 - 10000) / 10000) * 100| = 2.0%
+        assert.equal(result.models.kalman.count, 1);
+        assert.equal(result.models.kalman.meanAbsErrorPercent, 2.0);
+
+        // Winner should be onlineRegression or kalman (both 2.0%, first found wins)
+        assert.ok(['onlineRegression', 'kalman'].includes(result.lastWinner));
+    });
+
+    it('skips shadow models with null predictions', (t) => {
+        t.mock.timers.enable({ apis: ['Date'] });
+        t.mock.timers.setTime(1700000000000);
+
+        const shadows = { lfFeedback: null, onlineRegression: 9800, kalman: null };
+        const result = scoreShadowPredictions(shadows, 10000, 5.0, null);
+        assert.ok(result);
+        assert.equal(result.models.lfFeedback.count, 0);
+        assert.equal(result.models.onlineRegression.count, 1);
+        assert.equal(result.models.kalman.count, 0);
+        assert.equal(result.models.production.count, 1);
+    });
+
+    it('accumulates counts across multiple rounds', (t) => {
+        t.mock.timers.enable({ apis: ['Date'] });
+        t.mock.timers.setTime(1700000000000);
+
+        const shadows1 = { lfFeedback: 10500, onlineRegression: 9800, kalman: 10200 };
+        const lb1 = scoreShadowPredictions(shadows1, 10000, 3.0, null);
+
+        const shadows2 = { lfFeedback: 11000, onlineRegression: 10100, kalman: 10300 };
+        const lb2 = scoreShadowPredictions(shadows2, 10000, 2.0, lb1);
+
+        assert.equal(lb2.totalRounds, 2);
+        assert.equal(lb2.models.production.count, 2);
+        assert.equal(lb2.models.lfFeedback.count, 2);
+        assert.equal(lb2.models.onlineRegression.count, 2);
+        assert.equal(lb2.models.kalman.count, 2);
+
+        // Production: (3.0 + 2.0) / 2 = 2.5%
+        assert.equal(lb2.models.production.meanAbsErrorPercent, 2.5);
+    });
+
+    it('tracks best streak correctly across winner changes', (t) => {
+        t.mock.timers.enable({ apis: ['Date'] });
+        t.mock.timers.setTime(1700000000000);
+
+        // Round 1: production wins (lowest error)
+        const shadows1 = { lfFeedback: 12000, onlineRegression: 11000, kalman: 11500 };
+        const lb1 = scoreShadowPredictions(shadows1, 10000, 1.0, null);  // production = 1%
+        assert.equal(lb1.lastWinner, 'production');
+        assert.equal(lb1.models.production.currentStreak, 1);
+
+        // Round 2: production wins again
+        const shadows2 = { lfFeedback: 12000, onlineRegression: 11000, kalman: 11500 };
+        const lb2 = scoreShadowPredictions(shadows2, 10000, 0.5, lb1);  // production = 0.5%
+        assert.equal(lb2.lastWinner, 'production');
+        assert.equal(lb2.models.production.currentStreak, 2);
+        assert.equal(lb2.models.production.bestStreak, 2);
+
+        // Round 3: onlineRegression wins — production streak breaks
+        const shadows3 = { lfFeedback: 12000, onlineRegression: 10050, kalman: 11500 };
+        const lb3 = scoreShadowPredictions(shadows3, 10000, 10.0, lb2);  // production = 10%, OR = 0.5%
+        assert.equal(lb3.lastWinner, 'onlineRegression');
+        assert.equal(lb3.models.production.currentStreak, 0);
+        assert.equal(lb3.models.production.bestStreak, 2);  // bestStreak preserved
+        assert.equal(lb3.models.onlineRegression.currentStreak, 1);
     });
 });

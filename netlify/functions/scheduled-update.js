@@ -42,6 +42,77 @@ function validateUSGSResponse(json) {
     return { valid: true };
 }
 
+// Score shadow model predictions against actual CFS
+// Pure function: takes inputs, returns updated leaderboard (or null)
+function scoreShadowPredictions(shadowModels, actualCFS, productionErrorPercent, existingLeaderboard) {
+    if (!shadowModels || !actualCFS || actualCFS <= 0) return null;
+
+    // Initialize default leaderboard structure
+    const lb = existingLeaderboard || {
+        models: {
+            production: { count: 0, sumAbsErrorPercent: 0, meanAbsErrorPercent: null, lastValidation: null, currentStreak: 0, bestStreak: 0 },
+            lfFeedback: { count: 0, sumAbsErrorPercent: 0, meanAbsErrorPercent: null, lastValidation: null, currentStreak: 0, bestStreak: 0 },
+            onlineRegression: { count: 0, sumAbsErrorPercent: 0, meanAbsErrorPercent: null, lastValidation: null, currentStreak: 0, bestStreak: 0 },
+            kalman: { count: 0, sumAbsErrorPercent: 0, meanAbsErrorPercent: null, lastValidation: null, currentStreak: 0, bestStreak: 0 }
+        },
+        totalRounds: 0,
+        lastWinner: null,
+        lastValidationTime: null
+    };
+
+    const now = new Date().toISOString();
+    const modelNames = ['production', 'lfFeedback', 'onlineRegression', 'kalman'];
+
+    // Compute error for each model
+    const errors = {};
+    // Production uses pre-computed errorPercent
+    errors.production = Math.abs(productionErrorPercent);
+    lb.models.production.count += 1;
+    lb.models.production.sumAbsErrorPercent += errors.production;
+    lb.models.production.meanAbsErrorPercent = lb.models.production.sumAbsErrorPercent / lb.models.production.count;
+    lb.models.production.lastValidation = now;
+
+    // Shadow models
+    for (const name of ['lfFeedback', 'onlineRegression', 'kalman']) {
+        const predicted = shadowModels[name];
+        if (predicted == null) continue;  // Skip if shadow had no prediction
+
+        const errPct = Math.abs(((predicted - actualCFS) / actualCFS) * 100);
+        errors[name] = errPct;
+        lb.models[name].count += 1;
+        lb.models[name].sumAbsErrorPercent += errPct;
+        lb.models[name].meanAbsErrorPercent = lb.models[name].sumAbsErrorPercent / lb.models[name].count;
+        lb.models[name].lastValidation = now;
+    }
+
+    // Determine round winner (lowest error among scored models)
+    let winner = null;
+    let lowestError = Infinity;
+    for (const name of modelNames) {
+        if (errors[name] !== undefined && errors[name] < lowestError) {
+            lowestError = errors[name];
+            winner = name;
+        }
+    }
+
+    // Update streaks
+    for (const name of modelNames) {
+        if (errors[name] === undefined) continue;
+        if (name === winner) {
+            lb.models[name].currentStreak += 1;
+            lb.models[name].bestStreak = Math.max(lb.models[name].bestStreak, lb.models[name].currentStreak);
+        } else {
+            lb.models[name].currentStreak = 0;
+        }
+    }
+
+    lb.totalRounds += 1;
+    lb.lastWinner = winner;
+    lb.lastValidationTime = now;
+
+    return lb;
+}
+
 // Fetch with timeout wrapper
 async function fetchWithTimeout(url, timeoutMs = 5000) {
     const controller = new AbortController();
@@ -874,6 +945,36 @@ async function validatePendingPredictions(client, usgsData) {
                 data: metaData
             }, { onConflict: 'observation_type,gauge_id' });
 
+            // Score shadow model predictions (non-blocking — failure must not break validation)
+            if (!isHardFlagged && pred.data.shadowModels) {
+                try {
+                    const { data: existingLB } = await client
+                        .from('potomac_observations')
+                        .select('data')
+                        .eq('observation_type', 'shadow_leaderboard')
+                        .eq('gauge_id', 'system')
+                        .single();
+
+                    const updatedLB = scoreShadowPredictions(
+                        pred.data.shadowModels,
+                        actualCFS,
+                        errorPercent,
+                        existingLB?.data || null
+                    );
+
+                    if (updatedLB) {
+                        await client.from('potomac_observations').upsert({
+                            observation_type: 'shadow_leaderboard',
+                            gauge_id: 'system',
+                            data: updatedLB
+                        }, { onConflict: 'observation_type,gauge_id' });
+                        console.log(`🏇 Shadow leaderboard updated: round ${updatedLB.totalRounds}, winner=${updatedLB.lastWinner}`);
+                    }
+                } catch (shadowErr) {
+                    console.error('Shadow scoring failed (non-fatal):', shadowErr.message);
+                }
+            }
+
             console.log(`✅ Validated prediction: predicted=${predictedCFS}, actual=${Math.round(actualCFS)}, error=${errorPercent.toFixed(1)}%`);
             validated++;
         }
@@ -1053,6 +1154,7 @@ async function validateForecastPredictions(client, usgsData) {
 exports._test = {
     validateUSGSResponse, fetchWithTimeout, fetchWaterTemp,
     fetchUSGSData, getPoRFromHistory, estimateLFStage, makeGFPrediction,
+    scoreShadowPredictions,
 };
 
 // Main handler
