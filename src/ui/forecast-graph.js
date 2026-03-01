@@ -180,6 +180,10 @@ export function renderForecastGraph(periods, currentCFS, hasNWSForecast, history
                 <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.25"/>
                 <stop offset="100%" stop-color="#60a5fa" stop-opacity="0"/>
             </linearGradient>
+            <filter id="coarse" x="-2%" y="-2%" width="104%" height="104%">
+                <feTurbulence type="turbulence" baseFrequency="0.04" numOctaves="3" result="noise"/>
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.5" xChannelSelector="R" yChannelSelector="G"/>
+            </filter>
         </defs>
 
         <!-- Grid lines -->
@@ -193,7 +197,7 @@ export function renderForecastGraph(periods, currentCFS, hasNWSForecast, history
         ${fcstAreaPath ? `<path d="${fcstAreaPath}" fill="url(#graphGradient)" opacity="0.3"/>` : ''}
 
         <!-- History line (solid blue) -->
-        ${histLinePath ? `<path d="${histLinePath}" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round" shape-rendering="geometricPrecision"/>` : ''}
+        ${histLinePath ? `<path d="${histLinePath}" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round" shape-rendering="geometricPrecision" filter="url(#coarse)"/>` : ''}
 
         <!-- Forecast line (green) -->
         ${fcstLinePath ? `<path d="${fcstLinePath}" fill="none" stroke="#4ade80" stroke-width="2" stroke-linejoin="round" shape-rendering="geometricPrecision"/>` : ''}
