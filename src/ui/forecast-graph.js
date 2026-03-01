@@ -99,8 +99,8 @@ export function renderForecastGraph(periods, currentCFS, hasNWSForecast, history
     const bottom = padding.top + graphHeight;
 
     // Scale functions — domain [xMin, xMax] → [padding.left, padding.left + graphWidth]
-    const xScale = (hrs) => padding.left + ((hrs - xMin) / xRange) * graphWidth;
-    const yScale = (stage) => padding.top + (1 - (stage - minStage) / stageRange) * graphHeight;
+    const xScale = (hrs) => Math.round(padding.left + ((hrs - xMin) / xRange) * graphWidth);
+    const yScale = (stage) => Math.round(padding.top + (1 - (stage - minStage) / stageRange) * graphHeight);
 
     // Store scales for external marker positioning
     setGraphScales({ xScale, yScale, padding, graphHeight });
@@ -196,13 +196,13 @@ export function renderForecastGraph(periods, currentCFS, hasNWSForecast, history
         ${fcstAreaPath ? `<path d="${fcstAreaPath}" fill="url(#graphGradient)" opacity="0.3"/>` : ''}
 
         <!-- History line (solid blue) -->
-        ${histLinePath ? `<path d="${histLinePath}" fill="none" stroke="#60a5fa" stroke-width="2"/>` : ''}
+        ${histLinePath ? `<path d="${histLinePath}" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round"/>` : ''}
 
         <!-- History data dots -->
         ${histDotsSVG}
 
         <!-- Forecast line (green) -->
-        ${fcstLinePath ? `<path d="${fcstLinePath}" fill="none" stroke="#4ade80" stroke-width="2"/>` : ''}
+        ${fcstLinePath ? `<path d="${fcstLinePath}" fill="none" stroke="#4ade80" stroke-width="2" stroke-linejoin="round"/>` : ''}
 
         <!-- NOW divider line -->
         ${nowDividerSVG}
