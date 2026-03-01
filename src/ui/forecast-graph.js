@@ -122,7 +122,6 @@ export function renderForecastGraph(periods, currentCFS, hasNWSForecast, history
     // Build history line path (ends at last history point — no bridge to forecast)
     let histLinePath = '';
     let histAreaPath = '';
-    let histDotsSVG = '';
     if (hasHistory) {
         // History line: ends at last history data point (no bridge to forecast NOW point)
         // The two models differ (PoR-only vs full ensemble), so bridging creates a visible jump
@@ -134,10 +133,8 @@ export function renderForecastGraph(periods, currentCFS, hasNWSForecast, history
         const lastHistHrs = histData[histData.length - 1].hrs;
         histAreaPath = `M ${xScale(firstHistHrs)},${yScale(histData[0].stage)} L ${histPathPoints.join(' L ')} L ${xScale(lastHistHrs)},${bottom} L ${xScale(firstHistHrs)},${bottom} Z`;
 
-        // History dots (small dots at each data point, ~15 min intervals)
-        histDotsSVG = histData.map(d =>
-            `<circle cx="${xScale(d.hrs)}" cy="${yScale(d.stage)}" r="2" fill="#60a5fa" opacity="0.7"/>`
-        ).join('');
+        // History dots omitted — at ~15-min intervals (~96 pts over ~100px)
+        // the r=2 circles overlap into a noisy band on top of the line
     }
 
     // Y-axis labels
@@ -197,9 +194,6 @@ export function renderForecastGraph(periods, currentCFS, hasNWSForecast, history
 
         <!-- History line (solid blue) -->
         ${histLinePath ? `<path d="${histLinePath}" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round"/>` : ''}
-
-        <!-- History data dots -->
-        ${histDotsSVG}
 
         <!-- Forecast line (green) -->
         ${fcstLinePath ? `<path d="${fcstLinePath}" fill="none" stroke="#4ade80" stroke-width="2" stroke-linejoin="round"/>` : ''}
