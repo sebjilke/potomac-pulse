@@ -88,10 +88,10 @@ export function updateSyncStatus(status) {
     if (!el) return;
 
     const statusConfig = {
-        synced: { icon: '☁️', color: '#4ade80', title: 'Cloud synced' },
-        syncing: { icon: '☁️', color: '#fbbf24', title: 'Syncing...' },
-        error: { icon: '⚠️', color: '#f87171', title: 'Sync error' },
-        local: { icon: '💾', color: '#64748b', title: 'Local only' }
+        synced: { icon: '☁️', color: 'var(--accent-green)', title: 'Cloud synced' },
+        syncing: { icon: '☁️', color: 'var(--accent-amber)', title: 'Syncing...' },
+        error: { icon: '⚠️', color: 'var(--accent-red-light)', title: 'Sync error' },
+        local: { icon: '💾', color: 'var(--text-muted)', title: 'Local only' }
     };
     const cfg = statusConfig[status] || statusConfig.local;
     el.textContent = cfg.icon;

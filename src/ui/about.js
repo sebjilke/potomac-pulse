@@ -26,7 +26,7 @@ export function initAbout() {
         tobyEgg.addEventListener('mouseenter', () => {
             if (!isActivated) {
                 tobyEgg.textContent = "Toby Woby is working on it...";
-                tobyEgg.style.color = "#fbbf24";
+                tobyEgg.style.color = "var(--accent-amber)";
             }
         });
 
@@ -41,7 +41,7 @@ export function initAbout() {
         tobyEgg.addEventListener('dblclick', () => {
             isActivated = true;
             tobyEgg.textContent = "🐕 Toby Woby is STILL working on it";
-            tobyEgg.style.color = "#fbbf24";
+            tobyEgg.style.color = "var(--accent-amber)";
             tobyEgg.title = "Legend has it, Toby has been 'working on it' since 2019...";
         });
     }

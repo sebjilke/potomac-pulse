@@ -15,6 +15,7 @@
 
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
+    <!-- theme-color must be a raw hex (no var()) — should match --bg-base -->
     <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -34,9 +35,9 @@
     <div id="app">
         <header role="banner">
             <h1>🌊 Potomac Pulse <button id="about-btn" style="font-size:0.7rem;cursor:pointer;opacity:0.7;vertical-align:middle;background:none;border:none;color:inherit;padding:4px;min-width:44px;min-height:44px;" title="About this app" aria-label="About this app">ⓘ</button></h1>
-            <div id="about-tooltip" role="tooltip" style="display:none;position:absolute;top:45px;left:60px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:14px 18px;max-width:360px;font-size:0.8rem;color:#cbd5e1;line-height:1.6;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
-                <div style="margin-bottom:10px;color:#e2e8f0;">This app tracks water moving through the Potomac basin — every gauge, with travel times to Little Falls. And since Great Falls has no gauge, it estimates that too.</div>
-                <div style="color:#94a3b8;">Built by Gordon Shumway for paddling the Po' with Toby Woby and Tim Slim. Toby is "working on it." Tim is already wet.</div>
+            <div id="about-tooltip" role="tooltip" style="display:none;position:absolute;top:45px;left:60px;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:14px 18px;max-width:360px;font-size:0.8rem;color:var(--text-body);line-height:1.6;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+                <div style="margin-bottom:10px;color:var(--text-primary);">This app tracks water moving through the Potomac basin — every gauge, with travel times to Little Falls. And since Great Falls has no gauge, it estimates that too.</div>
+                <div style="color:var(--text-tertiary);">Built by Gordon Shumway for paddling the Po' with Toby Woby and Tim Slim. Toby is "working on it." Tim is already wet.</div>
             </div>
             <div class="hdr-right">
                 <span class="dot loading" id="dot" role="status" aria-label="Data status" title="Loading..."></span>
@@ -49,10 +50,10 @@
             <span id="syncStatus" style="display:none;">☁️</span>
         </header>
         <!-- Network error banner -->
-        <div id="error-banner" role="alert" aria-live="assertive" style="display:none;background:rgba(239,68,68,0.15);border-bottom:1px solid #ef4444;padding:10px 16px;align-items:center;gap:10px;color:#fca5a5;font-size:0.8rem;">
+        <div id="error-banner" role="alert" aria-live="assertive" style="display:none;background:rgba(239,68,68,0.15);border-bottom:1px solid var(--accent-red);padding:10px 16px;align-items:center;gap:10px;color:var(--accent-red-lighter);font-size:0.8rem;">
             <span aria-hidden="true">⚠️</span>
             <span id="error-banner-text" style="flex:1;">Unable to fetch data. Showing cached data.</span>
-            <button id="dismissErrorBtn" aria-label="Dismiss error" style="background:none;border:none;color:#fca5a5;cursor:pointer;font-size:1rem;padding:4px 8px;min-width:44px;min-height:44px;">✕</button>
+            <button id="dismissErrorBtn" aria-label="Dismiss error" style="background:none;border:none;color:var(--accent-red-lighter);cursor:pointer;font-size:1rem;padding:4px 8px;min-width:44px;min-height:44px;">✕</button>
         </div>
         <main id="main-content" role="main">
             <div id="map" role="application" aria-label="River gauge map"></div>
@@ -87,7 +88,7 @@
                 <div id="tab-creeks" class="tab-content" role="tabpanel" aria-labelledby="creeks-tab" tabindex="0">
                     <div id="creeks-status" style="padding:12px;text-align:center;"><div class="creeks-banner quiet">Loading creek data...</div></div>
                     <div id="creeks-list" style="padding:0 8px;"></div>
-                    <div style="font-size:0.55rem;color:#8494a7;padding:10px;text-align:center;border-top:1px solid #1e293b;margin-top:8px;">
+                    <div style="font-size:0.55rem;color:var(--text-creek-meta);padding:10px;text-align:center;border-top:1px solid var(--bg-surface);margin-top:8px;">
                         ⚠ Thresholds are approximate — always scout unfamiliar runs.
                     </div>
                 </div>
@@ -96,28 +97,28 @@
                 </div>
                 <div id="tab-greatfalls" class="tab-content active" role="tabpanel" aria-labelledby="greatfalls-tab" tabindex="0">
                     <div class="docs-panel" style="max-height:calc(100vh - 280px);overflow-y:auto;">
-                        <div style="text-align:center;padding:10px 0 15px;border-bottom:1px solid #334155;margin-bottom:15px;">
-                            <div style="font-size:0.6rem;color:#64748b;margin-bottom:5px;">ESTIMATED CONDITIONS AT</div>
-                            <div style="font-size:1.1rem;color:#60a5fa;font-weight:600;">Great Falls</div>
-                            <div style="font-size:0.5rem;color:#64748b;">Above the aqueduct • No USGS gauge</div>
+                        <div style="text-align:center;padding:10px 0 15px;border-bottom:1px solid var(--border-default);margin-bottom:15px;">
+                            <div style="font-size:0.6rem;color:var(--text-muted);margin-bottom:5px;">ESTIMATED CONDITIONS AT</div>
+                            <div style="font-size:1.1rem;color:var(--accent-blue);font-weight:600;">Great Falls</div>
+                            <div style="font-size:0.5rem;color:var(--text-muted);">Above the aqueduct • No USGS gauge</div>
                         </div>
 
                         <div id="gf-estimate-display" aria-live="polite" aria-atomic="true" style="text-align:center;padding:15px 0;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:15px;">
-                            <div id="gf-estimate-label" style="font-size:0.6rem;color:#64748b;margin-bottom:8px;">ESTIMATED NOW</div>
+                            <div id="gf-estimate-label" style="font-size:0.6rem;color:var(--text-muted);margin-bottom:8px;">ESTIMATED NOW</div>
                             <div style="display:flex;justify-content:center;gap:30px;">
                                 <div>
-                                    <div id="gf-cfs" style="font-size:1.8rem;font-weight:700;color:#60a5fa;">--</div>
-                                    <div style="font-size:0.55rem;color:#64748b;">cfs (LF scale)</div>
+                                    <div id="gf-cfs" style="font-size:1.8rem;font-weight:700;color:var(--accent-blue);">--</div>
+                                    <div style="font-size:0.55rem;color:var(--text-muted);">cfs (LF scale)</div>
                                 </div>
                                 <div>
-                                    <div id="gf-stage" style="font-size:1.8rem;font-weight:700;color:#4ade80;">--</div>
-                                    <div style="font-size:0.55rem;color:#64748b;">ft (LF scale)</div>
+                                    <div id="gf-stage" style="font-size:1.8rem;font-weight:700;color:var(--accent-green);">--</div>
+                                    <div style="font-size:0.55rem;color:var(--text-muted);">ft (LF scale)</div>
                                 </div>
                             </div>
                             <div id="gf-ci-range" style="display:none;"><span id="gf-ci-text"></span></div>
-                            <div id="gf-trend" style="margin-top:10px;font-size:0.8rem;color:#64748b;">--</div>
-                            <div id="gf-data-source" style="display:none;margin-top:5px;font-size:0.55rem;color:#94a3b8;">Based on PoR from -- hrs ago</div>
-                            <div id="gf-confidence" style="margin-top:5px;font-size:0.55rem;color:#a78bfa;">Confidence: --</div>
+                            <div id="gf-trend" style="margin-top:10px;font-size:0.8rem;color:var(--text-muted);">--</div>
+                            <div id="gf-data-source" style="display:none;margin-top:5px;font-size:0.55rem;color:var(--text-tertiary);">Based on PoR from -- hrs ago</div>
+                            <div id="gf-confidence" style="margin-top:5px;font-size:0.55rem;color:var(--accent-purple);">Confidence: --</div>
                             <div id="gf-accuracy" style="display:none;"></div>
                         </div>
 
@@ -128,15 +129,15 @@
                         <span id="gf-forecast-arrival" style="display:none;">--</span>
 
                         <div id="gf-forecast-timeline" style="margin-bottom:15px;">
-                            <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:4px;text-align:center;">24H HISTORY + 48H FORECAST*</div>
-                            <div style="font-size:0.6rem;color:#fbbf24;margin-bottom:8px;text-align:center;">*Experimental — collecting data to validate accuracy</div>
+                            <div style="font-size:0.7rem;color:var(--text-tertiary);margin-bottom:4px;text-align:center;">24H HISTORY + 48H FORECAST*</div>
+                            <div style="font-size:0.6rem;color:var(--accent-amber);margin-bottom:8px;text-align:center;">*Experimental — collecting data to validate accuracy</div>
 
                             <!-- Interactive Graph -->
                             <div id="gf-graph-container" style="position:relative;background:rgba(0,0,0,0.2);border-radius:8px;padding:10px 10px 5px;margin-bottom:10px;">
-                                <div id="gf-graph-tooltip" style="display:none;position:absolute;background:#1e293b;border:1px solid #4ade80;border-radius:4px;padding:6px 10px;font-size:0.7rem;pointer-events:none;z-index:10;white-space:nowrap;">
-                                    <div id="gf-tooltip-time" style="color:#94a3b8;font-size:0.6rem;"></div>
-                                    <div><span id="gf-tooltip-stage" style="color:#4ade80;font-weight:600;"></span> ft</div>
-                                    <div style="font-size:0.55rem;color:#60a5fa;"><span id="gf-tooltip-cfs"></span> cfs</div>
+                                <div id="gf-graph-tooltip" style="display:none;position:absolute;background:var(--bg-surface);border:1px solid var(--accent-green);border-radius:4px;padding:6px 10px;font-size:0.7rem;pointer-events:none;z-index:10;white-space:nowrap;">
+                                    <div id="gf-tooltip-time" style="color:var(--text-tertiary);font-size:0.6rem;"></div>
+                                    <div><span id="gf-tooltip-stage" style="color:var(--accent-green);font-weight:600;"></span> ft</div>
+                                    <div style="font-size:0.55rem;color:var(--accent-blue);"><span id="gf-tooltip-cfs"></span> cfs</div>
                                 </div>
                                 <svg id="gf-forecast-graph" width="100%" height="120" style="display:block;cursor:crosshair;"></svg>
                             </div>
@@ -144,61 +145,61 @@
                             <div id="gf-forecast-periods">
                                 <!-- Forecast periods will be populated by JS -->
                             </div>
-                            <div style="font-size:0.6rem;color:#64748b;margin-top:6px;text-align:center;"><span style="color:#ef4444;">▲</span><span style="color:#22c55e;">▼</span> vs now • tap card or graph for details</div>
-                            <div id="forecast-accuracy" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #334155;text-align:center;">
+                            <div style="font-size:0.6rem;color:var(--text-muted);margin-top:6px;text-align:center;"><span style="color:var(--color-rising);">▲</span><span style="color:var(--color-falling);">▼</span> vs now • tap card or graph for details</div>
+                            <div id="forecast-accuracy" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border-default);text-align:center;">
                                 <!-- Forecast accuracy stats populated by JS -->
                             </div>
                         </div>
 
                         <details style="margin-bottom:15px;">
-                            <summary style="font-size:0.7rem;color:#60a5fa;cursor:pointer;padding:8px 0;border-bottom:1px solid #334155;margin-bottom:8px;list-style:none;">📥 Estimation Inputs ▸</summary>
+                            <summary style="font-size:0.7rem;color:var(--accent-blue);cursor:pointer;padding:8px 0;border-bottom:1px solid var(--border-default);margin-bottom:8px;list-style:none;">📥 Estimation Inputs ▸</summary>
                             <div style="background:rgba(0,0,0,0.15);padding:10px;border-radius:6px;">
-                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                    <span style="color:#94a3b8;">Point of Rocks (83.5%)</span>
-                                    <span id="gf-input-por" style="color:#60a5fa;">-- cfs</span>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
+                                    <span style="color:var(--text-tertiary);">Point of Rocks (83.5%)</span>
+                                    <span id="gf-input-por" style="color:var(--accent-blue);">-- cfs</span>
                                 </div>
-                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                    <span style="color:#94a3b8;">+ Monocacy (7.1%)</span>
-                                    <span id="gf-input-monocacy" style="color:#4ade80;">+ -- cfs</span>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
+                                    <span style="color:var(--text-tertiary);">+ Monocacy (7.1%)</span>
+                                    <span id="gf-input-monocacy" style="color:var(--accent-green);">+ -- cfs</span>
                                 </div>
-                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                    <span style="color:#94a3b8;">+ Goose Creek (3.0%)</span>
-                                    <span id="gf-input-goose" style="color:#4ade80;">+ -- cfs</span>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
+                                    <span style="color:var(--text-tertiary);">+ Goose Creek (3.0%)</span>
+                                    <span id="gf-input-goose" style="color:var(--accent-green);">+ -- cfs</span>
                                 </div>
-                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                    <span style="color:#94a3b8;">+ Broad Run (0.7%)</span>
-                                    <span id="gf-input-broadrun" style="color:#4ade80;">+ -- cfs</span>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
+                                    <span style="color:var(--text-tertiary);">+ Broad Run (0.7%)</span>
+                                    <span id="gf-input-broadrun" style="color:var(--accent-green);">+ -- cfs</span>
                                 </div>
-                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                    <span style="color:#94a3b8;">+ Seneca (0.9%)</span>
-                                    <span id="gf-input-seneca" style="color:#4ade80;">+ -- cfs</span>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
+                                    <span style="color:var(--text-tertiary);">+ Seneca (0.9%)</span>
+                                    <span id="gf-input-seneca" style="color:var(--accent-green);">+ -- cfs</span>
                                 </div>
-                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                    <span style="color:#94a3b8;">Travel time PoR→GF</span>
-                                    <span id="gf-input-travel" style="color:#fbbf24;">-- hrs</span>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
+                                    <span style="color:var(--text-tertiary);">Travel time PoR→GF</span>
+                                    <span id="gf-input-travel" style="color:var(--accent-amber);">-- hrs</span>
                                 </div>
-                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                    <span style="color:#94a3b8;">Travel time GF→LF</span>
-                                    <span id="gf-input-travel-gf-lf" style="color:#fbbf24;">-- hrs</span>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
+                                    <span style="color:var(--text-tertiary);">Travel time GF→LF</span>
+                                    <span id="gf-input-travel-gf-lf" style="color:var(--accent-amber);">-- hrs</span>
                                 </div>
-                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                    <span style="color:#94a3b8;">Flow bin</span>
-                                    <span id="gf-input-flowbin" style="color:#94a3b8;">--</span>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
+                                    <span style="color:var(--text-tertiary);">Flow bin</span>
+                                    <span id="gf-input-flowbin" style="color:var(--text-tertiary);">--</span>
                                 </div>
-                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                    <span style="color:#94a3b8;">Learned correction</span>
-                                    <span id="gf-input-correction" style="color:#a78bfa;">± -- cfs</span>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
+                                    <span style="color:var(--text-tertiary);">Learned correction</span>
+                                    <span id="gf-input-correction" style="color:var(--accent-purple);">± -- cfs</span>
                                 </div>
-                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid #334155;">
-                                    <span style="color:#94a3b8;">90% CI</span>
-                                    <span id="gf-input-uncertainty" style="color:#fbbf24;">--</span>
+                                <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
+                                    <span style="color:var(--text-tertiary);">90% CI</span>
+                                    <span id="gf-input-uncertainty" style="color:var(--accent-amber);">--</span>
                                 </div>
                                 <div id="gf-ef-crosscheck" style="display:none;padding:4px 0;font-size:0.6rem;">
                                     <div style="display:flex;justify-content:space-between;">
-                                        <span style="color:#06b6d4;">EF Cross-check</span>
-                                        <span id="gf-ef-estimate" style="color:#06b6d4;">--</span>
+                                        <span style="color:var(--accent-teal);">EF Cross-check</span>
+                                        <span id="gf-ef-estimate" style="color:var(--accent-teal);">--</span>
                                     </div>
-                                    <div style="font-size:0.5rem;color:#64748b;margin-top:2px;">Edwards Ferry power-law estimate</div>
+                                    <div style="font-size:0.5rem;color:var(--text-muted);margin-top:2px;">Edwards Ferry power-law estimate</div>
                                 </div>
                             </div>
                         </details>
@@ -215,128 +216,128 @@
 
                         <!-- 1. HOOK -->
                         <h3>What Is Potomac Pulse?</h3>
-                        <p style="font-size:0.75rem;color:#94a3b8;line-height:1.7;">
+                        <p style="font-size:0.75rem;color:var(--text-tertiary);line-height:1.7;">
                         There's no gauge at Great Falls. Potomac Pulse estimates what's happening there right now — and what's coming — so you can plan your time on the water.
                         </p>
 
                         <!-- 2. READING YOUR SCREEN (moved up — most immediately useful) -->
                         <h3>Reading Your Screen</h3>
-                        <p style="font-size:0.7rem;color:#94a3b8;line-height:1.6;margin-bottom:6px;">
-                        <b style="color:#60a5fa;">CFS</b> — Cubic feet per second. How much water is flowing. Higher = more water, bigger features.
+                        <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:6px;">
+                        <b style="color:var(--accent-blue);">CFS</b> — Cubic feet per second. How much water is flowing. Higher = more water, bigger features.
                         </p>
-                        <p style="font-size:0.7rem;color:#94a3b8;line-height:1.6;margin-bottom:6px;">
-                        <b style="color:#4ade80;">Stage</b> — Water height in feet on the Little Falls scale, so you can compare to levels you already know.
+                        <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:6px;">
+                        <b style="color:var(--accent-green);">Stage</b> — Water height in feet on the Little Falls scale, so you can compare to levels you already know.
                         </p>
-                        <p style="font-size:0.7rem;color:#94a3b8;line-height:1.6;margin-bottom:6px;">
-                        <b style="color:#fbbf24;">Confidence</b> — How much data the estimate is based on.
+                        <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:6px;">
+                        <b style="color:var(--accent-amber);">Confidence</b> — How much data the estimate is based on.
                         </p>
                         <div style="font-size:0.65rem;margin:8px 0;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;">
-                            <div style="margin-bottom:5px;"><span style="color:#4ade80;">● High</span> — Multiple sources agree. Number is solid — plan around it.</div>
-                            <div style="margin-bottom:5px;"><span style="color:#fbbf24;">● Medium</span> — Some data gaps. Reasonable, but could shift 10-20%.</div>
-                            <div><span style="color:#ef4444;">● Low</span> — Limited data. Treat as ballpark — check back in an hour.</div>
+                            <div style="margin-bottom:5px;"><span style="color:var(--accent-green);">● High</span> — Multiple sources agree. Number is solid — plan around it.</div>
+                            <div style="margin-bottom:5px;"><span style="color:var(--accent-amber);">● Medium</span> — Some data gaps. Reasonable, but could shift 10-20%.</div>
+                            <div><span style="color:var(--accent-red);">● Low</span> — Limited data. Treat as ballpark — check back in an hour.</div>
                         </div>
 
                         <!-- 3. HOW ACCURATE (moved up — trust calibration) -->
                         <h3>How Accurate Is It?</h3>
-                        <p style="font-size:0.7rem;color:#94a3b8;line-height:1.6;margin-bottom:8px;">
+                        <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:8px;">
                         Every prediction gets checked ~6 hours later when that water reaches Little Falls. The system learns correction factors for different conditions and gets better over time.
                         </p>
                         <div style="font-size:0.65rem;margin:8px 0;">
-                            <div style="padding:6px 0;border-bottom:1px solid #334155;">
-                                <span style="color:#4ade80;">Best for:</span>
-                                <span style="color:#94a3b8;"> Steady or slowly changing conditions — planning a weekend trip</span>
+                            <div style="padding:6px 0;border-bottom:1px solid var(--border-default);">
+                                <span style="color:var(--accent-green);">Best for:</span>
+                                <span style="color:var(--text-tertiary);"> Steady or slowly changing conditions — planning a weekend trip</span>
                             </div>
-                            <div style="padding:6px 0;border-bottom:1px solid #334155;">
-                                <span style="color:#fbbf24;">Good for:</span>
-                                <span style="color:#94a3b8;"> Rising water and storm pulses — watching a wave move through the basin</span>
+                            <div style="padding:6px 0;border-bottom:1px solid var(--border-default);">
+                                <span style="color:var(--accent-amber);">Good for:</span>
+                                <span style="color:var(--text-tertiary);"> Rising water and storm pulses — watching a wave move through the basin</span>
                             </div>
                             <div style="padding:6px 0;">
-                                <span style="color:#ef4444;">Least reliable:</span>
-                                <span style="color:#94a3b8;"> Ice conditions, gauge malfunctions, extreme floods (&gt;100k cfs)</span>
+                                <span style="color:var(--accent-red);">Least reliable:</span>
+                                <span style="color:var(--text-tertiary);"> Ice conditions, gauge malfunctions, extreme floods (&gt;100k cfs)</span>
                             </div>
                         </div>
 
                         <!-- 3b. SAFETY CALLOUT (adjacent to accuracy) -->
-                        <div style="border-left:3px solid #f59e0b;background:rgba(245,158,11,0.08);padding:10px 12px;border-radius:4px;margin:12px 0;">
-                            <div style="font-size:0.7rem;color:#f59e0b;font-weight:600;margin-bottom:4px;">
+                        <div style="border-left:3px solid var(--accent-loading);background:rgba(245,158,11,0.08);padding:10px 12px;border-radius:4px;margin:12px 0;">
+                            <div style="font-size:0.7rem;color:var(--accent-loading);font-weight:600;margin-bottom:4px;">
                                 This is an estimate, not a measurement
                             </div>
-                            <div style="font-size:0.65rem;color:#94a3b8;line-height:1.5;">
+                            <div style="font-size:0.65rem;color:var(--text-tertiary);line-height:1.5;">
                                 Don't use it for life-safety decisions. Localized storms between gauges won't show until that water arrives, and fast-rising floods may arrive sooner than predicted. Always check NWS warnings independently.
                             </div>
                         </div>
 
                         <!-- 4. HOW IT WORKS — DIAGRAM -->
                         <h3>How It Works</h3>
-                        <p style="font-size:0.7rem;color:#94a3b8;line-height:1.6;margin-bottom:10px;">
+                        <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:10px;">
                         We combine two upstream gauges into a single Great Falls estimate, then validate when that water reaches a downstream gauge.
                         </p>
 
-                        <div style="background:#0f172a;padding:15px;border-radius:8px;margin:12px 0;">
+                        <div style="background:var(--bg-base);padding:15px;border-radius:8px;margin:12px 0;">
                             <!-- Row 1: Two upstream sources -->
                             <div style="display:flex;justify-content:center;gap:10px;margin-bottom:8px;">
-                                <div style="background:#1e293b;border:1px solid #60a5fa;border-radius:6px;padding:8px 12px;text-align:center;min-width:110px;">
-                                    <div style="font-size:0.7rem;color:#60a5fa;font-weight:600;">Point of Rocks</div>
-                                    <div style="font-size:0.55rem;color:#94a3b8;">20 mi upstream</div>
-                                    <div style="font-size:0.5rem;color:#64748b;">flow + level</div>
+                                <div style="background:var(--bg-surface);border:1px solid var(--accent-blue);border-radius:6px;padding:8px 12px;text-align:center;min-width:110px;">
+                                    <div style="font-size:0.7rem;color:var(--accent-blue);font-weight:600;">Point of Rocks</div>
+                                    <div style="font-size:0.55rem;color:var(--text-tertiary);">20 mi upstream</div>
+                                    <div style="font-size:0.5rem;color:var(--text-muted);">flow + level</div>
                                 </div>
-                                <div style="background:#1e293b;border:1px solid #06b6d4;border-radius:6px;padding:8px 12px;text-align:center;min-width:110px;">
-                                    <div style="font-size:0.7rem;color:#06b6d4;font-weight:600;">Edwards Ferry</div>
-                                    <div style="font-size:0.55rem;color:#94a3b8;">2 mi upstream</div>
-                                    <div style="font-size:0.5rem;color:#64748b;">level only</div>
+                                <div style="background:var(--bg-surface);border:1px solid var(--accent-teal);border-radius:6px;padding:8px 12px;text-align:center;min-width:110px;">
+                                    <div style="font-size:0.7rem;color:var(--accent-teal);font-weight:600;">Edwards Ferry</div>
+                                    <div style="font-size:0.55rem;color:var(--text-tertiary);">2 mi upstream</div>
+                                    <div style="font-size:0.5rem;color:var(--text-muted);">level only</div>
                                 </div>
                             </div>
 
                             <!-- Arrows down -->
                             <div style="display:flex;justify-content:center;gap:60px;margin-bottom:4px;">
-                                <div style="text-align:center;"><div style="font-size:0.9rem;color:#60a5fa;">↓</div></div>
-                                <div style="text-align:center;"><div style="font-size:0.9rem;color:#06b6d4;">↓</div></div>
+                                <div style="text-align:center;"><div style="font-size:0.9rem;color:var(--accent-blue);">↓</div></div>
+                                <div style="text-align:center;"><div style="font-size:0.9rem;color:var(--accent-teal);">↓</div></div>
                             </div>
 
                             <!-- Blend label -->
                             <div style="text-align:center;margin-bottom:6px;">
-                                <div style="font-size:0.55rem;color:#94a3b8;">blended by logistic weight function</div>
+                                <div style="font-size:0.55rem;color:var(--text-tertiary);">blended by logistic weight function</div>
                             </div>
 
                             <!-- Great Falls estimate -->
                             <div style="display:flex;justify-content:center;margin-bottom:8px;">
-                                <div style="background:#1e293b;border:2px solid #4ade80;border-radius:6px;padding:10px 20px;text-align:center;">
-                                    <div style="font-size:0.75rem;color:#4ade80;font-weight:700;">GREAT FALLS</div>
-                                    <div style="font-size:0.55rem;color:#94a3b8;">Estimated conditions</div>
+                                <div style="background:var(--bg-surface);border:2px solid var(--accent-green);border-radius:6px;padding:10px 20px;text-align:center;">
+                                    <div style="font-size:0.75rem;color:var(--accent-green);font-weight:700;">GREAT FALLS</div>
+                                    <div style="font-size:0.55rem;color:var(--text-tertiary);">Estimated conditions</div>
                                 </div>
                             </div>
 
                             <!-- Arrow down with time -->
                             <div style="text-align:center;margin-bottom:4px;">
-                                <div style="font-size:0.9rem;color:#fbbf24;">↓</div>
-                                <div style="font-size:0.55rem;color:#fbbf24;">~6 hrs later</div>
+                                <div style="font-size:0.9rem;color:var(--accent-amber);">↓</div>
+                                <div style="font-size:0.55rem;color:var(--accent-amber);">~6 hrs later</div>
                             </div>
 
                             <!-- Little Falls validation -->
                             <div style="display:flex;justify-content:center;">
-                                <div style="background:#1e293b;border:1px solid #fbbf24;border-radius:6px;padding:8px 16px;text-align:center;">
-                                    <div style="font-size:0.7rem;color:#fbbf24;font-weight:600;">Little Falls</div>
-                                    <div style="font-size:0.55rem;color:#64748b;">Validates prediction</div>
+                                <div style="background:var(--bg-surface);border:1px solid var(--accent-amber);border-radius:6px;padding:8px 16px;text-align:center;">
+                                    <div style="font-size:0.7rem;color:var(--accent-amber);font-weight:600;">Little Falls</div>
+                                    <div style="font-size:0.55rem;color:var(--text-muted);">Validates prediction</div>
                                 </div>
                             </div>
 
                             <!-- Tributary note -->
-                            <div style="font-size:0.55rem;color:#64748b;text-align:center;margin-top:10px;padding-top:8px;border-top:1px solid #334155;">
+                            <div style="font-size:0.55rem;color:var(--text-muted);text-align:center;margin-top:10px;padding-top:8px;border-top:1px solid var(--border-default);">
                                 + Monocacy, Goose Creek, Broad Run &amp; Seneca added at their confluence points
                             </div>
                         </div>
 
-                        <p style="font-size:0.65rem;color:#94a3b8;line-height:1.6;">
+                        <p style="font-size:0.65rem;color:var(--text-tertiary);line-height:1.6;">
                         <b>The blend is smart:</b> At low flows, local channel effects make Edwards Ferry a poor downstream predictor, so the model uses Point of Rocks alone. As flows increase, EF weight rises smoothly via a logistic function (0% → 40%, midpoint at 10k cfs) — calibrated on 117,000+ hourly observations (2011–2026) and cross-verified in Python and R.
                         </p>
 
                         <!-- UNDER THE HOOD (credibility — takeaway first, formula second) -->
-                        <div style="background:#0f172a;padding:10px 12px;border-radius:6px;margin:10px 0;">
-                            <div style="font-size:0.55rem;color:#64748b;margin-bottom:6px;">UNDER THE HOOD</div>
-                            <p style="font-size:0.65rem;color:#94a3b8;line-height:1.5;margin-bottom:6px;">
+                        <div style="background:var(--bg-base);padding:10px 12px;border-radius:6px;margin:10px 0;">
+                            <div style="font-size:0.55rem;color:var(--text-muted);margin-bottom:6px;">UNDER THE HOOD</div>
+                            <p style="font-size:0.65rem;color:var(--text-tertiary);line-height:1.5;margin-bottom:6px;">
                             The logistic blend was selected from seven competing approaches via leave-one-year-out cross-validation. Typical prediction error is ~6%, varying by flow: higher below 3,000 cfs, under 9% above 15,000 cfs.
                             </p>
-                            <p style="font-size:0.6rem;color:#64748b;line-height:1.5;margin-bottom:4px;">
+                            <p style="font-size:0.6rem;color:var(--text-muted);line-height:1.5;margin-bottom:4px;">
                             <b>EF power-law:</b> 126 &times; EF<sup>2.46</sup> (default) or 160 &times; EF<sup>2.36</sup> (cold water &le;10&deg;C / 50&deg;F).<br>
                             <b>Safety cap:</b> Estimate capped at 120% of Little Falls actual to prevent runaway overshoot.<br>
                             <b>Flow state:</b> Rising/falling/steady detected from observed PoR rate (2-hour lookback), not forecasts.
@@ -345,39 +346,39 @@
 
                         <!-- 5. 48-HOUR FORECAST (trust sentence first) -->
                         <h3>The 48-Hour Forecast</h3>
-                        <p style="font-size:0.7rem;color:#94a3b8;line-height:1.6;margin-bottom:8px;">
+                        <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:8px;">
                         The forecast uses official NWS predictions for the Potomac, adjusted to match what the gauges actually read right now. We shift the NWS timeline to account for how long water takes to travel between gauges — so you see when conditions will change at Great Falls.
                         </p>
-                        <p style="font-size:0.65rem;color:#64748b;line-height:1.5;">
+                        <p style="font-size:0.65rem;color:var(--text-muted);line-height:1.5;">
                         This works differently than the "now" estimate. Since water takes so long to travel from Point of Rocks, we take the Little Falls forecast and work backwards — if Little Falls will rise, Great Falls must rise first.
                         </p>
 
                         <!-- 6. TRAVEL TIMES -->
                         <h3>How Fast Does Water Travel?</h3>
-                        <p style="font-size:0.7rem;color:#94a3b8;line-height:1.6;margin-bottom:6px;">
+                        <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:6px;">
                         This is the key to the whole system. Water takes hours to flow downstream, so today's Point of Rocks reading tells you what arrives at Great Falls <i>tomorrow</i>. To estimate GF <i>right now</i>, we look at what Point of Rocks was reading a day ago.
                         </p>
                         <table style="font-size:0.6rem;margin:8px 0;width:100%;">
                             <tr><th>Flow Level</th><th>Speed</th><th>Pt of Rocks → Little Falls</th></tr>
                             <tr><td>Very low (~1.2k cfs)</td><td>~0.9 mph</td><td>~44 hrs</td></tr>
                             <tr><td>Low (~2k cfs)</td><td>~1.2 mph</td><td>~35 hrs</td></tr>
-                            <tr style="background:#1e3a5f;"><td><b>Typical (~5k cfs)</b></td><td><b>~1.6 mph</b></td><td><b>~26 hrs</b></td></tr>
+                            <tr style="background:var(--bg-highlight);"><td><b>Typical (~5k cfs)</b></td><td><b>~1.6 mph</b></td><td><b>~26 hrs</b></td></tr>
                             <tr><td>High (~15k cfs)</td><td>~3 mph</td><td>~14 hrs</td></tr>
                             <tr><td>Flood (~50k+ cfs)</td><td>~6 mph</td><td>~7 hrs</td></tr>
                         </table>
-                        <p style="font-size:0.55rem;color:#64748b;line-height:1.4;margin-top:4px;">
+                        <p style="font-size:0.55rem;color:var(--text-muted);line-height:1.4;margin-top:4px;">
                         Based on USGS Circular 438 (Searcy, 1961), updated with modern 15-minute gauge data. Water now travels ~20% faster than the 1960s model predicted.
                         </p>
 
                         <!-- 7. BASIN COVERAGE (condensed) -->
                         <h3>Basin Coverage</h3>
-                        <p style="font-size:0.65rem;color:#94a3b8;line-height:1.6;margin-bottom:8px;">
+                        <p style="font-size:0.65rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:8px;">
                         19 USGS gauges feed the model. Point of Rocks carries about 84% of the flow, with Monocacy, Goose Creek, Broad Run, and Seneca Creek adding the rest. Edwards Ferry provides a nearby cross-check just 2 miles above Great Falls. Upstream gauges (Hancock, Cumberland, Shenandoah) give multi-day advance notice when a pulse is coming.
                         </p>
 
                         <!-- 8. DATA SOURCES -->
                         <h3>Data Sources</h3>
-                        <p style="font-size:0.65rem;color:#94a3b8;line-height:1.6;">
+                        <p style="font-size:0.65rem;color:var(--text-tertiary);line-height:1.6;">
                         <b>Real-time gauges:</b> USGS Water Services (updates every 15 min)<br>
                         <b>Forecasts:</b> National Weather Service river predictions<br>
                         <b>Water temperature:</b> USGS Point of Rocks gauge
@@ -385,19 +386,19 @@
 
                         <!-- 8b. CREEKS TAB -->
                         <h3>Creeks Tab</h3>
-                        <p style="font-size:0.65rem;color:#94a3b8;line-height:1.6;">
+                        <p style="font-size:0.65rem;color:var(--text-tertiary);line-height:1.6;">
                         The Creeks tab shows rain-dependent whitewater runs near DC. These use separate USGS gauges — a creek shows green when flow is at or above its runnable threshold (e.g., Rock Creek &ge;400 cfs). This is display-only and does <i>not</i> affect the Great Falls estimate.
                         </p>
 
                         <!-- 9. LIMITATIONS (remaining items) -->
-                        <p style="font-size:0.6rem;color:#64748b;line-height:1.5;margin-top:10px;">
+                        <p style="font-size:0.6rem;color:var(--text-muted);line-height:1.5;margin-top:10px;">
                         The Washington Aqueduct, WSSC, and Fairfax Water all divert water above Great Falls — roughly 400–700 cfs combined. This water never goes over the falls. The estimate shown is calibrated to Little Falls (downstream), so these diversions are already built into the model. Ice can corrupt gauge readings — the system detects anomalies and flags suspicious data automatically.
                         </p>
 
                         <!-- 10. TECHNICAL APPENDIX -->
-                        <div style="margin-top:20px;padding:12px;background:#0f172a;border-radius:6px;text-align:center;">
-                            <p style="font-size:0.65rem;color:#64748b;margin-bottom:8px;">Want the full math? Equations, validation data, model details</p>
-                            <button id="techAppendixBtn" style="background:#2563eb;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;font-size:0.7rem;">
+                        <div style="margin-top:20px;padding:12px;background:var(--bg-base);border-radius:6px;text-align:center;">
+                            <p style="font-size:0.65rem;color:var(--text-muted);margin-bottom:8px;">Want the full math? Equations, validation data, model details</p>
+                            <button id="techAppendixBtn" style="background:var(--btn-primary);color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;font-size:0.7rem;">
                                 Download Technical Details
                             </button>
                         </div>
@@ -405,109 +406,109 @@
                 </div>
                 <div id="tab-learn" class="tab-content" role="tabpanel" aria-labelledby="learnTab" tabindex="0">
                     <div id="learnLocked" class="learn-panel" style="text-align:center;padding:40px 20px;">
-                        <h3 style="color:#a78bfa;font-size:0.9rem;margin-bottom:15px;">🔒 Protected Section</h3>
-                        <p style="font-size:0.65rem;color:#94a3b8;margin-bottom:20px;">
+                        <h3 style="color:var(--accent-purple);font-size:0.9rem;margin-bottom:15px;">🔒 Protected Section</h3>
+                        <p style="font-size:0.65rem;color:var(--text-tertiary);margin-bottom:20px;">
                             The adaptive learning system is restricted to the model administrator.<br>
                             Enter PIN to access learning data and corrections.
                         </p>
                         <input type="password" id="learnPIN" placeholder="Enter PIN" maxlength="6"
-                               style="background:#1e293b;border:1px solid #334155;color:white;padding:10px;border-radius:4px;width:120px;text-align:center;font-size:1rem;letter-spacing:4px;">
+                               style="background:var(--bg-surface);border:1px solid var(--border-default);color:white;padding:10px;border-radius:4px;width:120px;text-align:center;font-size:1rem;letter-spacing:4px;">
                         <br><br>
-                        <button id="learnUnlockBtn" style="background:#7c3aed;color:white;border:none;padding:8px 20px;border-radius:4px;cursor:pointer;font-size:0.7rem;">
+                        <button id="learnUnlockBtn" style="background:var(--btn-purple);color:white;border:none;padding:8px 20px;border-radius:4px;cursor:pointer;font-size:0.7rem;">
                             Unlock
                         </button>
-                        <p id="pinError" style="color:#ef4444;font-size:0.6rem;margin-top:10px;display:none;">Incorrect PIN</p>
+                        <p id="pinError" style="color:var(--accent-red);font-size:0.6rem;margin-top:10px;display:none;">Incorrect PIN</p>
                     </div>
                     <div id="learnUnlocked" class="learn-panel" style="display:none;">
                         <!-- ADMIN DASHBOARD -->
-                        <div style="background:#0f172a;border-radius:8px;padding:12px;margin-bottom:15px;border:1px solid #334155;">
-                            <div style="font-size:0.65rem;color:#64748b;margin-bottom:10px;text-align:center;">ADMIN DASHBOARD</div>
+                        <div style="background:var(--bg-base);border-radius:8px;padding:12px;margin-bottom:15px;border:1px solid var(--border-default);">
+                            <div style="font-size:0.65rem;color:var(--text-muted);margin-bottom:10px;text-align:center;">ADMIN DASHBOARD</div>
 
                             <!-- Row 1: Current Conditions -->
                             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
-                                <div style="background:#1e293b;padding:8px;border-radius:6px;text-align:center;">
-                                    <div style="font-size:0.5rem;color:#64748b;">LF ACTUAL</div>
-                                    <div id="dash-lf-cfs" style="font-size:0.85rem;color:#fbbf24;font-weight:600;">--</div>
-                                    <div id="dash-lf-stage" style="font-size:0.55rem;color:#94a3b8;">-- ft</div>
+                                <div style="background:var(--bg-surface);padding:8px;border-radius:6px;text-align:center;">
+                                    <div style="font-size:0.5rem;color:var(--text-muted);">LF ACTUAL</div>
+                                    <div id="dash-lf-cfs" style="font-size:0.85rem;color:var(--accent-amber);font-weight:600;">--</div>
+                                    <div id="dash-lf-stage" style="font-size:0.55rem;color:var(--text-tertiary);">-- ft</div>
                                 </div>
-                                <div style="background:#1e293b;padding:8px;border-radius:6px;text-align:center;">
-                                    <div style="font-size:0.5rem;color:#64748b;">GF ESTIMATE</div>
-                                    <div id="dash-gf-cfs" style="font-size:0.85rem;color:#4ade80;font-weight:600;">--</div>
-                                    <div id="dash-gf-stage" style="font-size:0.55rem;color:#94a3b8;">-- ft</div>
+                                <div style="background:var(--bg-surface);padding:8px;border-radius:6px;text-align:center;">
+                                    <div style="font-size:0.5rem;color:var(--text-muted);">GF ESTIMATE</div>
+                                    <div id="dash-gf-cfs" style="font-size:0.85rem;color:var(--accent-green);font-weight:600;">--</div>
+                                    <div id="dash-gf-stage" style="font-size:0.55rem;color:var(--text-tertiary);">-- ft</div>
                                 </div>
-                                <div style="background:#1e293b;padding:8px;border-radius:6px;text-align:center;">
-                                    <div style="font-size:0.5rem;color:#64748b;">PoR NOW</div>
-                                    <div id="dash-por-cfs" style="font-size:0.85rem;color:#60a5fa;font-weight:600;">--</div>
-                                    <div id="dash-por-status" style="font-size:0.5rem;color:#94a3b8;">--</div>
+                                <div style="background:var(--bg-surface);padding:8px;border-radius:6px;text-align:center;">
+                                    <div style="font-size:0.5rem;color:var(--text-muted);">PoR NOW</div>
+                                    <div id="dash-por-cfs" style="font-size:0.85rem;color:var(--accent-blue);font-weight:600;">--</div>
+                                    <div id="dash-por-status" style="font-size:0.5rem;color:var(--text-tertiary);">--</div>
                                 </div>
                             </div>
 
                             <!-- Row 2: Key Upstream -->
                             <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">
-                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
-                                    <div style="font-size:0.45rem;color:#64748b;">EF Stage</div>
-                                    <div id="dash-ef-stage" style="font-size:0.7rem;color:#06b6d4;">--</div>
+                                <div style="background:var(--bg-surface);padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:var(--text-muted);">EF Stage</div>
+                                    <div id="dash-ef-stage" style="font-size:0.7rem;color:var(--accent-teal);">--</div>
                                 </div>
-                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
-                                    <div style="font-size:0.45rem;color:#64748b;">Monocacy</div>
-                                    <div id="dash-mono-cfs" style="font-size:0.7rem;color:#94a3b8;">--</div>
+                                <div style="background:var(--bg-surface);padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:var(--text-muted);">Monocacy</div>
+                                    <div id="dash-mono-cfs" style="font-size:0.7rem;color:var(--text-tertiary);">--</div>
                                 </div>
-                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
-                                    <div style="font-size:0.45rem;color:#64748b;">Goose Ck</div>
-                                    <div id="dash-goose-cfs" style="font-size:0.7rem;color:#94a3b8;">--</div>
+                                <div style="background:var(--bg-surface);padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:var(--text-muted);">Goose Ck</div>
+                                    <div id="dash-goose-cfs" style="font-size:0.7rem;color:var(--text-tertiary);">--</div>
                                 </div>
-                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
-                                    <div style="font-size:0.45rem;color:#64748b;">Travel</div>
-                                    <div id="dash-travel" style="font-size:0.7rem;color:#94a3b8;">--</div>
+                                <div style="background:var(--bg-surface);padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:var(--text-muted);">Travel</div>
+                                    <div id="dash-travel" style="font-size:0.7rem;color:var(--text-tertiary);">--</div>
                                 </div>
                             </div>
 
                             <!-- Row 3: Model Health -->
                             <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;">
-                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
-                                    <div style="font-size:0.45rem;color:#64748b;">GF Validations</div>
-                                    <div id="dash-gf-validations" style="font-size:0.7rem;color:#a78bfa;">--</div>
+                                <div style="background:var(--bg-surface);padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:var(--text-muted);">GF Validations</div>
+                                    <div id="dash-gf-validations" style="font-size:0.7rem;color:var(--accent-purple);">--</div>
                                 </div>
-                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
-                                    <div style="font-size:0.45rem;color:#64748b;" title="Mean error from delayed LF validation — noisy due to 2-4h timing lag and flow state changes during transit. Feeds EMA corrections.">Validation Err*</div>
-                                    <div id="dash-gf-error" style="font-size:0.7rem;color:#94a3b8;">--</div>
+                                <div style="background:var(--bg-surface);padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:var(--text-muted);" title="Mean error from delayed LF validation — noisy due to 2-4h timing lag and flow state changes during transit. Feeds EMA corrections.">Validation Err*</div>
+                                    <div id="dash-gf-error" style="font-size:0.7rem;color:var(--text-tertiary);">--</div>
                                 </div>
-                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
-                                    <div style="font-size:0.45rem;color:#64748b;">Flagged</div>
-                                    <div id="dash-flagged" style="font-size:0.7rem;color:#f87171;">--</div>
+                                <div style="background:var(--bg-surface);padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:var(--text-muted);">Flagged</div>
+                                    <div id="dash-flagged" style="font-size:0.7rem;color:var(--accent-red-light);">--</div>
                                 </div>
-                                <div style="background:#1e293b;padding:6px;border-radius:4px;text-align:center;">
-                                    <div style="font-size:0.45rem;color:#64748b;">Sched Runs</div>
-                                    <div id="dash-runs" style="font-size:0.7rem;color:#94a3b8;">--</div>
+                                <div style="background:var(--bg-surface);padding:6px;border-radius:4px;text-align:center;">
+                                    <div style="font-size:0.45rem;color:var(--text-muted);">Sched Runs</div>
+                                    <div id="dash-runs" style="font-size:0.7rem;color:var(--text-tertiary);">--</div>
                                 </div>
                             </div>
 
-                            <div style="font-size:0.4rem;color:#475569;margin-bottom:6px;">*Validation error is approximate — compares GF predictions from ~7h ago against LF readings taken 2-4h late. Feeds EMA corrections but overstates true model error. See forecast accuracy for clean metrics.</div>
+                            <div style="font-size:0.4rem;color:var(--text-faint);margin-bottom:6px;">*Validation error is approximate — compares GF predictions from ~7h ago against LF readings taken 2-4h late. Feeds EMA corrections but overstates true model error. See forecast accuracy for clean metrics.</div>
 
                             <!-- Row 4: Ice Status -->
-                            <div id="dash-ice-row" style="background:#1e3a5f;padding:8px;border-radius:6px;display:none;">
-                                <div style="font-size:0.55rem;color:#60a5fa;font-weight:600;">❄️ ICE-AFFECTED GAUGES</div>
-                                <div id="dash-ice-list" style="font-size:0.5rem;color:#94a3b8;margin-top:4px;">--</div>
+                            <div id="dash-ice-row" style="background:var(--bg-highlight);padding:8px;border-radius:6px;display:none;">
+                                <div style="font-size:0.55rem;color:var(--accent-blue);font-weight:600;">❄️ ICE-AFFECTED GAUGES</div>
+                                <div id="dash-ice-list" style="font-size:0.5rem;color:var(--text-tertiary);margin-top:4px;">--</div>
                             </div>
 
                             <!-- Row 5: Last Update -->
                             <div style="text-align:center;margin-top:8px;">
-                                <span style="font-size:0.45rem;color:#64748b;">Last fetch: </span>
-                                <span id="dash-last-fetch" style="font-size:0.45rem;color:#94a3b8;">--</span>
+                                <span style="font-size:0.45rem;color:var(--text-muted);">Last fetch: </span>
+                                <span id="dash-last-fetch" style="font-size:0.45rem;color:var(--text-tertiary);">--</span>
                             </div>
                         </div>
 
-                        <h3 style="color:#a78bfa;font-size:0.8rem;margin-bottom:10px;">🔄 Validation Status</h3>
+                        <h3 style="color:var(--accent-purple);font-size:0.8rem;margin-bottom:10px;">🔄 Validation Status</h3>
                         <div class="learn-stat">
                             <span class="label">Next Validation</span>
-                            <span class="value" id="learn-val-countdown" style="color:#fbbf24;">--</span>
+                            <span class="value" id="learn-val-countdown" style="color:var(--accent-amber);">--</span>
                         </div>
                         <div class="learn-stat">
                             <span class="label">Last Validation</span>
                             <span class="value" id="learn-val-last" style="font-size:0.55rem;">No validations yet</span>
                         </div>
 
-                        <h3 style="color:#a78bfa;font-size:0.8rem;margin:15px 0 10px;">📈 Learning Statistics</h3>
+                        <h3 style="color:var(--accent-purple);font-size:0.8rem;margin:15px 0 10px;">📈 Learning Statistics</h3>
                         <div class="learn-stat">
                             <span class="label">Total Observations</span>
                             <span class="value" id="learnTotal">0</span>
@@ -525,7 +526,7 @@
                             <span class="value" id="learnGauges">0 / 18</span>
                         </div>
 
-                        <h3 style="color:#a78bfa;font-size:0.75rem;margin:15px 0 8px;">Scheduled Function Health</h3>
+                        <h3 style="color:var(--accent-purple);font-size:0.75rem;margin:15px 0 8px;">Scheduled Function Health</h3>
                         <div class="learn-stat">
                             <span class="label">Last Run</span>
                             <span class="value" id="healthLastRun">--</span>
@@ -542,96 +543,96 @@
                             <span class="label">Pending Predictions</span>
                             <span class="value" id="healthPending">--</span>
                         </div>
-                        <p id="healthExplain" style="font-size:0.5rem;color:#64748b;margin-top:5px;"></p>
+                        <p id="healthExplain" style="font-size:0.5rem;color:var(--text-muted);margin-top:5px;"></p>
 
-                        <h3 style="color:#a78bfa;font-size:0.75rem;margin:15px 0 8px;">GF Flow-Bin Corrections (System 2)</h3>
-                        <div id="gfBinStats" style="font-size:0.55rem;color:#94a3b8;margin-bottom:10px;">
+                        <h3 style="color:var(--accent-purple);font-size:0.75rem;margin:15px 0 8px;">GF Flow-Bin Corrections (System 2)</h3>
+                        <div id="gfBinStats" style="font-size:0.55rem;color:var(--text-tertiary);margin-bottom:10px;">
                             <p>Loading bin statistics...</p>
                         </div>
 
-                        <h3 style="color:#a78bfa;font-size:0.75rem;margin:15px 0 8px;">Gauge Corrections (System 1)</h3>
+                        <h3 style="color:var(--accent-purple);font-size:0.75rem;margin:15px 0 8px;">Gauge Corrections (System 1)</h3>
                         <div class="correction-list" id="correctionList">
-                            <p style="color:#64748b;font-size:0.6rem;">Corrections appear after ~30 observations per gauge</p>
+                            <p style="color:var(--text-muted);font-size:0.6rem;">Corrections appear after ~30 observations per gauge</p>
                         </div>
 
-                        <div style="margin-top:15px;padding-top:10px;border-top:1px solid #334155;">
-                            <button class="learn-btn" id="resetGFLearningBtn" style="background:#dc2626;">🗑️ Reset GF Learning (System 2)</button>
-                            <p style="font-size:0.45rem;color:#64748b;margin-top:5px;">Clears flow-bin corrections. Gauge corrections (System 1) preserved.</p>
-                            <button class="learn-btn" id="resetLowFlowBinsBtn" style="background:#0ea5e9;margin-top:8px;">🧊 Reset Low-Flow Bins (Ice Cleanup)</button>
-                            <p style="font-size:0.45rem;color:#64748b;margin-top:5px;">Clears only 0-6k cfs bins (ice-affected). Preserves higher flow data.</p>
+                        <div style="margin-top:15px;padding-top:10px;border-top:1px solid var(--border-default);">
+                            <button class="learn-btn" id="resetGFLearningBtn" style="background:var(--btn-danger);">🗑️ Reset GF Learning (System 2)</button>
+                            <p style="font-size:0.45rem;color:var(--text-muted);margin-top:5px;">Clears flow-bin corrections. Gauge corrections (System 1) preserved.</p>
+                            <button class="learn-btn" id="resetLowFlowBinsBtn" style="background:var(--btn-info);margin-top:8px;">🧊 Reset Low-Flow Bins (Ice Cleanup)</button>
+                            <p style="font-size:0.45rem;color:var(--text-muted);margin-top:5px;">Clears only 0-6k cfs bins (ice-affected). Preserves higher flow data.</p>
                         </div>
 
                         <!-- SHADOW MODEL HORSE RACE -->
-                        <div style="margin-top:20px;padding-top:15px;border-top:2px solid #7c3aed;">
-                            <h3 style="color:#a78bfa;font-size:0.8rem;margin-bottom:12px;">🏇 Shadow Model Horse Race</h3>
-                            <p style="font-size:0.5rem;color:#64748b;margin-bottom:12px;">
+                        <div style="margin-top:20px;padding-top:15px;border-top:2px solid var(--btn-purple);">
+                            <h3 style="color:var(--accent-purple);font-size:0.8rem;margin-bottom:12px;">🏇 Shadow Model Horse Race</h3>
+                            <p style="font-size:0.5rem;color:var(--text-muted);margin-bottom:12px;">
                                 Three alternative GF estimation approaches running alongside production. Display-only — never affects the main estimate.
                             </p>
 
                             <!-- 2×2 Model Comparison Grid -->
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
                                 <!-- Production (reference) -->
-                                <div style="background:#1e293b;padding:10px;border-radius:6px;text-align:center;border:2px solid #4ade80;">
-                                    <div style="font-size:0.45rem;color:#64748b;">🟢 PRODUCTION</div>
-                                    <div id="shadow-prod-cfs" style="font-size:0.9rem;color:#4ade80;font-weight:700;">--</div>
-                                    <div id="shadow-prod-stage" style="font-size:0.55rem;color:#94a3b8;">-- ft</div>
+                                <div style="background:var(--bg-surface);padding:10px;border-radius:6px;text-align:center;border:2px solid var(--accent-green);">
+                                    <div style="font-size:0.45rem;color:var(--text-muted);">🟢 PRODUCTION</div>
+                                    <div id="shadow-prod-cfs" style="font-size:0.9rem;color:var(--accent-green);font-weight:700;">--</div>
+                                    <div id="shadow-prod-stage" style="font-size:0.55rem;color:var(--text-tertiary);">-- ft</div>
                                 </div>
                                 <!-- LF Feedback -->
-                                <div style="background:#1e293b;padding:10px;border-radius:6px;text-align:center;border:2px solid #f97316;">
-                                    <div style="font-size:0.45rem;color:#64748b;">🔶 LF FEEDBACK</div>
-                                    <div id="shadow-lf-cfs" style="font-size:0.9rem;color:#f97316;font-weight:700;">--</div>
-                                    <div id="shadow-lf-stage" style="font-size:0.55rem;color:#94a3b8;">-- ft</div>
-                                    <div id="shadow-lf-delta" style="font-size:0.45rem;color:#64748b;margin-top:2px;">--</div>
+                                <div style="background:var(--bg-surface);padding:10px;border-radius:6px;text-align:center;border:2px solid var(--accent-orange);">
+                                    <div style="font-size:0.45rem;color:var(--text-muted);">🔶 LF FEEDBACK</div>
+                                    <div id="shadow-lf-cfs" style="font-size:0.9rem;color:var(--accent-orange);font-weight:700;">--</div>
+                                    <div id="shadow-lf-stage" style="font-size:0.55rem;color:var(--text-tertiary);">-- ft</div>
+                                    <div id="shadow-lf-delta" style="font-size:0.45rem;color:var(--text-muted);margin-top:2px;">--</div>
                                 </div>
                                 <!-- Online Regression -->
-                                <div style="background:#1e293b;padding:10px;border-radius:6px;text-align:center;border:2px solid #06b6d4;">
-                                    <div style="font-size:0.45rem;color:#64748b;">🔷 ONLINE REGRESSION</div>
-                                    <div id="shadow-reg-cfs" style="font-size:0.9rem;color:#06b6d4;font-weight:700;">--</div>
-                                    <div id="shadow-reg-stage" style="font-size:0.55rem;color:#94a3b8;">-- ft</div>
-                                    <div id="shadow-reg-delta" style="font-size:0.45rem;color:#64748b;margin-top:2px;">--</div>
+                                <div style="background:var(--bg-surface);padding:10px;border-radius:6px;text-align:center;border:2px solid var(--accent-teal);">
+                                    <div style="font-size:0.45rem;color:var(--text-muted);">🔷 ONLINE REGRESSION</div>
+                                    <div id="shadow-reg-cfs" style="font-size:0.9rem;color:var(--accent-teal);font-weight:700;">--</div>
+                                    <div id="shadow-reg-stage" style="font-size:0.55rem;color:var(--text-tertiary);">-- ft</div>
+                                    <div id="shadow-reg-delta" style="font-size:0.45rem;color:var(--text-muted);margin-top:2px;">--</div>
                                 </div>
                                 <!-- Kalman Filter -->
-                                <div style="background:#1e293b;padding:10px;border-radius:6px;text-align:center;border:2px solid #a78bfa;">
-                                    <div style="font-size:0.45rem;color:#64748b;">🟣 KALMAN FILTER</div>
-                                    <div id="shadow-kal-cfs" style="font-size:0.9rem;color:#a78bfa;font-weight:700;">--</div>
-                                    <div id="shadow-kal-stage" style="font-size:0.55rem;color:#94a3b8;">-- ft</div>
-                                    <div id="shadow-kal-delta" style="font-size:0.45rem;color:#64748b;margin-top:2px;">--</div>
+                                <div style="background:var(--bg-surface);padding:10px;border-radius:6px;text-align:center;border:2px solid var(--accent-purple);">
+                                    <div style="font-size:0.45rem;color:var(--text-muted);">🟣 KALMAN FILTER</div>
+                                    <div id="shadow-kal-cfs" style="font-size:0.9rem;color:var(--accent-purple);font-weight:700;">--</div>
+                                    <div id="shadow-kal-stage" style="font-size:0.55rem;color:var(--text-tertiary);">-- ft</div>
+                                    <div id="shadow-kal-delta" style="font-size:0.45rem;color:var(--text-muted);margin-top:2px;">--</div>
                                 </div>
                             </div>
 
                             <!-- Leaderboard (Phase 2 — empty placeholder) -->
-                            <div style="background:#0f172a;border-radius:6px;padding:10px;margin-bottom:10px;">
-                                <div id="shadow-leaderboard-header" style="font-size:0.55rem;color:#64748b;text-align:center;margin-bottom:6px;">LEADERBOARD (awaiting validated predictions)</div>
-                                <div id="shadow-leaderboard" style="font-size:0.5rem;color:#475569;text-align:center;">
+                            <div style="background:var(--bg-base);border-radius:6px;padding:10px;margin-bottom:10px;">
+                                <div id="shadow-leaderboard-header" style="font-size:0.55rem;color:var(--text-muted);text-align:center;margin-bottom:6px;">LEADERBOARD (awaiting validated predictions)</div>
+                                <div id="shadow-leaderboard" style="font-size:0.5rem;color:var(--text-faint);text-align:center;">
                                     📊 Leaderboard will populate after Phase 2 (server-side validation)
                                 </div>
                             </div>
 
                             <!-- Diagnostics (collapsible) -->
                             <details style="margin-bottom:10px;">
-                                <summary style="font-size:0.55rem;color:#a78bfa;cursor:pointer;">🔧 Model Diagnostics</summary>
-                                <div style="background:#0f172a;border-radius:6px;padding:10px;margin-top:6px;">
-                                    <div style="font-size:0.5rem;color:#64748b;margin-bottom:6px;">LF Feedback</div>
-                                    <div id="shadow-diag-lf" style="font-size:0.45rem;color:#94a3b8;font-family:monospace;">
+                                <summary style="font-size:0.55rem;color:var(--accent-purple);cursor:pointer;">🔧 Model Diagnostics</summary>
+                                <div style="background:var(--bg-base);border-radius:6px;padding:10px;margin-top:6px;">
+                                    <div style="font-size:0.5rem;color:var(--text-muted);margin-bottom:6px;">LF Feedback</div>
+                                    <div id="shadow-diag-lf" style="font-size:0.45rem;color:var(--text-tertiary);font-family:monospace;">
                                         Correction: 0.0% | Pending prediction: none
                                     </div>
-                                    <div style="font-size:0.5rem;color:#64748b;margin-top:8px;margin-bottom:6px;">Online Regression</div>
-                                    <div id="shadow-diag-reg" style="font-size:0.45rem;color:#94a3b8;font-family:monospace;">
+                                    <div style="font-size:0.5rem;color:var(--text-muted);margin-top:8px;margin-bottom:6px;">Online Regression</div>
+                                    <div id="shadow-diag-reg" style="font-size:0.45rem;color:var(--text-tertiary);font-family:monospace;">
                                         Weights: not initialized | Train count: 0
                                     </div>
-                                    <div style="font-size:0.5rem;color:#64748b;margin-top:8px;margin-bottom:6px;">Kalman Filter</div>
-                                    <div id="shadow-diag-kal" style="font-size:0.45rem;color:#94a3b8;font-family:monospace;">
+                                    <div style="font-size:0.5rem;color:var(--text-muted);margin-top:8px;margin-bottom:6px;">Kalman Filter</div>
+                                    <div id="shadow-diag-kal" style="font-size:0.45rem;color:var(--text-tertiary);font-family:monospace;">
                                         State: not initialized | P: --
                                     </div>
                                 </div>
                             </details>
 
                             <!-- Reset button -->
-                            <button class="learn-btn" id="resetShadowModelsBtn" style="background:#7c3aed;margin-top:5px;">🏇 Reset All Shadow Models</button>
-                            <p style="font-size:0.45rem;color:#64748b;margin-top:5px;">Clears all shadow model learned state. Models restart from scratch.</p>
+                            <button class="learn-btn" id="resetShadowModelsBtn" style="background:var(--btn-purple);margin-top:5px;">🏇 Reset All Shadow Models</button>
+                            <p style="font-size:0.45rem;color:var(--text-muted);margin-top:5px;">Clears all shadow model learned state. Models restart from scratch.</p>
                         </div>
 
-                        <button class="learn-btn" id="lockLearningBtn" style="background:#475569;margin-top:10px;">🔒 Lock Section</button>
+                        <button class="learn-btn" id="lockLearningBtn" style="background:var(--text-faint);margin-top:10px;">🔒 Lock Section</button>
                     </div>
                 </div>
             </div>
@@ -641,7 +642,7 @@
                 <img src="gs-logo.png" alt="GS" style="height:14px;opacity:0.6;" onerror="this.style.display='none'">
                 © 2026 <span id="gs-credit" style="cursor:pointer;" title="Click me!">Gordon Shumway</span>
             </span> • Licensed under <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank">CC BY-NC 4.0</a> •
-<a href="https://github.com/sebjilke/potomac-pulse" target="_blank" style="color:#60a5fa;">Open Source</a> • <span id="toby-egg" style="cursor:help;" title="Toby Woby is working on it...">Not for navigation or life-safety decisions</span>
+<a href="https://github.com/sebjilke/potomac-pulse" target="_blank" style="color:var(--accent-blue);">Open Source</a> • <span id="toby-egg" style="cursor:help;" title="Toby Woby is working on it...">Not for navigation or life-safety decisions</span>
         </footer>
     </div>
 

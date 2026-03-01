@@ -578,15 +578,15 @@ export function getTrendData(trend, showMagnitude = false) {
     switch(trend.direction) {
         case "up":
             icon = "↑";
-            color = "#f59e0b";
+            color = "var(--color-trend-up)";
             break;
         case "down":
             icon = "↓";
-            color = "#3b82f6";
+            color = "var(--color-trend-down)";
             break;
         default:
             icon = "→";
-            color = "#6b7280";
+            color = "var(--text-dim)";
     }
 
     let magnitude = "";
@@ -614,10 +614,10 @@ export function applyTrendToElement(el, trend, showMagnitude = false) {
 
 export function getTrendText(trend, current) {
     if (!trend || trend.source !== "NWS") {
-        return `<span style="color:#94a3b8;">n/a</span>`;
+        return `<span style="color:var(--text-tertiary);">n/a</span>`;
     }
 
-    let html = `<b style="color:#60a5fa;">NWS Forecast</b><br>`;
+    let html = `<b style="color:var(--accent-blue);">NWS Forecast</b><br>`;
     if (trend.forecast24) {
         html += `24h: ${Math.round(trend.forecast24).toLocaleString()} cfs<br>`;
     } else {

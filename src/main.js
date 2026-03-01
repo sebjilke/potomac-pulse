@@ -1,5 +1,6 @@
 // Potomac Pulse — Vite entry point
 import 'leaflet/dist/leaflet.css';
+import './styles/theme.css';
 import './styles/main.css';
 
 // Error monitoring (initialize first to capture loading errors)

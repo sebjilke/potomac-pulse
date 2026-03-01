@@ -63,10 +63,10 @@ export function updateGreatFallsUI() {
 
         if (isIceIssue) {
             document.getElementById("gf-estimate-label").textContent = "UNAVAILABLE";
-            document.getElementById("gf-estimate-label").style.color = "#60a5fa";  // blue
+            document.getElementById("gf-estimate-label").style.color = "var(--accent-blue)";
             const trendEl = document.getElementById("gf-trend");
             trendEl.textContent = "❄️ Ice conditions";
-            trendEl.style.color = "#60a5fa";
+            trendEl.style.color = "var(--accent-blue)";
             document.getElementById("gf-data-source").textContent = "Critical gauges ice-affected — estimate suspended";
         } else {
             document.getElementById("gf-trend").textContent = "Waiting for data...";
@@ -98,13 +98,13 @@ export function updateGreatFallsUI() {
     // EF-only fallback mode: PoR is ice-affected, using Edwards Ferry model only
     if (gfEstimate.efOnly) {
         document.getElementById("gf-estimate-label").textContent = "❄️ EF-ONLY ESTIMATE";
-        document.getElementById("gf-estimate-label").style.color = "#60a5fa";
+        document.getElementById("gf-estimate-label").style.color = "var(--accent-blue)";
         document.getElementById("gf-data-source").textContent =
             "PoR ice-affected — using Edwards Ferry model (R²=" + EF_MODEL.rSquared + ")";
         const efTrendEl = document.getElementById("gf-trend");
         const efTrendIcon = gfEstimate.flowState === 'rising' ? '▲' : gfEstimate.flowState === 'falling' ? '▼' : '●';
         efTrendEl.textContent = efTrendIcon + " " + gfEstimate.flowState.toUpperCase() + " (EF trend)";
-        efTrendEl.style.color = "#60a5fa";
+        efTrendEl.style.color = "var(--accent-blue)";
         document.getElementById("gf-confidence").textContent = "Confidence: LOW (EF only)";
         document.getElementById("gf-forecast-cfs").textContent = "--";
         document.getElementById("gf-forecast-stage").textContent = "--";
@@ -128,7 +128,7 @@ export function updateGreatFallsUI() {
     // Update label and data source based on whether we have time-shifted data
     if (gfEstimate.useTimeShifted) {
         document.getElementById("gf-estimate-label").textContent = "ESTIMATED NOW";
-        document.getElementById("gf-estimate-label").style.color = "#4ade80";
+        document.getElementById("gf-estimate-label").style.color = "var(--accent-green)";
         if (gfEstimate.useEfEnsemble && gfEstimate.efWeight) {
             const porPct = Math.round((1 - gfEstimate.efWeight) * 100);
             const efPct = Math.round(gfEstimate.efWeight * 100);
@@ -144,20 +144,20 @@ export function updateGreatFallsUI() {
         }
     } else {
         document.getElementById("gf-estimate-label").textContent = "FORECAST (no history yet)";
-        document.getElementById("gf-estimate-label").style.color = "#fbbf24";
+        document.getElementById("gf-estimate-label").style.color = "var(--accent-amber)";
         document.getElementById("gf-data-source").textContent =
             `Using current PoR (need ${gfEstimate.inputs.travelPoRtoGF.toFixed(0)}+ hrs of history)`;
     }
 
     // Flow state with icon
     const stateIcons = { rising: '▲ RISING', falling: '▼ FALLING', steady: '● STEADY' };
-    const stateColors = { rising: '#ef4444', falling: '#22c55e', steady: '#64748b' };
+    const stateColors = { rising: 'var(--color-rising)', falling: 'var(--color-falling)', steady: 'var(--color-steady)' };
     const trendStateEl = document.getElementById("gf-trend");
     trendStateEl.textContent = stateIcons[gfEstimate.flowState];
     trendStateEl.style.color = stateColors[gfEstimate.flowState];
 
     // Confidence
-    const confColors = { high: '#4ade80', medium: '#fbbf24', low: '#f87171' };
+    const confColors = { high: 'var(--accent-green)', medium: 'var(--accent-amber)', low: 'var(--accent-red-light)' };
     const confEl = document.getElementById("gf-confidence");
     confEl.textContent = "Confidence: " + gfEstimate.confidence.toUpperCase();
     confEl.style.color = confColors[gfEstimate.confidence];
@@ -213,14 +213,14 @@ export function updateGreatFallsUI() {
         const diffPct = Math.abs((diff / gfEstimate.cfs) * 100);
 
         let agreementIcon = '✓';
-        let agreementColor = '#4ade80';
+        let agreementColor = 'var(--accent-green)';
         if (diffPct > 15) {
             agreementIcon = '⚠';
-            agreementColor = '#f59e0b';
+            agreementColor = 'var(--accent-loading)';
         }
         if (diffPct > 25) {
             agreementIcon = '✗';
-            agreementColor = '#ef4444';
+            agreementColor = 'var(--accent-red)';
         }
 
         efEstimateEl.textContent = efEst.cfs.toLocaleString() + " cfs / " + efStage.toFixed(1) + " ft " + agreementIcon;
@@ -465,12 +465,12 @@ export function updateForecastPeriods(gfEst) {
     container.innerHTML = displayPeriods.map((p) => {
         const timeStr = p.isCurrent ? 'Now' : formatForecastTime(p.time);
         const trendIcon = p.cfs > currentCFS ? '▲' : (p.cfs < currentCFS ? '▼' : '●');
-        const trendColor = p.cfs > currentCFS ? '#ef4444' : (p.cfs < currentCFS ? '#22c55e' : '#94a3b8');
+        const trendColor = p.cfs > currentCFS ? 'var(--color-rising)' : (p.cfs < currentCFS ? 'var(--color-falling)' : 'var(--text-tertiary)');
         const hrs = p.isCurrent ? 0 : parseInt(p.label.replace('+', '').replace('h', ''));
 
         let sourceIndicator = '';
         if (p.source && !p.isCurrent) {
-            const sourceColor = '#60a5fa';
+            const sourceColor = 'var(--accent-blue)';
             const sourceTitle = 'NWS upstream forecast (arrival time varies with flow)';
             sourceIndicator = ` <span class="fp-source" style="color:${sourceColor};" title="${sourceTitle}">${p.source}</span>`;
         }
@@ -594,14 +594,14 @@ export function updateForecastAccuracyUI() {
     const horizonStats = FORECAST_HORIZONS.map(h => {
         const stats = forecastAccuracyData.horizons[h] || { validations: 0, avgErrorPercent: null };
         if (stats.validations < 3 || stats.avgErrorPercent === null) {
-            return `<span style="color:#64748b;">+${h}h: --</span>`;
+            return `<span style="color:var(--text-muted);">+${h}h: --</span>`;
         }
         const accuracy = 100 - stats.avgErrorPercent;
-        const color = accuracy >= 90 ? '#4ade80' : (accuracy >= 80 ? '#fbbf24' : '#f87171');
+        const color = accuracy >= 90 ? 'var(--accent-green)' : (accuracy >= 80 ? 'var(--accent-amber)' : 'var(--accent-red-light)');
         return `<span style="color:${color};">+${h}h: ${accuracy.toFixed(0)}%</span>`;
     }).join(' • ');
 
-    let html = `<span style="color:#64748b;">Forecast accuracy:</span> ${horizonStats} <span style="color:#475569;">(${totalValidations} validations)</span>`;
+    let html = `<span style="color:var(--text-muted);">Forecast accuracy:</span> ${horizonStats} <span style="color:var(--text-faint);">(${totalValidations} validations)</span>`;
 
     const totalNwsValidations = Object.values(forecastAccuracyData.horizons)
         .reduce((sum, h) => sum + (h.nwsRawValidations || 0), 0);
@@ -615,16 +615,16 @@ export function updateForecastAccuracyUI() {
                 ? 100 - stats.nwsRawAvgErrorPercent : null;
 
             if (ourAccuracy === null || nwsAccuracy === null) {
-                return `<span style="color:#64748b;">+${h}h: --</span>`;
+                return `<span style="color:var(--text-muted);">+${h}h: --</span>`;
             }
             const delta = ourAccuracy - nwsAccuracy;
             const sign = delta >= 0 ? '+' : '';
-            const color = delta > 0 ? '#4ade80' : (delta < -1 ? '#f87171' : '#fbbf24');
+            const color = delta > 0 ? 'var(--accent-green)' : (delta < -1 ? 'var(--accent-red-light)' : 'var(--accent-amber)');
             const title = `Our model: ${ourAccuracy.toFixed(0)}% vs NWS: ${nwsAccuracy.toFixed(0)}%`;
             return `<span style="color:${color};" title="${title}">+${h}h: ${sign}${delta.toFixed(0)}%</span>`;
         }).join(' • ');
 
-        html += `<br><span style="color:#64748b;" title="Our model predicts Great Falls; NWS predicts Little Falls directly">vs NWS LF forecast:</span> ${nwsDeltaStats}`;
+        html += `<br><span style="color:var(--text-muted);" title="Our model predicts Great Falls; NWS predicts Little Falls directly">vs NWS LF forecast:</span> ${nwsDeltaStats}`;
     }
 
     container.innerHTML = html;

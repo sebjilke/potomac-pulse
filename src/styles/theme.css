@@ -1,0 +1,60 @@
+/* ==================== DESIGN TOKENS ==================== */
+/* All colors defined once. To retheme, override these values. */
+
+:root {
+  /* Backgrounds */
+  --bg-base: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-overlay: #334155;
+  --bg-highlight: #1e3a5f;
+
+  /* Text */
+  --text-primary: #e2e8f0;
+  --text-body: #cbd5e1;
+  --text-secondary: #b0bec9;
+  --text-tertiary: #94a3b8;
+  --text-muted: #64748b;
+  --text-faint: #475569;
+  --text-dim: #6b7280;
+  --text-creek-meta: #8494a7;
+
+  /* Accent */
+  --accent-blue: #60a5fa;
+  --accent-green: #4ade80;
+  --accent-amber: #fbbf24;
+  --accent-orange: #f97316;
+  --accent-red: #ef4444;
+  --accent-red-light: #f87171;
+  --accent-red-lighter: #fca5a5;
+  --accent-purple: #a78bfa;
+  --accent-purple-light: #c4b5fd;
+  --accent-cyan: #7dd3fc;
+  --accent-teal: #06b6d4;
+  --accent-sky: #38bdf8;
+  --accent-loading: #f59e0b;
+
+  /* Semantic */
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-danger: #ef4444;
+  --color-info: #60a5fa;
+
+  /* Flow state */
+  --color-rising: #ef4444;
+  --color-falling: #22c55e;
+  --color-steady: #64748b;
+  --color-trend-up: #f59e0b;
+  --color-trend-down: #3b82f6;
+
+  /* Borders & focus */
+  --border-default: #334155;
+  --border-hover: #475569;
+  --focus-ring: #3b82f6;
+
+  /* Buttons */
+  --btn-primary: #2563eb;
+  --btn-purple: #7c3aed;
+  --btn-info: #0ea5e9;
+  --btn-danger: #dc2626;
+  --btn-danger-hover: #b91c1c;
+}

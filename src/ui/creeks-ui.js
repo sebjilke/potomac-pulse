@@ -9,9 +9,9 @@ import { creekData } from '../state/store.js';
 export function buildCreeks() {
     let html = '';
     for (const [id, c] of Object.entries(CREEK_RUNS)) {
-        const awLink = c.awId ? `<a href="https://www.americanwhitewater.org/content/River/detail/id/${c.awId}" target="_blank" rel="noopener" aria-label="View ${c.name} on American Whitewater" style="color:#60a5fa;text-decoration:none;" title="American Whitewater">🔗 AW</a>` : '';
-        const estMark = c.estimated ? ' <span title="Threshold is estimated" style="color:#f59e0b;cursor:help;">⚠</span>' : '';
-        const microTag = c.microRun ? ' <span style="font-size:0.5rem;color:#94a3b8;background:rgba(148,163,184,0.15);padding:1px 4px;border-radius:3px;">micro-run</span>' : '';
+        const awLink = c.awId ? `<a href="https://www.americanwhitewater.org/content/River/detail/id/${c.awId}" target="_blank" rel="noopener" aria-label="View ${c.name} on American Whitewater" style="color:var(--accent-blue);text-decoration:none;" title="American Whitewater">🔗 AW</a>` : '';
+        const estMark = c.estimated ? ' <span title="Threshold is estimated" style="color:var(--accent-loading);cursor:help;">⚠</span>' : '';
+        const microTag = c.microRun ? ' <span style="font-size:0.5rem;color:var(--text-tertiary);background:rgba(148,163,184,0.15);padding:1px 4px;border-radius:3px;">micro-run</span>' : '';
         html += `<div class="creek-card" id="creek-${id}" style="${c.estimated ? 'border-style:dashed;' : ''}">
             <div class="creek-top">
                 <div class="creek-dot" id="creek-dot-${id}"></div>
@@ -55,36 +55,36 @@ export function updateCreeksUI() {
             cardOrder.push({ id, running, q: d.q });
 
             // Dot color
-            dot.style.background = running ? '#4ade80' : '#64748b';
+            dot.style.background = running ? 'var(--accent-green)' : 'var(--text-muted)';
             // CFS
             cfsEl.textContent = `${Math.round(d.q)} cfs`;
-            cfsEl.style.color = running ? '#4ade80' : '#94a3b8';
+            cfsEl.style.color = running ? 'var(--accent-green)' : 'var(--text-tertiary)';
             // Trend arrow
             const arrows = { rising: '↑', falling: '↓', steady: '→' };
-            const colors = { rising: '#4ade80', falling: '#f87171', steady: '#94a3b8' };
+            const colors = { rising: 'var(--accent-green)', falling: 'var(--accent-red-light)', steady: 'var(--text-tertiary)' };
             const titles = { rising: 'Flow rising', falling: 'Flow falling', steady: 'Flow steady' };
             trendEl.textContent = arrows[d.trend] || '→';
-            trendEl.style.color = colors[d.trend] || '#94a3b8';
+            trendEl.style.color = colors[d.trend] || 'var(--text-tertiary)';
             trendEl.title = titles[d.trend] || 'Flow steady';
             // Status text
             if (running) {
                 statusEl.textContent = `Running! (≥${c.runnable} cfs)`;
-                statusEl.style.color = '#4ade80';
+                statusEl.style.color = 'var(--accent-green)';
             } else {
                 statusEl.textContent = `Needs ≥${c.runnable} cfs${c.microRun ? ' (micro-run)' : ''}`;
-                statusEl.style.color = '#94a3b8';
+                statusEl.style.color = 'var(--text-tertiary)';
             }
             // Card border glow for running creeks
-            card.style.borderColor = running ? '#4ade80' : '#334155';
+            card.style.borderColor = running ? 'var(--accent-green)' : 'var(--border-default)';
         } else {
             // No data
-            dot.style.background = '#475569';
+            dot.style.background = 'var(--border-hover)';
             cfsEl.textContent = '❓ No data';
-            cfsEl.style.color = '#94a3b8';
+            cfsEl.style.color = 'var(--text-tertiary)';
             trendEl.textContent = '';
             statusEl.textContent = 'Gauge offline or no response';
-            statusEl.style.color = '#94a3b8';
-            card.style.borderColor = '#334155';
+            statusEl.style.color = 'var(--text-tertiary)';
+            card.style.borderColor = 'var(--border-default)';
             cardOrder.push({ id, running: false, q: -1 });
         }
 

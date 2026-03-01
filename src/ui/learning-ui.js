@@ -68,25 +68,25 @@ export function updateHealthStats(meta, pendingCount) {
         const lastRun = new Date(meta.lastPrediction);
         const hoursAgo = ((Date.now() - lastRun) / (60 * 60 * 1000)).toFixed(1);
         lastRunEl.textContent = `${hoursAgo}h ago`;
-        lastRunEl.style.color = hoursAgo <= 3 ? '#4ade80' : hoursAgo <= 6 ? '#fbbf24' : '#ef4444';
+        lastRunEl.style.color = hoursAgo <= 3 ? 'var(--accent-green)' : hoursAgo <= 6 ? 'var(--accent-amber)' : 'var(--accent-red)';
     } else {
         lastRunEl.textContent = 'Never';
-        lastRunEl.style.color = '#ef4444';
+        lastRunEl.style.color = 'var(--accent-red)';
     }
 
     // Consecutive runs
     const consecutive = meta.consecutiveRuns || 0;
     consecutiveEl.textContent = consecutive;
-    consecutiveEl.style.color = consecutive >= 10 ? '#4ade80' : consecutive >= 3 ? '#fbbf24' : '#ef4444';
+    consecutiveEl.style.color = consecutive >= 10 ? 'var(--accent-green)' : consecutive >= 3 ? 'var(--accent-amber)' : 'var(--accent-red)';
 
     // Missed runs
     const missed = meta.missedRuns || 0;
     missedEl.textContent = missed;
-    missedEl.style.color = missed === 0 ? '#4ade80' : missed <= 5 ? '#fbbf24' : '#ef4444';
+    missedEl.style.color = missed === 0 ? 'var(--accent-green)' : missed <= 5 ? 'var(--accent-amber)' : 'var(--accent-red)';
 
     // Pending predictions
     pendingEl.textContent = pendingCount;
-    pendingEl.style.color = pendingCount <= 1 ? '#4ade80' : pendingCount <= 3 ? '#fbbf24' : '#ef4444';
+    pendingEl.style.color = pendingCount <= 1 ? 'var(--accent-green)' : pendingCount <= 3 ? 'var(--accent-amber)' : 'var(--accent-red)';
 
     // Explanation
     let explain = '';
@@ -111,7 +111,7 @@ export function updateGFBinStats() {
 
     if (!gfLearningData?.correctionBins) {
         const p = document.createElement('p');
-        p.style.color = '#64748b';
+        p.style.color = 'var(--text-muted)';
         p.textContent = 'No bin data available';
         container.appendChild(p);
         return;
@@ -133,7 +133,7 @@ export function updateGFBinStats() {
 
     // Data rows
     const flowBins = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
-    const colorFor = n => n >= 5 ? '#4ade80' : n > 0 ? '#fbbf24' : '#64748b';
+    const colorFor = n => n >= 5 ? 'var(--accent-green)' : n > 0 ? 'var(--accent-amber)' : 'var(--text-muted)';
 
     for (const bin of flowBins) {
         const binData = bins[bin] || {};
@@ -163,7 +163,7 @@ export function updateGFBinStats() {
     if (meta.resetAt) {
         const p = document.createElement('p');
         p.style.marginTop = '8px';
-        p.style.color = '#a78bfa';
+        p.style.color = 'var(--accent-purple)';
         p.textContent = 'Reset: ' + new Date(meta.resetAt).toLocaleDateString() + ' (' + (meta.resetReason || 'manual') + ')';
         container.appendChild(p);
     }
@@ -198,21 +198,21 @@ export function updateAdminDashboard() {
         document.getElementById("dash-gf-stage").textContent = `${gfEstimate.stage.toFixed(2)} ft`;
     } else {
         document.getElementById("dash-gf-cfs").textContent = "--";
-        document.getElementById("dash-gf-cfs").style.color = por?.iceAffected ? "#60a5fa" : "#4ade80";
+        document.getElementById("dash-gf-cfs").style.color = por?.iceAffected ? "var(--accent-blue)" : "var(--accent-green)";
         document.getElementById("dash-gf-stage").textContent = por?.iceAffected ? "❄️ ice" : "-- ft";
     }
 
     // PoR
     document.getElementById("dash-por-cfs").textContent = por?.q ? Math.round(por.q).toLocaleString() : "--";
     if (por?.iceAffected) {
-        document.getElementById("dash-por-cfs").style.color = "#60a5fa";
+        document.getElementById("dash-por-cfs").style.color = "var(--accent-blue)";
         const daysAgo = por.lastValidTime ? ((Date.now() - por.lastValidTime) / (24*60*60*1000)).toFixed(1) : "?";
         document.getElementById("dash-por-status").textContent = `❄️ ${daysAgo}d old`;
-        document.getElementById("dash-por-status").style.color = "#60a5fa";
+        document.getElementById("dash-por-status").style.color = "var(--accent-blue)";
     } else {
-        document.getElementById("dash-por-cfs").style.color = "#60a5fa";
+        document.getElementById("dash-por-cfs").style.color = "var(--accent-blue)";
         document.getElementById("dash-por-status").textContent = por?.trend || "--";
-        document.getElementById("dash-por-status").style.color = "#94a3b8";
+        document.getElementById("dash-por-status").style.color = "var(--text-tertiary)";
     }
 
     // Edwards Ferry
@@ -220,7 +220,7 @@ export function updateAdminDashboard() {
 
     // Tributaries
     document.getElementById("dash-mono-cfs").textContent = mono?.q ? Math.round(mono.q).toLocaleString() : "--";
-    if (mono?.iceAffected) document.getElementById("dash-mono-cfs").style.color = "#60a5fa";
+    if (mono?.iceAffected) document.getElementById("dash-mono-cfs").style.color = "var(--accent-blue)";
     document.getElementById("dash-goose-cfs").textContent = goose?.q ? Math.round(goose.q).toLocaleString() : "--";
 
     // Travel time
@@ -293,7 +293,7 @@ export function updateLearningUI() {
     const corrections = Object.entries(learningData.corrections);
     if (corrections.length === 0) {
         const p = document.createElement('p');
-        p.style.color = '#64748b';
+        p.style.color = 'var(--text-muted)';
         p.style.fontSize = '0.6rem';
         p.textContent = 'Corrections calculated after detecting rise events at gauges and matching arrivals at Little Falls';
         list.appendChild(p);
@@ -414,10 +414,10 @@ export function updateShadowLeaderboardUI() {
     }
 
     const modelLabels = {
-        production: { name: 'Production', color: '#4ade80' },
-        lfFeedback: { name: 'LF Feedback', color: '#38bdf8' },
-        onlineRegression: { name: 'Online Regression', color: '#fbbf24' },
-        kalman: { name: 'Kalman Filter', color: '#a78bfa' }
+        production: { name: 'Production', color: 'var(--accent-green)' },
+        lfFeedback: { name: 'LF Feedback', color: 'var(--accent-sky)' },
+        onlineRegression: { name: 'Online Regression', color: 'var(--accent-amber)' },
+        kalman: { name: 'Kalman Filter', color: 'var(--accent-purple)' }
     };
     const medals = ['1st', '2nd', '3rd', '4th'];
 
@@ -429,19 +429,19 @@ export function updateShadowLeaderboardUI() {
     container.textContent = '';
 
     ranked.forEach(([key, model], idx) => {
-        const label = modelLabels[key] || { name: key, color: '#94a3b8' };
+        const label = modelLabels[key] || { name: key, color: 'var(--text-tertiary)' };
         const isWinner = key === shadowLeaderboard.lastWinner;
 
         const row = document.createElement('div');
         row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:3px 0;';
-        if (idx === 0) row.style.borderBottom = '1px solid #1e293b';
+        if (idx === 0) row.style.borderBottom = '1px solid var(--bg-surface)';
 
         const left = document.createElement('span');
         left.style.color = label.color;
         left.textContent = `${medals[idx] || ''} ${label.name}`;
 
         const right = document.createElement('span');
-        right.style.color = '#94a3b8';
+        right.style.color = 'var(--text-tertiary)';
         right.textContent = `${model.meanAbsErrorPercent.toFixed(1)}% avg | n=${model.count}${isWinner ? ' \u2190 last winner' : ''}`;
 
         row.appendChild(left);
@@ -452,7 +452,7 @@ export function updateShadowLeaderboardUI() {
     // Footer
     if (shadowLeaderboard.lastValidationTime) {
         const footer = document.createElement('div');
-        footer.style.cssText = 'font-size:0.4rem;color:#475569;text-align:center;margin-top:6px;';
+        footer.style.cssText = 'font-size:0.4rem;color:var(--text-faint);text-align:center;margin-top:6px;';
         footer.textContent = `Last scored: ${new Date(shadowLeaderboard.lastValidationTime).toLocaleString()}`;
         container.appendChild(footer);
     }
