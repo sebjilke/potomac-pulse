@@ -114,10 +114,9 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
     .last-update { font-size: 0.7rem; padding: 3px 8px; }
     .btn { padding: 6px 10px; min-width: 40px; min-height: 40px; }
     /* Mobile minimum font sizes for readability */
-    #gf-forecast-timeline [style*="font-size:0.45rem"],
-    #gf-forecast-timeline [style*="font-size:0.5rem"] { font-size: 0.6rem !important; }
-    .docs-panel [style*="font-size:0.4"],
-    .docs-panel [style*="font-size:0.45rem"] { font-size: 0.6rem !important; }
+    #gf-forecast-timeline .fp-source,
+    #gf-forecast-timeline .fp-subtime,
+    #forecast-accuracy { font-size: 0.6rem; }
 }
 
 /* ==================== TARGET GAUGE (Little Falls) ==================== */
@@ -285,6 +284,9 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
 }
 
 /* ==================== FORECAST PERIODS ==================== */
+#gf-forecast-periods { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+#forecast-accuracy { font-size: 0.5rem; }
+.fp-source, .fp-subtime { font-size: 0.5rem; }
 .forecast-period {
     background: rgba(0,0,0,0.2);
     border-radius: 6px;
@@ -325,7 +327,7 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
 }
 @media (max-width: 500px) {
     #gf-forecast-periods {
-        grid-template-columns: repeat(3, 1fr) !important;
+        grid-template-columns: repeat(3, 1fr);
     }
     .forecast-period:nth-child(4),
     .forecast-period:nth-child(5) {
@@ -334,7 +336,7 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
 }
 @media (max-width: 350px) {
     #gf-forecast-periods {
-        grid-template-columns: repeat(2, 1fr) !important;
+        grid-template-columns: repeat(2, 1fr);
     }
 }
 
@@ -406,10 +408,10 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
 
 @media (max-width: 768px) {
     .gauge, .gauge-header {
-        grid-template-columns: 8px 1fr 48px 38px 42px 38px !important;
+        grid-template-columns: 8px 1fr 48px 38px 42px 38px;
         font-size: 0.75rem;
         padding: 9px 8px;
-        gap: 5px !important;
+        gap: 5px;
     }
     .gauge-nm { font-size: 0.7rem; }
     .gauge-trend { font-size: 0.65rem; }
@@ -484,7 +486,7 @@ footer a { color: #94a3b8; }
 
 .leaflet-popup-content-wrapper { background: #1e293b; color: #e2e8f0; border-radius: 6px; border: 1px solid #3b82f6; }
 .leaflet-popup-tip { background: #1e293b; }
-.leaflet-popup-content { margin: 10px 12px; min-width: 200px; font-size: 14px; }
+.leaflet-popup-content { margin: 10px 12px; min-width: 200px; font-size: 0.875rem; }
 .pop-nm { font-weight: 600; color: #60a5fa; font-size: 1rem; }
 .pop-area { font-size: 0.75rem; color: #b0bec9; margin-bottom: 8px; }
 .pop-row { display: flex; gap: 8px; margin-bottom: 6px; }

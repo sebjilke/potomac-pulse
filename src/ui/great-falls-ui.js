@@ -472,12 +472,12 @@ export function updateForecastPeriods(gfEst) {
         if (p.source && !p.isCurrent) {
             const sourceColor = '#60a5fa';
             const sourceTitle = 'NWS upstream forecast (arrival time varies with flow)';
-            sourceIndicator = ` <span style="color:${sourceColor};font-size:0.5rem;" title="${sourceTitle}">${p.source}</span>`;
+            sourceIndicator = ` <span class="fp-source" style="color:${sourceColor};" title="${sourceTitle}">${p.source}</span>`;
         }
 
         return `
             <div class="forecast-period${p.isCurrent ? ' current' : ''}" data-hrs="${hrs}" data-stage="${p.stage.toFixed(2)}" data-cfs="${p.cfs}" style="cursor:pointer;">
-                <div class="fp-time">${p.label}${sourceIndicator}<br><span style="font-size:0.5rem;">${timeStr}</span></div>
+                <div class="fp-time">${p.label}${sourceIndicator}<br><span class="fp-subtime">${timeStr}</span></div>
                 <div class="fp-stage">${p.stage.toFixed(2)} ft</div>
                 <div class="fp-cfs">${p.cfs.toLocaleString()} cfs</div>
                 ${!p.isCurrent ? `<div class="fp-trend" style="color:${trendColor}">${trendIcon}</div>` : ''}
