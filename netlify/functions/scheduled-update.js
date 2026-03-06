@@ -577,7 +577,7 @@ async function validatePendingPredictions(client, usgsData) {
         const ageMs = now - createdAt;
         if (ageMs > staleThreshold) {
             console.log(`🧹 Cleaning stale prediction from ${createdAt.toISOString()} (${Math.round(ageMs/3600000)}h old)`);
-            await client.from('potomac_observations').update({
+            const { error: staleErr } = await client.from('potomac_observations').update({
                 gauge_id: 'expired',
                 data: {
                     ...pred.data,
@@ -585,6 +585,9 @@ async function validatePendingPredictions(client, usgsData) {
                     reason: 'stale_prediction'
                 }
             }).eq('id', pred.id);
+            if (staleErr) {
+                console.error(`❌ Stale cleanup FAILED for ${pred.id}:`, staleErr.message, staleErr.code, staleErr.details);
+            }
             cleaned++;
             continue;
         }
@@ -716,6 +719,9 @@ async function validatePendingPredictions(client, usgsData) {
                 console.log(`   LF reading: ${Math.round(actualCFS)} cfs — included in learning (EMA clamped) + accuracy`);
             }
 
+            // Track bin write outcome for health counters (set inside learning block)
+            let binWriteFailed = false;
+
             // Update learning: hard flags skip entirely, soft flags use EMA clamping
             if (!isHardFlagged) {
                 binData.count += 1;
@@ -742,11 +748,15 @@ async function validatePendingPredictions(client, usgsData) {
                     binData.emaMeanError = EMA_ALPHA * learningError + (1 - EMA_ALPHA) * (binData.emaMeanError || binData.meanError);
                 }
 
-                await client.from('potomac_observations').upsert({
+                const { error: binErr } = await client.from('potomac_observations').upsert({
                     observation_type: 'gf_correction_bin',
                     gauge_id: binKey,
                     data: binData
                 }, { onConflict: 'observation_type,gauge_id' });
+                if (binErr) {
+                    console.error(`❌ Bin upsert FAILED for ${binKey}:`, binErr.message, binErr.code, binErr.details);
+                    binWriteFailed = true;
+                }
 
                 // Also update stage error statistics for rating curve analysis
                 if (errorStage !== null) {
@@ -776,11 +786,14 @@ async function validatePendingPredictions(client, usgsData) {
                     const stageVariance = (stageBinData.sumErrorSq / stageBinData.count) - (stageBinData.meanError * stageBinData.meanError);
                     stageBinData.stdDev = Math.round(Math.sqrt(Math.max(0, stageVariance)) * 1000) / 1000;
 
-                    await client.from('potomac_observations').upsert({
+                    const { error: stageBinErr } = await client.from('potomac_observations').upsert({
                         observation_type: 'gf_correction_bin',
                         gauge_id: stageBinKey,
                         data: stageBinData
                     }, { onConflict: 'observation_type,gauge_id' });
+                    if (stageBinErr) {
+                        console.error(`❌ Stage bin upsert FAILED for ${stageBinKey}:`, stageBinErr.message, stageBinErr.code, stageBinErr.details);
+                    }
 
                     console.log(`📈 Stage bin ${stageBinKey}: n=${stageBinData.count}, mean=${stageBinData.meanError.toFixed(3)}ft, stdDev=${stageBinData.stdDev}ft`);
                 }
@@ -844,17 +857,20 @@ async function validatePendingPredictions(client, usgsData) {
                     corrData.rSquared = ssTotal > 0 ? Math.round((ssReg / ssTotal) * 1000) / 1000 : 0;
                 }
 
-                await client.from('potomac_observations').upsert({
+                const { error: efCorrErr } = await client.from('potomac_observations').upsert({
                     observation_type: 'ef_gf_correlation',
                     gauge_id: 'system',
                     data: corrData
                 }, { onConflict: 'observation_type,gauge_id' });
+                if (efCorrErr) {
+                    console.error(`❌ EF correlation upsert FAILED:`, efCorrErr.message, efCorrErr.code, efCorrErr.details);
+                }
 
                 console.log(`🔗 EF correlation: n=${corrData.count}, slope=${corrData.slope?.toFixed(0)}, R²=${corrData.rSquared || 'N/A'}`);
             }
 
             // Move to validated/hard_flagged/soft_flagged
-            await client.from('potomac_observations').update({
+            const { error: statusErr } = await client.from('potomac_observations').update({
                 gauge_id: isHardFlagged ? 'hard_flagged' : (isSoftFlagged ? 'soft_flagged' : 'validated'),
                 data: {
                     ...pred.data,
@@ -877,6 +893,9 @@ async function validatePendingPredictions(client, usgsData) {
                     suspiciousScore: hardScore + softScore
                 }
             }).eq('id', pred.id);
+            if (statusErr) {
+                console.error(`❌ Prediction status UPDATE FAILED for ${pred.id}:`, statusErr.message, statusErr.code, statusErr.details);
+            }
 
             // Update metadata
             const { data: meta } = await client
@@ -927,6 +946,15 @@ async function validatePendingPredictions(client, usgsData) {
                 metaData.avgStageError = metaData.sumAbsStageError / metaData.stageValidations;
             }
 
+            // Bin write health counters (visible via API without checking logs)
+            if (!isHardFlagged) {
+                metaData.binWriteSuccesses = (metaData.binWriteSuccesses || 0) + (binWriteFailed ? 0 : 1);
+                metaData.binWriteFailures = (metaData.binWriteFailures || 0) + (binWriteFailed ? 1 : 0);
+                if (binWriteFailed) {
+                    metaData.lastBinError = `${binKey}: upsert failed`;
+                }
+            }
+
             // Monthly summary (log on 1st of month, or every 100 validations)
             const isFirstOfMonth = new Date().getDate() === 1;
             const isMilestone = metaData.totalValidations % 100 === 0;
@@ -939,11 +967,14 @@ async function validatePendingPredictions(client, usgsData) {
                 console.log('=====================================');
             }
 
-            await client.from('potomac_observations').upsert({
+            const { error: metaErr } = await client.from('potomac_observations').upsert({
                 observation_type: 'gf_metadata',
                 gauge_id: 'system',
                 data: metaData
             }, { onConflict: 'observation_type,gauge_id' });
+            if (metaErr) {
+                console.error(`❌ Metadata upsert FAILED:`, metaErr.message, metaErr.code, metaErr.details);
+            }
 
             // Score shadow model predictions (non-blocking — failure must not break validation)
             if (!isHardFlagged && pred.data.shadowModels) {
@@ -963,11 +994,14 @@ async function validatePendingPredictions(client, usgsData) {
                     );
 
                     if (updatedLB) {
-                        await client.from('potomac_observations').upsert({
+                        const { error: lbErr } = await client.from('potomac_observations').upsert({
                             observation_type: 'shadow_leaderboard',
                             gauge_id: 'system',
                             data: updatedLB
                         }, { onConflict: 'observation_type,gauge_id' });
+                        if (lbErr) {
+                            console.error(`❌ Shadow leaderboard upsert FAILED:`, lbErr.message, lbErr.code, lbErr.details);
+                        }
                         console.log(`🏇 Shadow leaderboard updated: round ${updatedLB.totalRounds}, winner=${updatedLB.lastWinner}`);
                     }
                 } catch (shadowErr) {
@@ -989,11 +1023,16 @@ async function validatePendingPredictions(client, usgsData) {
 
 // Store new prediction
 async function storePrediction(client, prediction) {
-    await client.from('potomac_observations').insert({
+    const { error: insertErr } = await client.from('potomac_observations').insert({
         observation_type: 'gf_prediction',
         gauge_id: 'pending',
         data: prediction
     });
+
+    if (insertErr) {
+        console.error(`❌ Prediction INSERT FAILED:`, insertErr.message, insertErr.code, insertErr.details);
+        return; // Don't increment metadata for a prediction that wasn't stored
+    }
 
     // Update prediction count
     const { data: meta } = await client
@@ -1020,11 +1059,14 @@ async function storePrediction(client, prediction) {
     metaData.lastPrediction = now.toISOString();
     metaData.consecutiveRuns = gapHours <= 3 ? (metaData.consecutiveRuns || 0) + 1 : 1;
 
-    await client.from('potomac_observations').upsert({
+    const { error: predMetaErr } = await client.from('potomac_observations').upsert({
         observation_type: 'gf_metadata',
         gauge_id: 'system',
         data: metaData
     }, { onConflict: 'observation_type,gauge_id' });
+    if (predMetaErr) {
+        console.error(`❌ Prediction metadata upsert FAILED:`, predMetaErr.message, predMetaErr.code, predMetaErr.details);
+    }
 
     console.log(`Stored prediction: ${prediction.predictedCFS} cfs, validation due: ${prediction.validationDue}`);
     console.log(`📊 Health: ${metaData.consecutiveRuns} consecutive runs, ${metaData.missedRuns || 0} total missed`);
@@ -1154,7 +1196,7 @@ async function validateForecastPredictions(client, usgsData) {
 exports._test = {
     validateUSGSResponse, fetchWithTimeout, fetchWaterTemp,
     fetchUSGSData, getPoRFromHistory, estimateLFStage, makeGFPrediction,
-    scoreShadowPredictions,
+    scoreShadowPredictions, storePrediction, validatePendingPredictions,
 };
 
 // Main handler

@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const {
     validateUSGSResponse, fetchWithTimeout, fetchWaterTemp,
     getPoRFromHistory, estimateLFStage, makeGFPrediction,
-    scoreShadowPredictions,
+    scoreShadowPredictions, storePrediction, validatePendingPredictions,
 } = require('../netlify/functions/scheduled-update')._test;
 
 const { estimateLFFlowFromStage, EF_MODEL } = require('../netlify/functions/shared/model');
@@ -534,5 +534,101 @@ describe('scoreShadowPredictions', () => {
         assert.equal(lb3.models.production.currentStreak, 0);
         assert.equal(lb3.models.production.bestStreak, 2);  // bestStreak preserved
         assert.equal(lb3.models.onlineRegression.currentStreak, 1);
+    });
+});
+
+// ─── storePrediction error handling ─────────────────────────────────────────
+
+describe('storePrediction', () => {
+    function mockClient({ insertError = null, selectData = null, upsertError = null } = {}) {
+        return {
+            from: () => ({
+                insert: () => Promise.resolve({ error: insertError }),
+                select: () => ({
+                    eq: () => ({
+                        eq: () => ({
+                            single: () => Promise.resolve({ data: selectData, error: null })
+                        })
+                    })
+                }),
+                upsert: () => Promise.resolve({ error: upsertError }),
+            })
+        };
+    }
+
+    it('stores prediction and updates metadata on success', async () => {
+        const metaData = { totalValidations: 0, totalPredictions: 5 };
+        let upsertCalled = false;
+        const client = {
+            from: () => ({
+                insert: () => Promise.resolve({ error: null }),
+                select: () => ({
+                    eq: () => ({
+                        eq: () => ({
+                            single: () => Promise.resolve({ data: { data: metaData }, error: null })
+                        })
+                    })
+                }),
+                upsert: () => { upsertCalled = true; return Promise.resolve({ error: null }); },
+            })
+        };
+
+        await storePrediction(client, { predictedCFS: 10000, validationDue: '2026-01-01' });
+        assert.equal(upsertCalled, true);
+    });
+
+    it('skips metadata update when INSERT fails', async () => {
+        let upsertCalled = false;
+        const client = {
+            from: () => ({
+                insert: () => Promise.resolve({ error: { message: 'RLS blocked', code: '42501', details: null } }),
+                select: () => ({
+                    eq: () => ({
+                        eq: () => ({
+                            single: () => { upsertCalled = true; return Promise.resolve({ data: null, error: null }); }
+                        })
+                    })
+                }),
+                upsert: () => { upsertCalled = true; return Promise.resolve({ error: null }); },
+            })
+        };
+
+        await storePrediction(client, { predictedCFS: 10000, validationDue: '2026-01-01' });
+        // Should return early — metadata select and upsert should NOT be called
+        assert.equal(upsertCalled, false);
+    });
+});
+
+// ─── validatePendingPredictions error handling ──────────────────────────────
+
+describe('validatePendingPredictions', () => {
+    it('returns 0 when LF data is missing', async () => {
+        const client = {};
+        const usgsData = {
+            data: { '01646500': {} },
+            gauges: { lf: '01646500', seneca: '01645000', ef: '01644148' }
+        };
+        const result = await validatePendingPredictions(client, usgsData);
+        assert.equal(result, 0);
+    });
+
+    it('returns 0 when no pending predictions exist', async () => {
+        const client = {
+            from: () => ({
+                select: () => ({
+                    eq: () => ({
+                        eq: () => ({
+                            order: () => Promise.resolve({ data: [], error: null })
+                        })
+                    })
+                })
+            })
+        };
+        const usgsData = {
+            data: { '01646500': { q: 10000, h: 3.95 }, '01645000': {}, '01644148': {} },
+            gauges: { lf: '01646500', seneca: '01645000', ef: '01644148' }
+        };
+        const result = await validatePendingPredictions(client, usgsData);
+        assert.equal(result, 0);
     });
 });
