@@ -24,14 +24,14 @@
 
 | # | Item | Effort | Notes |
 |---|------|--------|-------|
-| 7 | **Batch upsert operations** | ~2h | Reduce Supabase round-trips in scheduled-update.js. |
+| 7 | **Parallelize Supabase queries** | ~2h | `Promise.all()` for independent SELECTs in sync-learning.js. |
 | 8 | **Service worker for offline** | ~4h | Cache last-known state for offline viewing. |
-| 9 | **Gauge search/filter** | ~2h | Filter All Gauges tab by name/branch. |
-| 10 | **Persist branch collapse state** | ~1h | Remember collapsed gauge branches in localStorage. |
-| 11 | **Map loading states** | ~1h | Show spinner while Leaflet tiles load. |
-| 12 | **Mobile sidebar scrolling** | ~1h | Improve scroll behavior on small screens. |
+| 9 | ~~Gauge search/filter~~ | — | ✅ Done (v34.9) |
+| 10 | ~~Persist branch collapse state~~ | — | ✅ Done (v34.9) |
+| 11 | ~~Map loading states~~ | — | ✅ Done (v34.9) |
+| 12 | **Mobile sidebar scrolling** | ~1h | Sticky tabs, remove double-scroll on mobile. |
 | 13 | **Backup export function** | ~2h | Export correction bins / learning data as JSON. |
-| 14 | **Admin monitoring dashboard** | ~4h | Enhance with health metrics, error rates. |
+| 14 | **Admin monitoring dashboard** | ~4h | Enhance with health metrics, validation history. |
 | 15 | **Audit logging** | ~2h | Track admin actions (bin resets, manual overrides). |
 | 16 | **Log validation failures** | ~2h | Store failed validations for post-hoc analysis. |
 | 17 | **JSDoc comments** | ~8h | Low priority — code is already well-structured. |
@@ -42,6 +42,8 @@
 
 All items below are done and verified. Kept for audit trail only.
 
+- **v34.9**: Gauge search/filter, persist branch collapse, map loading spinner
+- **v34.10**: Fix flat forecast line (NWS endpoint reorder + late-arrival re-render)
 - **v34.0–v34.8**: EMA learning fix, two-tier anomaly flagging, Sentry scaffold, bin recovery
 - **v33.0–v33.1**: 24h stored GF history, observed flow state
 - **v32.0**: Observed flow state fix
@@ -53,4 +55,4 @@ All items below are done and verified. Kept for audit trail only.
 - **v25.0–v26.0**: PoR-delta correction, model recalibration
 - **v24.0–v24.16**: Security (XSS, USGS validation, timeouts, PIN env), UX (mobile, errors, map), accessibility (ARIA, keyboard, contrast), Vite modularization, automated tests, GitHub Actions CI, shared utilities, Sentry, rate limiting, CSP/SRI
 
-*Last updated: 2026-03-06 (v34.8)*
+*Last updated: 2026-03-07 (v34.10)*
