@@ -10,11 +10,36 @@ import { fmt, fmtArrival, applyTrendToElement, getTrendData, getTrendText } from
 import { updateGreatFallsUI } from '../ui/great-falls-ui.js';
 import { panTo } from '../ui/map.js';
 
+const BRANCH_STATE_KEY = 'potomac_branch_state';
+
+function saveBranchState() {
+    const state = {};
+    for (const bk of Object.keys(BRANCHES)) {
+        const el = document.getElementById(`b-${bk}`);
+        if (el) state[bk] = el.classList.contains('open');
+    }
+    try { localStorage.setItem(BRANCH_STATE_KEY, JSON.stringify(state)); } catch {}
+}
+
+function loadBranchState() {
+    try {
+        const raw = localStorage.getItem(BRANCH_STATE_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+}
+
 // ==================== BUILD BRANCHES ====================
 
 export function buildBranches() {
-    // Column header to explain what each number means (matches .gauge grid layout)
-    let html = `<div class="gauge-header">
+    const savedState = loadBranchState();
+
+    // Search input for filtering gauges
+    let html = `<div class="gauge-search-wrap">
+        <input type="text" id="gauge-search" class="gauge-search" placeholder="Filter gauges..." aria-label="Filter gauges by name or branch">
+    </div>`;
+
+    // Column header
+    html += `<div class="gauge-header">
         <div></div>
         <div>Gauge</div>
         <div style="text-align:right;">Trend</div>
@@ -23,10 +48,11 @@ export function buildBranches() {
         <div style="text-align:right;">Hrs→LF</div>
     </div>`;
     for (const [bk, b] of Object.entries(BRANCHES)) {
-        const open = bk === "mainstem" ? "open" : "";
+        const isOpen = savedState ? !!savedState[bk] : bk === "mainstem";
+        const open = isOpen ? "open" : "";
         const gaugeRows = b.ids.map(id => {
             const g = GAUGES[id];
-            return `<div class="gauge" id="gauge-${id}" data-gauge-id="${id}">
+            return `<div class="gauge" id="gauge-${id}" data-gauge-id="${id}" data-gauge-name="${g.name.toLowerCase()}">
                 <div class="gauge-dot" style="background:${b.color}"></div>
                 <div class="gauge-nm">${g.name}</div>
                 <div class="gauge-trend" id="trend-${id}"></div>
@@ -36,7 +62,7 @@ export function buildBranches() {
             </div>`;
         }).join("");
 
-        html += `<div class="branch ${open}" id="b-${bk}">
+        html += `<div class="branch ${open}" id="b-${bk}" data-branch-name="${b.name.toLowerCase()}">
             <div class="branch-hd" data-branch="${bk}">
                 <div class="branch-clr" style="background:${b.color}"></div>
                 <div class="branch-nm">${b.name}</div>
@@ -47,6 +73,35 @@ export function buildBranches() {
     }
     const container = document.getElementById("branches");
     container.innerHTML = html;
+
+    // Search/filter
+    const searchInput = document.getElementById('gauge-search');
+    searchInput.addEventListener('input', () => {
+        const q = searchInput.value.toLowerCase().trim();
+        for (const [bk, b] of Object.entries(BRANCHES)) {
+            const branchEl = document.getElementById(`b-${bk}`);
+            if (!q) {
+                // Reset: show all branches, restore saved collapse state
+                branchEl.style.display = '';
+                for (const id of b.ids) {
+                    const row = document.getElementById(`gauge-${id}`);
+                    if (row) row.style.display = '';
+                }
+                continue;
+            }
+            const branchNameMatch = b.name.toLowerCase().includes(q);
+            let anyVisible = false;
+            for (const id of b.ids) {
+                const row = document.getElementById(`gauge-${id}`);
+                const nameMatch = GAUGES[id].name.toLowerCase().includes(q);
+                const show = nameMatch || branchNameMatch;
+                if (row) row.style.display = show ? '' : 'none';
+                if (show) anyVisible = true;
+            }
+            branchEl.style.display = anyVisible ? '' : 'none';
+            if (anyVisible && q) branchEl.classList.add('open');
+        }
+    });
 
     // Event delegation for gauge rows and branch headers
     container.addEventListener('click', (e) => {
@@ -60,7 +115,10 @@ export function buildBranches() {
         const branchHd = e.target.closest('.branch-hd[data-branch]');
         if (branchHd) {
             const branchEl = document.getElementById(`b-${branchHd.dataset.branch}`);
-            if (branchEl) branchEl.classList.toggle('open');
+            if (branchEl) {
+                branchEl.classList.toggle('open');
+                saveBranchState();
+            }
         }
     });
 }

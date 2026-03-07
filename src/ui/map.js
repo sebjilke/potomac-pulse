@@ -103,13 +103,23 @@ export function panTo(id) {
 }
 
 export function initMap() {
+    // Add loading overlay
+    const mapEl = document.getElementById('map');
+    const overlay = document.createElement('div');
+    overlay.className = 'map-loading-overlay';
+    overlay.innerHTML = '<div class="map-loading-spinner"></div>';
+    mapEl.appendChild(overlay);
+
     const mapInstance = L.map("map").setView([39.2, -77.8], 8);
     setMap(mapInstance);
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+    const tileLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
         maxZoom: 19,
         attribution: '© OpenStreetMap © CARTO'
     }).addTo(mapInstance);
+
+    tileLayer.on('load', () => overlay.classList.add('hidden'));
+    tileLayer.on('loading', () => overlay.classList.remove('hidden'));
 
     // Rivers
     for (const r of RIVERS) {

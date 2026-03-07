@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v34.8 (March 2026)
+**Current Version**: v34.9 (March 2026)
 
 ## Quick Start
 
@@ -27,26 +27,36 @@ Frontend (PWA)                    Netlify Functions (Backend)
                                Supabase   USGS API   NWS/NOAA
 ```
 
-**Key principle**: Single-page app with embedded CSS/JS. No build step — edit and push.
+**Key principle**: Single-page app built with Vite. Modular `src/` structure, auto-deployed on push.
 
 ## File Structure
 
 ```
 files/potomac-site/
-├── index.html                    # Main SPA (all HTML, CSS, JS)
-├── manifest.json                 # PWA manifest
+├── index.html                    # HTML shell (tabs, layout, footer)
+├── src/                          # Vite source modules
+│   ├── main.js                   # Entry point
+│   ├── model/constants.js        # All client-side constants
+│   ├── data/                     # USGS/NWS data fetching, history
+│   ├── ui/                       # Tabs, gauges, map, forecast, creeks
+│   ├── estimation/               # GF, LF, EF, NWS algorithms
+│   ├── learning/                 # GF/gauge learning, cloud sync
+│   ├── monitoring/sentry.js      # Error tracking
+│   ├── state/store.js            # Global app state
+│   ├── styles/                   # CSS (theme.css, main.css)
+│   └── assets/tech-appendix.md   # Downloadable tech appendix
+├── test/                         # Unit & integration tests
 ├── netlify.toml                  # Build config, function routing
-├── package.json                  # Dependencies (@supabase/supabase-js)
+├── package.json                  # Dependencies, build scripts
+├── vite.config.js                # Vite bundler config
 └── netlify/functions/
     ├── shared/model.js           # Shared server module (Supabase init, flow bins, rating curve)
     ├── sync-learning.js          # Cloud sync API (learning data, predictions, PoR/GF history)
     ├── scheduled-update.js       # 2-hour background job (data collection, validation, predictions)
-    ├── build-ef-correlation*.js  # EF correlation builders
-    ├── validate-searcy-travel-times.js
-    └── analyze-stage-errors.js
+    └── [analysis tools]          # EF correlation, stage errors, travel time validation
 ```
 
-## Current Model (v34.8)
+## Current Model (v34.9)
 
 All estimation parameters validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits.
 
@@ -148,9 +158,9 @@ git push origin main  # Netlify deploys in ~1 minute
 
 ## Development
 
-- **No build step** — edit `index.html` directly and push
-- **Local testing** — open `index.html` in browser (USGS/NWS APIs work; cloud sync won't)
-- **Keep in sync** — `index.html` and `scheduled-update.js` share model constants
+- **Vite build** — `npm run dev` for local dev server, `npm run build` outputs to `dist/`
+- **Tests** — `npm test` runs model + integration tests
+- **Keep in sync** — `src/model/constants.js` and `netlify/functions/shared/model.js` share model constants
 - **Always update README** — update this file at the end of every commit to reflect changes
 
 ## Documentation
@@ -166,6 +176,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v34.9 | 2026-03-06 | UI: gauge search/filter, persist branch collapse, map loading spinner. Consolidated TODO. |
 | v34.8 | 2026-03-06 | Sentry DSN from env var (`VITE_SENTRY_DSN`), font-size px→rem already complete |
 | v34.7 | 2026-03-06 | Fix silent Supabase write failures: error handling on all 5 remaining upserts/deletes, fix forecast double-count bug |
 | v34.6 | 2026-03-06 | Add error handling to correction bin writes, bin-write health counters, recovery script |
@@ -186,8 +197,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See Technical Appendix for complete version history (v16–v34.8).
+See Technical Appendix for complete version history (v16–v34.9).
 
 ---
 
-*Last updated: 2026-03-06 (v34.8 — Sentry env var configuration)*
+*Last updated: 2026-03-06 (v34.9 — UI enhancements: gauge search, branch persistence, map spinner)*
