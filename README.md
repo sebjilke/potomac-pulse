@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v34.7 (March 2026)
+**Current Version**: v34.8 (March 2026)
 
 ## Quick Start
 
@@ -46,7 +46,7 @@ files/potomac-site/
     └── analyze-stage-errors.js
 ```
 
-## Current Model (v34.7)
+## Current Model (v34.8)
 
 All estimation parameters validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits.
 
@@ -166,6 +166,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v34.8 | 2026-03-06 | Sentry DSN from env var (`VITE_SENTRY_DSN`), font-size px→rem already complete |
 | v34.7 | 2026-03-06 | Fix silent Supabase write failures: error handling on all 5 remaining upserts/deletes, fix forecast double-count bug |
 | v34.6 | 2026-03-06 | Add error handling to correction bin writes, bin-write health counters, recovery script |
 | v34.5 | 2026-02-26 | All Gauges UIX: sticky headers, row separators, trend column fix, responsive mobile |
@@ -185,8 +186,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See Technical Appendix for complete version history (v16–v34.7).
+See Technical Appendix for complete version history (v16–v34.8).
 
 ---
 
-*Last updated: 2026-03-06 (v34.7 — Fix silent Supabase write failures)*
+*Last updated: 2026-03-06 (v34.8 — Sentry env var configuration)*
