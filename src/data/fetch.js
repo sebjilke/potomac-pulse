@@ -429,9 +429,12 @@ export async function fetchData() {
 
     processData(usgsJson);
 
+    let nwsFinished = false;
+    const nwsFetch = fetchNWSForecasts().then(() => { nwsFinished = true; });
+
     try {
         await Promise.race([
-            fetchNWSForecasts(),
+            nwsFetch,
             new Promise(resolve => setTimeout(resolve, 4000))
         ]);
     } catch(e) {
@@ -442,6 +445,14 @@ export async function fetchData() {
     updateUI();
     updateLearningUI();
     updateCreeksUI();
+
+    // If NWS didn't finish within the 4s race, re-render when it arrives
+    if (!nwsFinished) {
+        nwsFetch.then(() => {
+            console.log('📡 NWS arrived late — re-rendering forecast');
+            updateUI();
+        }).catch(() => {});
+    }
 
     } finally {
         setIsFetching(false);

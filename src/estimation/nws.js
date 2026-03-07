@@ -7,11 +7,12 @@ import { fetchWithTimeout } from '../data/fetch.js';
 
 // Fetch a single gauge's NWS forecast (tries multiple endpoints)
 export async function fetchSingleNWSForecast(usgsId, nwsLid) {
+    // Try forecast-only endpoint first (12 points, fast) before full stageflow (500+ points, slow)
     const endpoints = [
-        `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid}/stageflow`,
-        `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid.toLowerCase()}/stageflow`,
         `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid}/stageflow/forecast`,
-        `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid.toLowerCase()}/stageflow/forecast`
+        `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid.toLowerCase()}/stageflow/forecast`,
+        `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid}/stageflow`,
+        `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid.toLowerCase()}/stageflow`
     ];
 
     for (const url of endpoints) {
