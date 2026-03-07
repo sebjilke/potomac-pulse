@@ -69,39 +69,13 @@ Constants/functions moved to `shared/model.js`:
    - Run as part of the 2-hour cron job
    - Approximate location: end of the `handler` function
 
-### Phase 3: Vite Modularization (Major Refactor)
+### ~~Phase 3: Vite Modularization (Major Refactor)~~ — DONE
 
-This is the biggest remaining change — splitting the monolithic `index.html` into ES modules with a Vite build step.
+Completed. Full `src/` module structure with Vite build (`vite ^7.3.1`). Modules: `src/model/`, `src/data/`, `src/ui/`, `src/estimation/`, `src/learning/`, `src/monitoring/`, `src/state/`, `src/styles/`, `src/assets/`. Build command `vite build` in `package.json`, `netlify.toml` updated.
 
-1. **Initialize Vite project**: `npm create vite@latest` with vanilla JS template
-2. **Extract CSS** from `<style>` block (~585 lines) into `src/styles/main.css`
-3. **Extract JavaScript** into modules:
-   - `src/model/constants.js` — client-side copy of shared model constants
-   - `src/model/estimate.js` — `estimateGreatFalls()` broken into smaller functions
-   - `src/data/usgs.js` — USGS fetch + CORS proxy logic
-   - `src/data/supabase.js` — Supabase client + learning system
-   - `src/ui/gauges.js` — gauge card rendering
-   - `src/ui/charts.js` — Leaflet map + hydrograph
-   - `src/ui/tabs.js` — tab navigation + ARIA
-   - `src/ui/admin.js` — admin panel
-4. **Update `netlify.toml`** build command to `npm run build`, publish to `dist/`
-5. **Update CSP** to remove `'unsafe-inline'` for scripts (Vite handles this)
+### ~~Phase 4: Automated Testing~~ — DONE
 
-**Risk:** This touches every line of the frontend. Must be done carefully with before/after visual testing.
-
-### Phase 4: Automated Testing
-
-1. **Unit tests** for `shared/model.js`:
-   - `getFlowBin()` — boundary values
-   - `getFlowState()` — rising/falling/steady thresholds
-   - `getEFWeight()` — logistic curve values at key flows
-   - `getFlowMultiplier()` — travel time scaling
-   - `estimateLFFlowFromStage()` — piecewise interpolation
-2. **Integration tests** for `scheduled-update.js`:
-   - Mock USGS API responses → verify GF prediction output
-   - Mock Supabase → verify data storage
-3. **Test framework**: Vitest (pairs with Vite) or plain Node test runner
-4. **CI**: GitHub Actions workflow to run tests on PR
+Completed. `test/model.test.js` (unit tests for shared/model.js) and `test/scheduled-update.test.js` (integration tests). GitHub Actions CI in `.github/workflows/test.yml`.
 
 ### Phase 5: Accessibility & UI (Remaining Items)
 
@@ -113,8 +87,8 @@ This is the biggest remaining change — splitting the monolithic `index.html` i
 
 ### Phase 6: DevOps
 
-1. **GitHub Actions CI/CD**: Lint + test on push, deploy preview on PR
-2. **Sentry or similar**: Error tracking for production JS errors
+1. ~~**GitHub Actions CI/CD**~~ — Done (`.github/workflows/test.yml`)
+2. ~~**Sentry or similar**~~ — Done (`src/monitoring/sentry.js`)
 3. **Uptime monitoring**: Alert if the Netlify function or USGS API is down
 4. **Scheduled function monitoring**: Verify the 2-hour cron actually runs
 
@@ -131,6 +105,6 @@ These require the CLAUDE.md verification protocol (dual Python/R analysis + audi
 
 ## Notes
 
-- **Client-side `index.html` still has its own copies** of all model constants and functions. These cannot be deduplicated until Phase 3 (Vite) because the frontend has no module import system currently. The SYNC WARNING comments remain.
+- ~~**Client-side `index.html` still has its own copies**~~ — Resolved by Phase 3 Vite modularization. Client now imports from `src/model/`.
 - **Rate limiting is in-memory** — each Netlify function invocation may get a fresh instance, so it's a lightweight layer, not a hard guarantee. RLS (Phase 1 remaining) is the real protection.
 - **SRI hashes will break if CDN resources update**. The hashes are pinned to specific versions (Leaflet 1.9.4, GoatCounter count.js). If these are updated, regenerate with: `curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A`
