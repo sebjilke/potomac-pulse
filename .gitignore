@@ -9,3 +9,6 @@ dist/
 .env.*.local
 .env.development
 .env.production
+
+# Local Netlify folder
+.netlify

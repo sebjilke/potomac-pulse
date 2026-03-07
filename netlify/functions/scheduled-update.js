@@ -239,7 +239,7 @@ async function fetchUSGSData() {
 
 // Store PoR history to Supabase
 async function storePoRHistory(client, history) {
-    if (!history?.length) return;
+    if (!history?.length) return true;
 
     // Get existing timestamps to avoid duplicates
     const { data: existing } = await client
@@ -257,7 +257,7 @@ async function storePoRHistory(client, history) {
     const newReadings = history.filter(r => !existingTimestamps.has(r.timestamp));
     if (newReadings.length === 0) {
         console.log('No new PoR readings to store');
-        return;
+        return true;
     }
 
     const allReadings = [...(existing?.data?.readings || []), ...newReadings]
@@ -267,7 +267,7 @@ async function storePoRHistory(client, history) {
     const cutoff = Date.now() - (48 * 60 * 60 * 1000);
     const trimmedReadings = allReadings.filter(r => r.timestamp > cutoff);
 
-    await client.from('potomac_observations').upsert({
+    const { error: porHistErr } = await client.from('potomac_observations').upsert({
         observation_type: 'por_history',
         gauge_id: 'system',
         data: {
@@ -276,7 +276,13 @@ async function storePoRHistory(client, history) {
         }
     }, { onConflict: 'observation_type,gauge_id' });
 
+    if (porHistErr) {
+        console.error('❌ PoR history upsert FAILED:', porHistErr.message, porHistErr.code, porHistErr.details);
+        return false;
+    }
+
     console.log(`Stored ${newReadings.length} new PoR readings, total: ${trimmedReadings.length}`);
+    return true;
 }
 
 // Store GF estimate in rolling 24h server-side history
@@ -316,7 +322,7 @@ async function storeGFHistory(client, prediction) {
     const cutoff = now - (24 * 60 * 60 * 1000);
     const trimmedReadings = allReadings.filter(r => r.timestamp > cutoff);
 
-    await client.from('potomac_observations').upsert({
+    const { error: gfHistErr } = await client.from('potomac_observations').upsert({
         observation_type: 'gf_history',
         gauge_id: 'system',
         data: {
@@ -324,6 +330,11 @@ async function storeGFHistory(client, prediction) {
             lastUpdate: new Date().toISOString()
         }
     }, { onConflict: 'observation_type,gauge_id' });
+
+    if (gfHistErr) {
+        console.error('❌ GF history upsert FAILED:', gfHistErr.message, gfHistErr.code, gfHistErr.details);
+        return;
+    }
 
     console.log(`📈 GF history: stored ${prediction.predictedCFS} cfs, ${trimmedReadings.length} entries in 24h window`);
 }
@@ -1118,8 +1129,12 @@ async function validateForecastPredictions(client, usgsData) {
         // Check if prediction is stale (>72h old)
         const ageHours = (now - createdAt) / (1000 * 60 * 60);
         if (ageHours > 72) {
-            await client.from('potomac_observations').delete().eq('id', pred.id);
-            cleaned++;
+            const { error: staleDelErr } = await client.from('potomac_observations').delete().eq('id', pred.id);
+            if (staleDelErr) {
+                console.error('❌ Stale forecast delete FAILED:', staleDelErr.message, staleDelErr.code, staleDelErr.details);
+            } else {
+                cleaned++;
+            }
             continue;
         }
 
@@ -1178,14 +1193,22 @@ async function validateForecastPredictions(client, usgsData) {
             metaData.persistenceAvgErrorPercent = metaData.persistenceSumAbsErrorPercent / metaData.persistenceValidations;
         }
 
-        await client.from('potomac_observations').upsert({
+        const { error: fcastMetaErr } = await client.from('potomac_observations').upsert({
             observation_type: 'gf_forecast_metadata',
             gauge_id: horizonKey,
             data: metaData
         }, { onConflict: 'observation_type,gauge_id' });
 
+        if (fcastMetaErr) {
+            console.error('❌ Forecast metadata upsert FAILED:', fcastMetaErr.message, fcastMetaErr.code, fcastMetaErr.details);
+        }
+
         // Delete the validated prediction
-        await client.from('potomac_observations').delete().eq('id', pred.id);
+        const { error: delErr } = await client.from('potomac_observations').delete().eq('id', pred.id);
+        if (delErr) {
+            console.error('❌ Forecast prediction delete FAILED:', delErr.message, delErr.code, delErr.details);
+            continue; // skip validated++ to prevent double-counting
+        }
         validated++;
     }
 
@@ -1225,7 +1248,8 @@ exports.handler = async (event, context) => {
         // 2. Store PoR history
         console.log('Storing PoR history...');
         const porHistory = usgsData.data[usgsData.gauges.por]?.history || [];
-        await storePoRHistory(client, porHistory);
+        const porStored = await storePoRHistory(client, porHistory);
+        if (!porStored) console.warn('⚠️ PoR history write failed — predictions may use incomplete history');
 
         // 3. Load stored PoR history for time-shifting
         const { data: storedHistory } = await client

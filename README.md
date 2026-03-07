@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v34.6 (February 2026)
+**Current Version**: v34.7 (March 2026)
 
 ## Quick Start
 
@@ -46,7 +46,7 @@ files/potomac-site/
     └── analyze-stage-errors.js
 ```
 
-## Current Model (v34.6)
+## Current Model (v34.7)
 
 All estimation parameters validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits.
 
@@ -166,7 +166,8 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
-| v34.6 | 2026-03-06 | Fix silent Supabase write failures: error handling on all upserts, bin-write health counters, recovery script |
+| v34.7 | 2026-03-06 | Fix silent Supabase write failures: error handling on all 5 remaining upserts/deletes, fix forecast double-count bug |
+| v34.6 | 2026-03-06 | Add error handling to correction bin writes, bin-write health counters, recovery script |
 | v34.5 | 2026-02-26 | All Gauges UIX: sticky headers, row separators, trend column fix, responsive mobile |
 | v34.4 | 2026-02-26 | Security hardening: remove hardcoded PIN, lock CORS to production domain |
 | v34.3 | 2026-02-26 | Extract shared server module (shared/model.js) — deduplicate Supabase init, flow bins, rating curve |
@@ -184,8 +185,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See Technical Appendix for complete version history (v16–v34.6).
+See Technical Appendix for complete version history (v16–v34.7).
 
 ---
 
-*Last updated: 2026-03-06 (v34.6 — Fix silent Supabase write failures)*
+*Last updated: 2026-03-06 (v34.7 — Fix silent Supabase write failures)*
