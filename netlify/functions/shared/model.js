@@ -139,6 +139,11 @@ function getFlowState(history, currentCFS) {
     return 'steady';
 }
 
+// --- EMA learning alpha ---
+// Shared between scheduled-update.js and any other server-side learners.
+// Client copy: src/model/constants.js GF_EMA_ALPHA = 0.3
+const GF_EMA_ALPHA = 0.3;
+
 // --- Soft ceiling ratio ---
 // v28.0: Cap GF estimate at 120% of LF actual.
 // Validated in 25-config grid search on 117k hourly obs (backtest_117k_audit.md).
@@ -147,6 +152,28 @@ const CEILING_RATIO = 1.20;
 // --- PoR-delta decay cap ---
 // v28.0: Lowered from 0.75 to 0.50 based on validation.
 const DECAY_CAP = 0.50;
+
+// --- PoR rise rate from server-side history ---
+// Server equivalent of client's getPoRRiseRate() in great-falls.js.
+// Used by makeGFPrediction() to apply wave celerity travel time reduction.
+// history: array of { timestamp, cfs } sorted ascending (oldest first)
+
+function getPoRRiseRateFromHistory(history) {
+    if (!history || history.length < 4) return null;
+    const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
+    const current = history[history.length - 1];
+    // Find most recent entry at or before the 2-hour mark
+    let past = null;
+    for (const r of history) {
+        if (r.timestamp <= twoHoursAgo) past = r;
+    }
+    if (!past || !current) return null;
+    const hoursDiff = (current.timestamp - past.timestamp) / 3600000;
+    if (hoursDiff <= 0) return null;
+    const pctChange = ((current.cfs - past.cfs) / past.cfs) * 100;
+    const ratePerHour = pctChange / hoursDiff;
+    return { ratePerHour, flowState: getFlowState(history, current.cfs) };
+}
 
 // --- Tributary drainage-area fallback ratios ---
 // Used only when real-time gauge data is unavailable.
@@ -164,6 +191,8 @@ module.exports = {
     TRAVEL_COEF, TRAVEL_EXP, MEDIAN_TRAVEL, TRAVEL_POR_GF_BASELINE, TRAVEL_GF_LF_BASELINE,
     EF_MODEL,
     getEFWeight, getFlowMultiplier, getFlowState,
+    GF_EMA_ALPHA,
+    getPoRRiseRateFromHistory,
     CEILING_RATIO, DECAY_CAP,
     TRIB_FALLBACK
 };

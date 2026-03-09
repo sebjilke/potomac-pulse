@@ -419,7 +419,16 @@ async function loadGFLearningData(client) {
                     avgErrorPercent: null,
                     lastValidation: null
                 },
-                efCorrelation: efCorr?.data || null,  // Edwards Ferry stage to GF CFS correlation
+                efCorrelation: (() => {
+                    // Fix C: recompute sumCFSSq from points on load to correct legacy double-count bug.
+                    // Safe because points array is ground truth; sumCFSSq is a derivative.
+                    // This is a one-time in-memory heal — does not write back to Supabase.
+                    const d = efCorr?.data || null;
+                    if (d?.points?.length > 0) {
+                        d.sumCFSSq = d.points.reduce((s, p) => s + p.cfs * p.cfs, 0);
+                    }
+                    return d;
+                })(),  // Edwards Ferry stage to GF CFS correlation
                 shadowLeaderboard: shadowLB?.data || null  // Shadow model horse race leaderboard
             })
         };

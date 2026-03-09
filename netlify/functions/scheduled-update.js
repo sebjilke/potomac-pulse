@@ -8,6 +8,8 @@ const {
     TRAVEL_COEF, TRAVEL_EXP, MEDIAN_TRAVEL, TRAVEL_POR_GF_BASELINE, TRAVEL_GF_LF_BASELINE,
     EF_MODEL,
     getEFWeight, getFlowMultiplier, getFlowState,
+    GF_GF_EMA_ALPHA,
+    getPoRRiseRateFromHistory,
     CEILING_RATIO, DECAY_CAP,
     TRIB_FALLBACK
 } = require('./shared/model');
@@ -414,8 +416,17 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
 
     // Calculate travel times based on current flow
     const mult = getFlowMultiplier(lf.q);
-    const travelPoRtoGF = TRAVEL_POR_GF_BASELINE * mult;
-    const travelGFtoLF = TRAVEL_GF_LF_BASELINE * mult;
+    let travelPoRtoGF = TRAVEL_POR_GF_BASELINE * mult;
+    let travelGFtoLF = TRAVEL_GF_LF_BASELINE * mult;
+
+    // Wave celerity: rising rivers propagate waves faster (same logic as client great-falls.js)
+    const porRiseRate = getPoRRiseRateFromHistory(porHistory);
+    if (porRiseRate && porRiseRate.flowState === 'rising' && porRiseRate.ratePerHour > 0) {
+        const reductionFactor = Math.min(0.30, porRiseRate.ratePerHour * 0.02);
+        travelPoRtoGF *= (1 - reductionFactor);
+        travelGFtoLF *= (1 - reductionFactor);
+        console.log(`⚡ Server wave celerity: ${(reductionFactor*100).toFixed(0)}% faster (${porRiseRate.ratePerHour.toFixed(1)}%/hr rise)`);
+    }
 
     // Get time-shifted PoR
     const historicPoR = getPoRFromHistory(porHistory, travelPoRtoGF);
@@ -537,7 +548,8 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
 }
 
 // Check and validate pending predictions
-async function validatePendingPredictions(client, usgsData) {
+// waterTempC: current water temperature (°C) for cold-water EF model selection in anomaly check
+async function validatePendingPredictions(client, usgsData, waterTempC) {
     const { data, gauges } = usgsData;
     const lf = data[gauges.lf];
     const seneca = data[gauges.seneca];
@@ -650,10 +662,15 @@ async function validatePendingPredictions(client, usgsData) {
             // Note: actualStage already declared above for stage error calculation
 
             // Check 1: EF cross-check → SOFT (model disagreement, not data corruption)
+            // Use same cold/warm model selection as production to avoid false flags in winter
             const currentEfStage = ef?.h;
             let efEstimateNow = null;
             if (currentEfStage && currentEfStage >= EF_MODEL.minStage && currentEfStage <= EF_MODEL.maxStage) {
-                efEstimateNow = EF_MODEL.coef * Math.pow(currentEfStage, EF_MODEL.exp);
+                const useColdEF = waterTempC !== null && waterTempC !== undefined && waterTempC <= EF_MODEL.coldMaxTemp;
+                const efCoef = useColdEF ? EF_MODEL.coldCoef : EF_MODEL.coef;
+                const efExp  = useColdEF ? EF_MODEL.coldExp  : EF_MODEL.exp;
+                efEstimateNow = efCoef * Math.pow(currentEfStage, efExp);
+                if (useColdEF) console.log(`🌡️ EF cross-check using cold-water model (${waterTempC.toFixed(1)}°C)`);
             }
             if (efEstimateNow && actualCFS) {
                 const efDiscrepancy = (efEstimateNow - actualCFS) / actualCFS;
@@ -701,7 +718,7 @@ async function validatePendingPredictions(client, usgsData) {
             };
 
             // Check 5: Statistical outlier → HARD (transient event, not systematic bias)
-            const EMA_ALPHA = 0.3;
+            // GF_GF_EMA_ALPHA imported from shared/model.js (= 0.3); used below for EMA updates
             let isOutlier = false;
 
             if (binData.count >= 10) {
@@ -756,7 +773,7 @@ async function validatePendingPredictions(client, usgsData) {
                 if (binData.count === 1) {
                     binData.emaMeanError = learningError;
                 } else {
-                    binData.emaMeanError = EMA_ALPHA * learningError + (1 - EMA_ALPHA) * (binData.emaMeanError || binData.meanError);
+                    binData.emaMeanError = GF_EMA_ALPHA * learningError + (1 - GF_EMA_ALPHA) * (binData.emaMeanError || binData.meanError);
                 }
 
                 const { error: binErr } = await client.from('potomac_observations').upsert({
@@ -788,10 +805,23 @@ async function validatePendingPredictions(client, usgsData) {
                     stageBinData.sumErrorSq += errorStage * errorStage;
                     stageBinData.meanError = stageBinData.sumError / stageBinData.count;
 
+                    // EMA with soft-flag clamp (mirrors flow bin logic — Fix A)
+                    let stageLearningError = errorStage;
+                    if (isSoftFlagged && stageBinData.count >= 10) {
+                        const stageVariance = (stageBinData.sumErrorSq / stageBinData.count) - (stageBinData.meanError * stageBinData.meanError);
+                        const stageStdDev = Math.sqrt(Math.max(0, stageVariance));
+                        const stageMaxDelta = 2 * stageStdDev;
+                        stageLearningError = Math.max(stageBinData.meanError - stageMaxDelta,
+                                             Math.min(stageBinData.meanError + stageMaxDelta, errorStage));
+                        if (stageLearningError !== errorStage) {
+                            console.log(`   Stage EMA clamped: ${errorStage.toFixed(3)} → ${stageLearningError.toFixed(3)} ft (±2σ = ±${stageMaxDelta.toFixed(3)})`);
+                        }
+                    }
+
                     if (stageBinData.count === 1) {
-                        stageBinData.emaMeanError = errorStage;
+                        stageBinData.emaMeanError = stageLearningError;
                     } else {
-                        stageBinData.emaMeanError = EMA_ALPHA * errorStage + (1 - EMA_ALPHA) * (stageBinData.emaMeanError || stageBinData.meanError);
+                        stageBinData.emaMeanError = GF_EMA_ALPHA * stageLearningError + (1 - GF_EMA_ALPHA) * (stageBinData.emaMeanError || stageBinData.meanError);
                     }
 
                     const stageVariance = (stageBinData.sumErrorSq / stageBinData.count) - (stageBinData.meanError * stageBinData.meanError);
@@ -831,14 +861,23 @@ async function validatePendingPredictions(client, usgsData) {
 
                 corrData.points.push({ stage: efStage, cfs: actualCFS, timestamp: new Date().toISOString() });
                 if (corrData.points.length > 200) {
+                    // Re-anchor all cumulative sums to the trimmed 200-point window so regression
+                    // reflects current conditions, not an ever-growing historical average.
                     corrData.points = corrData.points.slice(-200);
+                    corrData.count    = corrData.points.length;
+                    corrData.sumStage = corrData.points.reduce((s, p) => s + p.stage, 0);
+                    corrData.sumCFS   = corrData.points.reduce((s, p) => s + p.cfs, 0);
+                    corrData.sumStageCFS = corrData.points.reduce((s, p) => s + p.stage * p.cfs, 0);
+                    corrData.sumStageSq  = corrData.points.reduce((s, p) => s + p.stage * p.stage, 0);
+                    corrData.sumCFSSq    = corrData.points.reduce((s, p) => s + p.cfs * p.cfs, 0);
+                    console.log('📈 EF correlation: re-anchored sums to last 200 observations');
+                } else {
+                    corrData.count += 1;
+                    corrData.sumStage += efStage;
+                    corrData.sumCFS += actualCFS;
+                    corrData.sumStageCFS += efStage * actualCFS;
+                    corrData.sumStageSq += efStage * efStage;
                 }
-
-                corrData.count += 1;
-                corrData.sumStage += efStage;
-                corrData.sumCFS += actualCFS;
-                corrData.sumStageCFS += efStage * actualCFS;
-                corrData.sumStageSq += efStage * efStage;
 
                 // Linear regression with R² calculation
                 if (corrData.count >= 5) {
@@ -854,10 +893,12 @@ async function validatePendingPredictions(client, usgsData) {
                     corrData.intercept = intercept;
 
                     // R² calculation (coefficient of determination)
-                    // We need sumCFSSq for this - add it if not present
+                    // sumCFSSq initialized excluding the just-pushed current obs (slice(0,-1))
+                    // to avoid double-counting — it is added separately on the next line.
                     if (!corrData.sumCFSSq) {
-                        // Initialize from points if available
-                        corrData.sumCFSSq = corrData.points.reduce((sum, p) => sum + p.cfs * p.cfs, 0);
+                        corrData.sumCFSSq = corrData.points
+                            .slice(0, -1)  // exclude current obs (already pushed above)
+                            .reduce((sum, p) => sum + p.cfs * p.cfs, 0);
                     }
                     corrData.sumCFSSq += actualCFS * actualCFS;
 
@@ -1275,7 +1316,7 @@ exports.handler = async (event, context) => {
         let validated = 0, cleaned = 0;
         if (!criticalIce) {
             console.log('Checking pending predictions...');
-            const validationResult = await validatePendingPredictions(client, usgsData);
+            const validationResult = await validatePendingPredictions(client, usgsData, waterTempC);
             validated = validationResult.validated || 0;
             cleaned = validationResult.cleaned || 0;
             console.log(`Validated ${validated} predictions, cleaned ${cleaned} stale`);

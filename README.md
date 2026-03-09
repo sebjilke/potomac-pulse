@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v34.10 (March 2026)
+**Current Version**: v34.11 (March 2026)
 
 ## Quick Start
 
@@ -56,7 +56,7 @@ files/potomac-site/
     └── [analysis tools]          # EF correlation, stage errors, travel time validation
 ```
 
-## Current Model (v34.10)
+## Current Model (v34.11)
 
 All estimation parameters validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits.
 
@@ -176,6 +176,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v34.11 | 2026-03-09 | Correction system bug fixes: EF cross-check cold-water model, R² double-count, EF sums re-anchor at 200pts, EMA alpha centralized, server wave celerity, stage bin EMA clamp, totalObs sum, calculateCorrections throttle, cold-start flow state |
 | v34.10 | 2026-03-07 | Fix flat forecast: reorder NWS endpoints (forecast-first), re-render UI on late NWS arrival |
 | v34.9 | 2026-03-06 | UI: gauge search/filter, persist branch collapse, map loading spinner. Consolidated TODO. |
 | v34.8 | 2026-03-06 | Sentry DSN from env var (`VITE_SENTRY_DSN`), font-size px→rem already complete |
@@ -198,8 +199,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See Technical Appendix for complete version history (v16–v34.10).
+See Technical Appendix for complete version history (v16–v34.11).
 
 ---
 
-*Last updated: 2026-03-07 (v34.10 — Fix flat forecast line: NWS endpoint reorder + late-arrival re-render)*
+*Last updated: 2026-03-09 (v34.11 — Correction system bug fixes: EF cold-water model in validation, R² fix, EMA alpha centralized, server wave celerity, stage bin EMA clamp)*

@@ -208,7 +208,11 @@ export function computeGFHistoryFromPoR(hoursBack = 6) {
 
         let estCFS = entry.cfs;
         const flowBin = getGFFlowBin(estCFS);
-        const correction = getGFCorrection(flowBin, 'steady');
+        // Use observed flow state rather than always 'steady' (approximation: applies
+        // current state to all history points — acceptable for cold-start fallback only)
+        const histRiseRate = getPoRRiseRate();
+        const histFlowState = histRiseRate?.flowState ?? 'steady';
+        const correction = getGFCorrection(flowBin, histFlowState);
         estCFS = estCFS - correction;
         if (estCFS < 0) estCFS = 0;
         const stage = estimateLFStage(estCFS);

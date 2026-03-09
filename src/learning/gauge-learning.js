@@ -84,7 +84,10 @@ export function mergeLearningData(local, cloud) {
     merged.startDate = new Date(local.startDate) < new Date(cloud.startDate)
         ? local.startDate : cloud.startDate;
 
-    // Merge corrections (cloud takes precedence)
+    // Merge corrections (cloud takes precedence over local).
+    // Cloud aggregates corrections from multiple sessions/devices and is more reliable
+    // than a single browser session. If local has a gauge the cloud doesn't, it's added
+    // via spread order. This is intentional policy, not an oversight.
     merged.corrections = { ...local.corrections, ...cloud.corrections };
 
     // Merge observations (dedupe by timestamp)
@@ -108,8 +111,9 @@ export function mergeLearningData(local, cloud) {
         }).slice(-500); // Keep last 500
     }
 
-    // Sum total obs
-    merged.totalObs = Math.max(local.totalObs, cloud.totalObs);
+    // Sum total obs (may be slightly inflated if same session synced to cloud and back,
+    // but observation arrays are deduped by timestamp so data integrity is preserved)
+    merged.totalObs = (local.totalObs || 0) + (cloud.totalObs || 0);
 
     return merged;
 }
@@ -149,7 +153,7 @@ export function recordObservation() {
     // Track significant rises for arrival verification
     const lfObs = learningData.observations[LF.id] || [];
     const lastLfQ = lfObs[lfObs.length - 1]?.q || lfQ;
-    const lfRising = lfQ > lastLfQ * 1.1; // 10% rise at LF
+    const lfRising = lfQ > lastLfQ * 1.08; // 8% rise at LF — matches arrival matching threshold in calculateCorrections()
 
     for (const [id, g] of Object.entries(GAUGES)) {
         if (id === LF.id) continue;
@@ -181,7 +185,7 @@ export function recordObservation() {
             lfH: lfH,
             predictedHrs: d.travelHrs,
             rising: isRising,
-            lfRising: lfRising
+            lfRising: lfRising  // TODO: stored but not used in calculateCorrections() — kept for cloud compat
         });
 
         // Keep only last 500 observations per gauge
@@ -201,8 +205,11 @@ export function recordObservation() {
         if (lfObsList.length > 500) lfObsList.shift();
     }
 
-    // Calculate corrections based on observed arrivals
-    calculateCorrections();
+    // Throttle correction recalculation: O(gauges × obs × rises) — only run every 5 new obs
+    // Save runs every time regardless so observations aren't lost
+    if (learningData.totalObs % 5 === 0) {
+        calculateCorrections();
+    }
     saveLearning();
 }
 
