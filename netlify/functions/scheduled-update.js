@@ -8,7 +8,7 @@ const {
     TRAVEL_COEF, TRAVEL_EXP, MEDIAN_TRAVEL, TRAVEL_POR_GF_BASELINE, TRAVEL_GF_LF_BASELINE,
     EF_MODEL,
     getEFWeight, getFlowMultiplier, getFlowState,
-    GF_GF_EMA_ALPHA,
+    GF_EMA_ALPHA,
     getPoRRiseRateFromHistory,
     CEILING_RATIO, DECAY_CAP,
     TRIB_FALLBACK
@@ -718,7 +718,7 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             };
 
             // Check 5: Statistical outlier → HARD (transient event, not systematic bias)
-            // GF_GF_EMA_ALPHA imported from shared/model.js (= 0.3); used below for EMA updates
+            // GF_EMA_ALPHA imported from shared/model.js (= 0.3); used below for EMA updates
             let isOutlier = false;
 
             if (binData.count >= 10) {
