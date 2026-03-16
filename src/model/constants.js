@@ -107,7 +107,7 @@ export const BRANCHES = {
 
 // Creek runs — rain-dependent whitewater, NOT used in GF estimation
 export const CREEK_RUNS = {
-    "01648000": { name: "Rock Creek", class: "II-III+(V)", runnable: 400, awId: 2587, area: 62, estimated: false },
+    "01648010": { name: "Rock Creek", class: "II-III+(V)", runnable: 400, awId: 2587, area: 62, estimated: false },
     "01650500": { name: "NW Branch Anacostia", class: "I-III(V+)", runnable: 200, awId: 706, area: 21, estimated: false },
     "01646000": { name: "Difficult Run", class: "III-IV(V+)", runnable: 200, awId: 1930, area: 58, estimated: true },
     "01650800": { name: "Sligo Creek", class: "~II", runnable: 200, awId: null, area: 6.5, estimated: false, microRun: true }
