@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v34.18 (March 2026)
+**Current Version**: v34.19 (March 2026)
 
 ## Quick Start
 
@@ -176,6 +176,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v34.19 | 2026-03-17 | Fix learning system deadlock: unique constraint on prediction lifecycle prevented state transitions. DELETE predictions after validation/expiry instead of UPDATE. 270h outage resolved. |
 | v34.18 | 2026-03-17 | Fix efMissing blocking all predictions when EF stage unavailable |
 | v34.17 | 2026-03-17 | Remove current CFS label from creek chart y-axis |
 | v34.16 | 2026-03-16 | Add horizontal gridlines to creek history charts |
@@ -210,4 +211,4 @@ See Technical Appendix for complete version history (v16–v34.12).
 
 ---
 
-*Last updated: 2026-03-17 (v34.18 — Fix EF-missing blocking all predictions)*
+*Last updated: 2026-03-17 (v34.19 — Fix learning system deadlock)*
