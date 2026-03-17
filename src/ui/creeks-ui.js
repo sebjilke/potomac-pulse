@@ -129,6 +129,22 @@ function renderCreekChart(id, el) {
     const yBottom = pad.top + gH;
     const areaPath = linePath + ` L ${xN},${yBottom} L ${x0},${yBottom} Z`;
 
+    // Horizontal gridlines at round CFS values
+    const visRange = qMax - qMin;
+    const rawStep = Math.pow(10, Math.floor(Math.log10(visRange)));
+    const step = visRange / rawStep >= 6 ? rawStep * 2 : visRange / rawStep >= 3 ? rawStep : rawStep / 2;
+    const gridStart = Math.ceil(qMin / step) * step;
+    const gridLines = [];
+    for (let q = gridStart; q <= qMax; q += step) {
+        const gy = yScale(q);
+        if (gy < pad.top || gy > pad.top + gH) continue;
+        // Skip if too close to threshold line (within 6px) — threshold already has its own line+label
+        if (Math.abs(gy - yScale(threshold)) < 6) continue;
+        gridLines.push(`<line x1="${pad.left}" y1="${gy}" x2="${pad.left + gW}" y2="${gy}" stroke="var(--border-default)" stroke-width="0.5" opacity="0.5"/>` +
+            `<text x="${pad.left - 2}" y="${gy + 3}" font-size="6" fill="var(--text-muted)" text-anchor="end" opacity="0.7">${Math.round(q)}</text>`);
+    }
+    const gridHTML = gridLines.join('');
+
     // Threshold line
     const ty = yScale(threshold);
     const thresholdLine = (ty >= pad.top && ty <= pad.top + gH)
@@ -169,6 +185,7 @@ function renderCreekChart(id, el) {
       <stop offset="100%" stop-color="rgba(${gradColor},0)"/>
     </linearGradient>
   </defs>
+  ${gridHTML}
   <path d="${areaPath}" fill="url(#${fillId})"/>
   <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="1.5" stroke-linejoin="round"/>
   ${thresholdLine}
