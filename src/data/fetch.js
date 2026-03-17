@@ -335,11 +335,24 @@ export async function fetchCreekData() {
                 }
             }
 
+            // Build hourly history (thin 15-min readings to hourly)
+            const history = [];
+            for (let i = 0; i < values.length; i += 4) {
+                const v = values[i];
+                const hq = parseFloat(v.value);
+                if (hq >= 0) history.push({ time: new Date(v.dateTime), q: hq });
+            }
+            // Always include the latest reading at the end
+            if (history.length === 0 || history[history.length - 1].time.getTime() !== new Date(latest.dateTime).getTime()) {
+                history.push({ time: new Date(latest.dateTime), q });
+            }
+
             creekData[siteCode] = {
                 q: q,
                 trend: trend,
                 time: new Date(latest.dateTime),
-                running: q >= CREEK_RUNS[siteCode].runnable
+                running: q >= CREEK_RUNS[siteCode].runnable,
+                history: history
             };
 
             if (q >= CREEK_RUNS[siteCode].runnable) {

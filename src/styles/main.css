@@ -247,8 +247,13 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
     border-radius: 6px;
     border: 1px solid var(--border-default);
     background: rgba(0,0,0,0.15);
-    transition: border-color 0.3s;
+    transition: border-color 0.3s, background 0.2s;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
 }
+.creek-card:hover { background: rgba(0,0,0,0.22); }
+.creek-card:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
 .creek-top {
     display: flex;
     align-items: center;
@@ -294,6 +299,21 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
     padding-left: 18px;
     font-size: 0.6rem;
 }
+.creek-chevron {
+    font-size: 1rem;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+    line-height: 1;
+    padding-left: 2px;
+}
+.creek-card.expanded .creek-chevron { transform: rotate(90deg); }
+.creek-chart {
+    display: none;
+    margin-top: 8px;
+    border-top: 1px solid var(--border-default);
+    padding-top: 6px;
+}
+.creek-chart.expanded { display: block; }
 @media (max-width: 420px) {
     .creek-card { margin: 4px 4px; padding: 8px; }
     .creek-name { font-size: 0.75rem; }
