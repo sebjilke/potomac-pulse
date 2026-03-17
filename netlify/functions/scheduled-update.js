@@ -1306,10 +1306,16 @@ exports.handler = async (event, context) => {
         const porIce = usgsData.data[usgsData.gauges.por]?.iceAffected;
         const lfIce = usgsData.data[usgsData.gauges.lf]?.iceAffected;
         const efMissing = !usgsData.data[usgsData.gauges.ef]?.h;
-        const criticalIce = porIce || lfIce || efMissing;
+        if (efMissing) {
+            // EF is optional cross-check only — predictions fall back to PoR-only (makeGFPrediction handles this)
+            console.warn('⚠️ EF stage unavailable — predictions will use PoR-only (no ensemble blending)');
+        }
+
+        // Only PoR/LF ice suspends learning; EF absence is non-blocking
+        const criticalIce = porIce || lfIce;
 
         if (criticalIce) {
-            console.log(`🧊 Critical gauge ice/unavailable — skipping learning & validation (PoR ice: ${!!porIce}, LF ice: ${!!lfIce}, EF missing: ${efMissing})`);
+            console.log(`🧊 Critical gauge ice — skipping learning & validation (PoR ice: ${!!porIce}, LF ice: ${!!lfIce})`);
         }
 
         // 4. Validate pending predictions (skip if critical gauges ice-affected)
