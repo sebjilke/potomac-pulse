@@ -456,6 +456,12 @@ async function saveGFLearningData(client, data) {
                 return { statusCode: 400, headers, body: JSON.stringify({ error: 'No prediction provided' }) };
             }
 
+            // Delete any existing pending prediction first (unique constraint allows only one)
+            await client.from('potomac_observations')
+                .delete()
+                .eq('observation_type', 'gf_prediction')
+                .eq('gauge_id', 'pending');
+
             const { error } = await client.from('potomac_observations').insert({
                 observation_type: 'gf_prediction',
                 gauge_id: 'pending',
@@ -640,29 +646,11 @@ async function saveGFLearningData(client, data) {
                 // race condition where both paths independently updated the same bins,
                 // metadata counters, and EF correlation data.
 
-                // Move prediction from pending to validated/hard_flagged/soft_flagged
-                await client.from('potomac_observations').update({
-                    gauge_id: isHardFlagged ? 'hard_flagged' : (isSoftFlagged ? 'soft_flagged' : 'validated'),
-                    data: {
-                        ...pred.data,
-                        actualCFS,
-                        actualStage,
-                        errorCFS,
-                        errorPercent,
-                        validatedAt: new Date().toISOString(),
-                        isOutlier,
-                        // v33.0 two-tier anomaly detection fields
-                        isHardFlagged,
-                        isSoftFlagged,
-                        hardScore,
-                        softScore,
-                        anomalyFlags: anomalyFlags.length > 0 ? anomalyFlags : null,
-                        skipLearning,
-                        // Backward compat
-                        isSuspicious: isHardFlagged,
-                        suspiciousScore: hardScore + softScore
-                    }
-                }).eq('id', pred.id);
+                // Delete validated prediction (unique constraint prevents status-move pattern)
+                // Learning data is persisted in correction bins and metadata
+                await client.from('potomac_observations')
+                    .delete()
+                    .eq('id', pred.id);
 
                 // Update metadata
                 const { data: meta } = await client

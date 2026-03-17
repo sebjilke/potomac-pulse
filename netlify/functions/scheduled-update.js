@@ -596,18 +596,14 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             continue;
         }
 
-        // Clean up stale predictions (>48 hours old) - mark as expired, don't validate
+        // Clean up stale predictions (>48 hours old) - delete them
+        // Note: UPDATE to 'expired' hits unique constraint since only one row per gauge_id allowed
         const ageMs = now - createdAt;
         if (ageMs > staleThreshold) {
             console.log(`🧹 Cleaning stale prediction from ${createdAt.toISOString()} (${Math.round(ageMs/3600000)}h old)`);
-            const { error: staleErr } = await client.from('potomac_observations').update({
-                gauge_id: 'expired',
-                data: {
-                    ...pred.data,
-                    expiredAt: now.toISOString(),
-                    reason: 'stale_prediction'
-                }
-            }).eq('id', pred.id);
+            const { error: staleErr } = await client.from('potomac_observations')
+                .delete()
+                .eq('id', pred.id);
             if (staleErr) {
                 console.error(`❌ Stale cleanup FAILED for ${pred.id}:`, staleErr.message, staleErr.code, staleErr.details);
             }
@@ -921,32 +917,13 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 console.log(`🔗 EF correlation: n=${corrData.count}, slope=${corrData.slope?.toFixed(0)}, R²=${corrData.rSquared || 'N/A'}`);
             }
 
-            // Move to validated/hard_flagged/soft_flagged
-            const { error: statusErr } = await client.from('potomac_observations').update({
-                gauge_id: isHardFlagged ? 'hard_flagged' : (isSoftFlagged ? 'soft_flagged' : 'validated'),
-                data: {
-                    ...pred.data,
-                    actualCFS,
-                    actualStage,
-                    errorCFS,
-                    errorStage,
-                    errorPercent,
-                    validatedAt: new Date().toISOString(),
-                    isOutlier,
-                    // v33.0 two-tier anomaly detection fields
-                    isHardFlagged,
-                    isSoftFlagged,
-                    hardScore,
-                    softScore,
-                    anomalyFlags: anomalyFlags.length > 0 ? anomalyFlags : null,
-                    skipLearning,
-                    // Backward compat
-                    isSuspicious: isHardFlagged,
-                    suspiciousScore: hardScore + softScore
-                }
-            }).eq('id', pred.id);
+            // Delete validated prediction (unique constraint prevents status-move pattern)
+            // Learning data is already persisted in correction bins and metadata above
+            const { error: statusErr } = await client.from('potomac_observations')
+                .delete()
+                .eq('id', pred.id);
             if (statusErr) {
-                console.error(`❌ Prediction status UPDATE FAILED for ${pred.id}:`, statusErr.message, statusErr.code, statusErr.details);
+                console.error(`❌ Prediction DELETE FAILED for ${pred.id}:`, statusErr.message, statusErr.code, statusErr.details);
             }
 
             // Update metadata
@@ -1075,6 +1052,12 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
 
 // Store new prediction
 async function storePrediction(client, prediction) {
+    // Delete any existing pending prediction first (unique constraint allows only one)
+    await client.from('potomac_observations')
+        .delete()
+        .eq('observation_type', 'gf_prediction')
+        .eq('gauge_id', 'pending');
+
     const { error: insertErr } = await client.from('potomac_observations').insert({
         observation_type: 'gf_prediction',
         gauge_id: 'pending',
