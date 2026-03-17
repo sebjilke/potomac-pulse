@@ -162,8 +162,7 @@ function renderCreekChart(id, el) {
     const dotY = yScale(lastPt.q);
     const dotColor = d.running ? 'var(--accent-green)' : 'var(--text-muted)';
 
-    // Y-axis labels: min and current
-    const yLabelCurrent = `<text x="${pad.left - 2}" y="${dotY + 3}" font-size="7" fill="${dotColor}" text-anchor="end" font-weight="600">${Math.round(d.q)}</text>`;
+    const yLabelCurrent = '';
 
     // X-axis labels: 24h ago, 12h ago, Now
     const xLabels = [
