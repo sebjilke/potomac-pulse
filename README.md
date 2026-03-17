@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v34.15 (March 2026)
+**Current Version**: v34.16 (March 2026)
 
 ## Quick Start
 
@@ -176,6 +176,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v34.16 | 2026-03-16 | Add horizontal gridlines to creek history charts |
 | v34.15 | 2026-03-16 | Expandable creek cards with 24h CFS history graph (click to expand) |
 | v34.14 | 2026-03-16 | Remove estimated threshold warning from Difficult Run (200 cfs threshold confirmed correct) |
 | v34.13 | 2026-03-16 | Replace discontinued Rock Creek gauge 01648000 (Georgetown) with 01648010 (Joyce Rd) |
@@ -207,4 +208,4 @@ See Technical Appendix for complete version history (v16–v34.12).
 
 ---
 
-*Last updated: 2026-03-16 (v34.15 — Expandable creek cards with 24h CFS history graph)*
+*Last updated: 2026-03-16 (v34.16 — Horizontal gridlines on creek history charts)*
