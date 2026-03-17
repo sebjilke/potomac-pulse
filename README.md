@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v34.13 (March 2026)
+**Current Version**: v34.14 (March 2026)
 
 ## Quick Start
 
@@ -176,6 +176,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v34.14 | 2026-03-16 | Remove estimated threshold warning from Difficult Run (200 cfs threshold confirmed correct) |
 | v34.13 | 2026-03-16 | Replace discontinued Rock Creek gauge 01648000 (Georgetown) with 01648010 (Joyce Rd) |
 | v34.12 | 2026-03-16 | Fix learning system: correct GF_EMA_ALPHA import typo in scheduled-update.js. ReferenceError was crashing every cron run after the first observation per bin, stalling learning for 247h+ |
 | v34.11 | 2026-03-09 | Correction system bug fixes: EF cross-check cold-water model, R² double-count, EF sums re-anchor at 200pts, EMA alpha centralized, server wave celerity, stage bin EMA clamp, totalObs sum, calculateCorrections throttle, cold-start flow state |
@@ -205,4 +206,4 @@ See Technical Appendix for complete version history (v16–v34.12).
 
 ---
 
-*Last updated: 2026-03-16 (v34.13 — Replace discontinued Rock Creek gauge 01648000 with 01648010 at Joyce Rd)*
+*Last updated: 2026-03-16 (v34.14 — Remove estimated threshold warning from Difficult Run)*
