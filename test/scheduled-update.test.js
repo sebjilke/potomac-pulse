@@ -559,18 +559,32 @@ describe('storePrediction', () => {
     it('stores prediction and updates metadata on success', async () => {
         const metaData = { totalValidations: 0, totalPredictions: 5 };
         let upsertCalled = false;
+        let fromCallCount = 0;
+        // storePrediction flow: (1) select existing pending, (2) insert, (3) select metadata, (4) upsert
         const client = {
-            from: () => ({
-                insert: () => Promise.resolve({ error: null }),
-                select: () => ({
-                    eq: () => ({
+            from: () => {
+                fromCallCount++;
+                const callNum = fromCallCount;
+                return {
+                    select: () => ({
                         eq: () => ({
-                            single: () => Promise.resolve({ data: { data: metaData }, error: null })
+                            eq: () => ({
+                                single: () => {
+                                    if (callNum === 1) {
+                                        // Check existing pending — none
+                                        return Promise.resolve({ data: null, error: null });
+                                    }
+                                    // Get metadata
+                                    return Promise.resolve({ data: { data: metaData }, error: null });
+                                }
+                            })
                         })
-                    })
-                }),
-                upsert: () => { upsertCalled = true; return Promise.resolve({ error: null }); },
-            })
+                    }),
+                    delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) }),
+                    insert: () => Promise.resolve({ error: null }),
+                    upsert: () => { upsertCalled = true; return Promise.resolve({ error: null }); },
+                };
+            }
         };
 
         await storePrediction(client, { predictedCFS: 10000, validationDue: '2026-01-01' });
@@ -578,24 +592,38 @@ describe('storePrediction', () => {
     });
 
     it('skips metadata update when INSERT fails', async () => {
-        let upsertCalled = false;
+        let metadataCalled = false;
+        let fromCallCount = 0;
         const client = {
-            from: () => ({
-                insert: () => Promise.resolve({ error: { message: 'RLS blocked', code: '42501', details: null } }),
-                select: () => ({
-                    eq: () => ({
+            from: () => {
+                fromCallCount++;
+                const callNum = fromCallCount;
+                return {
+                    select: () => ({
                         eq: () => ({
-                            single: () => { upsertCalled = true; return Promise.resolve({ data: null, error: null }); }
+                            eq: () => ({
+                                single: () => {
+                                    if (callNum === 1) {
+                                        // Check existing pending — none
+                                        return Promise.resolve({ data: null, error: null });
+                                    }
+                                    // Should never reach metadata select
+                                    metadataCalled = true;
+                                    return Promise.resolve({ data: null, error: null });
+                                }
+                            })
                         })
-                    })
-                }),
-                upsert: () => { upsertCalled = true; return Promise.resolve({ error: null }); },
-            })
+                    }),
+                    delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) }),
+                    insert: () => Promise.resolve({ error: { message: 'RLS blocked', code: '42501', details: null } }),
+                    upsert: () => { metadataCalled = true; return Promise.resolve({ error: null }); },
+                };
+            }
         };
 
         await storePrediction(client, { predictedCFS: 10000, validationDue: '2026-01-01' });
         // Should return early — metadata select and upsert should NOT be called
-        assert.equal(upsertCalled, false);
+        assert.equal(metadataCalled, false);
     });
 });
 
