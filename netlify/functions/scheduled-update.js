@@ -1052,11 +1052,32 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
 
 // Store new prediction
 async function storePrediction(client, prediction) {
-    // Delete any existing pending prediction first (unique constraint allows only one)
-    await client.from('potomac_observations')
-        .delete()
+    // Check if there's an existing pending prediction still within its validation window.
+    // If so, skip storing a new one — overwriting it would prevent it from ever being validated.
+    const { data: existing } = await client.from('potomac_observations')
+        .select('data')
         .eq('observation_type', 'gf_prediction')
-        .eq('gauge_id', 'pending');
+        .eq('gauge_id', 'pending')
+        .single();
+
+    if (existing) {
+        const validationDue = existing.data?.validationDue ? new Date(existing.data.validationDue) : null;
+        const now = new Date();
+        const pastWindow = !validationDue || (now - validationDue) > 2.5 * 60 * 60 * 1000;
+
+        if (!pastWindow) {
+            // Existing prediction still in or before its validation window — don't overwrite it
+            console.log(`⏳ Skipping new prediction — existing pending still in window (due: ${existing.data.validationDue})`);
+            return;
+        }
+
+        // Existing prediction has missed its window and will never validate — safe to replace
+        console.log(`🗑️ Removing missed-window prediction (due: ${existing.data.validationDue})`);
+        await client.from('potomac_observations')
+            .delete()
+            .eq('observation_type', 'gf_prediction')
+            .eq('gauge_id', 'pending');
+    }
 
     const { error: insertErr } = await client.from('potomac_observations').insert({
         observation_type: 'gf_prediction',

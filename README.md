@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v34.19 (March 2026)
+**Current Version**: v34.20 (March 2026)
 
 ## Quick Start
 
