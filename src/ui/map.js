@@ -6,91 +6,39 @@ import { LF, GAUGES, BRANCHES, GREAT_FALLS } from '../model/constants.js';
 import { map, setMap, markers } from '../state/store.js';
 import { popup } from '../ui/gauges-ui.js';
 
-// ==================== RIVERS CONSTANT ====================
+// ==================== NHD RIVER STYLING ====================
 
-const RIVERS = [
-    // Potomac Mainstem - follows actual river path, ends at Little Falls
-    { name: "Potomac Mainstem", color: "#2563eb", weight: 3, coords: [
-        [39.62, -78.76],     // Cumberland
-        [39.53, -78.46],     // South Branch confluence
-        [39.697, -78.182],   // Hancock (Little Tonoloway)
-        [39.626, -78.017],   // Big Pool
-        [39.606, -78.011],   // Fort Frederick
-        [39.608, -77.969],   // McCoys Ferry
-        [39.45, -77.82],     // Shepherdstown area
-        [39.323, -77.730],   // Harpers Ferry
-        [39.273, -77.541],   // Point of Rocks
-        [39.224, -77.452],   // Monocacy Aqueduct
-        [39.154, -77.520],   // Whites Ferry
-        [39.103, -77.474],   // Edwards Ferry
-        [39.071, -77.341],   // Seneca Landing
-        [39.018, -77.245],   // Riverbend Park
-        [38.998, -77.252],   // Great Falls
-        [38.975, -77.228],   // Mather Gorge
-        [38.962, -77.197],   // Widewater
-        [38.955, -77.160],   // Cabin John Creek area
-        [38.950, -77.128]    // Little Falls (terminus)
-    ]},
-    // North Branch - Kitzmiller to Cumberland
-    { name: "North Branch", color: "#0891b2", weight: 2, coords: [
-        [39.394, -79.182],   // Kitzmiller
-        [39.445, -79.111],   // Barnum
-        [39.479, -79.065],   // Luke
-        [39.62, -78.76]      // Cumberland (confluence)
-    ]},
-    // South Branch - Franklin gauge to confluence
-    { name: "South Branch", color: "#7c3aed", weight: 2, coords: [
-        [38.6428, -79.3306], // Franklin (gauge)
-        [38.755, -79.260],   // Upper Tract
-        [38.860, -79.195],   // Smoke Hole area
-        [38.9926, -79.1239], // Petersburg (gauge)
-        [39.120, -78.980],   // Moorefield
-        [39.280, -78.780],   // Junction area
-        [39.45, -78.65],     // Romney area
-        [39.53, -78.46]      // Confluence with mainstem
-    ]},
-    // Shenandoah - Front Royal gauge to Harpers Ferry
-    { name: "Shenandoah", color: "#c026d3", weight: 2, coords: [
-        [38.914, -78.211],   // Front Royal (gauge)
-        [38.983, -78.101],   // Bentonville
-        [39.063, -78.030],   // Overall Run
-        [39.134, -77.962],   // Compton Rapids area
-        [39.200, -77.870],   // Berryville area
-        [39.282, -77.789],   // Millville (gauge)
-        [39.310, -77.756],   // Bloomery
-        [39.323, -77.730]    // Harpers Ferry (confluence)
-    ]},
-    // Monocacy - Jug Bridge gauge to Potomac
-    { name: "Monocacy", color: "#dc2626", weight: 1.5, coords: [
-        [39.403, -77.366],   // Jug Bridge (gauge)
-        [39.224, -77.452]    // Confluence at Monocacy Aqueduct
-    ]},
-    // Cacapon - Great Cacapon to confluence
-    { name: "Cacapon", color: "#059669", weight: 1.5, coords: [
-        [39.582, -78.305],   // Great Cacapon
-        [39.53, -78.46]      // Confluence
-    ]},
-    // Conococheague - gauge to Potomac
-    { name: "Conococheague", color: "#059669", weight: 1.5, coords: [
-        [39.6510, -77.9239], // Conococheague gauge
-        [39.60, -77.92]      // Confluence near Williamsport
-    ]},
-    // Antietam Creek - Sharpsburg to Potomac
-    { name: "Antietam", color: "#f59e0b", weight: 1.5, coords: [
-        [39.450, -77.730],   // Sharpsburg
-        [39.45, -77.82]      // Confluence near Shepherdstown
-    ]},
-    // Goose Creek - gauge to confluence
-    { name: "Goose Creek", color: "#10b981", weight: 1.5, coords: [
-        [39.0559, -77.5191], // Goose Creek gauge
-        [39.103, -77.474]    // Confluence near Edwards Ferry
-    ]},
-    // Seneca Creek - Dawsonville to Potomac
-    { name: "Seneca Creek", color: "#6366f1", weight: 1.5, coords: [
-        [39.128, -77.336],   // Dawsonville
-        [39.071, -77.341]    // Confluence at Seneca Landing
-    ]}
-];
+// Color rivers by name to match existing branch color scheme
+function nhdColor(name) {
+    if (!name) return '#475569';
+    if (name === 'Potomac River') return '#2563eb';
+    if (name === 'North Branch Potomac River') return '#0891b2';
+    if (name.startsWith('South Branch Potomac')) return '#7c3aed';
+    if (name === 'Shenandoah River') return '#c026d3';
+    if (name === 'Monocacy River' || name === 'Goose Creek' || name === 'Seneca Creek') return '#dc2626';
+    if (name === 'Cacapon River' || name === 'Conococheague Creek' || name === 'Antietam Creek') return '#059669';
+    return '#475569';
+}
+
+function nhdStyle(feature) {
+    const name = feature.properties.gnis_name || '';
+    const order = feature.properties.streamorde || 3;
+    return {
+        color: nhdColor(name),
+        weight: Math.max(0.8, order * 0.45),
+        opacity: 0.75
+    };
+}
+
+// Load NHD river GeoJSON from static asset, add behind markers
+function loadNHDRivers(mapInstance) {
+    fetch('/potomac-nhd.geojson')
+        .then(r => r.json())
+        .then(data => {
+            L.geoJSON(data, { style: nhdStyle }).addTo(mapInstance).bringToBack();
+        })
+        .catch(err => console.warn('NHD rivers failed to load:', err));
+}
 
 // ==================== MAP FUNCTIONS ====================
 
@@ -113,24 +61,22 @@ export function initMap() {
     const mapInstance = L.map("map").setView([39.2, -77.8], 8);
     setMap(mapInstance);
 
-    const tileLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap © CARTO'
+    const tileLayer = L.tileLayer("https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}{r}.png", {
+        maxZoom: 18,
+        attribution: '© <a href="https://www.stadiamaps.com/">Stadia Maps</a> © <a href="https://www.stamen.com/">Stamen Design</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(mapInstance);
 
     tileLayer.on('load', () => overlay.classList.add('hidden'));
     tileLayer.on('loading', () => overlay.classList.remove('hidden'));
 
-    // Rivers
-    for (const r of RIVERS) {
-        L.polyline(r.coords, { color: r.color, weight: r.weight, opacity: 0.7 }).addTo(mapInstance);
-    }
+    // NHD rivers (async, added behind markers via bringToBack)
+    loadNHDRivers(mapInstance);
 
     // Gauges
     for (const [id, g] of Object.entries(GAUGES)) {
         const bk = Object.entries(BRANCHES).find(([k,v]) => v.ids?.includes(id))?.[0] || "target";
         const color = bk === "target" ? "#f97316" : BRANCHES[bk]?.color || "#60a5fa";
-        const size = id === LF.id ? 12 : 8;
+        const size = Math.round(4 + Math.sqrt(g.pctLF) * 0.85);
 
         const icon = L.divIcon({
             className: "",
@@ -147,11 +93,12 @@ export function initMap() {
     markers[LF.id].setZIndexOffset(1000);
 
     // Great Falls virtual marker (estimated gauge - dashed border style)
+    const gfSize = Math.round(4 + Math.sqrt(GREAT_FALLS.pctLF) * 0.85);
     const gfIcon = L.divIcon({
         className: "",
-        html: `<div style="width:10px;height:10px;background:#06b6d4;border-radius:50%;border:2px dashed white;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>`,
-        iconSize: [10, 10],
-        iconAnchor: [5, 5]
+        html: `<div style="width:${gfSize}px;height:${gfSize}px;background:#06b6d4;border-radius:50%;border:2px dashed white;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>`,
+        iconSize: [gfSize, gfSize],
+        iconAnchor: [gfSize/2, gfSize/2]
     });
     markers[GREAT_FALLS.id] = L.marker([GREAT_FALLS.lat, GREAT_FALLS.lon], { icon: gfIcon }).addTo(mapInstance);
     markers[GREAT_FALLS.id].bindPopup(`

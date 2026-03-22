@@ -608,13 +608,13 @@ footer a { color: var(--text-tertiary); }
 }
 @media (min-width: 768px) {
     .map-legend {
-        padding: 8px 10px;
-        font-size: 0.6rem;
+        padding: 6px 8px;
+        font-size: 0.58rem;
         max-width: none;
     }
-    .map-legend-title { font-size: 0.65rem; margin-bottom: 6px; }
-    .map-legend-item { gap: 6px; margin: 3px 0; }
-    .map-legend-line { width: 16px; height: 3px; }
-    .map-legend-dot { width: 8px; height: 8px; border: 2px solid white; }
-    .map-legend-dot.target { width: 10px; height: 10px; }
+    .map-legend-title { display: none; }
+    .map-legend-item { gap: 5px; margin: 2px 0; }
+    .map-legend-line { width: 12px; height: 2px; }
+    .map-legend-dot { width: 6px; height: 6px; border: 1px solid white; }
+    .map-legend-dot.target { width: 7px; height: 7px; }
 }

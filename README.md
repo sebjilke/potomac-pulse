@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v34.21 (March 2026)
+**Current Version**: v34.22 (March 2026)
 
 ## Quick Start
 
@@ -176,6 +176,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v34.22 | 2026-03-22 | Map overhaul: Stamen Terrain basemap, NHDPlus GeoJSON rivers (296KB static asset), drain-area marker scaling, compact legend |
 | v34.21 | 2026-03-22 | Switch gauge table trend from 48h to 24h; label column "24h Trend" |
 | v34.20 | 2026-03-19 | Fix prediction overwrite loop: skip storing new prediction if existing pending is still within validation window |
 | v34.19 | 2026-03-17 | Fix learning system deadlock: unique constraint on prediction lifecycle prevented state transitions. DELETE predictions after validation/expiry instead of UPDATE. 270h outage resolved. |
@@ -213,4 +214,4 @@ See Technical Appendix for complete version history (v16–v34.12).
 
 ---
 
-*Last updated: 2026-03-22 (v34.21 — 24h trend in gauge table)*
+*Last updated: 2026-03-22 (v34.22 — Map overhaul: terrain basemap, NHD rivers, drain-area markers)*
