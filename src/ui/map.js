@@ -9,13 +9,16 @@ import { popup } from '../ui/gauges-ui.js';
 // ==================== NHD RIVER STYLING ====================
 
 // Color rivers by name to match existing branch color scheme
-function nhdColor(name) {
+// coords = [lon, lat] of first geometry point, used to disambiguate same-named streams
+function nhdColor(name, coords) {
     if (!name) return '#475569';
     if (name === 'Potomac River') return '#2563eb';
     if (name === 'North Branch Potomac River') return '#0891b2';
     if (name.startsWith('South Branch Potomac')) return '#7c3aed';
     if (name === 'Shenandoah River') return '#c026d3';
-    if (name === 'Monocacy River' || name === 'Goose Creek' || name === 'Seneca Creek') return '#dc2626';
+    if (name === 'Monocacy River' || name === 'Goose Creek') return '#dc2626';
+    // Seneca Creek: only color the MD tributary (lon > -78); WV Seneca Creek is further west
+    if (name === 'Seneca Creek') return (coords && coords[0] > -78) ? '#dc2626' : '#475569';
     if (name === 'Cacapon River' || name === 'Conococheague Creek' || name === 'Antietam Creek') return '#059669';
     return '#475569';
 }
@@ -23,8 +26,9 @@ function nhdColor(name) {
 function nhdStyle(feature) {
     const name = feature.properties.gnis_name || '';
     const order = feature.properties.streamorde || 3;
+    const coords = feature.geometry?.coordinates?.[0];
     return {
-        color: nhdColor(name),
+        color: nhdColor(name, coords),
         weight: Math.max(0.8, order * 0.45),
         opacity: 0.75
     };
