@@ -37,15 +37,28 @@ export async function fetchSingleNWSForecast(usgsId, nwsLid) {
 export async function fetchNWSForecasts() {
     console.log("=== Fetching NWS forecasts (parallel) ===");
 
-    // Fetch ALL gauges in parallel (not sequential)
-    const promises = Object.entries(NWS_LIDS).map(
+    // Fetch forecasts and flood categories in parallel
+    const forecastPromises = Object.entries(NWS_LIDS).map(
         ([usgsId, nwsLid]) => fetchSingleNWSForecast(usgsId, nwsLid).catch(() => null)
     );
-    const results = await Promise.all(promises);
+    const categoryPromises = Object.entries(NWS_LIDS).map(
+        ([usgsId, nwsLid]) => fetchFloodCategory(usgsId, nwsLid).catch(() => null)
+    );
+    const [forecastResults, categoryResults] = await Promise.all([
+        Promise.all(forecastPromises),
+        Promise.all(categoryPromises)
+    ]);
+
+    // Apply flood categories
+    for (const result of categoryResults) {
+        if (!result) continue;
+        const { usgsId, floodCategory } = result;
+        if (data[usgsId]) data[usgsId].floodCategory = floodCategory;
+    }
 
     // Apply forecasts to data
     let count = 0;
-    for (const result of results) {
+    for (const result of forecastResults) {
         if (!result) continue;
         const { usgsId, forecast } = result;
         if (!data[usgsId]) continue;
@@ -69,6 +82,19 @@ export async function fetchNWSForecasts() {
         }
     }
     console.log(`=== NWS forecasts: ${count}/${Object.keys(NWS_LIDS).length} gauges ===`);
+}
+
+// Fetch current flood category for a single gauge
+async function fetchFloodCategory(usgsId, nwsLid) {
+    try {
+        const response = await fetchWithTimeout(
+            `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid}`, 5000
+        );
+        if (!response.ok) return null;
+        const json = await response.json();
+        const floodCategory = json?.status?.observed?.floodCategory || 'no_flooding';
+        return { usgsId, floodCategory };
+    } catch { return null; }
 }
 
 export function parseNWSForecast(json, usgsId, nwsLid) {

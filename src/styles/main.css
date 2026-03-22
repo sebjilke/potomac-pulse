@@ -606,6 +606,24 @@ footer a { color: var(--text-tertiary); }
     width: 8px;
     height: 8px;
 }
+.map-legend-divider {
+    height: 1px;
+    background: rgba(255,255,255,0.15);
+    margin: 3px 0;
+}
+/* Gauge name labels — zoom-dependent, shown at zoom >= 10 */
+.gauge-label {
+    background: rgba(15, 23, 42, 0.75) !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 3px !important;
+    padding: 1px 4px !important;
+    font-size: 0.6rem !important;
+    color: #f1f5f9 !important;
+    white-space: nowrap;
+    pointer-events: none;
+}
+.gauge-label::before { display: none !important; }
 @media (min-width: 768px) {
     .map-legend {
         padding: 6px 8px;

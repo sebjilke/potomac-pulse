@@ -1,6 +1,7 @@
 // Potomac Pulse — Gauges UI (branches, gauge rows, map popups)
 // Extracted from index.html inline script
 
+import L from 'leaflet';
 import { LF, GAUGES, BRANCHES } from '../model/constants.js';
 import {
     data, markers, learningData
@@ -178,15 +179,29 @@ export function updateUI() {
         }
     }
 
-    // Update markers
+    // Update markers — refresh popup and flood-condition border ring
     for (const [id, marker] of Object.entries(markers)) {
         const g = GAUGES[id];
         const d = data[id];
         if (!g || !d) continue;
 
         const bk = Object.entries(BRANCHES).find(([k,v]) => v.ids?.includes(id))?.[0];
-        const color = BRANCHES[bk]?.color || "#60a5fa";
+        const color = bk === 'target' ? '#f97316' : BRANCHES[bk]?.color || '#60a5fa';
         marker.bindPopup(popup(id, g, color, bk));
+
+        // Update border color from flood category
+        const flood = d.floodCategory || 'no_flooding';
+        const borderColor = flood === 'major'    ? '#991b1b' :
+                            flood === 'moderate' ? '#ef4444' :
+                            flood === 'minor'    ? '#f97316' :
+                            flood === 'action'   ? '#fbbf24' : 'white';
+        const size = Math.round(4 + Math.sqrt(g.pctLF) * 0.85);
+        marker.setIcon(L.divIcon({
+            className: '',
+            html: `<div style="width:${size}px;height:${size}px;background:${color};border-radius:50%;border:2px solid ${borderColor};box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>`,
+            iconSize: [size, size],
+            iconAnchor: [size/2, size/2]
+        }));
     }
 
     // Update Great Falls estimate

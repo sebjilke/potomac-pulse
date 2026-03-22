@@ -40,6 +40,24 @@ function loadNHDRivers(mapInstance) {
         .catch(err => console.warn('NHD rivers failed to load:', err));
 }
 
+// Load Potomac watershed boundary polygon, add behind rivers
+function loadWatershedBoundary(mapInstance) {
+    fetch('/potomac-watershed.geojson')
+        .then(r => r.json())
+        .then(data => {
+            L.geoJSON(data, {
+                style: {
+                    color: '#2563eb',
+                    weight: 1.5,
+                    opacity: 0.35,
+                    fillColor: '#2563eb',
+                    fillOpacity: 0.04
+                }
+            }).addTo(mapInstance).bringToBack();
+        })
+        .catch(err => console.warn('Watershed boundary failed to load:', err));
+}
+
 // ==================== MAP FUNCTIONS ====================
 
 export function panTo(id) {
@@ -69,6 +87,9 @@ export function initMap() {
     tileLayer.on('load', () => overlay.classList.add('hidden'));
     tileLayer.on('loading', () => overlay.classList.remove('hidden'));
 
+    // Watershed boundary (async, behind rivers and markers)
+    loadWatershedBoundary(mapInstance);
+
     // NHD rivers (async, added behind markers via bringToBack)
     loadNHDRivers(mapInstance);
 
@@ -91,6 +112,28 @@ export function initMap() {
 
     // Target marker special
     markers[LF.id].setZIndexOffset(1000);
+
+    // Gauge labels — permanent tooltips, visible only at zoom >= 10
+    for (const [id, g] of Object.entries(GAUGES)) {
+        if (markers[id]) {
+            markers[id].bindTooltip(g.name, {
+                permanent: true,
+                direction: 'right',
+                className: 'gauge-label',
+                offset: [6, 0],
+                interactive: false,
+                opacity: 0
+            });
+        }
+    }
+    const updateLabelVisibility = () => {
+        const show = mapInstance.getZoom() >= 10;
+        for (const marker of Object.values(markers)) {
+            const tt = marker.getTooltip();
+            if (tt) tt.setOpacity(show ? 0.9 : 0);
+        }
+    };
+    mapInstance.on('zoomend', updateLabelVisibility);
 
     // Great Falls virtual marker (estimated gauge - dashed border style)
     const gfSize = Math.round(4 + Math.sqrt(GREAT_FALLS.pctLF) * 0.85);
@@ -157,6 +200,23 @@ export function initMap() {
             <div class="map-legend-item">
                 <div class="map-legend-line" style="background:#059669;"></div>
                 <span>Tributaries</span>
+            </div>
+            <div class="map-legend-divider"></div>
+            <div class="map-legend-item">
+                <div class="map-legend-dot" style="background:#475569;border-color:white;"></div>
+                <span>Normal</span>
+            </div>
+            <div class="map-legend-item">
+                <div class="map-legend-dot" style="background:#475569;border-color:#fbbf24;"></div>
+                <span>Action</span>
+            </div>
+            <div class="map-legend-item">
+                <div class="map-legend-dot" style="background:#475569;border-color:#f97316;"></div>
+                <span>Minor flood</span>
+            </div>
+            <div class="map-legend-item">
+                <div class="map-legend-dot" style="background:#475569;border-color:#ef4444;"></div>
+                <span>Mod/Major</span>
             </div>
         `;
         return div;
