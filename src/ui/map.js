@@ -61,9 +61,9 @@ export function initMap() {
     const mapInstance = L.map("map").setView([39.2, -77.8], 8);
     setMap(mapInstance);
 
-    const tileLayer = L.tileLayer("https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}{r}.png", {
-        maxZoom: 18,
-        attribution: '© <a href="https://www.stadiamaps.com/">Stadia Maps</a> © <a href="https://www.stamen.com/">Stamen Design</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    const tileLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        attribution: 'Tiles © Esri — Esri, DeLorme, NAVTEQ, TomTom, USGS, NPS'
     }).addTo(mapInstance);
 
     tileLayer.on('load', () => overlay.classList.add('hidden'));
