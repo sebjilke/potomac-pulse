@@ -1090,7 +1090,7 @@ async function storePrediction(client, prediction) {
         return; // Don't increment metadata for a prediction that wasn't stored
     }
 
-    // Update prediction count
+    // Increment prediction count (health tracking moved to updateRunHealth)
     const { data: meta } = await client
         .from('potomac_observations')
         .select('data')
@@ -1100,20 +1100,6 @@ async function storePrediction(client, prediction) {
 
     const metaData = meta?.data || { totalValidations: 0, totalPredictions: 0 };
     metaData.totalPredictions += 1;
-
-    // Track execution health
-    const now = new Date();
-    const lastRun = metaData.lastPrediction ? new Date(metaData.lastPrediction) : null;
-    const gapHours = lastRun ? (now - lastRun) / (60 * 60 * 1000) : 0;
-
-    // Detect missed runs (gap > 3 hours means we missed at least one 2-hour cycle)
-    if (gapHours > 3) {
-        metaData.missedRuns = (metaData.missedRuns || 0) + Math.floor(gapHours / 2) - 1;
-        console.log(`⚠️ Gap detected: ${gapHours.toFixed(1)}h since last run (~${Math.floor(gapHours / 2) - 1} missed cycles)`);
-    }
-
-    metaData.lastPrediction = now.toISOString();
-    metaData.consecutiveRuns = gapHours <= 3 ? (metaData.consecutiveRuns || 0) + 1 : 1;
 
     const { error: predMetaErr } = await client.from('potomac_observations').upsert({
         observation_type: 'gf_metadata',
@@ -1125,6 +1111,41 @@ async function storePrediction(client, prediction) {
     }
 
     console.log(`Stored prediction: ${prediction.predictedCFS} cfs, validation due: ${prediction.validationDue}`);
+}
+
+// Update function execution health — fires every run regardless of prediction outcome.
+// Separated from storePrediction so skipped-prediction runs are still tracked correctly.
+async function updateRunHealth(client) {
+    const { data: meta } = await client
+        .from('potomac_observations')
+        .select('data')
+        .eq('observation_type', 'gf_metadata')
+        .eq('gauge_id', 'system')
+        .single();
+
+    const metaData = meta?.data || { totalValidations: 0, totalPredictions: 0 };
+    const now = new Date();
+    const lastRun = metaData.lastPrediction ? new Date(metaData.lastPrediction) : null;
+    const gapHours = lastRun ? (now - lastRun) / (60 * 60 * 1000) : 0;
+
+    // Detect missed runs (gap > 3h means at least one 2h cycle was skipped)
+    if (gapHours > 3) {
+        metaData.missedRuns = (metaData.missedRuns || 0) + Math.floor(gapHours / 2) - 1;
+        console.log(`⚠️ Gap detected: ${gapHours.toFixed(1)}h since last run (~${Math.floor(gapHours / 2) - 1} missed cycles)`);
+    }
+
+    metaData.lastPrediction = now.toISOString();
+    metaData.consecutiveRuns = gapHours <= 3 ? (metaData.consecutiveRuns || 0) + 1 : 1;
+
+    const { error } = await client.from('potomac_observations').upsert({
+        observation_type: 'gf_metadata',
+        gauge_id: 'system',
+        data: metaData
+    }, { onConflict: 'observation_type,gauge_id' });
+    if (error) {
+        console.error(`❌ Health metadata upsert FAILED:`, error.message, error.code, error.details);
+    }
+
     console.log(`📊 Health: ${metaData.consecutiveRuns} consecutive runs, ${metaData.missedRuns || 0} total missed`);
 }
 
@@ -1359,7 +1380,10 @@ exports.handler = async (event, context) => {
             }
         }
 
-        // 6. Log summary
+        // 6. Update run health (every run, regardless of prediction/ice outcome)
+        await updateRunHealth(client);
+
+        // 7. Log summary
         const summary = {
             timestamp: new Date().toISOString(),
             porCFS: usgsData.data[usgsData.gauges.por]?.q,
