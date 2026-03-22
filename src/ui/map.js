@@ -16,7 +16,7 @@ function nhdColor(name, coords) {
     if (name === 'North Branch Potomac River') return '#0891b2';
     if (name.startsWith('South Branch Potomac')) return '#7c3aed';
     if (name === 'Shenandoah River') return '#c026d3';
-    if (name === 'Monocacy River' || name === 'Goose Creek') return '#dc2626';
+    if (name === 'Monocacy River' || name === 'Goose Creek' || name === 'Broad Run') return '#dc2626';
     // Seneca Creek: only color the MD tributary (lon > -78); WV Seneca Creek is further west
     if (name === 'Seneca Creek') return (coords && coords[0] > -78) ? '#dc2626' : '#475569';
     if (name === 'Cacapon River' || name === 'Conococheague Creek' || name === 'Antietam Creek') return '#059669';
