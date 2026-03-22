@@ -21,7 +21,7 @@
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.basemaps.cartocdn.com; connect-src 'self' https://waterservices.usgs.gov https://api.water.noaa.gov https://*.supabase.co https://potomacpulse.goatcounter.com https://corsproxy.io https://api.allorigins.win https://*.ingest.sentry.io; frame-ancestors 'none'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.basemaps.cartocdn.com https://server.arcgisonline.com; connect-src 'self' https://waterservices.usgs.gov https://api.water.noaa.gov https://*.supabase.co https://potomacpulse.goatcounter.com https://corsproxy.io https://api.allorigins.win https://*.ingest.sentry.io; frame-ancestors 'none'"
 
 # Redirect API calls to serverless function
 [[redirects]]
