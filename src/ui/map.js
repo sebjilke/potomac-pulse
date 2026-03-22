@@ -3,7 +3,7 @@
 
 import L from 'leaflet';
 import { LF, GAUGES, BRANCHES, GREAT_FALLS } from '../model/constants.js';
-import { map, setMap, markers } from '../state/store.js';
+import { map, setMap, markers, data } from '../state/store.js';
 import { popup } from '../ui/gauges-ui.js';
 
 // ==================== NHD RIVER STYLING ====================
@@ -163,6 +163,9 @@ export function initMap() {
         </div>
     `);
 
+    // Flow wave animation
+    initWaveAnimation(mapInstance);
+
     // Add legend
     const legend = L.control({ position: 'bottomleft' });
     legend.onAdd = function() {
@@ -222,6 +225,98 @@ export function initMap() {
         return div;
     };
     legend.addTo(mapInstance);
+}
+
+// ==================== FLOW WAVE ANIMATION ====================
+
+// Waypoints tracing the Potomac mainstem: Point of Rocks → Little Falls
+const WAVE_PATH = [
+    [39.2726, -77.5405],  // Point of Rocks
+    [39.2550, -77.4800],  // Near Lander, MD
+    [39.2300, -77.4200],  // Near Monocacy confluence
+    [39.1800, -77.3700],  // White's Ferry area
+    [39.1300, -77.3300],  // Near Seneca Creek confluence
+    [39.0900, -77.3050],  // Blockhouse Point area
+    [39.0400, -77.2850],  // Near Violettes Lock
+    [38.9985, -77.2519],  // Great Falls
+    [38.9700, -77.2100],  // Below Great Falls gorge
+    [38.9570, -77.1700],  // Chain Bridge approach
+    [38.9498, -77.1278],  // Little Falls
+];
+
+// Interpolate a lat/lon position along path at fractional progress t ∈ [0,1]
+function interpolatePath(path, t) {
+    if (t <= 0) return path[0];
+    if (t >= 1) return path[path.length - 1];
+    const dists = [0];
+    for (let i = 1; i < path.length; i++) {
+        const dlat = path[i][0] - path[i-1][0];
+        const dlon = path[i][1] - path[i-1][1];
+        dists.push(dists[i-1] + Math.sqrt(dlat*dlat + dlon*dlon));
+    }
+    const totalDist = dists[dists.length - 1];
+    const target = t * totalDist;
+    for (let i = 1; i < dists.length; i++) {
+        if (dists[i] >= target) {
+            const f = (target - dists[i-1]) / (dists[i] - dists[i-1]);
+            return [
+                path[i-1][0] + f * (path[i][0] - path[i-1][0]),
+                path[i-1][1] + f * (path[i][1] - path[i-1][1])
+            ];
+        }
+    }
+    return path[path.length - 1];
+}
+
+function getWaveColor(cfs) {
+    if (!cfs || cfs < 3000)  return '#4ade80';  // low — green
+    if (cfs < 15000)         return '#fbbf24';  // medium — amber
+    if (cfs < 50000)         return '#f97316';  // high — orange
+    return '#ef4444';                           // flood — red
+}
+
+let waveMarker = null;
+
+export function updateWaveAnimation() {
+    if (!waveMarker) return;
+    const por = data['01638500'];
+    if (!por?.readingTime || !por?.travelHrs) {
+        waveMarker.setOpacity(0);
+        return;
+    }
+    const elapsedHrs = (Date.now() - por.readingTime) / 3600000;
+    const t = Math.min(1, Math.max(0, elapsedHrs / por.travelHrs));
+    // Hide once the pulse reaches Little Falls (within 5% of arrival)
+    if (t > 0.95) {
+        waveMarker.setOpacity(0);
+        return;
+    }
+    const pos = interpolatePath(WAVE_PATH, t);
+    const color = getWaveColor(por.q);
+    waveMarker.setLatLng(pos);
+    waveMarker.setIcon(L.divIcon({
+        className: '',
+        html: `<div class="wave-pulse-dot" style="background:${color};box-shadow:0 0 8px 3px ${color};"></div>`,
+        iconSize: [12, 12],
+        iconAnchor: [6, 6]
+    }));
+    waveMarker.setOpacity(1);
+}
+
+function initWaveAnimation(mapInstance) {
+    waveMarker = L.marker(WAVE_PATH[0], {
+        icon: L.divIcon({
+            className: '',
+            html: `<div class="wave-pulse-dot" style="background:#4ade80;box-shadow:0 0 8px 3px #4ade80;"></div>`,
+            iconSize: [12, 12],
+            iconAnchor: [6, 6]
+        }),
+        zIndexOffset: 500,
+        interactive: false
+    }).addTo(mapInstance);
+    waveMarker.setOpacity(0);  // Hidden until first data fetch
+    // Nudge position every 60 seconds (wave moves ~0.6–4% of path per hour)
+    setInterval(updateWaveAnimation, 60000);
 }
 
 // ==================== MAP VISIBILITY ====================

@@ -8,8 +8,8 @@ import { loadShadowModelState } from './estimation/shadow-models.js';
 import { loadEFHysteresis } from './estimation/edwards-ferry.js';
 import { loadLearning, createEmptyLearning } from './learning/gauge-learning.js';
 import { loadGFLearningData, loadForecastAccuracy, resetGFLearning, resetLowFlowBins } from './learning/gf-learning.js';
-import { fetchData, dismissErrorBanner } from './data/fetch.js';
-import { initMap, toggleMap } from './ui/map.js';
+import { fetchData, dismissErrorBanner, setUpdateWaveAnimation } from './data/fetch.js';
+import { initMap, toggleMap, updateWaveAnimation } from './ui/map.js';
 import { buildBranches } from './ui/gauges-ui.js';
 import { buildCreeks } from './ui/creeks-ui.js';
 import { updateLearningUI, resetShadowModels } from './ui/learning-ui.js';
@@ -38,6 +38,7 @@ function bindButton(id, handler) {
 export async function init() {
     try {
         // Register lazy callbacks to break circular dependencies
+        setUpdateWaveAnimation(updateWaveAnimation);
         setUpdateGFLearningUI(updateGFLearningUI);
         setUpdateGFBinStats(updateGFBinStats);
         setUpdateForecastAccuracyUI(updateForecastAccuracyUI);

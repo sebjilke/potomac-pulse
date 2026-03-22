@@ -31,6 +31,10 @@ import { updateUI } from '../ui/gauges-ui.js';
 import { updateLearningUI } from '../ui/learning-ui.js';
 import { updateCreeksUI } from '../ui/creeks-ui.js';
 
+// Lazy callback for wave animation (avoids circular dep: fetch→map→gauges-ui→fetch)
+let _updateWaveAnimation = null;
+export function setUpdateWaveAnimation(fn) { _updateWaveAnimation = fn; }
+
 // ==================== CORE FUNCTIONS ====================
 
 // Validate USGS API response schema
@@ -179,7 +183,10 @@ export function processData(json) {
 
             if (n > 0 && n < 9999999) {
                 // Valid current reading
-                if (p === "00060") data[s].q = n;
+                if (p === "00060") {
+                    data[s].q = n;
+                    data[s].readingTime = new Date(latest.dateTime).getTime();
+                }
                 if (p === "00065") data[s].h = n;
             } else if (isIceFlag && p === "00060") {
                 // Ice-flagged discharge: find last valid reading in time series
@@ -456,6 +463,7 @@ export async function fetchData() {
 
     setStatus(dataSource === "live" ? "ok" : (dataSource === "stale" ? "stale" : "cached"));
     updateUI();
+    _updateWaveAnimation?.();
     updateLearningUI();
     updateCreeksUI();
 

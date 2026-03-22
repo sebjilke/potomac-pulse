@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v34.23 (March 2026)
+**Current Version**: v34.24 (March 2026)
 
 ## Quick Start
 
@@ -176,6 +176,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v34.24 | 2026-03-22 | Map Tier 4: animated flow wave pulse — moves from Point of Rocks → Great Falls → Little Falls at current travel speed, color encodes flow level |
 | v34.23 | 2026-03-22 | Map Tier 3: watershed boundary overlay, flood-condition marker rings (NWS categories), zoom-dependent gauge labels |
 | v34.22 | 2026-03-22 | Map overhaul: Stamen Terrain basemap, NHDPlus GeoJSON rivers (296KB static asset), drain-area marker scaling, compact legend |
 | v34.21 | 2026-03-22 | Switch gauge table trend from 48h to 24h; label column "24h Trend" |
@@ -215,4 +216,4 @@ See Technical Appendix for complete version history (v16–v34.12).
 
 ---
 
-*Last updated: 2026-03-22 (v34.23 — Map Tier 3: watershed boundary, flood rings, zoom labels)*
+*Last updated: 2026-03-22 (v34.24 — Map Tier 4: animated flow wave pulse PoR → GF → LF)*
