@@ -427,7 +427,7 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
 /* ==================== GAUGE HEADER (sticky) ==================== */
 .gauge-header {
     display: grid;
-    grid-template-columns: 8px 1fr 55px 44px 50px 46px;
+    grid-template-columns: 8px 1fr 65px 44px 50px 46px;
     align-items: center;
     gap: 8px;
     padding: 8px 10px;
@@ -444,7 +444,7 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
 /* ==================== GAUGE ROWS ==================== */
 .gauge {
     display: grid;
-    grid-template-columns: 8px 1fr 55px 44px 50px 46px;
+    grid-template-columns: 8px 1fr 65px 44px 50px 46px;
     align-items: center;
     gap: 8px;
     padding: 10px 10px;
@@ -471,7 +471,7 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
 
 @media (max-width: 768px) {
     .gauge, .gauge-header {
-        grid-template-columns: 8px 1fr 48px 38px 42px 38px;
+        grid-template-columns: 8px 1fr 58px 38px 42px 38px;
         font-size: 0.75rem;
         padding: 9px 8px;
         gap: 5px;

@@ -42,7 +42,7 @@ export function buildBranches() {
     html += `<div class="gauge-header">
         <div></div>
         <div>Gauge</div>
-        <div style="text-align:right;">Trend</div>
+        <div style="text-align:right;">24h Trend</div>
         <div style="text-align:right;">Basin</div>
         <div style="text-align:right;">CFS</div>
         <div style="text-align:right;">Hrs→LF</div>
@@ -216,7 +216,7 @@ export function popup(id, g, color, bk) {
     const trendData = getTrendData(d.trend);
     const trendIconHtml = trendData ? `<span style="color:${trendData.color};font-weight:bold;">${trendData.icon}</span>` : '';
     html += `<div class="pop-trend">
-        <div class="pop-trend-title">📈 48-Hour Trend ${trendIconHtml}</div>
+        <div class="pop-trend-title">📈 24-Hour Trend ${trendIconHtml}</div>
         ${getTrendText(d.trend, d.q)}
     </div>`;
 

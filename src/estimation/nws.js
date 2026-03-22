@@ -53,7 +53,7 @@ export async function fetchNWSForecasts() {
         data[usgsId].forecast = forecast;
         if (forecast.forecast24 || forecast.forecast48) {
             const currentFlow = data[usgsId].q;
-            const futureFlow = forecast.forecast48 || forecast.forecast24;
+            const futureFlow = forecast.forecast24 || forecast.forecast48;
             let direction = "stable";
             let rate = 0;
             if (currentFlow && futureFlow && currentFlow > 0) {
