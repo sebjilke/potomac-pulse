@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v34.24 (March 2026)
+**Current Version**: v35.0 (May 2026)
 
 ## Quick Start
 
@@ -56,7 +56,7 @@ files/potomac-site/
     └── [analysis tools]          # EF correlation, stage errors, travel time validation
 ```
 
-## Current Model (v34.24)
+## Current Model (v35.0)
 
 All estimation parameters validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits.
 
@@ -122,7 +122,7 @@ estimatedCFS = 160 * Math.pow(efStage, 2.36);
 
 ### Flow State Classification
 ```javascript
-// Observed PoR rate (2-hour lookback), falls back to NWS forecast on cold start
+// Observed PoR rate (6-hour lookback), falls back to NWS forecast on cold start
 const threshold = Math.max(100, flow * 0.02);
 if (change >= threshold && rising) return 'rising';
 if (change >= threshold && falling) return 'falling';
@@ -176,6 +176,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v35.0 | 2026-05-06 | Flow-state classification: widened the PoR lookback window from 2h to 6h in `getFlowState()` and `getPoRRiseRate()`. Diagnostic on 117k hourly obs (2011–2026) showed the prior 2h+max(100, 2%) rule classified ~99% of baseflow as steady (3 rising / 87 steady / 3 falling in production). 6h lookback at the same threshold gives a hydrologically realistic distribution across all flow regimes (~19/45/36 dataset-wide; storm months 25–55% non-steady; drought months 80% steady). All `gf_correction_bin` rows reset, plus `gf_prediction:pending`, shadow leaderboard, and contaminated learning fields in `gf_metadata` (operational health stats preserved). Bins repopulate over 1–2 weeks; high-flow rising bins may take longer in dry periods. **Side effect on wave celerity:** `getPoRRiseRate.ratePerHour` is now smoothed over 6h instead of 2h, reducing wave-celerity travel-time reductions on flashy sub-6h rises; deliberate accepted change. Threshold (`max(100, q×2%)`) and per-bin EMA logic unchanged. See `analysis/flow_state_window_diagnostic.md`. |
 | v34.24 | 2026-03-22 | Fix health counter: move run tracking from storePrediction to updateRunHealth so every 2h run updates the display, not just prediction-store runs |
 | v34.23 | 2026-03-22 | Map Tier 3: watershed boundary overlay, flood-condition marker rings (NWS categories), zoom-dependent gauge labels |
 | v34.22 | 2026-03-22 | Map overhaul: Stamen Terrain basemap, NHDPlus GeoJSON rivers (296KB static asset), drain-area marker scaling, compact legend |
@@ -212,8 +213,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See Technical Appendix for complete version history (v16–v34.24).
+See Technical Appendix for complete version history (v16–v35.0).
 
 ---
 
-*Last updated: 2026-03-22 (v34.24 — Fix health counter: updateRunHealth fires every 2h run)*
+*Last updated: 2026-05-06 (v35.0 — Flow-state lookback widened from 2h to 6h; correction bins reset)*

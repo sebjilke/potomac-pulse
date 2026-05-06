@@ -114,11 +114,11 @@ function getFlowMultiplier(lfFlow) {
 function getFlowState(history, currentCFS) {
     if (!history?.length || history.length < 8) return 'steady';
 
-    const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
+    const sixHoursAgo = Date.now() - (6 * 60 * 60 * 1000);
     let pastReading = null;
 
     for (const r of history) {
-        if (r.timestamp <= twoHoursAgo) {
+        if (r.timestamp <= sixHoursAgo) {
             pastReading = r;
         }
     }
@@ -160,12 +160,12 @@ const DECAY_CAP = 0.50;
 
 function getPoRRiseRateFromHistory(history) {
     if (!history || history.length < 4) return null;
-    const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
+    const sixHoursAgo = Date.now() - (6 * 60 * 60 * 1000);
     const current = history[history.length - 1];
-    // Find most recent entry at or before the 2-hour mark
+    // Find most recent entry at or before the 6-hour mark
     let past = null;
     for (const r of history) {
-        if (r.timestamp <= twoHoursAgo) past = r;
+        if (r.timestamp <= sixHoursAgo) past = r;
     }
     if (!past || !current) return null;
     const hoursDiff = (current.timestamp - past.timestamp) / 3600000;

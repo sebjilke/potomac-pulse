@@ -257,13 +257,13 @@ describe('getFlowState', () => {
         const now = 1700000000000;
         t.mock.timers.setTime(now);
 
-        const twoHoursAgo = now - 2 * 60 * 60 * 1000;
+        const sixHoursAgo = now - 6 * 60 * 60 * 1000;
         const history = Array.from({ length: 10 }, (_, i) => ({
-            timestamp: twoHoursAgo - (9 - i) * 15 * 60 * 1000,
+            timestamp: sixHoursAgo - (9 - i) * 15 * 60 * 1000,
             cfs: 3000 + i * 100
         }));
 
-        // Current CFS is much higher than 2hrs-ago reading
+        // Current CFS is much higher than 6hrs-ago reading
         assert.equal(getFlowState(history, 5000), 'rising');
     });
 
@@ -272,9 +272,9 @@ describe('getFlowState', () => {
         const now = 1700000000000;
         t.mock.timers.setTime(now);
 
-        const twoHoursAgo = now - 2 * 60 * 60 * 1000;
+        const sixHoursAgo = now - 6 * 60 * 60 * 1000;
         const history = Array.from({ length: 10 }, (_, i) => ({
-            timestamp: twoHoursAgo - (9 - i) * 15 * 60 * 1000,
+            timestamp: sixHoursAgo - (9 - i) * 15 * 60 * 1000,
             cfs: 8000 - i * 100
         }));
 
@@ -286,9 +286,9 @@ describe('getFlowState', () => {
         const now = 1700000000000;
         t.mock.timers.setTime(now);
 
-        const twoHoursAgo = now - 2 * 60 * 60 * 1000;
+        const sixHoursAgo = now - 6 * 60 * 60 * 1000;
         const history = Array.from({ length: 10 }, (_, i) => ({
-            timestamp: twoHoursAgo - (9 - i) * 15 * 60 * 1000,
+            timestamp: sixHoursAgo - (9 - i) * 15 * 60 * 1000,
             cfs: 10000
         }));
 
@@ -301,9 +301,9 @@ describe('getFlowState', () => {
         const now = 1700000000000;
         t.mock.timers.setTime(now);
 
-        const twoHoursAgo = now - 2 * 60 * 60 * 1000;
+        const sixHoursAgo = now - 6 * 60 * 60 * 1000;
         const history = Array.from({ length: 10 }, (_, i) => ({
-            timestamp: twoHoursAgo - (9 - i) * 15 * 60 * 1000,
+            timestamp: sixHoursAgo - (9 - i) * 15 * 60 * 1000,
             cfs: 20000
         }));
 
@@ -320,9 +320,9 @@ describe('getFlowState', () => {
         const now = 1700000000000;
         t.mock.timers.setTime(now);
 
-        const twoHoursAgo = now - 2 * 60 * 60 * 1000;
+        const sixHoursAgo = now - 6 * 60 * 60 * 1000;
         const history = Array.from({ length: 10 }, (_, i) => ({
-            timestamp: twoHoursAgo - (9 - i) * 15 * 60 * 1000,
+            timestamp: sixHoursAgo - (9 - i) * 15 * 60 * 1000,
             cfs: 2000
         }));
 
@@ -334,17 +334,54 @@ describe('getFlowState', () => {
         assert.equal(getFlowState(history, 2150), 'rising');
     });
 
-    it('returns steady when no past reading exists before 2hrs ago', (t) => {
+    it('returns steady when no past reading exists before 6hrs ago', (t) => {
         t.mock.timers.enable({ apis: ['Date'] });
         const now = 1700000000000;
         t.mock.timers.setTime(now);
 
-        // All readings are within the last hour (after twoHoursAgo)
+        // All readings are within the last hour (after sixHoursAgo)
         const history = Array.from({ length: 10 }, (_, i) => ({
             timestamp: now - (9 - i) * 5 * 60 * 1000,
             cfs: 5000
         }));
 
         assert.equal(getFlowState(history, 8000), 'steady');
+    });
+
+    it('selects past reading from before the 6h cutoff, not after', (t) => {
+        // Locks in the 6h window: a reading 4h old must NOT be the past reading
+        // (it falls inside the cutoff), and a reading 7h old MUST be selected.
+        // This test would have caught the v34 bug where the window was 2h.
+        t.mock.timers.enable({ apis: ['Date'] });
+        const now = 1700000000000;
+        t.mock.timers.setTime(now);
+
+        const sevenHoursAgo = now - 7 * 60 * 60 * 1000;
+        const fourHoursAgo  = now - 4 * 60 * 60 * 1000;
+
+        // 8 readings before the 6h cutoff (anchor cluster, cfs=10000) +
+        // 4 readings after the 6h cutoff (recent cluster, cfs=10500). If the
+        // function correctly uses 6h, past=10000, current=10000 → steady.
+        // If a buggy 2h or 4h window were in effect, past would come from the
+        // recent cluster (10500), and the comparison would be wrong.
+        const history = [
+            ...Array.from({ length: 8 }, (_, i) => ({
+                timestamp: sevenHoursAgo - (7 - i) * 15 * 60 * 1000,
+                cfs: 10000
+            })),
+            ...Array.from({ length: 4 }, (_, i) => ({
+                timestamp: fourHoursAgo + i * 30 * 60 * 1000,
+                cfs: 10500
+            })),
+        ];
+
+        // current matches the 7h-ago anchor → steady under 6h rule
+        assert.equal(getFlowState(history, 10000), 'steady');
+
+        // current is well above the 7h-ago anchor → rising (change=500, threshold=max(100, 10500*0.02)=210)
+        assert.equal(getFlowState(history, 10500), 'rising');
+
+        // current well below the 7h-ago anchor → falling
+        assert.equal(getFlowState(history, 9500), 'falling');
     });
 });

@@ -107,11 +107,11 @@ export function getFlowMultiplier(lfFlow) {
 export function getFlowState(history, currentCFS) {
     if (!history?.length || history.length < 8) return 'steady';
 
-    const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
+    const sixHoursAgo = Date.now() - (6 * 60 * 60 * 1000);
     let pastReading = null;
 
     for (const r of history) {
-        if (r.timestamp <= twoHoursAgo) {
+        if (r.timestamp <= sixHoursAgo) {
             pastReading = r;
         }
     }

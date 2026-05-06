@@ -872,7 +872,7 @@ async function saveGFLearningData(client, data) {
                 consecutiveRuns: oldMeta.consecutiveRuns,
                 missedRuns: oldMeta.missedRuns,
                 resetAt: new Date().toISOString(),
-                resetReason: 'v24_full_reset'
+                resetReason: 'flow_state_window_fix_v35.0'
             };
 
             await client.from('potomac_observations').upsert({

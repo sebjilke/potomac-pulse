@@ -157,11 +157,11 @@ export function getPoRRiseRate() {
     if (porHistory.length < 4) return null;
 
     const now = Date.now();
-    const twoHoursAgo = now - (2 * 60 * 60 * 1000);
+    const sixHoursAgo = now - (6 * 60 * 60 * 1000);
 
     let pastReading = null;
     for (const entry of porHistory) {
-        if (entry.timestamp <= twoHoursAgo) {
+        if (entry.timestamp <= sixHoursAgo) {
             pastReading = entry;
         }
     }
