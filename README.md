@@ -56,7 +56,7 @@ files/potomac-site/
     └── [analysis tools]          # EF correlation, stage errors, travel time validation
 ```
 
-## Current Model (v34.13)
+## Current Model (v34.24)
 
 All estimation parameters validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits.
 
@@ -212,7 +212,7 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See Technical Appendix for complete version history (v16–v34.12).
+See Technical Appendix for complete version history (v16–v34.24).
 
 ---
 
