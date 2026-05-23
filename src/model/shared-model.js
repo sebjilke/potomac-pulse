@@ -5,6 +5,42 @@
 
 import { TRAVEL_COEF, TRAVEL_EXP, MEDIAN_TRAVEL, GF_FLOW_BINS } from './constants.js';
 
+// --- Hierarchical correction fallback (v35.1) ---
+// SOURCE OF TRUTH: netlify/functions/shared/model.js — keep client copy in sync
+
+export function getBinCorrection(stateData) {
+    if (stateData.emaMeanError !== undefined) return stateData.emaMeanError;
+    return stateData.meanError || 0;
+}
+
+export function getFallbackCorrection(correctionBins, flowBin, flowState) {
+    const bin = correctionBins[flowBin];
+    if (bin) {
+        const states = ['rising', 'falling', 'steady'];
+        let totalWeight = 0;
+        let weightedSum = 0;
+        for (const s of states) {
+            const sd = bin[s];
+            if (sd && sd.count >= 5) {
+                weightedSum += sd.count * getBinCorrection(sd);
+                totalWeight += sd.count;
+            }
+        }
+        if (totalWeight > 0) return weightedSum / totalWeight;
+    }
+
+    const idx = GF_FLOW_BINS.indexOf(flowBin);
+    const neighbors = [idx - 1, idx + 1].filter(i => i >= 0 && i < GF_FLOW_BINS.length);
+    for (const ni of neighbors) {
+        const neighbor = correctionBins[GF_FLOW_BINS[ni]];
+        if (!neighbor) continue;
+        const sd = neighbor[flowState] || neighbor['steady'];
+        if (sd && sd.count >= 5) return getBinCorrection(sd);
+    }
+
+    return 0;
+}
+
 // --- Flow bins ---
 
 export { GF_FLOW_BINS };

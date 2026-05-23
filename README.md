@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v35.0 (May 2026)
+**Current Version**: v35.1 (May 2026)
 
 ## Quick Start
 
@@ -56,7 +56,7 @@ files/potomac-site/
     └── [analysis tools]          # EF correlation, stage errors, travel time validation
 ```
 
-## Current Model (v35.0)
+## Current Model (v35.1)
 
 All estimation parameters validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits.
 
@@ -79,7 +79,7 @@ All estimation parameters validated on **117,704 hourly observations** (2011–2
 3. Blend with EF power-law estimate (logistic ramp: 0-40% weight by flow)
 4. Apply PoR-delta correction for rising/falling rivers
 5. Cap at 120% of LF actual (soft ceiling)
-6. Apply learned EMA correction factors (18 flow bins × 3 flow states)
+6. Apply learned EMA correction factors (18 flow bins × 3 flow states; hierarchical fallback for sparse bins)
 7. Validate ~6 hours later when water reaches Little Falls (server-only, v34.0)
 ```
 
@@ -176,6 +176,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v35.1 | 2026-05-23 | Hierarchical correction fallback for sparse bins. When a flow-bin × flow-state has <5 observations, `getGFCorrection()` falls back: (1) pooled states in same bin, (2) adjacent bin same state, (3) return 0. Linear blending (`weight=count/5`) for smooth transition. Read-side only. Pure helpers extracted to `shared/model.js` + `shared-model.js`. 13 new tests (102 total). |
 | v35.0 | 2026-05-06 | Flow-state classification: widened the PoR lookback window from 2h to 6h in `getFlowState()` and `getPoRRiseRate()`. Diagnostic on 117k hourly obs (2011–2026) showed the prior 2h+max(100, 2%) rule classified ~99% of baseflow as steady (3 rising / 87 steady / 3 falling in production). 6h lookback at the same threshold gives a hydrologically realistic distribution across all flow regimes (~19/45/36 dataset-wide; storm months 25–55% non-steady; drought months 80% steady). All `gf_correction_bin` rows reset, plus `gf_prediction:pending`, shadow leaderboard, and contaminated learning fields in `gf_metadata` (operational health stats preserved). Bins repopulate over 1–2 weeks; high-flow rising bins may take longer in dry periods. **Side effect on wave celerity:** `getPoRRiseRate.ratePerHour` is now smoothed over 6h instead of 2h, reducing wave-celerity travel-time reductions on flashy sub-6h rises; deliberate accepted change. Threshold (`max(100, q×2%)`) and per-bin EMA logic unchanged. See `analysis/flow_state_window_diagnostic.md`. |
 | v34.24 | 2026-03-22 | Fix health counter: move run tracking from storePrediction to updateRunHealth so every 2h run updates the display, not just prediction-store runs |
 | v34.23 | 2026-03-22 | Map Tier 3: watershed boundary overlay, flood-condition marker rings (NWS categories), zoom-dependent gauge labels |
@@ -217,4 +218,4 @@ See Technical Appendix for complete version history (v16–v35.0).
 
 ---
 
-*Last updated: 2026-05-06 (v35.0 — Flow-state lookback widened from 2h to 6h; correction bins reset)*
+*Last updated: 2026-05-23 (v35.1 — Hierarchical correction fallback for sparse bins)*

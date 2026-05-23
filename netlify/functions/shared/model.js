@@ -175,6 +175,44 @@ function getPoRRiseRateFromHistory(history) {
     return { ratePerHour, flowState: getFlowState(history, current.cfs) };
 }
 
+// --- Hierarchical correction fallback (v35.1) ---
+// Pure helpers for getGFCorrection(). When a specific flow-bin × flow-state
+// has <5 observations, fall back through: same-bin pooled → adjacent-bin same-state → 0.
+// Linear blending eliminates discontinuity at the 5-obs threshold.
+
+function getBinCorrection(stateData) {
+    if (stateData.emaMeanError !== undefined) return stateData.emaMeanError;
+    return stateData.meanError || 0;
+}
+
+function getFallbackCorrection(correctionBins, flowBin, flowState) {
+    const bin = correctionBins[flowBin];
+    if (bin) {
+        const states = ['rising', 'falling', 'steady'];
+        let totalWeight = 0;
+        let weightedSum = 0;
+        for (const s of states) {
+            const sd = bin[s];
+            if (sd && sd.count >= 5) {
+                weightedSum += sd.count * getBinCorrection(sd);
+                totalWeight += sd.count;
+            }
+        }
+        if (totalWeight > 0) return weightedSum / totalWeight;
+    }
+
+    const idx = GF_FLOW_BINS.indexOf(flowBin);
+    const neighbors = [idx - 1, idx + 1].filter(i => i >= 0 && i < GF_FLOW_BINS.length);
+    for (const ni of neighbors) {
+        const neighbor = correctionBins[GF_FLOW_BINS[ni]];
+        if (!neighbor) continue;
+        const sd = neighbor[flowState] || neighbor['steady'];
+        if (sd && sd.count >= 5) return getBinCorrection(sd);
+    }
+
+    return 0;
+}
+
 // --- Tributary drainage-area fallback ratios ---
 // Used only when real-time gauge data is unavailable.
 const TRIB_FALLBACK = {
@@ -194,5 +232,6 @@ module.exports = {
     GF_EMA_ALPHA,
     getPoRRiseRateFromHistory,
     CEILING_RATIO, DECAY_CAP,
-    TRIB_FALLBACK
+    TRIB_FALLBACK,
+    getBinCorrection, getFallbackCorrection
 };

@@ -8,7 +8,8 @@ const {
     EF_MODEL,
     getEFWeight, getFlowMultiplier, getFlowState,
     CEILING_RATIO, DECAY_CAP,
-    TRIB_FALLBACK
+    TRIB_FALLBACK,
+    getBinCorrection, getFallbackCorrection
 } = require('../netlify/functions/shared/model');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -383,5 +384,108 @@ describe('getFlowState', () => {
 
         // current well below the 7h-ago anchor → falling
         assert.equal(getFlowState(history, 9500), 'falling');
+    });
+});
+
+// ─── Hierarchical Correction Fallback (v35.1) ───────────────────────────────
+
+describe('getBinCorrection', () => {
+    it('returns emaMeanError when present', () => {
+        assert.equal(getBinCorrection({ emaMeanError: -50, meanError: -30, count: 10 }), -50);
+    });
+
+    it('falls back to meanError when emaMeanError is absent', () => {
+        assert.equal(getBinCorrection({ meanError: -30, count: 10 }), -30);
+    });
+
+    it('returns 0 when no error values', () => {
+        assert.equal(getBinCorrection({ count: 10 }), 0);
+    });
+});
+
+describe('getFallbackCorrection', () => {
+    const makeBin = (count, ema) => ({ count, emaMeanError: ema });
+
+    it('Tier 1: pools across states within same flow bin', () => {
+        const bins = {
+            '0-3000': {
+                rising: makeBin(10, -100),
+                steady: makeBin(20, -200),
+            }
+        };
+        // weighted avg: (10*-100 + 20*-200) / 30 = -5000/30 ≈ -166.67
+        const result = getFallbackCorrection(bins, '0-3000', 'falling');
+        assert.ok(Math.abs(result - (-5000 / 30)) < 0.01);
+    });
+
+    it('Tier 1: ignores states with <5 observations', () => {
+        const bins = {
+            '3000-6000': {
+                rising: makeBin(3, -100),
+                steady: makeBin(10, -200),
+            }
+        };
+        assert.equal(getFallbackCorrection(bins, '3000-6000', 'falling'), -200);
+    });
+
+    it('Tier 2: falls back to adjacent bin when no states qualify in same bin', () => {
+        const bins = {
+            '0-3000': { rising: makeBin(2, -50) },
+            '3000-6000': { rising: makeBin(10, -120) }
+        };
+        assert.equal(getFallbackCorrection(bins, '0-3000', 'rising'), -120);
+    });
+
+    it('Tier 2: prefers lower neighbor', () => {
+        const bins = {
+            '0-3000': { rising: makeBin(10, -100) },
+            '3000-6000': {},
+            '6000-12000': { rising: makeBin(10, -300) }
+        };
+        assert.equal(getFallbackCorrection(bins, '3000-6000', 'rising'), -100);
+    });
+
+    it('Tier 2: uses upper neighbor when lower has no data', () => {
+        const bins = {
+            '0-3000': {},
+            '3000-6000': { steady: makeBin(10, -200) }
+        };
+        assert.equal(getFallbackCorrection(bins, '0-3000', 'steady'), -200);
+    });
+
+    it('Tier 2: falls back to steady in adjacent bin', () => {
+        const bins = {
+            '0-3000': { steady: makeBin(10, -150) },
+            '3000-6000': {}
+        };
+        assert.equal(getFallbackCorrection(bins, '3000-6000', 'rising'), -150);
+    });
+
+    it('Tier 3: returns 0 on total cold start', () => {
+        assert.equal(getFallbackCorrection({}, '0-3000', 'rising'), 0);
+    });
+
+    it('Tier 3: returns 0 when all bins are sparse', () => {
+        const bins = {
+            '0-3000': { rising: makeBin(2, -50), steady: makeBin(3, -60) },
+            '3000-6000': { falling: makeBin(1, -10) }
+        };
+        assert.equal(getFallbackCorrection(bins, '0-3000', 'falling'), 0);
+    });
+
+    it('handles first bin (no lower neighbor)', () => {
+        const bins = {
+            '0-3000': {},
+            '3000-6000': { rising: makeBin(10, -200) }
+        };
+        assert.equal(getFallbackCorrection(bins, '0-3000', 'rising'), -200);
+    });
+
+    it('handles last bin (no upper neighbor)', () => {
+        const bins = {
+            '25000-50000': { steady: makeBin(8, -500) },
+            '50000+': {}
+        };
+        assert.equal(getFallbackCorrection(bins, '50000+', 'steady'), -500);
     });
 });

@@ -8,7 +8,8 @@ import {
 } from '../model/constants.js';
 
 import {
-    getFlowMultiplier, estimateLFStage, getGFFlowBin, getEFWeight
+    getFlowMultiplier, estimateLFStage, getGFFlowBin, getEFWeight,
+    getBinCorrection, getFallbackCorrection
 } from '../model/shared-model.js';
 
 import {
@@ -60,16 +61,15 @@ export function getGFCorrection(flowBin, flowState) {
     if (!gfLearningData?.correctionBins) return 0;
 
     const bin = gfLearningData.correctionBins[flowBin];
-    if (!bin) return 0;
+    const stateData = bin?.[flowState] || bin?.['steady'];
+    const count = stateData?.count || 0;
 
-    const stateData = bin[flowState] || bin['steady'];
-    if (!stateData || stateData.count < 5) return 0;
+    if (count >= 5) return getBinCorrection(stateData);
 
-    if (stateData.emaMeanError !== undefined) {
-        return stateData.emaMeanError;
-    }
-
-    return stateData.meanError || 0;
+    const fallback = getFallbackCorrection(gfLearningData.correctionBins, flowBin, flowState);
+    const weight = count / 5;
+    const binVal = count > 0 ? getBinCorrection(stateData) : 0;
+    return weight * binVal + (1 - weight) * fallback;
 }
 
 export function getGFUncertainty(flowBin, flowState) {

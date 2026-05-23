@@ -1,7 +1,7 @@
 # Potomac Pulse — Technical Appendix
 
 
-**Version:** 34.7 | **Date:** March 2026
+**Version:** 35.1 | **Date:** May 2026
 
 This document provides full methodological transparency for the Potomac Pulse prediction system. It is intended for scientists, hydrologists, and technically curious users who want to understand exactly how the model works.
 
@@ -472,6 +472,25 @@ Corrections are learned separately for 18 bins (6 flow levels × 3 flow states):
 - **Flow bins:** <3k, 3-6k, 6-12k, 12-25k, 25-50k, >50k cfs
 - **Flow states:** rising, falling, steady
 
+### 6.2.1 Hierarchical Fallback (v35.1)
+
+When a specific bin × state combination has fewer than 5 observations, the system falls back through three tiers:
+
+1. **Tier 1 — Same bin, pooled states:** Observation-weighted average of all flow states within the same flow bin that have ≥5 observations. This preserves flow-regime specificity while relaxing the state requirement.
+2. **Tier 2 — Adjacent bin, same state:** Uses the correction from the nearest neighboring flow bin (lower neighbor preferred) with the same flow state. Falls back to `steady` if the requested state is unavailable.
+3. **Tier 3 — Cold start:** Returns 0 (no correction applied).
+
+**Linear blending** eliminates the discontinuity at the 5-observation threshold:
+
+\`\`\`
+weight = min(1, count / 5)
+correction = weight × bin_correction + (1 - weight) × fallback_correction
+\`\`\`
+
+At n=0, correction is 100% fallback. At n=5, correction is 100% bin-specific. The transition is smooth and monotonic.
+
+This is a **read-side only** change — no modification to how the server validates predictions or updates correction bins. The fallback applies identically on both client and server via shared helper functions (`getBinCorrection`, `getFallbackCorrection`).
+
 ### 6.3 EMA Smoothing
 
 Correction factors update via exponential moving average:
@@ -746,6 +765,7 @@ Earlier versions (v16–v24.x) used an ad-hoc scheme where major integers marked
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v35.1 | 2026-05-23 | Hierarchical correction fallback for sparse bins (§6.2.1). When a flow-bin × flow-state has <5 observations, `getGFCorrection()` falls back through: (1) obs-weighted pooled correction across other states in the same bin, (2) adjacent flow bin with same state (lower neighbor preferred), (3) return 0. Linear blending (`weight = count/5`) eliminates discontinuity at the 5-obs threshold. Read-side only; no changes to server validation or EMA learning. Pure helpers (`getBinCorrection`, `getFallbackCorrection`) extracted to `shared/model.js` and `shared-model.js` for cross-file consistency and testability. 13 new unit tests (102 total). |
 | v35.0 | 2026-05-06 | Flow-state classification widened from a 2-hour to a 6-hour PoR lookback. Diagnostic on 117,704 hourly obs (2011–2026) showed the previous 2-hour window classified ~99% of baseflow as `steady` (production state at the time of the change: 3 rising / 87 steady / 3 falling), because the Potomac's slow recession dynamics rarely move ≥100 cfs or ≥2% in a 2-hour window at typical baseflow. The 6-hour window matches the median PoR→GF travel time and produces a non-degenerate distribution at all flow regimes (full-dataset 19/45/36 rising/steady/falling; storm months 25–55% non-steady; drought months ~80% steady; per-flow-bin spread 14–43% rising and 17–56% falling). Threshold formula (`max(100 cfs, q × 2%)`) and per-bin EMA logic unchanged. Because the prior bins were filled under the broken rule and no per-observation raw records were retained, all `gf_correction_bin` rows were wiped along with `gf_prediction:pending`, the shadow leaderboard, and the contaminated learning fields in `gf_metadata` (health stats preserved). Bins refill from new validations under the corrected classifier; full repopulation is expected over 1–2 weeks but high-flow rising bins may take longer in dry periods. **Side effect:** `getPoRRiseRate.ratePerHour` is now smoothed over 6h, reducing wave-celerity travel-time reductions on flashy sub-6h rises (deliberate accepted behavior change). MAJOR bump because the rule change affects which correction bin is selected for the same inputs. See `analysis/flow_state_window_diagnostic.md`. |
 | v34.24 | 2026-03-22 | Fix scheduled-function health counter. `lastRun`, `consecutiveRuns`, and `missedRuns` were only updated inside `storePrediction()`, which is skipped on ~75% of runs when an existing pending prediction is still within its validation window (~9h). Display showed "last run: 8h ago / consecutive: 1 / missed: 422" even though the function ran every 2h. Fix: extracted health tracking into `updateRunHealth()`, called unconditionally from the main handler. `storePrediction()` now only increments `totalPredictions`. 88/88 tests pass. |
 | v34.23 | 2026-03-22 | Map Tier 3 polish. (1) Potomac HUC4 watershed boundary as a static GeoJSON asset (5KB, simplified at 10m tolerance) rendered behind rivers and markers with 4% fill / 35% border opacity. (2) Flood-condition marker rings: parallel-fetched NWS gauge status for all 17 gauges, marker border color reflects `floodCategory` (white=normal, yellow=action, orange=minor, red=moderate/major); fill color preserves branch identity. (3) Zoom-dependent gauge labels via permanent Leaflet tooltips, hidden below zoom 10, shown at zoom ≥10 via a `zoomend` listener. |
