@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v35.1 (May 2026)
+**Current Version**: v35.3 (May 2026)
 
 ## Quick Start
 
@@ -56,7 +56,7 @@ files/potomac-site/
     └── [analysis tools]          # EF correlation, stage errors, travel time validation
 ```
 
-## Current Model (v35.1)
+## Current Model (v35.3)
 
 All estimation parameters validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits.
 
@@ -176,6 +176,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v35.3 | 2026-05-23 | How It Works tab and Technical Appendix overhaul. Restructured tab from 10+ flat sections to 2 clear sections (Nowcast + Forecast) with flow diagram. Tech Appendix: added executive summary, removed superseded optimization sections (v27.0/v29.0), added §8.6 Forecast Validation, extracted version history to CHANGELOG.md. |
 | v35.1 | 2026-05-23 | Hierarchical correction fallback for sparse bins. When a flow-bin × flow-state has <5 observations, `getGFCorrection()` falls back: (1) pooled states in same bin, (2) adjacent bin same state, (3) return 0. Linear blending (`weight=count/5`) for smooth transition. Read-side only. Pure helpers extracted to `shared/model.js` + `shared-model.js`. 13 new tests (102 total). |
 | v35.0 | 2026-05-06 | Flow-state classification: widened the PoR lookback window from 2h to 6h in `getFlowState()` and `getPoRRiseRate()`. Diagnostic on 117k hourly obs (2011–2026) showed the prior 2h+max(100, 2%) rule classified ~99% of baseflow as steady (3 rising / 87 steady / 3 falling in production). 6h lookback at the same threshold gives a hydrologically realistic distribution across all flow regimes (~19/45/36 dataset-wide; storm months 25–55% non-steady; drought months 80% steady). All `gf_correction_bin` rows reset, plus `gf_prediction:pending`, shadow leaderboard, and contaminated learning fields in `gf_metadata` (operational health stats preserved). Bins repopulate over 1–2 weeks; high-flow rising bins may take longer in dry periods. **Side effect on wave celerity:** `getPoRRiseRate.ratePerHour` is now smoothed over 6h instead of 2h, reducing wave-celerity travel-time reductions on flashy sub-6h rises; deliberate accepted change. Threshold (`max(100, q×2%)`) and per-bin EMA logic unchanged. See `analysis/flow_state_window_diagnostic.md`. |
 | v34.24 | 2026-03-22 | Fix health counter: move run tracking from storePrediction to updateRunHealth so every 2h run updates the display, not just prediction-store runs |
@@ -214,8 +215,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See Technical Appendix for complete version history (v16–v35.0).
+See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v35.3).
 
 ---
 
-*Last updated: 2026-05-23 (v35.1 — Hierarchical correction fallback for sparse bins)*
+*Last updated: 2026-05-23 (v35.3 — How It Works tab and Technical Appendix overhaul)*

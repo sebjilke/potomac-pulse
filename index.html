@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v35.0</title>
+    <title>Potomac Pulse v35.3</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -212,194 +212,201 @@
                     </div>
                 </div>
                 <div id="tab-docs" class="tab-content" role="tabpanel" aria-labelledby="docs-tab" tabindex="0">
-                    <div class="docs-panel" style="max-height:calc(100vh - 280px);overflow-y:auto;">
+                    <div class="docs-panel" style="max-height:calc(100vh - 280px);overflow-y:auto;padding:4px 0;">
 
-                        <!-- 1. HOOK -->
-                        <h3>What Is Potomac Pulse?</h3>
-                        <p style="font-size:0.75rem;color:var(--text-tertiary);line-height:1.7;">
-                        There's no gauge at Great Falls. Potomac Pulse estimates what's happening there right now — and what's coming — so you can plan your time on the water.
+                        <!-- HOOK -->
+                        <p style="font-size:0.8rem;color:var(--text-secondary);line-height:1.7;margin-bottom:16px;">
+                        There is no gauge at Great Falls. Potomac Pulse estimates what is happening there right now and what is coming, so you can plan your time on the water.
                         </p>
 
-                        <!-- 2. READING YOUR SCREEN (moved up — most immediately useful) -->
-                        <h3>Reading Your Screen</h3>
-                        <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:6px;">
-                        <b style="color:var(--accent-blue);">CFS</b> — Cubic feet per second. How much water is flowing. Higher = more water, bigger features.
-                        </p>
-                        <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:6px;">
-                        <b style="color:var(--accent-green);">Stage</b> — Water height in feet on the Little Falls scale, so you can compare to levels you already know.
-                        </p>
-                        <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:6px;">
-                        <b style="color:var(--accent-amber);">Confidence</b> — How much data the estimate is based on.
-                        </p>
-                        <div style="font-size:0.65rem;margin:8px 0;padding:8px;background:rgba(0,0,0,0.2);border-radius:6px;">
-                            <div style="margin-bottom:5px;"><span style="color:var(--accent-green);">● High</span> — Multiple sources agree. Number is solid — plan around it.</div>
-                            <div style="margin-bottom:5px;"><span style="color:var(--accent-amber);">● Medium</span> — Some data gaps. Reasonable, but could shift 10-20%.</div>
-                            <div><span style="color:var(--accent-red);">● Low</span> — Limited data. Treat as ballpark — check back in an hour.</div>
+                        <!-- ═══════════════════════════════════════ -->
+                        <!-- SECTION 1: THE NOWCAST                 -->
+                        <!-- ═══════════════════════════════════════ -->
+                        <div style="border-left:3px solid var(--accent-blue);padding-left:12px;margin-bottom:20px;">
+                            <h3 style="font-size:0.85rem;color:var(--accent-blue);margin-bottom:4px;">1. The Nowcast</h3>
+                            <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:10px;">What is happening at Great Falls right now</div>
                         </div>
 
-                        <!-- 3. HOW ACCURATE (moved up — trust calibration) -->
-                        <h3>How Accurate Is It?</h3>
-                        <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:8px;">
-                        Every prediction gets checked ~6 hours later when that water reaches Little Falls. The system learns correction factors for different conditions and gets better over time.
-                        </p>
-                        <div style="font-size:0.65rem;margin:8px 0;">
-                            <div style="padding:6px 0;border-bottom:1px solid var(--border-default);">
-                                <span style="color:var(--accent-green);">Best for:</span>
-                                <span style="color:var(--text-tertiary);"> Steady or slowly changing conditions — planning a weekend trip</span>
-                            </div>
-                            <div style="padding:6px 0;border-bottom:1px solid var(--border-default);">
-                                <span style="color:var(--accent-amber);">Good for:</span>
-                                <span style="color:var(--text-tertiary);"> Rising water and storm pulses — watching a wave move through the basin</span>
-                            </div>
-                            <div style="padding:6px 0;">
-                                <span style="color:var(--accent-red);">Least reliable:</span>
-                                <span style="color:var(--text-tertiary);"> Ice conditions, gauge malfunctions, extreme floods (&gt;100k cfs)</span>
-                            </div>
-                        </div>
-
-                        <!-- 3b. SAFETY CALLOUT (adjacent to accuracy) -->
-                        <div style="border-left:3px solid var(--accent-loading);background:rgba(245,158,11,0.08);padding:10px 12px;border-radius:4px;margin:12px 0;">
-                            <div style="font-size:0.7rem;color:var(--accent-loading);font-weight:600;margin-bottom:4px;">
-                                This is an estimate, not a measurement
-                            </div>
-                            <div style="font-size:0.65rem;color:var(--text-tertiary);line-height:1.5;">
-                                Don't use it for life-safety decisions. Localized storms between gauges won't show until that water arrives, and fast-rising floods may arrive sooner than predicted. Always check NWS warnings independently.
-                            </div>
-                        </div>
-
-                        <!-- 4. HOW IT WORKS — DIAGRAM -->
-                        <h3>How It Works</h3>
-                        <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:10px;">
-                        We combine two upstream gauges into a single Great Falls estimate, then validate when that water reaches a downstream gauge.
+                        <p style="font-size:0.75rem;color:var(--text-tertiary);line-height:1.7;margin-bottom:14px;">
+                        Water takes roughly a day to flow from Point of Rocks to Great Falls. To estimate conditions at Great Falls <i>right now</i>, we look at what Point of Rocks was reading 19 to 33 hours ago (depending on how fast the river is moving), then adjust for everything that happens along the way.
                         </p>
 
-                        <div style="background:var(--bg-base);padding:15px;border-radius:8px;margin:12px 0;">
-                            <!-- Row 1: Two upstream sources -->
-                            <div style="display:flex;justify-content:center;gap:10px;margin-bottom:8px;">
-                                <div style="background:var(--bg-surface);border:1px solid var(--accent-blue);border-radius:6px;padding:8px 12px;text-align:center;min-width:110px;">
-                                    <div style="font-size:0.7rem;color:var(--accent-blue);font-weight:600;">Point of Rocks</div>
-                                    <div style="font-size:0.55rem;color:var(--text-tertiary);">20 mi upstream</div>
-                                    <div style="font-size:0.5rem;color:var(--text-muted);">flow + level</div>
-                                </div>
-                                <div style="background:var(--bg-surface);border:1px solid var(--accent-teal);border-radius:6px;padding:8px 12px;text-align:center;min-width:110px;">
-                                    <div style="font-size:0.7rem;color:var(--accent-teal);font-weight:600;">Edwards Ferry</div>
-                                    <div style="font-size:0.55rem;color:var(--text-tertiary);">2 mi upstream</div>
-                                    <div style="font-size:0.5rem;color:var(--text-muted);">level only</div>
+                        <!-- DIAGRAM -->
+                        <div style="background:var(--bg-base);padding:16px;border-radius:8px;margin:0 0 16px;">
+
+                            <!-- PoR box -->
+                            <div style="display:flex;justify-content:center;margin-bottom:6px;">
+                                <div style="background:var(--bg-surface);border:1px solid var(--accent-blue);border-radius:6px;padding:10px 16px;text-align:center;min-width:180px;">
+                                    <div style="font-size:0.75rem;color:var(--accent-blue);font-weight:600;">Point of Rocks</div>
+                                    <div style="font-size:0.6rem;color:var(--text-tertiary);">20 mi upstream &middot; flow + level</div>
                                 </div>
                             </div>
 
-                            <!-- Arrows down -->
-                            <div style="display:flex;justify-content:center;gap:60px;margin-bottom:4px;">
-                                <div style="text-align:center;"><div style="font-size:0.9rem;color:var(--accent-blue);">↓</div></div>
-                                <div style="text-align:center;"><div style="font-size:0.9rem;color:var(--accent-teal);">↓</div></div>
+                            <!-- Arrow + time label -->
+                            <div style="text-align:center;margin:2px 0;">
+                                <div style="font-size:1rem;color:var(--accent-blue);">&#8595;</div>
+                                <div style="font-size:0.55rem;color:var(--text-muted);">19&ndash;33 hrs travel time</div>
                             </div>
 
-                            <!-- Blend label -->
-                            <div style="text-align:center;margin-bottom:6px;">
-                                <div style="font-size:0.55rem;color:var(--text-tertiary);">blended by logistic weight function</div>
+                            <!-- Tributary inflows (converging) -->
+                            <div style="display:flex;justify-content:center;margin:6px 0;">
+                                <div style="background:var(--bg-surface);border:1px dashed var(--border-hover);border-radius:6px;padding:6px 14px;text-align:center;">
+                                    <div style="font-size:0.6rem;color:var(--text-tertiary);">+ tributary inflows along the way</div>
+                                    <div style="font-size:0.55rem;color:var(--text-muted);">Monocacy 7.1% &middot; Goose Creek 3.0% &middot; Broad Run 0.7% &middot; Seneca 0.9%</div>
+                                </div>
+                            </div>
+
+                            <!-- Arrow -->
+                            <div style="text-align:center;margin:2px 0;">
+                                <div style="font-size:1rem;color:var(--accent-teal);">&#8595;</div>
+                            </div>
+
+                            <!-- EF blend -->
+                            <div style="display:flex;justify-content:center;margin:4px 0;">
+                                <div style="background:var(--bg-surface);border:1px solid var(--accent-teal);border-radius:6px;padding:6px 14px;text-align:center;">
+                                    <div style="font-size:0.6rem;color:var(--accent-teal);font-weight:600;">Blended with Edwards Ferry</div>
+                                    <div style="font-size:0.55rem;color:var(--text-muted);">2 mi upstream &middot; level only &middot; weight 0&ndash;40% by flow</div>
+                                </div>
+                            </div>
+
+                            <!-- Arrow -->
+                            <div style="text-align:center;margin:2px 0;">
+                                <div style="font-size:1rem;color:var(--accent-green);">&#8595;</div>
                             </div>
 
                             <!-- Great Falls estimate -->
-                            <div style="display:flex;justify-content:center;margin-bottom:8px;">
-                                <div style="background:var(--bg-surface);border:2px solid var(--accent-green);border-radius:6px;padding:10px 20px;text-align:center;">
-                                    <div style="font-size:0.75rem;color:var(--accent-green);font-weight:700;">GREAT FALLS</div>
-                                    <div style="font-size:0.55rem;color:var(--text-tertiary);">Estimated conditions</div>
+                            <div style="display:flex;justify-content:center;margin:4px 0;">
+                                <div style="background:var(--bg-surface);border:2px solid var(--accent-green);border-radius:6px;padding:10px 24px;text-align:center;">
+                                    <div style="font-size:0.8rem;color:var(--accent-green);font-weight:700;">GREAT FALLS</div>
+                                    <div style="font-size:0.6rem;color:var(--text-tertiary);">Estimated CFS &amp; stage</div>
                                 </div>
                             </div>
 
-                            <!-- Arrow down with time -->
-                            <div style="text-align:center;margin-bottom:4px;">
-                                <div style="font-size:0.9rem;color:var(--accent-amber);">↓</div>
+                            <!-- Arrow + validation -->
+                            <div style="text-align:center;margin:2px 0;">
+                                <div style="font-size:1rem;color:var(--accent-amber);">&#8595;</div>
                                 <div style="font-size:0.55rem;color:var(--accent-amber);">~6 hrs later</div>
                             </div>
 
-                            <!-- Little Falls validation -->
+                            <!-- Little Falls -->
                             <div style="display:flex;justify-content:center;">
                                 <div style="background:var(--bg-surface);border:1px solid var(--accent-amber);border-radius:6px;padding:8px 16px;text-align:center;">
                                     <div style="font-size:0.7rem;color:var(--accent-amber);font-weight:600;">Little Falls</div>
-                                    <div style="font-size:0.55rem;color:var(--text-muted);">Validates prediction</div>
+                                    <div style="font-size:0.55rem;color:var(--text-muted);">Checks the prediction</div>
                                 </div>
                             </div>
+                        </div>
 
-                            <!-- Tributary note -->
-                            <div style="font-size:0.55rem;color:var(--text-muted);text-align:center;margin-top:10px;padding-top:8px;border-top:1px solid var(--border-default);">
-                                + Monocacy, Goose Creek, Broad Run &amp; Seneca added at their confluence points
+                        <!-- Three sub-beats -->
+                        <div style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;">
+
+                            <!-- (a) Time-shifting -->
+                            <div style="margin-bottom:10px;padding:8px 10px;background:var(--bg-base);border-radius:6px;">
+                                <div style="font-size:0.65rem;color:var(--accent-blue);font-weight:600;margin-bottom:3px;">Time-shifting</div>
+                                The primary input is the Point of Rocks gauge, 20 miles upstream. Travel time depends on flow: about 19 hours at high water, up to 33 hours at low water. We look back by that amount to find the reading that corresponds to Great Falls right now. If the river is currently rising or falling at Point of Rocks, the estimate adjusts for how much of that change has reached Great Falls.
+                            </div>
+
+                            <!-- (b) Tributaries + blending -->
+                            <div style="margin-bottom:10px;padding:8px 10px;background:var(--bg-base);border-radius:6px;">
+                                <div style="font-size:0.65rem;color:var(--accent-teal);font-weight:600;margin-bottom:3px;">Tributaries and blending</div>
+                                Four tributaries enter the Potomac between Point of Rocks and Great Falls. Their current flows are added to the time-shifted estimate. The result is then blended with an independent estimate from the Edwards Ferry gauge, 2 miles above the falls. Edwards Ferry measures water level only, so a calibrated power-law model converts its stage reading to flow. At low flows the blend gives Edwards Ferry almost no weight; at high flows it contributes up to 40%.
+                            </div>
+
+                            <!-- (c) Learning -->
+                            <div style="margin-bottom:10px;padding:8px 10px;background:var(--bg-base);border-radius:6px;">
+                                <div style="font-size:0.65rem;color:var(--accent-amber);font-weight:600;margin-bottom:3px;">Self-correcting</div>
+                                Every two hours, the server checks its earlier prediction against what Little Falls actually recorded when that water arrived. The error is stored by flow level and flow direction (rising, falling, or steady), and a correction factor is updated so the next prediction in similar conditions is closer. The model improves continuously, even when no one is looking at the site. The estimate is also capped at 120% of the downstream gauge reading to prevent runaway overestimates during fast rises.
                             </div>
                         </div>
 
-                        <p style="font-size:0.65rem;color:var(--text-tertiary);line-height:1.6;">
-                        <b>The blend is smart:</b> At low flows, local channel effects make Edwards Ferry a poor downstream predictor, so the model uses Point of Rocks alone. As flows increase, EF weight rises smoothly via a logistic function (0% → 40%, midpoint at 10k cfs) — calibrated on 117,000+ hourly observations (2011–2026) and cross-verified in Python and R.
-                        </p>
-
-                        <!-- UNDER THE HOOD (credibility — takeaway first, formula second) -->
-                        <div style="background:var(--bg-base);padding:10px 12px;border-radius:6px;margin:10px 0;">
-                            <div style="font-size:0.55rem;color:var(--text-muted);margin-bottom:6px;">UNDER THE HOOD</div>
-                            <p style="font-size:0.65rem;color:var(--text-tertiary);line-height:1.5;margin-bottom:6px;">
-                            The logistic blend was selected from seven competing approaches via leave-one-year-out cross-validation. Typical prediction error is ~6%, varying by flow: higher below 3,000 cfs, under 9% above 15,000 cfs.
-                            </p>
-                            <p style="font-size:0.6rem;color:var(--text-muted);line-height:1.5;margin-bottom:4px;">
-                            <b>EF power-law:</b> 126 &times; EF<sup>2.46</sup> (default) or 160 &times; EF<sup>2.36</sup> (cold water &le;10&deg;C / 50&deg;F).<br>
-                            <b>Safety cap:</b> Estimate capped at 120% of Little Falls actual to prevent runaway overshoot.<br>
-                            <b>Flow state:</b> Rising/falling/steady detected from observed PoR rate (6-hour lookback), not forecasts.
-                            </p>
+                        <!-- Reading your screen: compact reference -->
+                        <div style="font-size:0.65rem;margin:6px 0 16px;padding:8px 10px;background:rgba(0,0,0,0.15);border-radius:6px;">
+                            <div style="color:var(--text-muted);font-weight:600;margin-bottom:4px;font-size:0.6rem;">READING YOUR SCREEN</div>
+                            <div style="color:var(--text-tertiary);margin-bottom:3px;"><b style="color:var(--accent-blue);">CFS</b> &mdash; cubic feet per second (volume of water flowing)</div>
+                            <div style="color:var(--text-tertiary);margin-bottom:3px;"><b style="color:var(--accent-green);">Stage</b> &mdash; water height in feet on the Little Falls gauge scale</div>
+                            <div style="color:var(--text-tertiary);margin-bottom:5px;"><b style="color:var(--accent-amber);">Confidence</b> &mdash; <span style="color:var(--accent-green);">High</span> = solid, plan around it &nbsp; <span style="color:var(--accent-amber);">Medium</span> = could shift 10&ndash;20% &nbsp; <span style="color:var(--accent-red);">Low</span> = ballpark only</div>
                         </div>
 
-                        <!-- 5. 48-HOUR FORECAST (trust sentence first) -->
-                        <h3>The 48-Hour Forecast</h3>
-                        <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:8px;">
-                        The forecast uses official NWS predictions for the Potomac, adjusted to match what the gauges actually read right now. We shift the NWS timeline to account for how long water takes to travel between gauges — so you see when conditions will change at Great Falls.
-                        </p>
-                        <p style="font-size:0.65rem;color:var(--text-muted);line-height:1.5;">
-                        This works differently than the "now" estimate. Since water takes so long to travel from Point of Rocks, we take the Little Falls forecast and work backwards — if Little Falls will rise, Great Falls must rise first.
+                        <!-- ═══════════════════════════════════════ -->
+                        <!-- SECTION 2: THE FORECAST                -->
+                        <!-- ═══════════════════════════════════════ -->
+                        <div style="border-left:3px solid var(--accent-purple);padding-left:12px;margin-bottom:12px;">
+                            <h3 style="font-size:0.85rem;color:var(--accent-purple);margin-bottom:4px;">2. The 48-Hour Forecast</h3>
+                            <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:6px;">What is coming to Great Falls</div>
+                        </div>
+
+                        <p style="font-size:0.75rem;color:var(--text-tertiary);line-height:1.7;margin-bottom:10px;">
+                        The forecast uses a different method from the nowcast. The National Weather Service predicts what will arrive at Little Falls, the downstream gauge. Since water passes Great Falls before it reaches Little Falls, we shift the NWS prediction earlier in time by the travel time between the two gauges (roughly 6 hours at typical flows). If NWS says Little Falls will rise at 6 PM, Great Falls should rise around noon.
                         </p>
 
-                        <!-- 6. TRAVEL TIMES -->
-                        <h3>How Fast Does Water Travel?</h3>
-                        <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:6px;">
-                        This is the key to the whole system. Water takes hours to flow downstream, so today's Point of Rocks reading tells you what arrives at Great Falls <i>tomorrow</i>. To estimate GF <i>right now</i>, we look at what Point of Rocks was reading a day ago.
-                        </p>
-                        <table style="font-size:0.6rem;margin:8px 0;width:100%;">
-                            <tr><th>Flow Level</th><th>Speed</th><th>Pt of Rocks → Little Falls</th></tr>
-                            <tr><td>Very low (~1.2k cfs)</td><td>~0.9 mph</td><td>~44 hrs</td></tr>
-                            <tr><td>Low (~2k cfs)</td><td>~1.2 mph</td><td>~35 hrs</td></tr>
-                            <tr style="background:var(--bg-highlight);"><td><b>Typical (~5k cfs)</b></td><td><b>~1.6 mph</b></td><td><b>~26 hrs</b></td></tr>
-                            <tr><td>High (~15k cfs)</td><td>~3 mph</td><td>~14 hrs</td></tr>
-                            <tr><td>Flood (~50k+ cfs)</td><td>~6 mph</td><td>~7 hrs</td></tr>
-                        </table>
-                        <p style="font-size:0.55rem;color:var(--text-muted);line-height:1.4;margin-top:4px;">
-                        Based on USGS Circular 438 (Searcy, 1961), updated with modern 15-minute gauge data. Water now travels ~20% faster than the 1960s model predicted.
+                        <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:10px;">
+                        NWS forecasts can drift from actual gauge readings, so we apply an additive bias correction: the difference between what NWS currently predicts for Little Falls and what the gauge currently reads. This offset is recalculated every 15 minutes and automatically shrinks as NWS updates its models.
                         </p>
 
-                        <!-- 7. BASIN COVERAGE (condensed) -->
-                        <h3>Basin Coverage</h3>
-                        <p style="font-size:0.65rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:8px;">
-                        19 USGS gauges feed the model. Point of Rocks carries about 84% of the flow, with Monocacy, Goose Creek, Broad Run, and Seneca Creek adding the rest. Edwards Ferry provides a nearby cross-check just 2 miles above Great Falls. Upstream gauges (Hancock, Cumberland, Shenandoah) give multi-day advance notice when a pulse is coming.
-                        </p>
+                        <div style="font-size:0.65rem;margin:8px 0 16px;padding:8px 10px;background:var(--bg-base);border-radius:6px;">
+                            <div style="color:var(--text-muted);font-weight:600;margin-bottom:4px;font-size:0.6rem;">FORECAST RELIABILITY</div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <div style="flex:1;min-width:70px;text-align:center;padding:4px 0;">
+                                    <div style="color:var(--accent-green);font-weight:600;">6 hr</div>
+                                    <div style="color:var(--text-tertiary);">Good</div>
+                                </div>
+                                <div style="flex:1;min-width:70px;text-align:center;padding:4px 0;">
+                                    <div style="color:var(--accent-amber);font-weight:600;">12 hr</div>
+                                    <div style="color:var(--text-tertiary);">Fair</div>
+                                </div>
+                                <div style="flex:1;min-width:70px;text-align:center;padding:4px 0;">
+                                    <div style="color:var(--accent-orange);font-weight:600;">24 hr</div>
+                                    <div style="color:var(--text-tertiary);">Rough</div>
+                                </div>
+                                <div style="flex:1;min-width:70px;text-align:center;padding:4px 0;">
+                                    <div style="color:var(--accent-red);font-weight:600;">48 hr</div>
+                                    <div style="color:var(--text-tertiary);">Directional</div>
+                                </div>
+                            </div>
+                        </div>
 
-                        <!-- 8. DATA SOURCES -->
-                        <h3>Data Sources</h3>
-                        <p style="font-size:0.65rem;color:var(--text-tertiary);line-height:1.6;">
-                        <b>Real-time gauges:</b> USGS Water Services (updates every 15 min)<br>
-                        <b>Forecasts:</b> National Weather Service river predictions<br>
-                        <b>Water temperature:</b> USGS Point of Rocks gauge
-                        </p>
+                        <!-- ═══════════════════════════════════════ -->
+                        <!-- SAFETY CALLOUT                         -->
+                        <!-- ═══════════════════════════════════════ -->
+                        <div style="border-left:3px solid var(--accent-loading);background:rgba(245,158,11,0.08);padding:10px 12px;border-radius:4px;margin:0 0 16px;">
+                            <div style="font-size:0.75rem;color:var(--accent-loading);font-weight:600;margin-bottom:4px;">
+                                This is an estimate, not a measurement
+                            </div>
+                            <div style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;">
+                                Do not use it for life-safety decisions. Localized storms between gauges will not show until that water arrives, and fast-rising floods may arrive sooner than predicted. Always check NWS warnings independently.
+                            </div>
+                        </div>
 
-                        <!-- 8b. CREEKS TAB -->
-                        <h3>Creeks Tab</h3>
-                        <p style="font-size:0.65rem;color:var(--text-tertiary);line-height:1.6;">
-                        The Creeks tab shows rain-dependent whitewater runs near DC. These use separate USGS gauges — a creek shows green when flow is at or above its runnable threshold (e.g., Rock Creek &ge;400 cfs). This is display-only and does <i>not</i> affect the Great Falls estimate.
-                        </p>
+                        <!-- ═══════════════════════════════════════ -->
+                        <!-- FOOTER: TRAVEL TIMES, DATA, APPENDIX   -->
+                        <!-- ═══════════════════════════════════════ -->
 
-                        <!-- 9. LIMITATIONS (remaining items) -->
-                        <p style="font-size:0.6rem;color:var(--text-muted);line-height:1.5;margin-top:10px;">
-                        The Washington Aqueduct, WSSC, and Fairfax Water all divert water above Great Falls — roughly 400–700 cfs combined. This water never goes over the falls. The estimate shown is calibrated to Little Falls (downstream), so these diversions are already built into the model. Ice can corrupt gauge readings — the system detects anomalies and flags suspicious data automatically.
-                        </p>
+                        <!-- Travel times -->
+                        <details style="margin-bottom:12px;">
+                            <summary style="font-size:0.7rem;color:var(--text-secondary);cursor:pointer;padding:4px 0;">Travel times by flow level</summary>
+                            <table style="font-size:0.65rem;margin:8px 0;width:100%;">
+                                <tr><th style="text-align:left;">Flow</th><th>Speed</th><th>PoR &rarr; Little Falls</th></tr>
+                                <tr><td>Very low (~1.2k cfs)</td><td>~0.9 mph</td><td>~44 hrs</td></tr>
+                                <tr><td>Low (~2k cfs)</td><td>~1.2 mph</td><td>~35 hrs</td></tr>
+                                <tr style="background:var(--bg-highlight);"><td><b>Typical (~5k cfs)</b></td><td><b>~1.6 mph</b></td><td><b>~26 hrs</b></td></tr>
+                                <tr><td>High (~15k cfs)</td><td>~3 mph</td><td>~14 hrs</td></tr>
+                                <tr><td>Flood (~50k+ cfs)</td><td>~6 mph</td><td>~7 hrs</td></tr>
+                            </table>
+                            <div style="font-size:0.55rem;color:var(--text-muted);line-height:1.4;">
+                            Based on USGS Circular 438 (Searcy, 1961), updated with modern 15-minute gauge data.
+                            </div>
+                        </details>
 
-                        <!-- 10. TECHNICAL APPENDIX -->
-                        <div style="margin-top:20px;padding:12px;background:var(--bg-base);border-radius:6px;text-align:center;">
-                            <p style="font-size:0.65rem;color:var(--text-muted);margin-bottom:8px;">Want the full math? Equations, validation data, model details</p>
+                        <!-- Data sources -->
+                        <div style="font-size:0.65rem;color:var(--text-muted);line-height:1.6;margin-bottom:14px;">
+                            <b>Data:</b> USGS Water Services (15-min updates) &middot; NWS river forecasts &middot; USGS water temperature at Point of Rocks
+                        </div>
+
+                        <!-- Technical appendix download -->
+                        <div style="padding:12px;background:var(--bg-base);border-radius:6px;text-align:center;">
+                            <p style="font-size:0.7rem;color:var(--text-muted);margin-bottom:8px;">Full methodology, equations, validation data, and references</p>
                             <button id="techAppendixBtn" style="background:var(--btn-primary);color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;font-size:0.7rem;">
-                                Download Technical Details
+                                Download Technical Appendix
                             </button>
                         </div>
                     </div>
