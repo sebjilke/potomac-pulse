@@ -50,6 +50,8 @@ export function updateGFLearningUI() {
 
     // Update bin statistics table (if Learning tab is unlocked)
     updateGFBinStats();
+
+    renderValidationChart().catch(e => console.error('Validation chart error:', e));
 }
 
 // ==================== HEALTH STATS ====================
@@ -456,6 +458,132 @@ export function updateShadowLeaderboardUI() {
         footer.textContent = `Last scored: ${new Date(shadowLeaderboard.lastValidationTime).toLocaleString()}`;
         container.appendChild(footer);
     }
+}
+
+// ==================== VALIDATION ACCURACY CHART ====================
+
+let _valChartData = null;
+let _valChartFetching = false;
+
+async function renderValidationChart() {
+    const svg = document.getElementById('valChartSvg');
+    const summary = document.getElementById('valAccuracySummary');
+    if (!svg || !summary) return;
+
+    if (!_valChartData && !_valChartFetching) {
+        _valChartFetching = true;
+        try {
+            const resp = await fetch('/.netlify/functions/sync-learning?endpoint=validation-history');
+            if (resp.ok) {
+                const json = await resp.json();
+                _valChartData = json.readings || [];
+            }
+        } catch (e) {
+            console.error('Validation history fetch error:', e);
+        }
+        _valChartFetching = false;
+    }
+
+    const readings = _valChartData;
+    if (!readings || readings.length === 0) {
+        summary.textContent = 'Collecting validation data — chart appears after first validation';
+        svg.innerHTML = '';
+        return;
+    }
+
+    const avgErr = readings.reduce((s, r) => s + Math.abs(r.errorPercent), 0) / readings.length;
+    const oldest = new Date(readings[0].timestamp);
+    const span = Math.round((Date.now() - oldest.getTime()) / (3600000));
+    summary.textContent = `Avg error: ±${avgErr.toFixed(1)}% (${readings.length} validations over ${span}h)`;
+
+    const container = document.getElementById('valChartContainer');
+    const width = container.clientWidth - 16;
+    const height = 160;
+    const padding = { top: 12, right: 10, bottom: 22, left: 45 };
+    const graphWidth = width - padding.left - padding.right;
+    const graphHeight = height - padding.top - padding.bottom;
+
+    const allCFS = readings.flatMap(r => [r.predictedCFS, r.actualCFS]);
+    const minCFS = Math.min(...allCFS) * 0.9;
+    const maxCFS = Math.max(...allCFS) * 1.1;
+    const cfsRange = maxCFS - minCFS || 1;
+
+    const minTime = readings[0].timestamp;
+    const maxTime = readings[readings.length - 1].timestamp;
+    const timeRange = maxTime - minTime || 1;
+
+    const xScale = t => padding.left + ((t - minTime) / timeRange) * graphWidth;
+    const yScale = c => padding.top + (1 - (c - minCFS) / cfsRange) * graphHeight;
+    const bottom = padding.top + graphHeight;
+
+    const yTicks = [];
+    const tickStep = cfsRange > 10000 ? 5000 : cfsRange > 5000 ? 2000 : cfsRange > 2000 ? 1000 : 500;
+    for (let c = Math.ceil(minCFS / tickStep) * tickStep; c <= maxCFS; c += tickStep) {
+        yTicks.push(c);
+    }
+
+    const xLabels = [];
+    const dayMs = 86400000;
+    const startDay = new Date(minTime);
+    startDay.setHours(0, 0, 0, 0);
+    for (let t = startDay.getTime(); t <= maxTime + dayMs; t += dayMs) {
+        if (t >= minTime && t <= maxTime) {
+            const d = new Date(t);
+            xLabels.push({ t, label: `${d.getMonth() + 1}/${d.getDate()}` });
+        }
+    }
+
+    const predPath = readings.map((r, i) => `${i === 0 ? 'M' : 'L'} ${xScale(r.timestamp)},${yScale(r.predictedCFS)}`).join(' ');
+    const actualPath = readings.map((r, i) => `${i === 0 ? 'M' : 'L'} ${xScale(r.timestamp)},${yScale(r.actualCFS)}`).join(' ');
+
+    svg.setAttribute('width', width);
+    svg.setAttribute('height', height);
+    svg.innerHTML = `
+        ${yTicks.map(c => `<line x1="${padding.left}" y1="${yScale(c)}" x2="${width - padding.right}" y2="${yScale(c)}" stroke="#334155" stroke-width="1" stroke-dasharray="2,2"/>`).join('')}
+        ${xLabels.map(l => `<line x1="${xScale(l.t)}" y1="${padding.top}" x2="${xScale(l.t)}" y2="${bottom}" stroke="#334155" stroke-width="1" stroke-dasharray="2,2"/>`).join('')}
+        <path d="${predPath}" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round"/>
+        <path d="${actualPath}" fill="none" stroke="#4ade80" stroke-width="2" stroke-linejoin="round"/>
+        ${readings.map(r => `<circle cx="${xScale(r.timestamp)}" cy="${yScale(r.predictedCFS)}" r="3" fill="#60a5fa" stroke="#0f172a" stroke-width="1"/>`).join('')}
+        ${readings.map(r => `<circle cx="${xScale(r.timestamp)}" cy="${yScale(r.actualCFS)}" r="3" fill="#4ade80" stroke="#0f172a" stroke-width="1"/>`).join('')}
+        ${yTicks.map(c => `<text x="${padding.left - 4}" y="${yScale(c) + 3}" fill="#94a3b8" font-size="8" text-anchor="end">${(c / 1000).toFixed(1)}k</text>`).join('')}
+        ${xLabels.map(l => `<text x="${xScale(l.t)}" y="${height - 4}" fill="#94a3b8" font-size="8" text-anchor="middle">${l.label}</text>`).join('')}
+        <text x="8" y="${padding.top + graphHeight / 2}" fill="#94a3b8" font-size="8" text-anchor="middle" transform="rotate(-90, 8, ${padding.top + graphHeight / 2})">CFS</text>
+        <rect id="valChartHover" x="${padding.left}" y="${padding.top}" width="${graphWidth}" height="${graphHeight}" fill="transparent"/>
+    `;
+
+    const hoverRect = document.getElementById('valChartHover');
+    const tooltip = document.getElementById('valChartTooltip');
+
+    function showValTooltip(e) {
+        const rect = svg.getBoundingClientRect();
+        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+        const t = minTime + ((x - padding.left) / graphWidth) * timeRange;
+
+        const closest = readings.reduce((prev, curr) =>
+            Math.abs(curr.timestamp - t) < Math.abs(prev.timestamp - t) ? curr : prev
+        );
+
+        document.getElementById('valTooltipTime').textContent = new Date(closest.timestamp).toLocaleString();
+        document.getElementById('valTooltipPred').textContent = closest.predictedCFS.toLocaleString() + ' cfs';
+        document.getElementById('valTooltipActual').textContent = closest.actualCFS.toLocaleString() + ' cfs';
+        const errSign = closest.errorPercent >= 0 ? '+' : '';
+        document.getElementById('valTooltipError').textContent = `${errSign}${closest.errorPercent.toFixed(1)}%`;
+
+        const tooltipX = Math.min(width - 120, Math.max(10, xScale(closest.timestamp) - 50));
+        const tooltipY = Math.max(5, Math.min(yScale(closest.predictedCFS), yScale(closest.actualCFS)) - 65);
+        tooltip.style.left = tooltipX + 'px';
+        tooltip.style.top = tooltipY + 'px';
+        tooltip.style.display = 'block';
+    }
+
+    function hideValTooltip() {
+        tooltip.style.display = 'none';
+    }
+
+    hoverRect.onmousemove = showValTooltip;
+    hoverRect.ontouchmove = showValTooltip;
+    hoverRect.onmouseleave = hideValTooltip;
+    hoverRect.ontouchend = hideValTooltip;
 }
 
 // ==================== RESET SHADOW MODELS ====================

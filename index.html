@@ -562,6 +562,26 @@
                             <p style="font-size:0.45rem;color:var(--text-muted);margin-top:5px;">Clears only 0-6k cfs bins (ice-affected). Preserves higher flow data.</p>
                         </div>
 
+                        <!-- PREDICTION ACCURACY CHART -->
+                        <div style="margin-top:20px;padding-top:15px;border-top:2px solid var(--accent-green);">
+                            <h3 style="color:var(--accent-green);font-size:0.8rem;margin-bottom:4px;">Prediction Accuracy (7d)</h3>
+                            <div id="valAccuracySummary" style="font-size:0.55rem;color:var(--text-muted);margin-bottom:10px;">
+                                Collecting validation data...
+                            </div>
+                            <div id="valChartContainer" style="position:relative;width:100%;min-height:160px;background:var(--bg-surface);border-radius:6px;padding:8px;">
+                                <svg id="valChartSvg" style="width:100%;height:160px;"></svg>
+                                <div id="valChartTooltip" style="display:none;position:absolute;background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:4px;padding:6px 8px;font-size:0.5rem;pointer-events:none;z-index:10;">
+                                    <div id="valTooltipTime" style="color:var(--text-muted);margin-bottom:2px;"></div>
+                                    <div><span style="color:#60a5fa;">Predicted:</span> <span id="valTooltipPred"></span></div>
+                                    <div><span style="color:#4ade80;">Actual:</span> <span id="valTooltipActual"></span></div>
+                                    <div><span style="color:var(--text-tertiary);">Error:</span> <span id="valTooltipError"></span></div>
+                                </div>
+                            </div>
+                            <div style="font-size:0.45rem;color:var(--text-faint);margin-top:4px;text-align:center;">
+                                <span style="color:#60a5fa;">●</span> Predicted LF &nbsp; <span style="color:#4ade80;">●</span> Actual LF
+                            </div>
+                        </div>
+
                         <!-- SHADOW MODEL HORSE RACE -->
                         <div style="margin-top:20px;padding-top:15px;border-top:2px solid var(--btn-purple);">
                             <h3 style="color:var(--accent-purple);font-size:0.8rem;margin-bottom:12px;">🏇 Shadow Model Horse Race</h3>

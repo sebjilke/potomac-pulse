@@ -341,6 +341,55 @@ async function storeGFHistory(client, prediction) {
     console.log(`📈 GF history: stored ${prediction.predictedCFS} cfs, ${trimmedReadings.length} entries in 24h window`);
 }
 
+async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent, flowBin, flowState) {
+    const now = Date.now();
+    const newEntry = {
+        timestamp: now,
+        predictedCFS: Math.round(predictedCFS),
+        actualCFS: Math.round(actualCFS),
+        errorPercent: Math.round(errorPercent * 10) / 10,
+        flowBin,
+        flowState
+    };
+
+    const { data: existing } = await client
+        .from('potomac_observations')
+        .select('data')
+        .eq('observation_type', 'gf_validation_history')
+        .eq('gauge_id', 'system')
+        .single();
+
+    const existingReadings = existing?.data?.readings || [];
+
+    if (existingReadings.length > 0) {
+        const lastEntry = existingReadings[existingReadings.length - 1];
+        if (now - lastEntry.timestamp < 30 * 60 * 1000) {
+            console.log(`📊 Validation history: skipped — last entry is ${((now - lastEntry.timestamp) / 60000).toFixed(0)}min old`);
+            return;
+        }
+    }
+
+    const allReadings = [...existingReadings, newEntry];
+    const cutoff = now - (7 * 24 * 60 * 60 * 1000);
+    const trimmedReadings = allReadings.filter(r => r.timestamp > cutoff);
+
+    const { error: valHistErr } = await client.from('potomac_observations').upsert({
+        observation_type: 'gf_validation_history',
+        gauge_id: 'system',
+        data: {
+            readings: trimmedReadings,
+            lastUpdate: new Date().toISOString()
+        }
+    }, { onConflict: 'observation_type,gauge_id' });
+
+    if (valHistErr) {
+        console.error('❌ Validation history upsert FAILED:', valHistErr.message, valHistErr.code, valHistErr.details);
+        return;
+    }
+
+    console.log(`📊 Validation history: stored ${Math.round(predictedCFS)} vs ${Math.round(actualCFS)} cfs (${errorPercent.toFixed(1)}%), ${trimmedReadings.length} entries in 7d window`);
+}
+
 // Get PoR reading from X hours ago
 function getPoRFromHistory(history, hoursAgo) {
     if (!history?.length) return null;
@@ -1003,6 +1052,10 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             }, { onConflict: 'observation_type,gauge_id' });
             if (metaErr) {
                 console.error(`❌ Metadata upsert FAILED:`, metaErr.message, metaErr.code, metaErr.details);
+            }
+
+            if (!isHardFlagged) {
+                await storeValidationPair(client, predictedCFS, actualCFS, errorPercent, flowBin, flowState);
             }
 
             // Score shadow model predictions (non-blocking — failure must not break validation)

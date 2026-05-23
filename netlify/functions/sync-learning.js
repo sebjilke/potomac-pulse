@@ -121,6 +121,13 @@ exports.handler = async (event, context) => {
             }
         }
 
+        // Validation history endpoint — 7d rolling predicted-vs-actual pairs
+        if (endpoint === 'validation-history') {
+            if (event.httpMethod === 'GET') {
+                return await loadValidationHistory(client);
+            }
+        }
+
         // GF history endpoint — server-side 24h history for graph display
         if (endpoint === 'gf-history') {
             if (event.httpMethod === 'GET') {
@@ -990,6 +997,36 @@ async function loadForecastAccuracy(client) {
             statusCode: 500,
             headers,
             body: JSON.stringify({ error: 'Failed to load forecast accuracy' })
+        };
+    }
+}
+
+async function loadValidationHistory(client) {
+    try {
+        const { data: row, error } = await client
+            .from('potomac_observations')
+            .select('data')
+            .eq('observation_type', 'gf_validation_history')
+            .eq('gauge_id', 'system')
+            .single();
+
+        if (error && error.code !== 'PGRST116') throw error;
+
+        const readings = row?.data?.readings || [];
+        const lastUpdate = row?.data?.lastUpdate || null;
+
+        return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ readings, lastUpdate })
+        };
+
+    } catch (error) {
+        console.error('Load validation history error:', error);
+        return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to load validation history' })
         };
     }
 }
