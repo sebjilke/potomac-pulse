@@ -456,11 +456,32 @@ async function saveGFLearningData(client, data) {
                 return { statusCode: 400, headers, body: JSON.stringify({ error: 'No prediction provided' }) };
             }
 
-            // Delete any existing pending prediction first (unique constraint allows only one)
-            await client.from('potomac_observations')
-                .delete()
+            // Check if an existing pending prediction is still within its validation window.
+            // If so, don't replace it — the server cron needs the original prediction to
+            // stay untouched so it can validate against actual LF when water arrives.
+            const { data: existing } = await client.from('potomac_observations')
+                .select('data')
                 .eq('observation_type', 'gf_prediction')
-                .eq('gauge_id', 'pending');
+                .eq('gauge_id', 'pending')
+                .single();
+
+            if (existing) {
+                const validationDue = existing.data?.validationDue ? new Date(existing.data.validationDue) : null;
+                const now = new Date();
+                const pastWindow = !validationDue || (now - validationDue) > 2.5 * 60 * 60 * 1000;
+
+                if (!pastWindow) {
+                    result = { success: true, action: 'storePrediction', skipped: true,
+                               reason: 'Existing prediction still in validation window' };
+                    return { statusCode: 200, headers, body: JSON.stringify(result) };
+                }
+
+                // Existing prediction missed its validation window — safe to replace
+                await client.from('potomac_observations')
+                    .delete()
+                    .eq('observation_type', 'gf_prediction')
+                    .eq('gauge_id', 'pending');
+            }
 
             const { error } = await client.from('potomac_observations').insert({
                 observation_type: 'gf_prediction',
@@ -475,8 +496,8 @@ async function saveGFLearningData(client, data) {
                     flowState: prediction.flowState,
                     travelTimeGFtoLF: prediction.travelTimeGFtoLF,
                     validationDue: prediction.validationDue,
-                    efStage: prediction.efStage || null,  // Edwards Ferry stage at prediction time
-                    shadowModels: prediction.shadowModels || null  // Shadow model predictions for leaderboard
+                    efStage: prediction.efStage || null,
+                    shadowModels: prediction.shadowModels || null
                 }
             });
 
