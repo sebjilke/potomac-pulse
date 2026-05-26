@@ -30,6 +30,6 @@
   status = 200
 
 # Scheduled function for background learning
-# Runs every 2 hours to fetch data, validate predictions, and update corrections
+# Runs every hour to fetch data, validate predictions, and update corrections
 [functions."scheduled-update"]
-  schedule = "0 */2 * * *"
+  schedule = "0 */1 * * *"

@@ -661,7 +661,7 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
         }
 
         // v34.0: Reject validations >2.5h after due time
-        // With 2h cron, normal delay is 0-2h; beyond that, flow conditions have changed too much
+        // With 1h cron, normal delay is 0-1h; beyond that, flow conditions have changed too much
         // Predictions that miss the window remain pending until 48h stale cleanup expires them
         const validationDelayMs = now - validationDue;
         const VALIDATION_MAX_DELAY_MS = 2.5 * 60 * 60 * 1000;
