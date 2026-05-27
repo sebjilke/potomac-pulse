@@ -503,8 +503,7 @@ async function saveGFLearningData(client, data) {
                     flowState: prediction.flowState,
                     travelTimeGFtoLF: prediction.travelTimeGFtoLF,
                     validationDue: prediction.validationDue,
-                    efStage: prediction.efStage || null,
-                    shadowModels: prediction.shadowModels || null
+                    efStage: prediction.efStage || null
                 }
             });
 

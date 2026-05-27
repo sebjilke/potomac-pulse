@@ -17,7 +17,6 @@ import {
     gfPredictionRetryQueue,
     lastForecastPredictionTime, setLastForecastPredictionTime,
     forecastAccuracyData, setForecastAccuracyData,
-    shadowResults,
     setShadowLeaderboard
 } from '../state/store.js';
 
@@ -118,13 +117,7 @@ export async function storeGFPrediction(estimate) {
         travelTimeGFtoLF: actualValidationHours,
         validationDue: validationDue,
         efStage: efStage,  // Edwards Ferry stage at prediction time
-        efTrend: efTrend,   // Edwards Ferry trend (rising/falling/steady) for hysteresis learning
-        // Shadow model predictions (horse race) — ride along with production prediction
-        shadowModels: {
-            lfFeedback: shadowResults.lfFeedback.cfs,
-            onlineRegression: shadowResults.onlineRegression.cfs,
-            kalman: shadowResults.kalman.cfs
-        }
+        efTrend: efTrend   // Edwards Ferry trend (rising/falling/steady) for hysteresis learning
     };
 
     const success = await sendGFPrediction(predictionData);

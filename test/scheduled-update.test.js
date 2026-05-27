@@ -5,6 +5,8 @@ const {
     validateUSGSResponse, fetchWithTimeout, fetchWaterTemp,
     getPoRFromHistory, estimateLFStage, makeGFPrediction,
     scoreShadowPredictions, storePrediction, validatePendingPredictions,
+    shadowLFFeedback, shadowOnlineRegression, shadowKalman,
+    runServerShadowModels,
 } = require('../netlify/functions/scheduled-update')._test;
 
 const { estimateLFFlowFromStage, EF_MODEL } = require('../netlify/functions/shared/model');
@@ -658,5 +660,211 @@ describe('validatePendingPredictions', () => {
         };
         const result = await validatePendingPredictions(client, usgsData);
         assert.equal(result, 0);
+    });
+});
+
+// ─── Server Shadow Models ────────────────────────────────────────────────────
+
+describe('Server shadow models', () => {
+
+    describe('shadowLFFeedback', () => {
+        it('returns corrected CFS with valid inputs', () => {
+            const state = { correctionFactor: 0, lastPredictedLF: null, lastPredictionTime: null, alpha: 0.4 };
+            const result = shadowLFFeedback(5000, 4800, state);
+            assert.ok(result);
+            assert.equal(result.cfs, 5000);
+            assert.ok(typeof result.stage === 'number');
+        });
+
+        it('returns null with missing LF', () => {
+            const state = { correctionFactor: 0, lastPredictedLF: null, lastPredictionTime: null, alpha: 0.4 };
+            const result = shadowLFFeedback(5000, null, state);
+            assert.equal(result, null);
+        });
+
+        it('returns null with zero production', () => {
+            const state = { correctionFactor: 0, lastPredictedLF: null, lastPredictionTime: null, alpha: 0.4 };
+            const result = shadowLFFeedback(0, 4800, state);
+            assert.equal(result, null);
+        });
+
+        it('updates correction factor after validation window', () => {
+            const state = {
+                correctionFactor: 0,
+                lastPredictedLF: 5000,
+                lastPredictionTime: Date.now() - 6 * 3600000,
+                alpha: 0.4
+            };
+            shadowLFFeedback(5000, 5500, state);
+            assert.ok(state.correctionFactor !== 0);
+        });
+
+        it('stores prediction for future validation', () => {
+            const state = { correctionFactor: 0, lastPredictedLF: null, lastPredictionTime: null, alpha: 0.4 };
+            shadowLFFeedback(5000, 4800, state);
+            assert.equal(state.lastPredictedLF, 5000);
+            assert.ok(state.lastPredictionTime !== null);
+        });
+    });
+
+    describe('shadowOnlineRegression', () => {
+        it('returns CFS with valid inputs', () => {
+            const state = { weights: null, learningRate: 0.001, nFeatures: 9, trainCount: 0 };
+            const inputs = {
+                porCFS: 8000, porROC: 2, efEstimateCFS: 6000,
+                tribSumCFS: 500, lfActualCFS: 7000, hourFraction: 12
+            };
+            const result = shadowOnlineRegression(7500, inputs, state);
+            assert.ok(result);
+            assert.ok(result.cfs > 0);
+            assert.ok(typeof result.stage === 'number');
+        });
+
+        it('initializes weights on first run', () => {
+            const state = { weights: null, learningRate: 0.001, nFeatures: 9, trainCount: 0 };
+            const inputs = {
+                porCFS: 8000, porROC: 0, efEstimateCFS: 0,
+                tribSumCFS: 0, lfActualCFS: 7000, hourFraction: 12
+            };
+            shadowOnlineRegression(7500, inputs, state);
+            assert.ok(Array.isArray(state.weights));
+            assert.equal(state.weights.length, 9);
+            assert.ok(Math.abs(state.weights[1] - 1.0) < 0.01);
+        });
+
+        it('returns null with missing PoR', () => {
+            const state = { weights: null, learningRate: 0.001, nFeatures: 9, trainCount: 0 };
+            const inputs = {
+                porCFS: null, porROC: 0, efEstimateCFS: 0,
+                tribSumCFS: 0, lfActualCFS: 7000, hourFraction: 12
+            };
+            const result = shadowOnlineRegression(7500, inputs, state);
+            assert.equal(result, null);
+        });
+
+        it('increments trainCount after SGD step', () => {
+            const state = { weights: null, learningRate: 0.001, nFeatures: 9, trainCount: 0 };
+            const inputs = {
+                porCFS: 8000, porROC: 0, efEstimateCFS: 6000,
+                tribSumCFS: 500, lfActualCFS: 7000, hourFraction: 12
+            };
+            shadowOnlineRegression(7500, inputs, state);
+            assert.ok(state.trainCount > 0);
+        });
+    });
+
+    describe('shadowKalman', () => {
+        it('returns CFS with valid inputs', () => {
+            const state = { x: null, P: null, Q_base: 0.0001, initialized: false };
+            const inputs = { lfActualCFS: 7000, porCFS: 8000, efEstimateCFS: 6000, isRising: false };
+            const result = shadowKalman(7500, inputs, state);
+            assert.ok(result);
+            assert.ok(result.cfs > 0);
+            assert.ok(typeof result.stage === 'number');
+        });
+
+        it('initializes state on first run', () => {
+            const state = { x: null, P: null, Q_base: 0.0001, initialized: false };
+            const inputs = { lfActualCFS: 7000, porCFS: 8000, efEstimateCFS: 6000, isRising: false };
+            shadowKalman(7500, inputs, state);
+            assert.equal(state.initialized, true);
+            assert.ok(state.x > 0);
+            assert.ok(state.P > 0);
+        });
+
+        it('returns null with missing LF', () => {
+            const state = { x: null, P: null, Q_base: 0.0001, initialized: false };
+            const inputs = { lfActualCFS: null, porCFS: 8000, efEstimateCFS: 6000, isRising: false };
+            const result = shadowKalman(7500, inputs, state);
+            assert.equal(result, null);
+        });
+
+        it('updates x and P after assimilation', () => {
+            const state = { x: 7000, P: 490000, Q_base: 0.0001, initialized: true };
+            const inputs = { lfActualCFS: 7500, porCFS: 8000, efEstimateCFS: 6000, isRising: false };
+            const xBefore = state.x;
+            shadowKalman(7000, inputs, state);
+            assert.notEqual(state.x, xBefore);
+        });
+
+        it('uses higher process noise when rising', () => {
+            const stateRising = { x: 7000, P: 490000, Q_base: 0.0001, initialized: true };
+            const stateSteady = { x: 7000, P: 490000, Q_base: 0.0001, initialized: true };
+            const inputsR = { lfActualCFS: 7500, porCFS: 8000, efEstimateCFS: 6000, isRising: true };
+            const inputsS = { lfActualCFS: 7500, porCFS: 8000, efEstimateCFS: 6000, isRising: false };
+            shadowKalman(7000, inputsR, stateRising);
+            shadowKalman(7000, inputsS, stateSteady);
+            // Rising should have more uncertainty, so P should differ
+            assert.notEqual(stateRising.P, stateSteady.P);
+        });
+    });
+
+    describe('runServerShadowModels', () => {
+        it('returns results for all three models', () => {
+            const usgsData = {
+                data: {
+                    '01646500': { q: 7000 },
+                    '01638500': { q: 8000 },
+                    '01643000': { q: 500 },
+                    '01644000': { q: 200 },
+                    '01644280': { q: 50 },
+                    '01645000': { q: 60 }
+                },
+                gauges: {
+                    lf: '01646500', por: '01638500',
+                    monocacy: '01643000', goose: '01644000',
+                    broadRun: '01644280', seneca: '01645000'
+                }
+            };
+            const prediction = { efEstimateCFS: 6000 };
+            const porRiseRate = { ratePerHour: 0.5, flowState: 'steady' };
+            const shadowState = {
+                lfFeedback: { correctionFactor: 0, lastPredictedLF: null, lastPredictionTime: null, alpha: 0.4 },
+                onlineRegression: { weights: null, learningRate: 0.001, nFeatures: 9, trainCount: 0 },
+                kalman: { x: null, P: null, Q_base: 0.0001, initialized: false }
+            };
+            const results = runServerShadowModels(7500, usgsData, prediction, porRiseRate, shadowState);
+            assert.ok(results.lfFeedback !== null);
+            assert.ok(results.onlineRegression !== null);
+            assert.ok(results.kalman !== null);
+        });
+
+        it('handles missing gauge data gracefully', () => {
+            const usgsData = {
+                data: {},
+                gauges: {
+                    lf: '01646500', por: '01638500',
+                    monocacy: '01643000', goose: '01644000',
+                    broadRun: '01644280', seneca: '01645000'
+                }
+            };
+            const prediction = { efEstimateCFS: 0 };
+            const shadowState = {
+                lfFeedback: { correctionFactor: 0, lastPredictedLF: null, lastPredictionTime: null, alpha: 0.4 },
+                onlineRegression: { weights: null, learningRate: 0.001, nFeatures: 9, trainCount: 0 },
+                kalman: { x: null, P: null, Q_base: 0.0001, initialized: false }
+            };
+            const results = runServerShadowModels(7500, usgsData, prediction, null, shadowState);
+            assert.equal(results.lfFeedback, null);
+            assert.equal(results.onlineRegression, null);
+            assert.equal(results.kalman, null);
+        });
+    });
+
+    describe('estimateLFStage (from shared/model)', () => {
+        it('returns correct stage for known CFS values', () => {
+            assert.ok(Math.abs(estimateLFStage(600) - 2.46) < 0.01);
+            assert.ok(Math.abs(estimateLFStage(5000) - 3.35) < 0.01);
+            assert.ok(Math.abs(estimateLFStage(10000) - 3.95) < 0.01);
+        });
+
+        it('handles zero CFS', () => {
+            assert.ok(Math.abs(estimateLFStage(0) - 2.40) < 0.01);
+        });
+
+        it('handles very high CFS', () => {
+            const stage = estimateLFStage(200000);
+            assert.ok(stage > 10.93);
+        });
     });
 });

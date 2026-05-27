@@ -1,5 +1,5 @@
 // Potomac Pulse - Scheduled Background Update
-// Runs every 2 hours to fetch data, store history, and validate predictions
+// Runs every hour to fetch data, store history, and validate predictions
 // This allows the learning system to work even when no browsers are open
 
 const {
@@ -11,7 +11,8 @@ const {
     GF_EMA_ALPHA,
     getPoRRiseRateFromHistory,
     CEILING_RATIO, DECAY_CAP,
-    TRIB_FALLBACK
+    TRIB_FALLBACK,
+    estimateLFStage
 } = require('./shared/model');
 
 // Validate USGS API response schema
@@ -418,32 +419,230 @@ function getPoRFromHistory(history, hoursAgo) {
     return null;
 }
 
-// estimateLFFlowFromStage imported from ./shared/model
+// estimateLFFlowFromStage and estimateLFStage imported from ./shared/model
+// getFlowState imported from shared/model.js
 
-// Estimate LF-equivalent stage from flow
-// Based on USGS field measurements at Little Falls (01646500), 2015-2025
-// SYNC WARNING: This function is duplicated in index.html (line ~1539). Keep both in sync!
-function estimateLFStage(cfs) {
-    if (cfs < 600) return 2.40 + (cfs / 600) * 0.06;
-    if (cfs < 1300) return 2.46 + ((cfs - 600) / 700) * 0.23;
-    if (cfs < 2000) return 2.69 + ((cfs - 1300) / 700) * 0.14;
-    if (cfs < 2600) return 2.83 + ((cfs - 2000) / 600) * 0.13;
-    if (cfs < 3200) return 2.96 + ((cfs - 2600) / 600) * 0.13;
-    if (cfs < 3600) return 3.09 + ((cfs - 3200) / 400) * 0.07;
-    if (cfs < 4200) return 3.16 + ((cfs - 3600) / 600) * 0.07;
-    if (cfs < 5000) return 3.23 + ((cfs - 4200) / 800) * 0.12;
-    if (cfs < 5700) return 3.35 + ((cfs - 5000) / 700) * 0.11;
-    if (cfs < 7500) return 3.46 + ((cfs - 5700) / 1800) * 0.21;
-    if (cfs < 10000) return 3.67 + ((cfs - 7500) / 2500) * 0.28;
-    if (cfs < 13000) return 3.95 + ((cfs - 10000) / 3000) * 0.34;
-    if (cfs < 28000) return 4.29 + ((cfs - 13000) / 15000) * 1.21;
-    if (cfs < 50000) return 5.50 + ((cfs - 28000) / 22000) * 1.29;
-    if (cfs < 80000) return 6.79 + ((cfs - 50000) / 30000) * 1.57;
-    if (cfs < 150000) return 8.36 + ((cfs - 80000) / 70000) * 2.57;
-    return 10.93 + ((cfs - 150000) / 100000) * 2.5;
+// --- Server-side shadow model state management ---
+
+async function loadShadowModelState(client) {
+    const defaults = {
+        lfFeedback: { correctionFactor: 0, lastPredictedLF: null, lastPredictionTime: null, alpha: 0.4 },
+        onlineRegression: { weights: null, learningRate: 0.001, nFeatures: 9, trainCount: 0 },
+        kalman: { x: null, P: null, Q_base: 0.0001, initialized: false }
+    };
+    try {
+        const { data } = await client.from('potomac_observations').select('data')
+            .eq('observation_type', 'shadow_model_state').eq('gauge_id', 'system').single();
+        if (data?.data) {
+            const stored = data.data;
+            if (stored.lfFeedback) Object.assign(defaults.lfFeedback, stored.lfFeedback);
+            if (stored.onlineRegression) Object.assign(defaults.onlineRegression, stored.onlineRegression);
+            if (stored.kalman) Object.assign(defaults.kalman, stored.kalman);
+            return defaults;
+        }
+    } catch (e) {
+        console.warn('Shadow state load failed (non-fatal):', e.message);
+    }
+    return defaults;
 }
 
-// getFlowState imported from shared/model.js
+async function saveShadowModelState(client, state) {
+    try {
+        state.lastUpdated = new Date().toISOString();
+        await client.from('potomac_observations').upsert({
+            observation_type: 'shadow_model_state', gauge_id: 'system', data: state
+        }, { onConflict: 'observation_type,gauge_id' });
+    } catch (e) {
+        console.warn('Shadow state save failed (non-fatal):', e.message);
+    }
+}
+
+// --- Server Shadow Model 1: LF Feedback ---
+// Tracks recent GF→LF discrepancy with fast EMA (α=0.4).
+// Ported from src/estimation/shadow-models.js lines 18-57
+function shadowLFFeedback(productionCFS, lfActualCFS, state) {
+    if (!productionCFS || productionCFS <= 0 || !lfActualCFS) return null;
+
+    if (state.lastPredictedLF !== null && state.lastPredictionTime !== null) {
+        const hoursSincePrediction = (Date.now() - state.lastPredictionTime) / 3600000;
+        if (hoursSincePrediction >= 4 && hoursSincePrediction <= 12) {
+            const discrepancy = (lfActualCFS - state.lastPredictedLF) / state.lastPredictedLF;
+            const clampedDisc = Math.max(-0.30, Math.min(0.30, discrepancy));
+            state.correctionFactor = state.alpha * clampedDisc + (1 - state.alpha) * state.correctionFactor;
+            state.lastPredictedLF = null;
+            state.lastPredictionTime = null;
+        }
+    }
+
+    const correctedCFS = Math.round(productionCFS * (1 + state.correctionFactor));
+
+    if (state.lastPredictedLF === null) {
+        state.lastPredictedLF = correctedCFS;
+        state.lastPredictionTime = Date.now();
+    }
+
+    if (correctedCFS <= 0) return null;
+    return { cfs: correctedCFS, stage: estimateLFStage(correctedCFS) };
+}
+
+// --- Server Shadow Model 2: Online Regression ---
+// Multi-feature weighted regression with online SGD.
+// Ported from src/estimation/shadow-models.js lines 63-142
+function shadowOnlineRegression(productionCFS, inputs, state) {
+    if (!productionCFS || productionCFS <= 0 || !inputs.lfActualCFS) return null;
+    if (!inputs.porCFS) return null;
+
+    if (!state.weights) {
+        state.weights = new Array(state.nFeatures).fill(0);
+        state.weights[0] = 0;      // bias
+        state.weights[1] = 1.0;    // PoR CFS (dominant feature)
+        state.weights[2] = 0;      // PoR rate of change
+        state.weights[3] = 0;      // EF estimate
+        state.weights[4] = 0;      // tributary sum
+        state.weights[5] = 0;      // LF actual
+        state.weights[6] = 0;      // sin(hour)
+        state.weights[7] = 0;      // cos(hour)
+        state.weights[8] = 0;      // recent error signal
+    }
+
+    const porROC = inputs.porROC ? inputs.porROC / 10 : 0;
+    const efCFS = (inputs.efEstimateCFS || 0) / 10000;
+    const tribSum = (inputs.tribSumCFS || 0) / 1000;
+    const lfCFS = inputs.lfActualCFS / 10000;
+    const hour = inputs.hourFraction;
+    const sinHr = Math.sin(2 * Math.PI * hour / 24);
+    const cosHr = Math.cos(2 * Math.PI * hour / 24);
+    const recentError = (productionCFS - inputs.lfActualCFS) / Math.max(1, inputs.lfActualCFS);
+
+    const features = [
+        1,                          // bias
+        inputs.porCFS / 10000,      // PoR (normalized)
+        porROC,                     // PoR rate of change
+        efCFS,                      // EF estimate
+        tribSum,                    // tributary sum
+        lfCFS,                      // LF actual
+        sinHr,                      // sin(hour)
+        cosHr,                      // cos(hour)
+        recentError                 // recent error signal
+    ];
+
+    let prediction = 0;
+    for (let i = 0; i < state.nFeatures; i++) {
+        prediction += state.weights[i] * features[i];
+    }
+    prediction *= 10000;
+
+    const target = inputs.lfActualCFS / 10000;
+    const predNorm = prediction / 10000;
+    const error = target - predNorm;
+
+    if (Math.abs(error) > 0.001) {
+        const lr = state.learningRate / (1 + state.trainCount * 0.0001);
+        for (let i = 0; i < state.nFeatures; i++) {
+            state.weights[i] += lr * error * features[i];
+        }
+        state.trainCount++;
+    }
+
+    const resultCFS = Math.round(Math.max(0, prediction));
+    if (resultCFS <= 0) return null;
+    return { cfs: resultCFS, stage: estimateLFStage(resultCFS) };
+}
+
+// --- Server Shadow Model 3: Kalman Filter ---
+// Sequential Kalman: assimilate LF (R=2%), PoR/0.835 (R=5%), EF (R=10%).
+// Ported from src/estimation/shadow-models.js lines 148-219
+function shadowKalman(productionCFS, inputs, state) {
+    if (!productionCFS || productionCFS <= 0 || !inputs.lfActualCFS) return null;
+
+    if (!state.initialized) {
+        state.x = productionCFS;
+        state.P = (productionCFS * 0.10) ** 2;
+        state.initialized = true;
+    }
+
+    const x_prior = state.x;
+    const innovation = productionCFS - x_prior;
+    const x_predict = x_prior + 0.7 * innovation;
+
+    const Q_mult = inputs.isRising ? 4.0 : 1.0;
+    const Q = state.Q_base * (x_predict ** 2) * Q_mult;
+    let P_predict = state.P + Q;
+
+    let x_updated = x_predict;
+    let P_updated = P_predict;
+
+    // Observation 1: LF actual (R = 2%)
+    const lfCFS = inputs.lfActualCFS;
+    const R_lf = (lfCFS * 0.02) ** 2;
+    let K = P_updated / (P_updated + R_lf);
+    x_updated = x_updated + K * (lfCFS - x_updated);
+    P_updated = (1 - K) * P_updated;
+
+    // Observation 2: PoR time-shifted (R = 5%)
+    if (inputs.porCFS) {
+        const porEstimate = inputs.porCFS / 0.835;
+        const R_por = (porEstimate * 0.05) ** 2;
+        K = P_updated / (P_updated + R_por);
+        x_updated = x_updated + K * (porEstimate - x_updated);
+        P_updated = (1 - K) * P_updated;
+    }
+
+    // Observation 3: EF power-law estimate (R = 10%)
+    if (inputs.efEstimateCFS && inputs.efEstimateCFS > 0) {
+        const R_ef = (inputs.efEstimateCFS * 0.10) ** 2;
+        K = P_updated / (P_updated + R_ef);
+        x_updated = x_updated + K * (inputs.efEstimateCFS - x_updated);
+        P_updated = (1 - K) * P_updated;
+    }
+
+    state.x = x_updated;
+    state.P = P_updated;
+
+    const resultCFS = Math.round(Math.max(0, x_updated));
+    if (resultCFS <= 0) return null;
+    return { cfs: resultCFS, stage: estimateLFStage(resultCFS) };
+}
+
+// --- Server shadow model orchestrator ---
+function runServerShadowModels(productionCFS, usgsData, prediction, porRiseRate, shadowState) {
+    const { data, gauges } = usgsData;
+    const results = { lfFeedback: null, onlineRegression: null, kalman: null };
+
+    const lfActualCFS = data[gauges.lf]?.q;
+    const porCFS = data[gauges.por]?.q;
+    const monocacyCFS = data[gauges.monocacy]?.q || 0;
+    const gooseCFS = data[gauges.goose]?.q || 0;
+    const broadRunCFS = data[gauges.broadRun]?.q || 0;
+    const senecaCFS = data[gauges.seneca]?.q || 0;
+    const tribSumCFS = monocacyCFS + gooseCFS + broadRunCFS + senecaCFS;
+
+    const efEstimateCFS = prediction.efEstimateCFS || 0;
+    const porROC = porRiseRate?.ratePerHour || 0;
+    const isRising = porRiseRate?.flowState === 'rising';
+    const hourFraction = new Date().getHours() + new Date().getMinutes() / 60;
+
+    try {
+        const r = shadowLFFeedback(productionCFS, lfActualCFS, shadowState.lfFeedback);
+        results.lfFeedback = r?.cfs || null;
+    } catch (e) { console.warn('🏇 LF Feedback failed:', e.message); }
+
+    try {
+        const r = shadowOnlineRegression(productionCFS,
+            { porCFS, porROC, efEstimateCFS, tribSumCFS, lfActualCFS, hourFraction },
+            shadowState.onlineRegression);
+        results.onlineRegression = r?.cfs || null;
+    } catch (e) { console.warn('🏇 Online Regression failed:', e.message); }
+
+    try {
+        const r = shadowKalman(productionCFS,
+            { lfActualCFS, porCFS, efEstimateCFS, isRising },
+            shadowState.kalman);
+        results.kalman = r?.cfs || null;
+    } catch (e) { console.warn('🏇 Kalman failed:', e.message); }
+
+    return results;
+}
 
 // Make GF prediction
 // waterTempC: water temperature in Celsius for cold-water EF model adjustment
@@ -1068,14 +1267,28 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                         .eq('gauge_id', 'system')
                         .single();
 
+                    // One-time migration: reset leaderboard for server-side shadow transition
+                    let lb = existingLB?.data || null;
+                    if (lb && !metaData.shadowServerMigration) {
+                        console.log('🏇 Resetting shadow leaderboard for server-side transition');
+                        lb = null;
+                    }
+
                     const updatedLB = scoreShadowPredictions(
                         pred.data.shadowModels,
                         actualCFS,
                         errorPercent,
-                        existingLB?.data || null
+                        lb
                     );
 
                     if (updatedLB) {
+                        if (!metaData.shadowServerMigration) {
+                            metaData.shadowServerMigration = new Date().toISOString();
+                            // Re-persist metadata (already upserted above, but migration flag is new)
+                            await client.from('potomac_observations').upsert({
+                                observation_type: 'gf_metadata', gauge_id: 'system', data: metaData
+                            }, { onConflict: 'observation_type,gauge_id' });
+                        }
                         const { error: lbErr } = await client.from('potomac_observations').upsert({
                             observation_type: 'shadow_leaderboard',
                             gauge_id: 'system',
@@ -1339,6 +1552,8 @@ exports._test = {
     validateUSGSResponse, fetchWithTimeout, fetchWaterTemp,
     fetchUSGSData, getPoRFromHistory, estimateLFStage, makeGFPrediction,
     scoreShadowPredictions, storePrediction, validatePendingPredictions,
+    shadowLFFeedback, shadowOnlineRegression, shadowKalman,
+    runServerShadowModels, loadShadowModelState, saveShadowModelState,
 };
 
 // Main handler
@@ -1424,6 +1639,20 @@ exports.handler = async (event, context) => {
             console.log('Making new prediction...');
             prediction = makeGFPrediction(usgsData, fullHistory, waterTempC);
             if (prediction) {
+                // Run server-side shadow models and attach before storing
+                try {
+                    const shadowState = await loadShadowModelState(client);
+                    const porRiseRate = getPoRRiseRateFromHistory(fullHistory);
+                    const shadowResults = runServerShadowModels(
+                        prediction.predictedCFS, usgsData, prediction, porRiseRate, shadowState
+                    );
+                    prediction.shadowModels = shadowResults;
+                    await saveShadowModelState(client, shadowState);
+                    console.log(`🏇 Server shadow: LF=${shadowResults.lfFeedback}, Reg=${shadowResults.onlineRegression}, Kal=${shadowResults.kalman}`);
+                } catch (e) {
+                    console.warn('Shadow model execution failed (non-fatal):', e.message);
+                }
+
                 await storePrediction(client, prediction);
                 console.log(`📊 New prediction: ${prediction.predictedCFS} cfs (${prediction.flowBin}, ${prediction.flowState})`);
 

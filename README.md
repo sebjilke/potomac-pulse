@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v35.3 (May 2026)
+**Current Version**: v35.4 (May 2026)
 
 ## Quick Start
 
@@ -19,7 +19,7 @@ npm install          # Install Supabase dependency
 Frontend (PWA)                    Netlify Functions (Backend)
 ┌──────────────────┐              ┌──────────────────────────┐
 │ index.html (SPA) │─── API ────→│ sync-learning.js         │
-│  All HTML/CSS/JS │              │ scheduled-update.js (2h) │
+│  All HTML/CSS/JS │              │ scheduled-update.js (1h) │
 │  Leaflet.js maps │              └──────────┬───────────────┘
 └──────────────────┘                         │
                                    ┌─────────┼──────────┐
@@ -52,11 +52,11 @@ files/potomac-site/
 └── netlify/functions/
     ├── shared/model.js           # Shared server module (Supabase init, flow bins, rating curve)
     ├── sync-learning.js          # Cloud sync API (learning data, predictions, PoR/GF history)
-    ├── scheduled-update.js       # 2-hour background job (data collection, validation, predictions)
+    ├── scheduled-update.js       # Hourly background job (data collection, validation, predictions, shadow models)
     └── [analysis tools]          # EF correlation, stage errors, travel time validation
 ```
 
-## Current Model (v35.3)
+## Current Model (v35.4)
 
 All estimation parameters validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits.
 
@@ -99,7 +99,7 @@ All estimation parameters validated on **117,704 hourly observations** (2011–2
 
 The model learns per-bin bias corrections via EMA (α=0.3) across 18 bins (6 flow ranges × 3 flow states). Key design:
 
-- **Validation**: Server-only, every 2h. Validates predicted GF against actual LF discharge.
+- **Validation**: Server-only, every hour. Validates predicted GF against actual LF discharge.
 - **Anomaly detection**: Two-tier — hard flags (data corruption) skip learning; soft flags (model disagreement) included with ±2σ clamping.
 - **Timing guard**: Rejects validations >2.5h late (flow conditions have changed).
 - **No Seneca subtraction**: Validates against raw LF; correction naturally absorbs tributary + ungauged area signal.
@@ -145,7 +145,7 @@ return 'steady';
 
 ### Scheduled Function (scheduled-update.js)
 
-Runs every 2 hours: fetch USGS data → validate pending predictions (2.5h window) → make new prediction → update health metrics → store PoR/GF history. Learning suspended during ice conditions.
+Runs every hour: fetch USGS data → validate pending predictions (2.5h window) → make new prediction → run server-side shadow models → update health metrics → store PoR/GF history. Learning suspended during ice conditions.
 
 ## Deployment
 
@@ -176,6 +176,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v35.4 | 2026-05-27 | Server-side shadow models. Move all three shadow model horse race estimators (LF Feedback, Online Regression, Kalman Filter) from client browser to server cron function. Eliminates selection bias (shadow scores were only attached when browser was open, oversampling storms). State persisted in Supabase. Leaderboard reset on first server-side validation round via `gf_metadata.shadowServerMigration`. Client Learning tab display unchanged. `estimateLFStage` moved to `shared/model.js`. |
 | v35.3 | 2026-05-23 | How It Works tab and Technical Appendix overhaul. Restructured tab from 10+ flat sections to 2 clear sections (Nowcast + Forecast) with flow diagram. Tech Appendix: added executive summary, removed superseded optimization sections (v27.0/v29.0), added §8.6 Forecast Validation, extracted version history to CHANGELOG.md. |
 | v35.1 | 2026-05-23 | Hierarchical correction fallback for sparse bins. When a flow-bin × flow-state has <5 observations, `getGFCorrection()` falls back: (1) pooled states in same bin, (2) adjacent bin same state, (3) return 0. Linear blending (`weight=count/5`) for smooth transition. Read-side only. Pure helpers extracted to `shared/model.js` + `shared-model.js`. 13 new tests (102 total). |
 | v35.0 | 2026-05-06 | Flow-state classification: widened the PoR lookback window from 2h to 6h in `getFlowState()` and `getPoRRiseRate()`. Diagnostic on 117k hourly obs (2011–2026) showed the prior 2h+max(100, 2%) rule classified ~99% of baseflow as steady (3 rising / 87 steady / 3 falling in production). 6h lookback at the same threshold gives a hydrologically realistic distribution across all flow regimes (~19/45/36 dataset-wide; storm months 25–55% non-steady; drought months 80% steady). All `gf_correction_bin` rows reset, plus `gf_prediction:pending`, shadow leaderboard, and contaminated learning fields in `gf_metadata` (operational health stats preserved). Bins repopulate over 1–2 weeks; high-flow rising bins may take longer in dry periods. **Side effect on wave celerity:** `getPoRRiseRate.ratePerHour` is now smoothed over 6h instead of 2h, reducing wave-celerity travel-time reductions on flashy sub-6h rises; deliberate accepted change. Threshold (`max(100, q×2%)`) and per-bin EMA logic unchanged. See `analysis/flow_state_window_diagnostic.md`. |

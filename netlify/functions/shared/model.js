@@ -222,6 +222,29 @@ const TRIB_FALLBACK = {
     seneca: 0.0087
 };
 
+// --- LF stage from flow (inverse rating curve) ---
+// Based on USGS field measurements at Little Falls (01646500), 2015-2025
+// SYNC WARNING: Client copy exists in index.html — keep in sync!
+function estimateLFStage(cfs) {
+    if (cfs < 600) return 2.40 + (cfs / 600) * 0.06;
+    if (cfs < 1300) return 2.46 + ((cfs - 600) / 700) * 0.23;
+    if (cfs < 2000) return 2.69 + ((cfs - 1300) / 700) * 0.14;
+    if (cfs < 2600) return 2.83 + ((cfs - 2000) / 600) * 0.13;
+    if (cfs < 3200) return 2.96 + ((cfs - 2600) / 600) * 0.13;
+    if (cfs < 3600) return 3.09 + ((cfs - 3200) / 400) * 0.07;
+    if (cfs < 4200) return 3.16 + ((cfs - 3600) / 600) * 0.07;
+    if (cfs < 5000) return 3.23 + ((cfs - 4200) / 800) * 0.12;
+    if (cfs < 5700) return 3.35 + ((cfs - 5000) / 700) * 0.11;
+    if (cfs < 7500) return 3.46 + ((cfs - 5700) / 1800) * 0.21;
+    if (cfs < 10000) return 3.67 + ((cfs - 7500) / 2500) * 0.28;
+    if (cfs < 13000) return 3.95 + ((cfs - 10000) / 3000) * 0.34;
+    if (cfs < 28000) return 4.29 + ((cfs - 13000) / 15000) * 1.21;
+    if (cfs < 50000) return 5.50 + ((cfs - 28000) / 22000) * 1.29;
+    if (cfs < 80000) return 6.79 + ((cfs - 50000) / 30000) * 1.57;
+    if (cfs < 150000) return 8.36 + ((cfs - 80000) / 70000) * 2.57;
+    return 10.93 + ((cfs - 150000) / 100000) * 2.5;
+}
+
 module.exports = {
     getSupabase,
     GF_FLOW_BINS, getFlowBin,
@@ -233,5 +256,6 @@ module.exports = {
     getPoRRiseRateFromHistory,
     CEILING_RATIO, DECAY_CAP,
     TRIB_FALLBACK,
-    getBinCorrection, getFallbackCorrection
+    getBinCorrection, getFallbackCorrection,
+    estimateLFStage
 };
