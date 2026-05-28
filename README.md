@@ -8,7 +8,6 @@ Real-time Potomac River flow tracking and Great Falls water level predictions fo
 ## Quick Start
 
 ```bash
-cd files/potomac-site
 npm install          # Install Supabase dependency
 # Deploy: git push origin main (auto-deploys via Netlify)
 ```
@@ -32,7 +31,6 @@ Frontend (PWA)                    Netlify Functions (Backend)
 ## File Structure
 
 ```
-files/potomac-site/
 ├── index.html                    # HTML shell (tabs, layout, footer)
 ├── src/                          # Vite source modules
 │   ├── main.js                   # Entry point
@@ -54,6 +52,7 @@ files/potomac-site/
     ├── sync-learning.js          # Cloud sync API (learning data, predictions, PoR/GF history)
     ├── scheduled-update.js       # Hourly background job (data collection, validation, predictions, shadow models)
     └── [analysis tools]          # EF correlation, stage errors, travel time validation
+├── analysis/                         # Model calibration scripts, audit reports (CSVs gitignored — reproducible from scripts)
 ```
 
 ## Current Model (v35.4)
@@ -220,4 +219,4 @@ See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–
 
 ---
 
-*Last updated: 2026-05-23 (v35.3 — How It Works tab and Technical Appendix overhaul)*
+*Last updated: 2026-05-27 (v35.4 — folder reorganization, server-side shadow models)*

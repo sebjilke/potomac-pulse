@@ -1,0 +1,25 @@
+Gradient Weight Optimization Results (R, 117k hourly dataset)
+==============================================================
+Date: 2026-02-19 19:25:49 
+Dataset: /Users/sebjilke/Desktop/PotomacPulse/analysis/hourly_backtest_data.csv 
+Total rows: 117704 
+Valid rows: 117704 
+Date range: 2011-12-01 08:00:00 to 2026-02-19 18:00:00 
+
+OPTIMAL WEIGHTS:
+       0 cfs: w = 0.04
+    3000 cfs: w = 0.15
+    6000 cfs: w = 0.35
+   10000 cfs: w = 0.35
+   15000 cfs: w = 0.35
+   25000 cfs: w = 0.35
+   50000 cfs: w = 0.35
+
+Overall RMSE (optimized): 2604.37 cfs
+Overall RMSE (v29 flat 35%): 2603.67 cfs
+Overall RMSE (PoR-only): 3844.26 cfs
+Improvement over v29: -0.70 cfs (-0.0%)
+
+CV weighted RMSE (optimized): 2644.94 cfs
+CV weighted RMSE (v29): 2597.44 cfs
+CV improvement: -47.50 cfs (-1.8%)

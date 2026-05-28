@@ -12,3 +12,10 @@ dist/
 
 # Local Netlify folder
 .netlify
+
+# Claude Code session data
+.claude/
+
+# Analysis data files (reproducible from scripts)
+analysis/*.csv
+analysis/*.json
