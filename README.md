@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v35.4 (May 2026)
+**Current Version**: v35.5 (June 2026)
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ Frontend (PWA)                    Netlify Functions (Backend)
 ├── analysis/                         # Model calibration scripts, audit reports (CSVs gitignored — reproducible from scripts)
 ```
 
-## Current Model (v35.4)
+## Current Model (v35.5)
 
 All estimation parameters validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits.
 
@@ -175,6 +175,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v35.5 | 2026-06-01 | Client-side flow-state & graph robustness fix. Nowcast could show a false RISING trend and a graph spike from a stale/out-of-order/glitch entry in browser `localStorage` PoR/GF history (server data unaffected). Hardened interpretation without discarding readings: `getPoRRiseRate()` uses median-of-record for current + 6h-ago readings (≥3 pts in window, 3–9h baseline, else NWS fallback); `getPoRFromHoursAgo()` uses outlier-resistant selection returning a real entry; record functions stay timestamp-sorted, replace (not drop) the freshest reading, reject only >500k cfs; server history self-heals local drift on merge; graph has a display-only spike filter. Pure helpers in `rise-rate-robust.mjs`, 16 new tests. Server estimation untouched. No model-output change for clean inputs. |
 | v35.4 | 2026-05-27 | Server-side shadow models. Move all three shadow model horse race estimators (LF Feedback, Online Regression, Kalman Filter) from client browser to server cron function. Eliminates selection bias (shadow scores were only attached when browser was open, oversampling storms). State persisted in Supabase. Leaderboard reset on first server-side validation round via `gf_metadata.shadowServerMigration`. Client Learning tab display unchanged. `estimateLFStage` moved to `shared/model.js`. |
 | v35.3 | 2026-05-23 | How It Works tab and Technical Appendix overhaul. Restructured tab from 10+ flat sections to 2 clear sections (Nowcast + Forecast) with flow diagram. Tech Appendix: added executive summary, removed superseded optimization sections (v27.0/v29.0), added §8.6 Forecast Validation, extracted version history to CHANGELOG.md. |
 | v35.1 | 2026-05-23 | Hierarchical correction fallback for sparse bins. When a flow-bin × flow-state has <5 observations, `getGFCorrection()` falls back: (1) pooled states in same bin, (2) adjacent bin same state, (3) return 0. Linear blending (`weight=count/5`) for smooth transition. Read-side only. Pure helpers extracted to `shared/model.js` + `shared-model.js`. 13 new tests (102 total). |
@@ -219,4 +220,4 @@ See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–
 
 ---
 
-*Last updated: 2026-05-27 (v35.4 — folder reorganization, server-side shadow models)*
+*Last updated: 2026-06-01 (v35.5 — client-side flow-state & graph robustness fix)*

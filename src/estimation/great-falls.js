@@ -19,6 +19,9 @@ import {
 
 import { recordPoRReading } from '../data/history.js';
 import { estimateGFFromEdwardsFerry, getEdwardsFerryTrend } from '../estimation/edwards-ferry.js';
+import {
+    robustCurrentReading, robustPastReading, selectHistoricReading
+} from './rise-rate-robust.mjs';
 
 // ==================== TRAVEL TIME HELPERS ====================
 
@@ -124,18 +127,12 @@ export function getPoRFromHoursAgo(hoursAgo) {
 
     const targetTime = Date.now() - (hoursAgo * 60 * 60 * 1000);
 
-    let closest = null;
-    let closestDiff = Infinity;
+    // Outlier-resistant pick within ±1h of the target: drops a lone glitch entry
+    // (which would otherwise inflate the PoR-delta correction) but returns a real
+    // entry intact, so cfs↔timestamp stay consistent (no value-smearing/limb bias).
+    const closest = selectHistoricReading(porHistory, targetTime);
 
-    for (const entry of porHistory) {
-        const diff = Math.abs(entry.timestamp - targetTime);
-        if (diff < closestDiff) {
-            closestDiff = diff;
-            closest = entry;
-        }
-    }
-
-    if (closest && closestDiff < 60 * 60 * 1000) {
+    if (closest) {
         return {
             cfs: closest.cfs,
             stage: closest.stage,
@@ -153,28 +150,38 @@ export function getPoRFromHoursAgo(hoursAgo) {
     return null;
 }
 
+// DELIBERATE DIVERGENCE from the server's getPoRRiseRateFromHistory() in
+// netlify/functions/shared/model.js: this client copy uses median-of-record for
+// BOTH the current and 6h-ago readings, because the client's porHistory is merged
+// from noisy localStorage (stale / out-of-order / glitch entries that can survive
+// up to 72h). The server input is rebuilt fresh from USGS and pre-sorted each
+// cron, so it does not need this. The rising/falling/steady THRESHOLDS stay
+// identical to the server — only the reading SELECTION is hardened here.
 export function getPoRRiseRate() {
     if (porHistory.length < 4) return null;
 
     const now = Date.now();
-    const sixHoursAgo = now - (6 * 60 * 60 * 1000);
 
-    let pastReading = null;
-    for (const entry of porHistory) {
-        if (entry.timestamp <= sixHoursAgo) {
-            pastReading = entry;
-        }
-    }
+    // Robust "current": median over a trailing ~90 min window. A single stale or
+    // glitch entry sitting last can no longer be mistaken for the current level.
+    // Too few recent points → null → estimateGreatFalls() falls back to NWS trend.
+    const currentReading = robustCurrentReading(porHistory, now);
+    if (!currentReading) return null;
 
+    // Robust "past" ~6h ago, hardened the same way (a glitch at the 6h mark would
+    // flip the sign just as easily as one at the current mark).
+    const pastReading = robustPastReading(porHistory, now, currentReading.timestamp);
     if (!pastReading) return null;
 
-    const currentReading = porHistory[porHistory.length - 1];
+    const hoursDiff = (currentReading.timestamp - pastReading.timestamp) / (60 * 60 * 1000);
+    // Reject degenerate baselines (clustered history / clock skew) → NWS fallback.
+    if (!(hoursDiff >= 3 && hoursDiff <= 9)) return null;
+
     const currentCFS = currentReading.cfs;
     const pastCFS = pastReading.cfs;
 
     const changeCFS = currentCFS - pastCFS;
     const changePercent = (changeCFS / pastCFS) * 100;
-    const hoursDiff = (currentReading.timestamp - pastReading.timestamp) / (60 * 60 * 1000);
     const ratePerHour = changePercent / hoursDiff;
 
     const absChange = Math.abs(changeCFS);

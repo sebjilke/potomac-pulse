@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test 'test/**/*.test.js'"
+    "test": "node --test 'test/**/*.test.js' 'test/**/*.test.mjs'"
   },
   "dependencies": {
     "@sentry/browser": "^10.40.0",

@@ -157,6 +157,13 @@ const DECAY_CAP = 0.50;
 // Server equivalent of client's getPoRRiseRate() in great-falls.js.
 // Used by makeGFPrediction() to apply wave celerity travel time reduction.
 // history: array of { timestamp, cfs } sorted ascending (oldest first)
+//
+// DELIBERATE DIVERGENCE (do NOT "resync" by reverting): the client copy uses
+// median-of-record selection for current/past readings because it merges noisy
+// localStorage. This server copy keeps the simple last-entry / closest-to-6h
+// selection because its `history` is rebuilt fresh from USGS and pre-sorted each
+// cron — clean by construction. Only the rising/falling/steady THRESHOLDS must
+// stay identical across the two (they do).
 
 function getPoRRiseRateFromHistory(history) {
     if (!history || history.length < 4) return null;

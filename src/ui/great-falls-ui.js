@@ -25,6 +25,7 @@ import { fmtArrival } from '../data/fetch.js';
 import { storeGFPrediction, checkGFValidations, storeForecastPredictions } from '../learning/gf-learning.js';
 import { renderForecastGraph, getForecastGraphData, getGraphScales } from '../ui/forecast-graph.js';
 import { updateShadowModelUI } from '../ui/learning-ui.js';
+import { dropLocalSpikes } from '../estimation/rise-rate-robust.mjs';
 
 // Forward declaration
 let _updateGFLearningUI = null;
@@ -485,8 +486,11 @@ export function updateForecastPeriods(gfEst) {
         `;
     }).join('');
 
-    // Build GF history for graph
-    const gfHistoryPoints = gfHistory.map(entry => {
+    // Build GF history for graph. Drop isolated local spikes from the PLOT only
+    // (display filter — never deletes stored history) so a stale/glitch estimate
+    // left in localStorage can't render as a spike. Applied before appending the
+    // live "now" point so the current estimate is always shown.
+    let gfHistoryPoints = gfHistory.map(entry => {
         const hrsAgo = (Date.now() - entry.timestamp) / 3600000;
         return {
             hrs: -hrsAgo,
@@ -496,6 +500,8 @@ export function updateForecastPeriods(gfEst) {
             isHistory: true
         };
     }).sort((a, b) => a.hrs - b.hrs);
+
+    gfHistoryPoints = dropLocalSpikes(gfHistoryPoints, { frac: 0.40, key: 'cfs' });
 
     if (gfHistoryPoints.length > 0) {
         gfHistoryPoints.push({
