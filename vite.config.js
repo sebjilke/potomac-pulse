@@ -6,5 +6,6 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    sourcemap: true, // ship source maps so Sentry stack traces map to source
   },
 });

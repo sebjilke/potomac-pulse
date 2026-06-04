@@ -244,11 +244,6 @@ export async function loadForecastAccuracy() {
     }
 }
 
-// ==================== VALIDATION ====================
-
-// v34.0: Client-side validation disabled — server is single source of truth
-export async function checkGFValidations() { return; }
-
 // ==================== ADMIN RESET ====================
 
 // Reset GF learning data (System 2) on server

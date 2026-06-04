@@ -22,7 +22,7 @@ import { estimateGFFromEdwardsFerry } from '../estimation/edwards-ferry.js';
 import { runShadowModels } from '../estimation/shadow-models.js';
 import { recordGFEstimate } from '../data/history.js';
 import { fmtArrival } from '../data/fetch.js';
-import { storeGFPrediction, checkGFValidations, storeForecastPredictions } from '../learning/gf-learning.js';
+import { storeGFPrediction, storeForecastPredictions } from '../learning/gf-learning.js';
 import { renderForecastGraph, getForecastGraphData, getGraphScales } from '../ui/forecast-graph.js';
 import { updateShadowModelUI } from '../ui/learning-ui.js';
 import { dropLocalSpikes } from '../estimation/rise-rate-robust.mjs';
@@ -248,11 +248,9 @@ export function updateGreatFallsUI() {
     // Update 48-hour forecast periods (6-hour intervals)
     updateForecastPeriods(gfEstimate);
 
-    // GF Learning: Run async operations in parallel (fire-and-forget)
-    Promise.all([
-        storeGFPrediction(gfEstimate),
-        checkGFValidations()
-    ]).catch(e => console.warn('GF learning error:', e));
+    // GF Learning: store the prediction (fire-and-forget). Validation/EMA learning
+    // is server-only (cron validatePendingPredictions) — the client no longer validates.
+    storeGFPrediction(gfEstimate).catch(e => console.warn('GF learning error:', e));
 
     // Update GF learning status display
     if (_updateGFLearningUI) _updateGFLearningUI();

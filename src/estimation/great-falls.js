@@ -3,8 +3,8 @@
 
 import {
     LF, TRAVEL_POR_GF_BASELINE, TRAVEL_GF_LF_BASELINE,
-    GOOSE_CREEK_PCT, EF_MODEL, EMPIRICAL_CI_90,
-    GF_OUTLIER_THRESHOLD, POR_HISTORY_MAX_AGE
+    TRIB_FALLBACK, DECAY_CAP, EF_DISCREPANCY_MAX, CEILING_RATIO,
+    EMPIRICAL_CI_90, GF_OUTLIER_THRESHOLD
 } from '../model/constants.js';
 
 import {
@@ -379,10 +379,10 @@ export function estimateGreatFalls() {
 
     const riseRate = getPoRRiseRate();
 
-    const monocacyFlow = monocacy?.q || (lf.q * 0.071);
-    const gooseFlow = goose?.q || (lf.q * GOOSE_CREEK_PCT);
-    const broadRunFlow = broadRun?.q || (lf.q * 0.0066);
-    const senecaFlow = seneca?.q || (lf.q * 0.0087);
+    const monocacyFlow = monocacy?.q || (lf.q * TRIB_FALLBACK.monocacy);
+    const gooseFlow = goose?.q || (lf.q * TRIB_FALLBACK.goose);
+    const broadRunFlow = broadRun?.q || (lf.q * TRIB_FALLBACK.broadRun);
+    const senecaFlow = seneca?.q || (lf.q * TRIB_FALLBACK.seneca);
 
     // Iterative travel time calculation
     let travelPoRtoGF = getPoRtoGFTravelTime(mult, riseRate);
@@ -430,7 +430,7 @@ export function estimateGreatFalls() {
 
         if (Math.abs(porChangePct) > 5) {
             const fractionElapsed = Math.min(1.0, (timeShiftedHoursAgo || 0) / Math.max(1, travelPoRtoGF));
-            const decayFactor = Math.min(0.50, Math.sqrt(fractionElapsed));
+            const decayFactor = Math.min(DECAY_CAP, Math.sqrt(fractionElapsed));
 
             const appliedRatio = 1 + (porChangeRatio - 1) * decayFactor;
             const rawEstimate = estimatedCFS;
@@ -476,7 +476,7 @@ export function estimateGreatFalls() {
         const efWeight = getEFWeight(porEstimateCFS);
 
         const discrepancy = Math.abs(efEstimate.cfs - porEstimateCFS) / porEstimateCFS;
-        if (discrepancy > 0.50) {
+        if (discrepancy > EF_DISCREPANCY_MAX) {
             console.log(`⚠️ Skipping EF ensemble: ${Math.round(discrepancy*100)}% discrepancy ` +
                 `(EF: ${efEstimate.cfs} vs PoR: ${Math.round(porEstimateCFS)})`);
             estimatedCFS = porEstimateCFS;
@@ -493,9 +493,8 @@ export function estimateGreatFalls() {
         estimatedCFS = porEstimateCFS;
     }
 
-    // Soft LF ceiling (120%)
+    // Soft LF ceiling (120%) — CEILING_RATIO imported from constants.js
     let ceilingApplied = false;
-    const CEILING_RATIO = 1.20;
     if (lf?.q > 0) {
         const maxEstimate = lf.q * CEILING_RATIO;
         if (estimatedCFS > maxEstimate) {

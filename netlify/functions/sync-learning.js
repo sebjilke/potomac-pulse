@@ -1,7 +1,7 @@
 // Potomac Forecaster - Secure Supabase Sync Function
 // Handles learning data sync without exposing credentials to client
 
-const { getSupabase, GF_FLOW_BINS, getFlowBin, estimateLFFlowFromStage } = require('./shared/model');
+const { getSupabase, GF_FLOW_BINS } = require('./shared/model');
 
 // Admin PIN from environment variable (no hardcoded fallback for security)
 const ADMIN_PIN = process.env.ADMIN_PIN;
@@ -340,7 +340,7 @@ async function saveLearningData(client, data) {
 // ==================== GREAT FALLS LEARNING ====================
 // Handles GF predictions, validations, and correction bins
 
-// GF_FLOW_BINS, getFlowBin, estimateLFFlowFromStage imported from ./shared/model
+// GF_FLOW_BINS imported from ./shared/model
 
 // Load GF learning data from Supabase
 async function loadGFLearningData(client) {
@@ -544,235 +544,9 @@ async function saveGFLearningData(client, data) {
             result = { success: true, action: 'storeForecastPredictions', count: forecasts.length };
         }
 
-        // Action: Record a validation (compare prediction to actual)
-        if (action === 'recordValidation') {
-            const { predictionId, actualCFS, lfCFS, senecaCFS, actualStage, efEstimateCFS } = data;
-
-            // Sanity check: Reject validation if actualCFS is unrealistic
-            // (gauge malfunction, freezing, or data error)
-            if (!actualCFS || actualCFS < 500 || actualCFS > 500000) {
-                return {
-                    statusCode: 400,
-                    headers,
-                    body: JSON.stringify({
-                        error: 'Invalid actualCFS value',
-                        reason: 'Outside valid range (500-500k cfs) - possible gauge malfunction'
-                    })
-                };
-            }
-
-            // Get the pending prediction
-            const { data: predictions, error: fetchErr } = await client
-                .from('potomac_observations')
-                .select('id, data')
-                .eq('observation_type', 'gf_prediction')
-                .eq('gauge_id', 'pending')
-                .order('created_at', { ascending: true })
-                .limit(1);
-
-            if (fetchErr) throw fetchErr;
-
-            if (predictions && predictions.length > 0) {
-                const pred = predictions[0];
-                const predictedCFS = pred.data.predictedCFS;
-                const errorCFS = predictedCFS - actualCFS;
-                const errorPercent = (errorCFS / actualCFS) * 100;
-                const flowBin = pred.data.flowBin;
-                const flowState = pred.data.flowState || 'steady';
-
-                // ============================================
-                // TWO-TIER ANOMALY DETECTION (v33.0)
-                // Hard flags: physical data corruption → skip learning AND accuracy
-                // Soft flags: model disagreement → INCLUDE in learning (with EMA clamp) AND accuracy
-                // USGS ice flags are separate (upstream) — anomaly detection only runs on clean data
-                // ============================================
-                let hardScore = 0;
-                let softScore = 0;
-                const anomalyFlags = [];
-
-                // Check 1: EF cross-check → SOFT (model disagreement, not data corruption)
-                const efEstimate = efEstimateCFS || pred.data.efEstimateCFS;
-                if (efEstimate && actualCFS) {
-                    const efDiscrepancy = (efEstimate - actualCFS) / actualCFS;
-                    if (efDiscrepancy > 0.25) {  // v33.0: standardized to 0.25 (was 0.30)
-                        softScore += 2;
-                        anomalyFlags.push(`EF_DISCREPANCY:${(efDiscrepancy * 100).toFixed(0)}%`);
-                    }
-                }
-
-                // Check 2: Stage-discharge inconsistency → HARD (LF data corrupted)
-                if (actualStage && actualCFS) {
-                    const expectedFlowFromStage = estimateLFFlowFromStage(actualStage);
-                    if (expectedFlowFromStage > 0) {
-                        const stageDiscrepancy = (expectedFlowFromStage - actualCFS) / actualCFS;
-                        if (stageDiscrepancy > 0.35) {
-                            hardScore += 2;
-                            anomalyFlags.push(`STAGE_DISCHARGE:expected=${Math.round(expectedFlowFromStage)},actual=${Math.round(actualCFS)},disc=${(stageDiscrepancy*100).toFixed(0)}%`);
-                        }
-                    }
-                }
-
-                // Check 3: Low flow + high stage → HARD (classic ice signature)
-                if (actualCFS < 1500 && actualStage > 2.45) {
-                    hardScore += 2;  // v33.0: standardized to +2 (was +1)
-                    anomalyFlags.push(`LOW_FLOW_HIGH_STAGE:${Math.round(actualCFS)}cfs@${actualStage}ft`);
-                }
-
-                // Check 4: Large prediction error → SOFT (model error, not data corruption)
-                if (Math.abs(errorPercent) > 50) {
-                    softScore += 1;
-                    anomalyFlags.push(`LARGE_ERROR:${errorPercent.toFixed(0)}%`);
-                }
-
-                // Update correction bin
-                const binKey = `${flowBin}_${flowState}`;
-                const { data: existingBin } = await client
-                    .from('potomac_observations')
-                    .select('data')
-                    .eq('observation_type', 'gf_correction_bin')
-                    .eq('gauge_id', binKey)
-                    .single();
-
-                const binData = existingBin?.data || {
-                    count: 0, sumError: 0, sumErrorSq: 0, meanError: 0, emaMeanError: 0
-                };
-
-                // Check 5: Statistical outlier → HARD (transient event, not systematic bias)
-                const EMA_ALPHA = 0.3;
-                let isOutlier = false;
-
-                if (binData.count >= 10) {
-                    const variance = (binData.sumErrorSq / binData.count) - (binData.meanError * binData.meanError);
-                    const stdDev = Math.sqrt(Math.max(0, variance));
-                    if (stdDev > 0) {
-                        const zScore = Math.abs((errorCFS - binData.meanError) / stdDev);
-                        isOutlier = zScore > 3;
-                        if (isOutlier) {
-                            hardScore += 2;  // v33.0: statistical outliers are hard flags
-                            anomalyFlags.push(`STATISTICAL_OUTLIER:z=${zScore.toFixed(1)}`);
-                        }
-                    }
-                }
-
-                // v33.0: Two-tier flag determination
-                const isHardFlagged = hardScore >= 2;
-                const isSoftFlagged = !isHardFlagged && softScore >= 2;
-                const skipLearning = isHardFlagged;  // Only hard flags skip learning
-
-                if (isHardFlagged) {
-                    console.log(`🧊 HARD FLAG (score=${hardScore}): ${anomalyFlags.join(', ')}`);
-                    console.log(`   LF reading: ${Math.round(actualCFS)} cfs — skipping learning + accuracy`);
-                } else if (isSoftFlagged) {
-                    console.log(`⚠️ SOFT FLAG (score=${softScore}): ${anomalyFlags.join(', ')}`);
-                    console.log(`   LF reading: ${Math.round(actualCFS)} cfs — included in learning (EMA clamped) + accuracy`);
-                }
-
-                // v34.0: Correction bin updates disabled in client path
-                // Server-side validatePendingPredictions() is the single source of truth
-                // for EMA bin updates and EF correlation. This eliminates the client/server
-                // race condition where both paths independently updated the same bins,
-                // metadata counters, and EF correlation data.
-
-                // Delete validated prediction (unique constraint prevents status-move pattern)
-                // Learning data is persisted in correction bins and metadata
-                await client.from('potomac_observations')
-                    .delete()
-                    .eq('id', pred.id);
-
-                // Update metadata
-                const { data: meta } = await client
-                    .from('potomac_observations')
-                    .select('data')
-                    .eq('observation_type', 'gf_metadata')
-                    .eq('gauge_id', 'system')
-                    .single();
-
-                const metaData = meta?.data || { totalValidations: 0, totalPredictions: 0, sumAbsErrorPercent: 0 };
-
-                // v33.0 one-time migration: reset accuracy counters for two-tier system
-                // Map old flaggedValidations → hardFlaggedValidations, reset accuracy to start fresh
-                if (metaData.hardFlaggedValidations === undefined) {
-                    console.log(`🔄 v33.0 migration: initializing two-tier flagging counters`);
-                    metaData.hardFlaggedValidations = metaData.flaggedValidations || 0;
-                    metaData.softFlaggedValidations = 0;
-                    // Reset accuracy counters — old data mixed hard+soft in ways we can't untangle
-                    metaData.validValidations = 0;
-                    metaData.sumAbsErrorPercent = 0;
-                    metaData.avgErrorPercent = null;
-                }
-
-                metaData.totalValidations += 1;
-                metaData.lastValidation = new Date().toISOString();
-
-                // v33.0: Two-tier anomaly tracking
-                if (isHardFlagged) {
-                    metaData.hardFlaggedValidations = (metaData.hardFlaggedValidations || 0) + 1;
-                    metaData.flaggedValidations = (metaData.flaggedValidations || 0) + 1;  // backward compat
-                    metaData.lastFlagged = new Date().toISOString();
-                    metaData.lastFlaggedReason = anomalyFlags.join(', ');
-                } else {
-                    // Both validated AND soft-flagged contribute to accuracy
-                    if (isSoftFlagged) {
-                        metaData.softFlaggedValidations = (metaData.softFlaggedValidations || 0) + 1;
-                    }
-                    metaData.validValidations = (metaData.validValidations || 0) + 1;
-                    metaData.sumAbsErrorPercent = (metaData.sumAbsErrorPercent || 0) + Math.abs(errorPercent);
-                }
-
-                // Compute accuracy from valid (non-hard-flagged) observations only
-                const validCount = metaData.validValidations || 0;
-                metaData.avgErrorPercent = validCount > 0 ? metaData.sumAbsErrorPercent / validCount : null;
-
-                await client.from('potomac_observations').upsert({
-                    observation_type: 'gf_metadata',
-                    gauge_id: 'system',
-                    data: metaData
-                }, { onConflict: 'observation_type,gauge_id' });
-
-                result = {
-                    success: true,
-                    action: 'recordValidation',
-                    errorCFS,
-                    errorPercent: errorPercent.toFixed(1),
-                    binUpdated: null,  // v34.0: server-only bin updates
-                    isOutlier,
-                    // v33.0 two-tier fields
-                    isHardFlagged,
-                    isSoftFlagged,
-                    hardScore,
-                    softScore,
-                    anomalyFlags,
-                    skipLearning,
-                    // Backward compat
-                    isSuspicious: isHardFlagged,
-                    suspiciousScore: hardScore + softScore,
-                    binCount: binData.count
-                };
-            } else {
-                result = { success: false, error: 'No pending prediction found' };
-            }
-        }
-
-        // Action: Update metadata (prediction count)
-        if (action === 'incrementPredictions') {
-            const { data: meta } = await client
-                .from('potomac_observations')
-                .select('data')
-                .eq('observation_type', 'gf_metadata')
-                .eq('gauge_id', 'system')
-                .single();
-
-            const metaData = meta?.data || { totalValidations: 0, totalPredictions: 0 };
-            metaData.totalPredictions += 1;
-
-            await client.from('potomac_observations').upsert({
-                observation_type: 'gf_metadata',
-                gauge_id: 'system',
-                data: metaData
-            }, { onConflict: 'observation_type,gauge_id' });
-
-            result = { success: true, action: 'incrementPredictions' };
-        }
+        // (v34.0) Client-side 'recordValidation' and 'incrementPredictions' actions removed:
+        // validation + EMA bin learning is server-only (scheduled-update.js
+        // validatePendingPredictions). No client code calls these actions.
 
         // Action: Reset low-flow bins only (ice-affected, v24)
         // Keeps higher flow bins which are less likely to be contaminated

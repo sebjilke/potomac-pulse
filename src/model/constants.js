@@ -120,7 +120,15 @@ export const MEDIAN_FLOW = 4940;
 export const MEDIAN_TRAVEL = 25.8;
 export const TRAVEL_POR_GF_BASELINE = 19.4;
 export const TRAVEL_GF_LF_BASELINE = 6.5;
-export const GOOSE_CREEK_PCT = 0.03;
+
+// Tributary inflow fallbacks (fraction of LF) used when a gauge is offline.
+// Mirrors server netlify/functions/shared/model.js TRIB_FALLBACK — keep in sync.
+export const TRIB_FALLBACK = { monocacy: 0.071, goose: 0.030, broadRun: 0.0066, seneca: 0.0087 };
+
+// Model guards — mirror server shared/model.js (keep values in sync).
+export const DECAY_CAP = 0.50;           // PoR-delta staleness: max fraction of change propagated
+export const EF_DISCREPANCY_MAX = 0.50;  // skip EF ensemble above this relative PoR/EF gap
+export const CEILING_RATIO = 1.20;       // soft LF ceiling: GF estimate ≤ 120% of LF actual
 
 // GF prediction/learning intervals
 export const GF_PREDICTION_INTERVAL = 30 * 60 * 1000;
@@ -154,4 +162,4 @@ export const NWS_LIDS = {
 };
 
 // PIN hash for learning panel access
-export const LEARN_PIN_HASH = "e97776493f213d50b346f81e3f93a78aad1fd0f19c051a38bd8f88b43e46e5b5";
+// Learning-panel PIN hash lives in src/ui/auth.js (this module no longer re-exports it).

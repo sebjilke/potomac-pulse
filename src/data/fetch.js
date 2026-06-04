@@ -216,14 +216,6 @@ export function processData(json) {
     calcTravelTimes();
 }
 
-// Legacy wrapper: process + render (used by error fallback path)
-export function process(json) {
-    processData(json);
-    updateUI();
-    updateLearningUI();
-    updateCreeksUI();
-}
-
 // Backfill PoR history from USGS time series data
 export function backfillPoRHistory(timeSeries) {
     if (!timeSeries?.length) return;
@@ -286,18 +278,6 @@ export function fillMissingData() {
             data[id].estimated = true;
         }
     }
-}
-
-export function useEst() {
-    const newData = { [LF.id]: { q: 7500, h: 3.5 } };
-    for (const [id, g] of Object.entries(GAUGES)) {
-        if (id !== LF.id) {
-            newData[id] = { q: Math.round((g.area/11560)*7500), h: 3.0 };
-        }
-    }
-    setData(newData);
-
-    calcTravelTimes();
 }
 
 // ==================== FETCH CREEK DATA ====================

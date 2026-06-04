@@ -241,6 +241,14 @@ function detectOutliers(pairs, model) {
 exports.handler = async (event, context) => {
     console.log('=== Advanced EF→LF Correlation (Limnologist Approach) ===');
 
+    // Admin gate: this endpoint triggers multi-month USGS pulls and (with ?save=true)
+    // writes to Supabase under the service-role key. Require the admin PIN.
+    const ADMIN_PIN = process.env.ADMIN_PIN;
+    const pin = event.queryStringParameters?.pin;
+    if (!ADMIN_PIN || pin !== ADMIN_PIN) {
+        return { statusCode: !ADMIN_PIN ? 503 : 403, body: JSON.stringify({ error: !ADMIN_PIN ? 'Admin PIN not configured' : 'Invalid PIN' }) };
+    }
+
     const months = parseInt(event.queryStringParameters?.months || '12');
     const saveToDb = event.queryStringParameters?.save === 'true';
 

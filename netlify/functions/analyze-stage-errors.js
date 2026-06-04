@@ -10,6 +10,13 @@ const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 exports.handler = async (event, context) => {
     console.log('=== Stage Error Analysis ===');
 
+    // Admin gate: diagnostic endpoint reads learning state via the service-role key.
+    const ADMIN_PIN = process.env.ADMIN_PIN;
+    const pin = event.queryStringParameters?.pin;
+    if (!ADMIN_PIN || pin !== ADMIN_PIN) {
+        return { statusCode: !ADMIN_PIN ? 503 : 403, body: JSON.stringify({ error: !ADMIN_PIN ? 'Admin PIN not configured' : 'Invalid PIN' }) };
+    }
+
     if (!supabaseUrl || !supabaseKey) {
         return { statusCode: 500, body: 'Supabase not configured' };
     }
