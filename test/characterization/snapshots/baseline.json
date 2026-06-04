@@ -1,0 +1,226 @@
+{
+  "low-steady-warm": {
+    "client": {
+      "cfs": 2735,
+      "stage": 2.99,
+      "flowState": "steady",
+      "confidence": "medium",
+      "useTimeShifted": false,
+      "useEfEnsemble": false,
+      "efWeight": null,
+      "flowBin": "0-3000",
+      "correction": 0,
+      "porEstimateCFS": 2735,
+      "historicPorCFS": null,
+      "ceilingApplied": false
+    },
+    "server": {
+      "predictedCFS": 2735,
+      "predictedStage": 2.99,
+      "flowState": "steady",
+      "useTimeShifted": false,
+      "useEfEnsemble": false,
+      "efWeight": null,
+      "flowBin": "0-3000",
+      "porEstimateCFS": 2735,
+      "historicPorCFS": null,
+      "ceilingApplied": false
+    }
+  },
+  "normal-steady-warm": {
+    "client": {
+      "cfs": 5419,
+      "stage": 3.42,
+      "flowState": "steady",
+      "confidence": "high",
+      "useTimeShifted": false,
+      "useEfEnsemble": true,
+      "efWeight": 0.02,
+      "flowBin": "3000-6000",
+      "correction": 0,
+      "porEstimateCFS": 5470,
+      "historicPorCFS": null,
+      "ceilingApplied": false
+    },
+    "server": {
+      "predictedCFS": 5419,
+      "predictedStage": 3.42,
+      "flowState": "steady",
+      "useTimeShifted": false,
+      "useEfEnsemble": true,
+      "efWeight": 0.02,
+      "flowBin": "3000-6000",
+      "porEstimateCFS": 5470,
+      "historicPorCFS": null,
+      "ceilingApplied": false
+    }
+  },
+  "elevated-rising-warm": {
+    "client": {
+      "cfs": 11999,
+      "stage": 4.18,
+      "flowState": "rising",
+      "confidence": "high",
+      "useTimeShifted": false,
+      "useEfEnsemble": true,
+      "efWeight": 0.35,
+      "flowBin": "12000-25000",
+      "correction": 0,
+      "porEstimateCFS": 14500,
+      "historicPorCFS": null,
+      "ceilingApplied": false
+    },
+    "server": {
+      "predictedCFS": 11999,
+      "predictedStage": 4.18,
+      "flowState": "rising",
+      "useTimeShifted": false,
+      "useEfEnsemble": true,
+      "efWeight": 0.35,
+      "flowBin": "6000-12000",
+      "porEstimateCFS": 14500,
+      "historicPorCFS": null,
+      "ceilingApplied": false
+    }
+  },
+  "high-falling-warm": {
+    "client": {
+      "cfs": 24723,
+      "stage": 5.24,
+      "flowState": "falling",
+      "confidence": "high",
+      "useTimeShifted": true,
+      "useEfEnsemble": true,
+      "efWeight": 0.4,
+      "flowBin": "25000-50000",
+      "correction": 0,
+      "porEstimateCFS": 28837,
+      "historicPorCFS": 31333,
+      "ceilingApplied": false
+    },
+    "server": {
+      "predictedCFS": 24723,
+      "predictedStage": 5.24,
+      "flowState": "falling",
+      "useTimeShifted": true,
+      "useEfEnsemble": true,
+      "efWeight": 0.4,
+      "flowBin": "12000-25000",
+      "porEstimateCFS": 28837,
+      "historicPorCFS": 31333,
+      "ceilingApplied": false
+    }
+  },
+  "cold-water-normal": {
+    "client": {
+      "cfs": 5425,
+      "stage": 3.42,
+      "flowState": "steady",
+      "confidence": "high",
+      "useTimeShifted": false,
+      "useEfEnsemble": true,
+      "efWeight": 0.02,
+      "flowBin": "3000-6000",
+      "correction": 0,
+      "porEstimateCFS": 5470,
+      "historicPorCFS": null,
+      "ceilingApplied": false
+    },
+    "server": {
+      "predictedCFS": 5425,
+      "predictedStage": 3.42,
+      "flowState": "steady",
+      "useTimeShifted": false,
+      "useEfEnsemble": true,
+      "efWeight": 0.02,
+      "flowBin": "3000-6000",
+      "porEstimateCFS": 5470,
+      "historicPorCFS": null,
+      "ceilingApplied": false
+    }
+  },
+  "with-learning-correction": {
+    "client": {
+      "cfs": 4556,
+      "stage": 3.28,
+      "flowState": "steady",
+      "confidence": "high",
+      "useTimeShifted": false,
+      "useEfEnsemble": true,
+      "efWeight": 0.01,
+      "flowBin": "3000-6000",
+      "correction": 900,
+      "porEstimateCFS": 4570,
+      "historicPorCFS": null,
+      "ceilingApplied": false
+    },
+    "server": {
+      "predictedCFS": 5419,
+      "predictedStage": 3.42,
+      "flowState": "steady",
+      "useTimeShifted": false,
+      "useEfEnsemble": true,
+      "efWeight": 0.02,
+      "flowBin": "3000-6000",
+      "porEstimateCFS": 5470,
+      "historicPorCFS": null,
+      "ceilingApplied": false
+    }
+  },
+  "glitch-history": {
+    "client": {
+      "cfs": 13500,
+      "stage": 4.33,
+      "flowState": "rising",
+      "confidence": "medium",
+      "useTimeShifted": false,
+      "useEfEnsemble": false,
+      "efWeight": null,
+      "flowBin": "12000-25000",
+      "correction": 0,
+      "porEstimateCFS": 13500,
+      "historicPorCFS": null,
+      "ceilingApplied": false
+    },
+    "server": {
+      "predictedCFS": 13500,
+      "predictedStage": 4.33,
+      "flowState": "rising",
+      "useTimeShifted": false,
+      "useEfEnsemble": false,
+      "efWeight": null,
+      "flowBin": "12000-25000",
+      "porEstimateCFS": 13500,
+      "historicPorCFS": null,
+      "ceilingApplied": false
+    }
+  },
+  "sparse-history": {
+    "client": {
+      "cfs": 5670,
+      "stage": 3.46,
+      "flowState": "steady",
+      "confidence": "medium",
+      "useTimeShifted": false,
+      "useEfEnsemble": false,
+      "efWeight": null,
+      "flowBin": "3000-6000",
+      "correction": 0,
+      "porEstimateCFS": 5670,
+      "historicPorCFS": null,
+      "ceilingApplied": false
+    },
+    "server": {
+      "predictedCFS": 5670,
+      "predictedStage": 3.46,
+      "flowState": "steady",
+      "useTimeShifted": false,
+      "useEfEnsemble": false,
+      "efWeight": null,
+      "flowBin": "3000-6000",
+      "porEstimateCFS": 5670,
+      "historicPorCFS": null,
+      "ceilingApplied": false
+    }
+  }
+}
