@@ -4,6 +4,20 @@
 
 ---
 
+## Tier 0: Travel-Time Recalibration (empirical analysis + model change)
+
+**Goal:** Replace the unverified `baseHrs` / `TRAVEL_POR_GF_BASELINE` (19.4h) / `TRAVEL_GF_LF_BASELINE` (6.5h) travel-time assumptions with values measured from raw gauge data. This is the only path that can improve the *estimate's* PoR time-shift (not just a display), and it supersedes the dead System 1 gauge-learning system.
+
+| # | Item | Effort | Notes |
+|---|------|--------|-------|
+| 0a | **Measure real travel times** | ~days | Cross-correlate raw USGS flow series (each upstream gauge ↔ Little Falls; PoR↔LF specifically for the estimate) across many rise events → measured lag-to-peak, flow-dependent. Derive defensible travel times. |
+| 0b | **Delete dead System 1 machinery** | ~1h | `toggleLearning` (orphaned, no `learnBtn` in DOM), `recordObservation`/`calculateCorrections`/cloud-write path, `learningEnabled` (permanently false since the 2026-02-28 Vite modularization dropped the toggle wiring). Keep the gauge travel-time *display*, now driven by recalibrated `baseHrs`. Snapshot net proves the estimate is invariant to this. |
+| 0c | **Set constants from the analysis, version-bump** | ~2h | Changing `TRAVEL_POR_GF_BASELINE` changes estimate output → deliberately re-baseline `test/characterization/snapshots/baseline.json`, MAJOR version bump, sync `index.html` ↔ `scheduled-update.js`. |
+
+**Why (evidence):** The 15 frozen System 1 factors skew systematically low (12/15 < 1.0, mean ≈ 0.935; PoR = 0.90) → `baseHrs` likely overestimates travel ~7%. But those factors are self-referential/noisy — not trustworthy enough to bake in directly. System 2's EMA bins show the *dominant* error is high-flow level over-prediction (25–50k rising +3273, steady +2336 cfs), **not** a clean travel-time phase bias — so the travel signal is real but secondary. Hence: measure it properly, don't fold the broken-system numbers.
+
+**Process (per CLAUDE.md):** Plan-first doc in `/analysis/` → independent auditor reviews plan → blind dual-language (Python + R must agree <0.01) → third-agent audit spot-checking ≥5 obs against live USGS → all outputs to `/analysis/` (`*_python.csv`, `*_R.csv`, `*_audit.md`).
+
 ## Tier 1: Security (Supabase Dashboard — no code)
 
 | # | Item | Effort | Notes |
@@ -55,4 +69,4 @@ All items below are done and verified. Kept for audit trail only.
 - **v25.0–v26.0**: PoR-delta correction, model recalibration
 - **v24.0–v24.16**: Security (XSS, USGS validation, timeouts, PIN env), UX (mobile, errors, map), accessibility (ARIA, keyboard, contrast), Vite modularization, automated tests, GitHub Actions CI, shared utilities, Sentry, rate limiting, CSP/SRI
 
-*Last updated: 2026-03-07 (v34.10)*
+*Last updated: 2026-06-04 — added Tier 0 (travel-time recalibration + System 1 retirement)*
