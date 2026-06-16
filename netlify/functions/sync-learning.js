@@ -1,7 +1,7 @@
 // Potomac Forecaster - Secure Supabase Sync Function
 // Handles learning data sync without exposing credentials to client
 
-const { getSupabase, GF_FLOW_BINS, isExistingPredictionReplaceable } = require('./shared/model');
+const { getSupabase, GF_FLOW_BINS, getFlowBin, isExistingPredictionReplaceable } = require('./shared/model');
 
 // Admin PIN from environment variable (no hardcoded fallback for security)
 const ADMIN_PIN = process.env.ADMIN_PIN;
@@ -84,6 +84,89 @@ function buildForecastRows(forecasts, timestamp) {
                 persistenceCFS: f.persistenceCFS ?? null
             }
         }));
+}
+
+// === Nested write-payload validation (C13) ===
+// validatePostBody only checks top-level fields, but the storePrediction and
+// storeForecastPredictions actions carry attacker-controllable NESTED payloads
+// that feed the learning bins. Bound them to sane ranges so the public, unauthenticated
+// write path can't poison the bins with absurd values. (The reset* actions are PIN-gated;
+// stronger auth is tracked separately as RLS + the client/server canonical-model decision.)
+const FLOW_STATES = ['rising', 'steady', 'falling'];
+const WRITE_CFS_MAX = 500000;        // matches the LF sanity ceiling used server-side
+const WRITE_STAGE_MAX = 60;          // ft — far above any real Potomac stage
+const MAX_FORECASTS = 16;            // client sends ~4 horizons; generous cap
+const PRED_DUE_MIN_OFFSET_MS = -3 * 60 * 60 * 1000;   // validationDue may be slightly past (retry/skew)
+const PRED_DUE_MAX_OFFSET_MS = 49 * 60 * 60 * 1000;   // ...up to the 48h horizon + slack
+const FCAST_TARGET_MAX_OFFSET_MS = 72 * 60 * 60 * 1000;
+
+function finiteInRange(x, lo, hi) {
+    return typeof x === 'number' && isFinite(x) && x >= lo && x <= hi;
+}
+
+// Returns an error string if the write payload is invalid, else null.
+function validateGFWritePayload(data, nowMs) {
+    const action = data && data.action;
+
+    if (action === 'storePrediction') {
+        const p = data.prediction;
+        if (!p || typeof p !== 'object') return 'prediction must be an object';
+        if (!finiteInRange(p.predictedCFS, 0, WRITE_CFS_MAX)) return 'prediction.predictedCFS out of range';
+        const dueMs = Date.parse(p.validationDue);
+        if (isNaN(dueMs) || dueMs < nowMs + PRED_DUE_MIN_OFFSET_MS || dueMs > nowMs + PRED_DUE_MAX_OFFSET_MS) {
+            return 'prediction.validationDue out of range';
+        }
+        // flowBin/flowState form the EMA bin key — require both present and in-vocabulary
+        // (the legit client always sends both) so no phantom 'null_*'/'undefined_*' bin can be created.
+        if (!GF_FLOW_BINS.includes(p.flowBin)) return 'prediction.flowBin invalid';
+        if (!FLOW_STATES.includes(p.flowState)) return 'prediction.flowState invalid';
+        // The bin key must be consistent with the predicted magnitude that defines it — the
+        // client derives flowBin from the same estimate. Allow same or adjacent bin (boundary
+        // rounding) but reject distant mismatches that would free-target an arbitrary bin to poison.
+        const expectedIdx = GF_FLOW_BINS.indexOf(getFlowBin(p.predictedCFS));
+        if (Math.abs(GF_FLOW_BINS.indexOf(p.flowBin) - expectedIdx) > 1) {
+            return 'prediction.flowBin inconsistent with predictedCFS';
+        }
+        for (const f of ['porCFS', 'monocacyCFS', 'gooseCFS']) {
+            if (p[f] != null && !finiteInRange(p[f], 0, WRITE_CFS_MAX)) return `prediction.${f} out of range`;
+        }
+        if (p.efStage != null && !finiteInRange(p.efStage, 0, WRITE_STAGE_MAX)) return 'prediction.efStage out of range';
+        if (p.predictedStage != null && !finiteInRange(p.predictedStage, 0, WRITE_STAGE_MAX)) return 'prediction.predictedStage out of range';
+        if (p.travelTimeGFtoLF != null && !finiteInRange(p.travelTimeGFtoLF, 0, 72)) return 'prediction.travelTimeGFtoLF out of range';
+        return null;
+    }
+
+    if (action === 'storeForecastPredictions') {
+        const fc = data.forecasts;
+        if (!Array.isArray(fc)) return 'forecasts must be an array';
+        if (fc.length > MAX_FORECASTS) return `too many forecasts (max ${MAX_FORECASTS})`;
+        const seenHorizons = new Set();
+        for (const f of fc) {
+            // Mirror buildForecastRows' filter: only entries with horizon+targetTime are stored.
+            if (!f || typeof f !== 'object' || !f.horizon || !f.targetTime) continue;
+            if (!Number.isInteger(f.horizon) || f.horizon < 1 || f.horizon > 72) return 'forecast.horizon invalid';
+            // Duplicate horizons in one batch collide on gauge_id (+Nh_<batchTs>) → DB insert
+            // fails as a whole; reject up front for a clean 400 instead of a 500.
+            if (seenHorizons.has(f.horizon)) return 'duplicate forecast horizon';
+            seenHorizons.add(f.horizon);
+            if (!finiteInRange(f.predictedCFS, 0, WRITE_CFS_MAX)) return 'forecast.predictedCFS out of range';
+            const tMs = Date.parse(f.targetTime);
+            if (isNaN(tMs) || tMs < nowMs + PRED_DUE_MIN_OFFSET_MS || tMs > nowMs + FCAST_TARGET_MAX_OFFSET_MS) {
+                return 'forecast.targetTime out of range';
+            }
+            if (f.predictedStage != null && !finiteInRange(f.predictedStage, 0, WRITE_STAGE_MAX)) return 'forecast.predictedStage out of range';
+            for (const b of ['nwsLfRawCFS', 'nwsLfBiasCorrectedCFS', 'persistenceCFS']) {
+                if (f[b] != null && !finiteInRange(f[b], 0, WRITE_CFS_MAX)) return `forecast.${b} out of range`;
+            }
+            // source/createdAt are stored verbatim by buildForecastRows — bound them so junk
+            // (non-string source, oversized strings, bogus dates) can't be persisted and served back.
+            if (f.source != null && (typeof f.source !== 'string' || f.source.length > 40)) return 'forecast.source invalid';
+            if (f.createdAt != null && isNaN(Date.parse(f.createdAt))) return 'forecast.createdAt invalid';
+        }
+        return null;
+    }
+
+    return null; // non-write actions (reset*) are authorized via ADMIN_PIN elsewhere
 }
 
 const headers = {
@@ -477,6 +560,11 @@ async function loadGFLearningData(client) {
 
 // Save GF learning data to Supabase
 async function saveGFLearningData(client, data) {
+    // C13: reject out-of-range nested write payloads before any DB write.
+    const writeErr = validateGFWritePayload(data, Date.now());
+    if (writeErr) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: writeErr }) };
+    }
     try {
         const { action } = data;
         let result = { success: false };
@@ -883,4 +971,4 @@ async function loadPoRHistory(client) {
 }
 
 // Test-only exports (mirrors the convention in scheduled-update.js)
-exports._test = { buildForecastRows };
+exports._test = { buildForecastRows, validateGFWritePayload };
