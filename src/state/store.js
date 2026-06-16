@@ -61,8 +61,8 @@ export let creekData = {};
 export let gfEstimate = null;
 export let gfLearningData = null;
 export let gfDataReady = false;
-export let lastGFPredictionTime = 0;
-export let gfPredictionRetryQueue = [];
+// v36.0 (C1): lastGFPredictionTime / gfPredictionRetryQueue removed — the client no longer writes
+// GF predictions (the cron is the sole writer), so the throttle timer and retry queue are obsolete.
 
 // --- Shadow leaderboard ---
 export let shadowLeaderboard = null;
@@ -108,8 +108,6 @@ export function setCreekData(v) { creekData = v; }
 export function setGfEstimate(v) { gfEstimate = v; }
 export function setGfLearningData(v) { gfLearningData = v; }
 export function setGfDataReady(v) { gfDataReady = v; }
-export function setLastGFPredictionTime(v) { lastGFPredictionTime = v; }
-export function setGfPredictionRetryQueue(v) { gfPredictionRetryQueue = v; }
 export function setShadowLeaderboard(v) { shadowLeaderboard = v; }
 export function setLastForecastPredictionTime(v) { lastForecastPredictionTime = v; }
 export function setForecastAccuracyData(v) { forecastAccuracyData = v; }

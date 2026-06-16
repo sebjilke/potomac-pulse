@@ -3,7 +3,7 @@
 // This file contains ONLY pure math/constants — NO Supabase dependency.
 // When changing model constants, formulas, or logic, update BOTH files + tests.
 
-import { TRAVEL_COEF, TRAVEL_EXP, MEDIAN_TRAVEL, GF_FLOW_BINS } from './constants.js';
+import { TRAVEL_COEF, TRAVEL_EXP, MEDIAN_TRAVEL, GF_FLOW_BINS, CEILING_RATIO } from './constants.js';
 
 // --- Hierarchical correction fallback (v35.1) ---
 // SOURCE OF TRUTH: netlify/functions/shared/model.js — keep client copy in sync
@@ -52,6 +52,68 @@ export function getGFFlowBin(cfs) {
     if (cfs < 25000) return '12000-25000';
     if (cfs < 50000) return '25000-50000';
     return '50000+';
+}
+
+// Pure hierarchical correction lookup (v36.0). Byte-identical to the server copy in
+// netlify/functions/shared/model.js — keep in sync (the correction-parity test asserts equality).
+export function getGFCorrection(correctionBins, flowBin, flowState) {
+    if (!correctionBins) return 0;
+
+    const bin = correctionBins[flowBin];
+    const stateData = bin?.[flowState] || bin?.['steady'];
+    const count = stateData?.count || 0;
+
+    if (count >= 5) return getBinCorrection(stateData);
+
+    const fallback = getFallbackCorrection(correctionBins, flowBin, flowState);
+    const weight = count / 5;
+    const binVal = count > 0 ? getBinCorrection(stateData) : 0;
+    return weight * binVal + (1 - weight) * fallback;
+}
+
+// Assemble the 18-bin correction structure from raw DB rows; skips stage_* keys.
+// Mirror of server buildCorrectionBins — keep in sync.
+export function buildCorrectionBins(rows) {
+    const correctionBins = {};
+    GF_FLOW_BINS.forEach(bin => {
+        correctionBins[bin] = {
+            rising:  { count: 0, sumError: 0, sumErrorSq: 0, meanError: 0 },
+            falling: { count: 0, sumError: 0, sumErrorSq: 0, meanError: 0 },
+            steady:  { count: 0, sumError: 0, sumErrorSq: 0, meanError: 0 }
+        };
+    });
+    if (Array.isArray(rows)) {
+        rows.forEach(b => {
+            if (!b || typeof b.gauge_id !== 'string') return;
+            if (b.gauge_id.startsWith('stage_')) return;  // separate stage-error series
+            const [flowBin, flowState] = b.gauge_id.split('_');
+            if (correctionBins[flowBin] && correctionBins[flowBin][flowState]) {
+                correctionBins[flowBin][flowState] = b.data;
+            }
+        });
+    }
+    return correctionBins;
+}
+
+// End-apply, unit gain (v36.0). Byte-identical to the server copy — see netlify/functions/shared/model.js.
+// correctedFinal = rawFinalUnclipped − correction, then a display-only 120%-LF ceiling guard.
+// The correction is looked up off the bin of the UNCLIPPED raw final (= the bin the EMA learns into).
+export function applyGFCorrection({ rawFinalUnclipped, lfCFS, correctionBins, flowState }) {
+    const flowBin = getGFFlowBin(rawFinalUnclipped);
+    const correction = getGFCorrection(correctionBins, flowBin, flowState);
+    const correctedFinalUnclipped = rawFinalUnclipped - correction;
+
+    let correctedFinal = correctedFinalUnclipped;
+    let ceilingApplied = false;
+    if (lfCFS > 0) {
+        const maxEstimate = lfCFS * CEILING_RATIO;
+        if (correctedFinal > maxEstimate) {
+            correctedFinal = maxEstimate;
+            ceilingApplied = true;
+        }
+    }
+
+    return { flowBin, correction, correctedFinalUnclipped, correctedFinal, ceilingApplied };
 }
 
 // --- LF stage estimation (flow → stage) ---

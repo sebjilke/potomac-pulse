@@ -3,13 +3,13 @@
 
 import {
     LF, TRAVEL_POR_GF_BASELINE, TRAVEL_GF_LF_BASELINE,
-    TRIB_FALLBACK, DECAY_CAP, EF_DISCREPANCY_MAX, CEILING_RATIO,
+    TRIB_FALLBACK, DECAY_CAP, EF_DISCREPANCY_MAX,
     EMPIRICAL_CI_90, GF_OUTLIER_THRESHOLD
 } from '../model/constants.js';
 
 import {
     getFlowMultiplier, estimateLFStage, getGFFlowBin, getEFWeight,
-    getBinCorrection, getFallbackCorrection
+    getGFCorrection, applyGFCorrection
 } from '../model/shared-model.js';
 
 import {
@@ -60,20 +60,9 @@ export function isCriticalGaugeIceAffected() {
 
 // ==================== CORRECTION & UNCERTAINTY ====================
 
-export function getGFCorrection(flowBin, flowState) {
-    if (!gfLearningData?.correctionBins) return 0;
-
-    const bin = gfLearningData.correctionBins[flowBin];
-    const stateData = bin?.[flowState] || bin?.['steady'];
-    const count = stateData?.count || 0;
-
-    if (count >= 5) return getBinCorrection(stateData);
-
-    const fallback = getFallbackCorrection(gfLearningData.correctionBins, flowBin, flowState);
-    const weight = count / 5;
-    const binVal = count > 0 ? getBinCorrection(stateData) : 0;
-    return weight * binVal + (1 - weight) * fallback;
-}
+// getGFCorrection moved to src/model/shared-model.js (v36.0) as a pure (correctionBins, flowBin,
+// flowState) function so the client and server apply the identical correction. Call it with
+// gfLearningData.correctionBins. The end-apply itself goes through applyGFCorrection (also shared).
 
 export function getGFUncertainty(flowBin, flowState) {
     const ciData = EMPIRICAL_CI_90[flowBin];
@@ -219,7 +208,7 @@ export function computeGFHistoryFromPoR(hoursBack = 6) {
         // current state to all history points — acceptable for cold-start fallback only)
         const histRiseRate = getPoRRiseRate();
         const histFlowState = histRiseRate?.flowState ?? 'steady';
-        const correction = getGFCorrection(flowBin, histFlowState);
+        const correction = getGFCorrection(gfLearningData?.correctionBins, flowBin, histFlowState);
         estCFS = estCFS - correction;
         if (estCFS < 0) estCFS = 0;
         const stage = estimateLFStage(estCFS);
@@ -461,11 +450,10 @@ export function estimateGreatFalls() {
         console.log(`📊 Flow state: ${flowState} (NWS fallback, porHistory has ${porHistory.length} entries)`);
     }
 
-    // Apply learned correction
-    const flowBin = getGFFlowBin(estimatedCFS);
-    const correction = getGFCorrection(flowBin, flowState);
-    const uncertainty = getGFUncertainty(flowBin, flowState);
-    const porEstimateCFS = estimatedCFS - correction;
+    // v36.0: ensemble on the UNCORRECTED estimate; the learned EMA correction is END-APPLIED after
+    // the ensemble (unit gain), matching the server exactly via the shared applyGFCorrection helper.
+    // estimatedCFS here is the raw PoR-based estimate (PoR + tributaries + PoR-delta), uncorrected.
+    const porEstimateCFS = estimatedCFS;
 
     // Weighted ensemble with Edwards Ferry
     const efEstimate = estimateGFFromEdwardsFerry();
@@ -493,16 +481,20 @@ export function estimateGreatFalls() {
         estimatedCFS = porEstimateCFS;
     }
 
-    // Soft LF ceiling (120%) — CEILING_RATIO imported from constants.js
-    let ceilingApplied = false;
-    if (lf?.q > 0) {
-        const maxEstimate = lf.q * CEILING_RATIO;
-        if (estimatedCFS > maxEstimate) {
-            console.log(`🔒 LF ceiling: ${Math.round(estimatedCFS)} cfs → ${Math.round(maxEstimate)} cfs (120% of LF ${Math.round(lf.q)})`);
-            estimatedCFS = Math.round(maxEstimate);
-            ceilingApplied = true;
-        }
+    // v36.0: end-apply the learned EMA correction + a display-only 120%-LF ceiling guard, via the
+    // shared helper. The correction is looked up off the bin of the UNCLIPPED raw final, which is
+    // exactly the bin the server's EMA learns into → displayed model == validated model.
+    const rawFinalUnclipped = estimatedCFS;
+    const { flowBin, correction, correctedFinal, ceilingApplied } = applyGFCorrection({
+        rawFinalUnclipped, lfCFS: lf?.q || 0, correctionBins: gfLearningData?.correctionBins, flowState
+    });
+    if (correction !== 0) {
+        console.log(`🎯 EMA correction (${flowBin}/${flowState}): raw ${Math.round(rawFinalUnclipped)} − ${Math.round(correction)} = ${Math.round(correctedFinal)} cfs${ceilingApplied ? ' (ceiling)' : ''}`);
+    } else if (ceilingApplied) {
+        console.log(`🔒 LF ceiling: ${Math.round(rawFinalUnclipped)} cfs → ${Math.round(correctedFinal)} cfs (120% of LF ${Math.round(lf.q)})`);
     }
+    estimatedCFS = Math.round(correctedFinal);
+    const uncertainty = getGFUncertainty(flowBin, flowState);
 
     const estimatedStage = estimateLFStage(estimatedCFS);
 

@@ -100,13 +100,18 @@ Format: **vMAJOR.MINOR** (e.g., v25.0, v25.1, v25.2)
 ### Nowcast (GF Estimate)
 Works upstream → downstream. Takes observed PoR discharge (~19–33h travel time to GF, flow-adjusted),
 adds tributary inflows (Monocacy 7.1%, Goose Creek 3.0%, Broad Run 0.66%, Seneca 0.87%), blends in
-EF power-law estimate (flow-dependent weight: near 0% at low flows, ~40% at high), applies PoR-delta
-correction for rising/falling rivers, caps at 120% of observed LF, and applies learned EMA corrections.
+EF power-law estimate (flow-dependent weight: near 0% at low flows, ~40% at high), applies a PoR-delta
+correction for rising/falling rivers, end-applies the learned EMA bin correction at unit gain (after the
+ensemble), and caps the result at 120% of observed LF (a display-only guard). v36.0: client and server
+apply the correction identically via a shared helper (`applyGFCorrection`), so the displayed estimate
+equals the validated one.
 
-**Learning**: Every 2h, server validates predictions against actual LF. Signed error stored in 18 bins
-(6 flow ranges × 3 flow states). Each bin carries an EMA correction (alpha=0.3) that shifts future
-predictions. Server-only — no client-side learning. Validates against raw LF; corrections naturally
-absorb ungauged tributary and withdrawal signal.
+**Learning**: The server validates pending predictions against actual LF. The EMA learns on the RAW
+residual (uncorrected final estimate − actual) so the correction equals the raw model's bias with no
+feedback loop; the headline accuracy scores the CORRECTED residual, prequentially. Signed error stored in
+18 bins (6 flow ranges × 3 flow states), each an EMA (alpha=0.3). Server-only and server-sole-writer — the
+client neither learns nor posts predictions (the cron is the only writer, v36.0). Validates against raw
+LF; corrections naturally absorb ungauged tributary and withdrawal signal.
 
 ### Forecast (48h)
 Works differently from nowcast — uses NWS predictions for the *downstream* gauge (Little Falls) rather
@@ -124,14 +129,14 @@ horizon (6/12/24/48h). Stored as `gf_forecast_pending` → validated when water 
 Client estimation: `src/estimation/great-falls.js`. Forecast UI: `src/ui/great-falls-ui.js`.
 NWS integration: `src/estimation/nws.js`. Learning UI: `src/ui/learning-ui.js`.
 
-## Current Model Parameters (v35.6)
+## Current Model Parameters (v36.0)
 
 - **EF Power-Law**: 126×EF^2.46 (default), 160×EF^2.36 (cold water ≤10°C)
 - **EF Weight (Logistic Ramp)**: `ef_weight = 0.40 / (1 + exp(-5.0 × (ln(flow) - ln(10000))))`. Near 0% at low flows, ~40% at high. EF has negative predictive skill below 6k cfs.
 - **PoR-Delta Correction**: Observed PoR change ratio × wave-travel decay (cap 0.50)
-- **Soft LF Ceiling**: GF estimate capped at 120% of LF actual
-- **Empirical 90% CI**: Per-bin q05/q95 error quantiles (non-normal errors in all 18 bins). Lookup table `EMPIRICAL_CI_90` in `index.html`. Display-only.
+- **Soft LF Ceiling**: corrected GF estimate capped at 120% of LF actual — display-only guard applied AFTER the end-apply correction; the EMA learns on the unclipped raw, so the ceiling never censors learning (v36.0)
+- **Empirical 90% CI**: Per-bin q05/q95 error quantiles (non-normal errors in all 18 bins). Lookup table `EMPIRICAL_CI_90` in `src/model/constants.js`. Display-only, symmetric band now centered on the corrected estimate; asymmetric/sign fix + re-derivation on corrected residuals deferred to v36.1 (C2).
 - **Tributaries**: Monocacy (7.1%), Goose Creek (3.0%), Broad Run (0.66%), Seneca (0.87%). Catoctin Creek excluded (enters above PoR gauge — would double-count).
 - **Two-Tier Anomaly Flagging**: Hard flags (data corruption) skip learning AND accuracy. Soft flags (model disagreement) included in both (EMA clamped ±2σ). Three gauge_id tiers: `hard_flagged`, `soft_flagged`, `validated`.
-- **EMA Learning**: Server-only (client `checkGFValidations()` disabled). Validation capped at 2.5h after validationDue. Forecast-based learning rejected (domain mismatch).
+- **EMA Learning**: Server-only and server-sole-writer (client `checkGFValidations()` and prediction posting both disabled — the cron is the only writer). End-applied at unit gain so displayed == validated; learns on the RAW residual, headline scores the corrected model (v36.0). Validation capped at 2.5h after validationDue. Forecast-based learning rejected (domain mismatch).
 - **Hierarchical Correction Fallback**: Bins with <5 obs blend with fallback: same-bin cross-state average → adjacent bin → 0. Linear blend: `weight = count/5`.

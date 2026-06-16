@@ -22,7 +22,7 @@ import { estimateGFFromEdwardsFerry } from '../estimation/edwards-ferry.js';
 import { runShadowModels } from '../estimation/shadow-models.js';
 import { recordGFEstimate } from '../data/history.js';
 import { fmtArrival } from '../data/fetch.js';
-import { storeGFPrediction, storeForecastPredictions } from '../learning/gf-learning.js';
+import { storeForecastPredictions } from '../learning/gf-learning.js';
 import { renderForecastGraph, getForecastGraphData, getGraphScales } from '../ui/forecast-graph.js';
 import { updateShadowModelUI } from '../ui/learning-ui.js';
 import { dropLocalSpikes } from '../estimation/rise-rate-robust.mjs';
@@ -248,9 +248,9 @@ export function updateGreatFallsUI() {
     // Update 48-hour forecast periods (6-hour intervals)
     updateForecastPeriods(gfEstimate);
 
-    // GF Learning: store the prediction (fire-and-forget). Validation/EMA learning
-    // is server-only (cron validatePendingPredictions) — the client no longer validates.
-    storeGFPrediction(gfEstimate).catch(e => console.warn('GF learning error:', e));
+    // v36.0 (C1): GF prediction storage is now SERVER-ONLY (the hourly cron is the sole writer).
+    // The client neither writes predictions nor validates them — it only reads learning data and
+    // applies the correction for display. (Forecast predictions are still client-written elsewhere.)
 
     // Update GF learning status display
     if (_updateGFLearningUI) _updateGFLearningUI();

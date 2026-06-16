@@ -751,6 +751,61 @@ describe('validatePendingPredictions', () => {
         assert.equal(result.validated, 0);
         assert.equal(binUpserts(captures).length, 0);
     });
+
+    // ── v36.0 (C1): raw-for-learning / corrected-for-headline split ──
+    // actual LF = 10000 cfs / 3.95 ft (the `usgs` fixture above). A row with rawFinalCFS=11000 and
+    // corrected predictedCFS=10200 lets us prove the EMA learns the RAW residual (+1000) while the
+    // headline scores the CORRECTED residual (+2.0%).
+    const metaUpsert = (caps) => caps.upserts.find(u => u.observation_type === 'gf_metadata');
+    const flowBinUpsert = (caps, key) => caps.upserts.find(u => u.observation_type === 'gf_correction_bin' && u.gauge_id === key);
+
+    it('v36.0: correction bin learns on the RAW residual (rawFinalCFS − actual), not the corrected value', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, rawFinalStage: 4.10, predictedStage: 4.00, flowBin: '6000-12000', flowState: 'steady' });
+        const client = validateClient({ pending: [row], captures });
+        const result = await validatePendingPredictions(client, usgs);
+        assert.equal(result.validated, 1);
+        const bin = flowBinUpsert(captures, '6000-12000_steady');
+        assert.ok(bin, 'flow bin upserted');
+        assert.equal(bin.data.sumError, 1000);        // 11000 − 10000 (raw), NOT 10200 − 10000 (corrected)
+        assert.equal(bin.data.emaMeanError, 1000);    // count 1 → ema seeds to the raw error
+    });
+
+    it('v36.0: headline avgErrorPercent scores the CORRECTED residual', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, flowBin: '6000-12000', flowState: 'steady' });
+        const client = validateClient({ pending: [row], captures });
+        await validatePendingPredictions(client, usgs);
+        const meta = metaUpsert(captures);
+        assert.ok(meta, 'metadata upserted');
+        // |corrected − actual|/actual = |10200−10000|/10000 = 2.0%  (NOT raw 10%)
+        assert.ok(Math.abs(meta.data.sumAbsErrorPercent - 2.0) < 1e-9, `sumAbsErrorPercent=${meta.data.sumAbsErrorPercent}`);
+        assert.ok(Math.abs(meta.data.avgErrorPercent - 2.0) < 1e-9, `avgErrorPercent=${meta.data.avgErrorPercent}`);
+    });
+
+    it('v36.0: stage-error learning uses the RAW stage (rawFinalStage), not the corrected stage', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        // actualStage = lf.h = 3.95; rawFinalStage 4.10 → +0.15 ; corrected predictedStage 4.00 → +0.05
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, rawFinalStage: 4.10, predictedStage: 4.00, flowBin: '6000-12000', flowState: 'steady' });
+        const client = validateClient({ pending: [row], captures });
+        await validatePendingPredictions(client, usgs);
+        const stageBin = flowBinUpsert(captures, 'stage_6000-12000_steady');
+        assert.ok(stageBin, 'stage bin upserted');
+        assert.ok(Math.abs(stageBin.data.sumError - 0.15) < 1e-9, `stage sumError=${stageBin.data.sumError}`);
+    });
+
+    it('v36.0: legacy pending row (no rawFinalCFS/rawFinalStage) validates with no NaN (?? fallback)', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ predictedCFS: 10300, predictedStage: 4.00, flowBin: '6000-12000', flowState: 'steady' }); // pre-v36.0 shape
+        const client = validateClient({ pending: [row], captures });
+        const result = await validatePendingPredictions(client, usgs);
+        assert.equal(result.validated, 1);
+        const bin = flowBinUpsert(captures, '6000-12000_steady');
+        assert.ok(bin);
+        assert.equal(bin.data.sumError, 300);                       // 10300 − 10000 (predictedCFS used as raw)
+        assert.ok(Number.isFinite(bin.data.emaMeanError));
+        assert.ok(Number.isFinite(metaUpsert(captures).data.avgErrorPercent));
+    });
 });
 
 // ─── Server Shadow Models ────────────────────────────────────────────────────

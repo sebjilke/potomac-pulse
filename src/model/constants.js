@@ -131,9 +131,9 @@ export const EF_DISCREPANCY_MAX = 0.50;  // skip EF ensemble above this relative
 export const CEILING_RATIO = 1.20;       // soft LF ceiling: GF estimate ≤ 120% of LF actual
 
 // GF prediction/learning intervals
-export const GF_PREDICTION_INTERVAL = 30 * 60 * 1000;
+// (GF_PREDICTION_INTERVAL / GF_MIN_VALIDATION_TIME removed in v36.0 — the client no longer writes
+//  predictions, so the throttle and min-validation-window constants have no consumers.)
 export const GF_VALIDATION_CHECK_INTERVAL = 60 * 1000;
-export const GF_MIN_VALIDATION_TIME = 2 * 60 * 60 * 1000;
 export const FORECAST_PREDICTION_INTERVAL = 2 * 60 * 60 * 1000;
 export const FORECAST_HORIZONS = [6, 12, 24, 48];
 export const GF_EMA_ALPHA = 0.3;

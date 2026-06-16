@@ -4,7 +4,6 @@
 
 import {
     SYNC_API, EMPIRICAL_CI_90,
-    GF_PREDICTION_INTERVAL, GF_MIN_VALIDATION_TIME,
     GF_OUTLIER_THRESHOLD, FORECAST_PREDICTION_INTERVAL,
     FORECAST_HORIZONS
 } from '../model/constants.js';
@@ -13,15 +12,13 @@ import {
     gfLearningData, setGfLearningData,
     gfDataReady, setGfDataReady,
     edwardsFerryData,
-    lastGFPredictionTime, setLastGFPredictionTime,
-    gfPredictionRetryQueue,
     lastForecastPredictionTime, setLastForecastPredictionTime,
     forecastAccuracyData, setForecastAccuracyData,
     setShadowLeaderboard
 } from '../state/store.js';
 
 import { getEdwardsFerryTrend } from '../estimation/edwards-ferry.js';
-import { isCriticalGaugeIceAffected, getGFCorrection, getGFUncertainty, isGFOutlier } from '../estimation/great-falls.js';
+import { isCriticalGaugeIceAffected } from '../estimation/great-falls.js';
 
 // Forward declarations — resolved at runtime to avoid circular deps
 let _updateGFLearningUI = null;
@@ -74,102 +71,12 @@ export async function loadGFLearningData() {
 }
 
 // ==================== PREDICTION STORAGE ====================
-
-// Store a GF prediction for later validation
-export async function storeGFPrediction(estimate) {
-    // Don't store predictions when critical gauges are ice-affected
-    if (isCriticalGaugeIceAffected()) {
-        console.log('🧊 Prediction storage skipped: critical gauge ice-affected');
-        return;
-    }
-
-    const now = Date.now();
-
-    // Throttle: only store every 30 minutes
-    if (now - lastGFPredictionTime < GF_PREDICTION_INTERVAL) {
-        // Process retry queue if any
-        processGFRetryQueue();
-        return;
-    }
-
-    if (!estimate?.cfs) return;
-
-    // Use flow bin from estimate (based on estimated GF flow)
-    const flowBin = estimate.inputs.flowBin;
-
-    // Ensure minimum validation time (prevents validating same water parcel)
-    const minValidationHours = GF_MIN_VALIDATION_TIME / (60 * 60 * 1000);
-    const actualValidationHours = Math.max(estimate.validationCountdown, minValidationHours);
-    const validationDue = new Date(now + actualValidationHours * 60 * 60 * 1000).toISOString();
-
-    // Include Edwards Ferry stage and trend for correlation learning
-    const efStage = edwardsFerryData.current?.stage || null;
-    const efTrend = getEdwardsFerryTrend();
-
-    const predictionData = {
-        timestamp: new Date().toISOString(),
-        predictedCFS: estimate.cfs,
-        porCFS: estimate.inputs.historicPorCFS || estimate.inputs.porCFS,
-        monocacyCFS: estimate.inputs.monocacyCFS,
-        gooseCFS: estimate.inputs.gooseCFS,
-        flowBin: flowBin,
-        flowState: estimate.flowState,
-        travelTimeGFtoLF: actualValidationHours,
-        validationDue: validationDue,
-        efStage: efStage,  // Edwards Ferry stage at prediction time
-        efTrend: efTrend   // Edwards Ferry trend (rising/falling/steady) for hysteresis learning
-    };
-
-    const success = await sendGFPrediction(predictionData);
-
-    if (success) {
-        setLastGFPredictionTime(now);  // Only advance timer on success
-        console.log('🌊 GF prediction stored for validation');
-    } else {
-        // Add to retry queue (max 5 retries)
-        if (gfPredictionRetryQueue.length < 5) {
-            gfPredictionRetryQueue.push({ data: predictionData, retries: 0 });
-            console.warn('🌊 GF prediction queued for retry');
-        }
-    }
-}
-
-// Send prediction to server (returns success boolean)
-export async function sendGFPrediction(predictionData) {
-    try {
-        const response = await fetch(SYNC_API + '?endpoint=gf', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'storePrediction',
-                prediction: predictionData
-            })
-        });
-        return response.ok;
-    } catch (e) {
-        console.warn('Failed to store GF prediction:', e);
-        return false;
-    }
-}
-
-// Process retry queue for failed predictions
-export async function processGFRetryQueue() {
-    if (gfPredictionRetryQueue.length === 0) return;
-
-    const item = gfPredictionRetryQueue[0];
-    const success = await sendGFPrediction(item.data);
-
-    if (success) {
-        gfPredictionRetryQueue.shift();  // Remove from queue
-        console.log('🌊 GF prediction retry succeeded');
-    } else {
-        item.retries++;
-        if (item.retries >= 3) {
-            gfPredictionRetryQueue.shift();  // Give up after 3 retries
-            console.warn('🌊 GF prediction retry failed, giving up');
-        }
-    }
-}
+// v36.0 (C1): client-side GF-prediction writing REMOVED. The hourly cron (scheduled-update.js) is
+// now the SOLE writer of GF predictions — it computes the raw + corrected estimate, stores both,
+// and learns on the raw residual. This eliminates the client/cron contamination race into the single
+// `pending` slot (finishing C12) and yields one clean raw-based learning stream. The client only
+// READS learning data (loadGFLearningData above) and applies the correction for display
+// (great-falls.js via the shared applyGFCorrection helper). Forecast predictions are unaffected.
 
 // ==================== FORECAST PREDICTIONS ====================
 

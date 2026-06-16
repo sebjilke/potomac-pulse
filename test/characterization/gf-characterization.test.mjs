@@ -51,8 +51,10 @@ function snapClient(r) {
 function snapServer(r) {
     if (!r) return null;
     return {
-        predictedCFS: r.predictedCFS,
+        predictedCFS: r.predictedCFS,           // corrected (displayed) — v36.0
         predictedStage: round2(r.predictedStage),
+        rawFinalCFS: r.rawFinalCFS,             // raw learning target — v36.0
+        correction: r.correctionApplied,        // signed EMA correction applied — v36.0
         flowState: r.flowState,
         useTimeShifted: r.useTimeShifted,
         useEfEnsemble: r.useEfEnsemble,
@@ -77,7 +79,13 @@ function runClient(E, base) {
 
 function runServer(E, base) {
     const f = structuredClone(base);
-    return E.makeGFPrediction({ gauges: GAUGES, data: f.data }, f.porHistory, f.waterTempC ?? null);
+    // v36.0: the server now END-APPLIES the EMA correction too, so it must receive the same
+    // correction bins the client reads. Without this the server would stay raw while the client
+    // is corrected, and Δcfs would WIDEN instead of narrowing to the C19 ensemble residual.
+    return E.makeGFPrediction(
+        { gauges: GAUGES, data: f.data }, f.porHistory, f.waterTempC ?? null,
+        f.gfLearningData?.correctionBins ?? {}
+    );
 }
 
 // Compare the apples-to-apples fields the two sides share.
@@ -136,7 +144,7 @@ function writeReport() {
     }
     lines.push('');
     lines.push('## Notes');
-    lines.push('- Δcfs = client.cfs − server.predictedCFS. Nonzero is expected where the client applies an EMA bin correction the server omits by design (it stores the raw prediction for clean learning), or where flow-state/historic-selection differ.');
+    lines.push('- Δcfs = client.cfs − server.predictedCFS. As of v36.0 BOTH sides end-apply the EMA correction via the shared applyGFCorrection helper (byte-equal — see correction-parity.test.mjs), so the correction no longer contributes to Δcfs. Remaining nonzero Δcfs is the C19 ensemble residual only: flow-state classification and historic-PoR selection differences between the two implementations.');
     lines.push('- EF hysteresis is neutralized in fixtures (short EF history → multiplier 1.0), so EF is apples-to-apples here; production EF hysteresis is an additional client-only divergence not exercised by this report.');
     lines.push('- This report is descriptive, not a pass/fail. The pass/fail guard is `baseline.json`.');
     lines.push('');
@@ -185,6 +193,19 @@ describe('GF characterization: client vs server on identical inputs', () => {
             const baseline = JSON.parse(readFileSync(BASELINE, 'utf8'));
             assert.deepEqual({ client: r.client, server: r.server }, baseline[r.name],
                 `Output for "${r.name}" drifted from baseline.`);
+        });
+    }
+
+    // v36.0 (C1): both estimators now END-APPLY the EMA correction via the shared helper, so on
+    // these (EF-neutralized, clean-history) fixtures the DISPLAYED model equals the VALIDATED model.
+    // Before C1 two fixtures had flowBinMatch:false and `with-learning-correction` diverged by ~863
+    // cfs. A change that reintroduces client/server divergence trips this. Genuine C19 ensemble
+    // residuals (production EF hysteresis / noisy localStorage history) are out of scope here.
+    for (const r of RESULTS) {
+        if (!r.expectResult || !r.client || !r.server) continue;
+        it(`client == server end-apply parity: ${r.name}`, () => {
+            assert.equal(r.client.cfs, r.server.predictedCFS, `cfs parity broke for "${r.name}"`);
+            assert.equal(r.client.flowBin, r.server.flowBin, `flowBin parity broke for "${r.name}"`);
         });
     }
 });

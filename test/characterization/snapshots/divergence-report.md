@@ -7,15 +7,15 @@ Captures CURRENT behavior of the two duplicated estimators on identical inputs �
 |---|--:|--:|--:|---|---|:--:|:--:|
 | low-steady-warm | 2735 | 2735 | +0 | steady | steady | ✓ | ✓ |
 | normal-steady-warm | 5419 | 5419 | +0 | steady | steady | ✓ | ✓ |
-| elevated-rising-warm | 11999 | 11999 | +0 | rising | rising | ✓ | ✗ |
-| high-falling-warm | 24723 | 24723 | +0 | falling | falling | ✓ | ✗ |
+| elevated-rising-warm | 11999 | 11999 | +0 | rising | rising | ✓ | ✓ |
+| high-falling-warm | 24723 | 24723 | +0 | falling | falling | ✓ | ✓ |
 | cold-water-normal | 5425 | 5425 | +0 | steady | steady | ✓ | ✓ |
-| with-learning-correction | 4556 | 5419 | -863 | steady | steady | ✓ | ✓ |
+| with-learning-correction | 4519 | 4519 | +0 | steady | steady | ✓ | ✓ |
 | glitch-history | 13500 | 13500 | +0 | rising | rising | ✓ | ✓ |
 | sparse-history | 5670 | 5670 | +0 | steady | steady | ✓ | ✓ |
 
 ## Notes
-- Δcfs = client.cfs − server.predictedCFS. Nonzero is expected where the client applies an EMA bin correction the server omits by design (it stores the raw prediction for clean learning), or where flow-state/historic-selection differ.
+- Δcfs = client.cfs − server.predictedCFS. As of v36.0 BOTH sides end-apply the EMA correction via the shared applyGFCorrection helper (byte-equal — see correction-parity.test.mjs), so the correction no longer contributes to Δcfs. Remaining nonzero Δcfs is the C19 ensemble residual only: flow-state classification and historic-PoR selection differences between the two implementations.
 - EF hysteresis is neutralized in fixtures (short EF history → multiplier 1.0), so EF is apples-to-apples here; production EF hysteresis is an additional client-only divergence not exercised by this report.
 - This report is descriptive, not a pass/fail. The pass/fail guard is `baseline.json`.
 
@@ -40,6 +40,8 @@ Captures CURRENT behavior of the two duplicated estimators on identical inputs �
   "server": {
     "predictedCFS": 2735,
     "predictedStage": 2.99,
+    "rawFinalCFS": 2735,
+    "correction": 0,
     "flowState": "steady",
     "useTimeShifted": false,
     "useEfEnsemble": false,
@@ -84,6 +86,8 @@ Captures CURRENT behavior of the two duplicated estimators on identical inputs �
   "server": {
     "predictedCFS": 5419,
     "predictedStage": 3.42,
+    "rawFinalCFS": 5419,
+    "correction": 0,
     "flowState": "steady",
     "useTimeShifted": false,
     "useEfEnsemble": true,
@@ -119,7 +123,7 @@ Captures CURRENT behavior of the two duplicated estimators on identical inputs �
     "useTimeShifted": false,
     "useEfEnsemble": true,
     "efWeight": 0.35,
-    "flowBin": "12000-25000",
+    "flowBin": "6000-12000",
     "correction": 0,
     "porEstimateCFS": 14500,
     "historicPorCFS": null,
@@ -128,6 +132,8 @@ Captures CURRENT behavior of the two duplicated estimators on identical inputs �
   "server": {
     "predictedCFS": 11999,
     "predictedStage": 4.18,
+    "rawFinalCFS": 11999,
+    "correction": 0,
     "flowState": "rising",
     "useTimeShifted": false,
     "useEfEnsemble": true,
@@ -142,7 +148,7 @@ Captures CURRENT behavior of the two duplicated estimators on identical inputs �
     "cfsDelta": 0,
     "stageDelta": 0,
     "flowStateMatch": true,
-    "flowBinMatch": false,
+    "flowBinMatch": true,
     "useTimeShiftedMatch": true,
     "useEfEnsembleMatch": true,
     "clientFlowState": "rising",
@@ -163,7 +169,7 @@ Captures CURRENT behavior of the two duplicated estimators on identical inputs �
     "useTimeShifted": true,
     "useEfEnsemble": true,
     "efWeight": 0.4,
-    "flowBin": "25000-50000",
+    "flowBin": "12000-25000",
     "correction": 0,
     "porEstimateCFS": 28837,
     "historicPorCFS": 31333,
@@ -172,6 +178,8 @@ Captures CURRENT behavior of the two duplicated estimators on identical inputs �
   "server": {
     "predictedCFS": 24723,
     "predictedStage": 5.24,
+    "rawFinalCFS": 24723,
+    "correction": 0,
     "flowState": "falling",
     "useTimeShifted": true,
     "useEfEnsemble": true,
@@ -186,7 +194,7 @@ Captures CURRENT behavior of the two duplicated estimators on identical inputs �
     "cfsDelta": 0,
     "stageDelta": 0,
     "flowStateMatch": true,
-    "flowBinMatch": false,
+    "flowBinMatch": true,
     "useTimeShiftedMatch": true,
     "useEfEnsembleMatch": true,
     "clientFlowState": "falling",
@@ -216,6 +224,8 @@ Captures CURRENT behavior of the two duplicated estimators on identical inputs �
   "server": {
     "predictedCFS": 5425,
     "predictedStage": 3.42,
+    "rawFinalCFS": 5425,
+    "correction": 0,
     "flowState": "steady",
     "useTimeShifted": false,
     "useEfEnsemble": true,
@@ -244,22 +254,24 @@ Captures CURRENT behavior of the two duplicated estimators on identical inputs �
 ```json
 {
   "client": {
-    "cfs": 4556,
+    "cfs": 4519,
     "stage": 3.28,
     "flowState": "steady",
     "confidence": "high",
     "useTimeShifted": false,
     "useEfEnsemble": true,
-    "efWeight": 0.01,
+    "efWeight": 0.02,
     "flowBin": "3000-6000",
     "correction": 900,
-    "porEstimateCFS": 4570,
+    "porEstimateCFS": 5470,
     "historicPorCFS": null,
     "ceilingApplied": false
   },
   "server": {
-    "predictedCFS": 5419,
-    "predictedStage": 3.42,
+    "predictedCFS": 4519,
+    "predictedStage": 3.28,
+    "rawFinalCFS": 5419,
+    "correction": 900,
     "flowState": "steady",
     "useTimeShifted": false,
     "useEfEnsemble": true,
@@ -271,8 +283,8 @@ Captures CURRENT behavior of the two duplicated estimators on identical inputs �
   },
   "divergence": {
     "comparable": true,
-    "cfsDelta": -863,
-    "stageDelta": -0.14,
+    "cfsDelta": 0,
+    "stageDelta": 0,
     "flowStateMatch": true,
     "flowBinMatch": true,
     "useTimeShiftedMatch": true,
@@ -304,6 +316,8 @@ Captures CURRENT behavior of the two duplicated estimators on identical inputs �
   "server": {
     "predictedCFS": 13500,
     "predictedStage": 4.33,
+    "rawFinalCFS": 13500,
+    "correction": 0,
     "flowState": "rising",
     "useTimeShifted": false,
     "useEfEnsemble": false,
@@ -348,6 +362,8 @@ Captures CURRENT behavior of the two duplicated estimators on identical inputs �
   "server": {
     "predictedCFS": 5670,
     "predictedStage": 3.46,
+    "rawFinalCFS": 5670,
+    "correction": 0,
     "flowState": "steady",
     "useTimeShifted": false,
     "useEfEnsemble": false,

@@ -220,6 +220,74 @@ function getFallbackCorrection(correctionBins, flowBin, flowState) {
     return 0;
 }
 
+// Pure hierarchical correction lookup for a (flowBin, flowState).
+// Blends the bin's own EMA with the hierarchical fallback while the bin has <5 obs,
+// crossing smoothly to the bin value at the 5-obs threshold. Pure: correctionBins is
+// passed in (no globals), so the client mirror in src/model/shared-model.js is byte-identical.
+function getGFCorrection(correctionBins, flowBin, flowState) {
+    if (!correctionBins) return 0;
+
+    const bin = correctionBins[flowBin];
+    const stateData = bin?.[flowState] || bin?.['steady'];
+    const count = stateData?.count || 0;
+
+    if (count >= 5) return getBinCorrection(stateData);
+
+    const fallback = getFallbackCorrection(correctionBins, flowBin, flowState);
+    const weight = count / 5;
+    const binVal = count > 0 ? getBinCorrection(stateData) : 0;
+    return weight * binVal + (1 - weight) * fallback;
+}
+
+// Assemble the 18-bin correction structure from raw DB rows (observation_type
+// 'gf_correction_bin'). Seeds every (bin × state) empty, then overlays matching rows.
+// Skips stage_* keys (a separate rating-curve series) explicitly. Shared by the cron
+// (scheduled-update.js) and the API read path (sync-learning.js) so both build bins identically.
+function buildCorrectionBins(rows) {
+    const correctionBins = {};
+    GF_FLOW_BINS.forEach(bin => {
+        correctionBins[bin] = {
+            rising:  { count: 0, sumError: 0, sumErrorSq: 0, meanError: 0 },
+            falling: { count: 0, sumError: 0, sumErrorSq: 0, meanError: 0 },
+            steady:  { count: 0, sumError: 0, sumErrorSq: 0, meanError: 0 }
+        };
+    });
+    if (Array.isArray(rows)) {
+        rows.forEach(b => {
+            if (!b || typeof b.gauge_id !== 'string') return;
+            if (b.gauge_id.startsWith('stage_')) return;  // separate stage-error series
+            const [flowBin, flowState] = b.gauge_id.split('_');
+            if (correctionBins[flowBin] && correctionBins[flowBin][flowState]) {
+                correctionBins[flowBin][flowState] = b.data;
+            }
+        });
+    }
+    return correctionBins;
+}
+
+// End-apply, unit gain (v36.0). The single point client and server both call to turn a
+// raw final estimate into the displayed/corrected estimate, so the two cannot drift.
+//   correctedFinal = rawFinalUnclipped − correction, then a display-only 120%-LF ceiling guard.
+// The correction is looked up off the bin of the UNCLIPPED raw final, which is also the bin
+// the EMA learns into — so apply-bin == learn-bin by construction. Pure (no rounding; callers round).
+function applyGFCorrection({ rawFinalUnclipped, lfCFS, correctionBins, flowState }) {
+    const flowBin = getFlowBin(rawFinalUnclipped);
+    const correction = getGFCorrection(correctionBins, flowBin, flowState);
+    const correctedFinalUnclipped = rawFinalUnclipped - correction;
+
+    let correctedFinal = correctedFinalUnclipped;
+    let ceilingApplied = false;
+    if (lfCFS > 0) {
+        const maxEstimate = lfCFS * CEILING_RATIO;
+        if (correctedFinal > maxEstimate) {
+            correctedFinal = maxEstimate;
+            ceilingApplied = true;
+        }
+    }
+
+    return { flowBin, correction, correctedFinalUnclipped, correctedFinal, ceilingApplied };
+}
+
 // --- Tributary drainage-area fallback ratios ---
 // Used only when real-time gauge data is unavailable.
 const TRIB_FALLBACK = {
@@ -282,5 +350,6 @@ module.exports = {
     CEILING_RATIO, DECAY_CAP,
     TRIB_FALLBACK,
     getBinCorrection, getFallbackCorrection,
+    getGFCorrection, buildCorrectionBins, applyGFCorrection,
     estimateLFStage
 };

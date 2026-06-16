@@ -1,7 +1,7 @@
 // Potomac Forecaster - Secure Supabase Sync Function
 // Handles learning data sync without exposing credentials to client
 
-const { getSupabase, GF_FLOW_BINS, getFlowBin, isExistingPredictionReplaceable } = require('./shared/model');
+const { getSupabase, GF_FLOW_BINS, getFlowBin, buildCorrectionBins, isExistingPredictionReplaceable } = require('./shared/model');
 
 // Admin PIN from environment variable (no hardcoded fallback for security)
 const ADMIN_PIN = process.env.ADMIN_PIN;
@@ -112,6 +112,7 @@ function validateGFWritePayload(data, nowMs) {
         const p = data.prediction;
         if (!p || typeof p !== 'object') return 'prediction must be an object';
         if (!finiteInRange(p.predictedCFS, 0, WRITE_CFS_MAX)) return 'prediction.predictedCFS out of range';
+        if (p.rawFinalCFS != null && !finiteInRange(p.rawFinalCFS, 0, WRITE_CFS_MAX)) return 'prediction.rawFinalCFS out of range';
         const dueMs = Date.parse(p.validationDue);
         if (isNaN(dueMs) || dueMs < nowMs + PRED_DUE_MIN_OFFSET_MS || dueMs > nowMs + PRED_DUE_MAX_OFFSET_MS) {
             return 'prediction.validationDue out of range';
@@ -120,18 +121,22 @@ function validateGFWritePayload(data, nowMs) {
         // (the legit client always sends both) so no phantom 'null_*'/'undefined_*' bin can be created.
         if (!GF_FLOW_BINS.includes(p.flowBin)) return 'prediction.flowBin invalid';
         if (!FLOW_STATES.includes(p.flowState)) return 'prediction.flowState invalid';
-        // The bin key must be consistent with the predicted magnitude that defines it — the
-        // client derives flowBin from the same estimate. Allow same or adjacent bin (boundary
+        // The bin key must be consistent with the magnitude that DEFINES it. v36.0: flowBin is the bin
+        // of the RAW final estimate (the bin the EMA learns into), so couple it to rawFinalCFS when
+        // present (legacy pre-v36.0 rows fall back to predictedCFS). Allow same/adjacent bin (boundary
         // rounding) but reject distant mismatches that would free-target an arbitrary bin to poison.
-        const expectedIdx = GF_FLOW_BINS.indexOf(getFlowBin(p.predictedCFS));
+        const couplingCFS = (p.rawFinalCFS != null) ? p.rawFinalCFS : p.predictedCFS;
+        const expectedIdx = GF_FLOW_BINS.indexOf(getFlowBin(couplingCFS));
         if (Math.abs(GF_FLOW_BINS.indexOf(p.flowBin) - expectedIdx) > 1) {
-            return 'prediction.flowBin inconsistent with predictedCFS';
+            return 'prediction.flowBin inconsistent with the raw estimate';
         }
         for (const f of ['porCFS', 'monocacyCFS', 'gooseCFS']) {
             if (p[f] != null && !finiteInRange(p[f], 0, WRITE_CFS_MAX)) return `prediction.${f} out of range`;
         }
         if (p.efStage != null && !finiteInRange(p.efStage, 0, WRITE_STAGE_MAX)) return 'prediction.efStage out of range';
         if (p.predictedStage != null && !finiteInRange(p.predictedStage, 0, WRITE_STAGE_MAX)) return 'prediction.predictedStage out of range';
+        if (p.rawFinalStage != null && !finiteInRange(p.rawFinalStage, 0, WRITE_STAGE_MAX)) return 'prediction.rawFinalStage out of range';
+        if (p.correctionApplied != null && !finiteInRange(p.correctionApplied, -WRITE_CFS_MAX, WRITE_CFS_MAX)) return 'prediction.correctionApplied out of range';
         if (p.travelTimeGFtoLF != null && !finiteInRange(p.travelTimeGFtoLF, 0, 72)) return 'prediction.travelTimeGFtoLF out of range';
         return null;
     }
@@ -502,25 +507,9 @@ async function loadGFLearningData(client) {
             .eq('gauge_id', 'system')
             .single();
 
-        // Build correction bins structure
-        const correctionBins = {};
-        GF_FLOW_BINS.forEach(bin => {
-            correctionBins[bin] = {
-                rising: { count: 0, sumError: 0, sumErrorSq: 0, meanError: 0 },
-                falling: { count: 0, sumError: 0, sumErrorSq: 0, meanError: 0 },
-                steady: { count: 0, sumError: 0, sumErrorSq: 0, meanError: 0 }
-            };
-        });
-
-        // Populate from database
-        if (bins) {
-            bins.forEach(b => {
-                const [flowBin, flowState] = b.gauge_id.split('_');
-                if (correctionBins[flowBin] && correctionBins[flowBin][flowState]) {
-                    correctionBins[flowBin][flowState] = b.data;
-                }
-            });
-        }
+        // Build correction bins via the shared helper (single source of truth with the cron;
+        // seeds all 18 cells and skips stage_* keys). v36.0 — replaces the inline duplicate.
+        const correctionBins = buildCorrectionBins(bins);
 
         // Build pending predictions array
         const pendingPredictions = (pending || []).map(p => ({
@@ -614,6 +603,9 @@ async function saveGFLearningData(client, data) {
                 data: {
                     timestamp: prediction.timestamp,
                     predictedCFS: prediction.predictedCFS,
+                    rawFinalCFS: prediction.rawFinalCFS ?? null,          // v36.0: raw learning target
+                    rawFinalStage: prediction.rawFinalStage ?? null,      // v36.0: raw stage learning target
+                    correctionApplied: prediction.correctionApplied ?? null,
                     porCFS: prediction.porCFS,
                     monocacyCFS: prediction.monocacyCFS,
                     gooseCFS: prediction.gooseCFS,

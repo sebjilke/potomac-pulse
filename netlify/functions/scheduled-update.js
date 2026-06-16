@@ -13,6 +13,7 @@ const {
     CEILING_RATIO, DECAY_CAP,
     TRIB_FALLBACK,
     estimateLFStage,
+    applyGFCorrection, buildCorrectionBins,
     VALIDATION_MAX_DELAY_MS, isExistingPredictionReplaceable
 } = require('./shared/model');
 
@@ -645,9 +646,24 @@ function runServerShadowModels(productionCFS, usgsData, prediction, porRiseRate,
     return results;
 }
 
+// Load the 18 EMA correction bins for the prediction path. Fail-safe: on read error
+// return {} so the model predicts RAW (correction 0) rather than crashing, and WARN
+// loudly so a silent raw-model regression is visible in the cron logs.
+async function loadCorrectionBins(client) {
+    const { data: rows, error } = await client.from('potomac_observations')
+        .select('gauge_id, data')
+        .eq('observation_type', 'gf_correction_bin');
+    if (error) {
+        console.warn(`⚠️ Failed to load correction bins — predicting RAW (correction=0): ${error.message}`);
+        return {};
+    }
+    return buildCorrectionBins(rows);
+}
+
 // Make GF prediction
 // waterTempC: water temperature in Celsius for cold-water EF model adjustment
-function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
+// correctionBins: the 18 EMA bins; the learned correction is END-APPLIED (v36.0) — see applyGFCorrection
+function makeGFPrediction(usgsData, porHistory, waterTempC = null, correctionBins = {}) {
     const { data, gauges } = usgsData;
 
     const lf = data[gauges.lf];
@@ -758,23 +774,28 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null) {
         estimatedCFS = porEstimateCFS;
     }
 
-    // Soft LF ceiling — CEILING_RATIO imported from shared/model.js
-    let ceilingApplied = false;
-    if (lf?.q > 0) {
-        const maxEstimate = lf.q * CEILING_RATIO;
-        if (estimatedCFS > maxEstimate) {
-            console.log(`🔒 LF ceiling: ${Math.round(estimatedCFS)} → ${Math.round(maxEstimate)} cfs (120% of LF ${Math.round(lf.q)})`);
-            estimatedCFS = Math.round(maxEstimate);
-            ceilingApplied = true;
-        }
+    // v36.0: END-APPLY the learned EMA correction AFTER the ensemble (unit gain), with a
+    // display-only 120%-LF ceiling guard on the CORRECTED output. `estimatedCFS` here is the
+    // raw final — post-ensemble, PRE-ceiling. This UNCLIPPED raw final is the learning target
+    // (the ceiling never censors it), and the correction bin is taken off it, so the bin the
+    // correction is APPLIED from is the same bin the EMA LEARNS into.
+    const rawFinalUnclipped = estimatedCFS;
+    const { flowBin, correction, correctedFinal, ceilingApplied } = applyGFCorrection({
+        rawFinalUnclipped, lfCFS: lf.q, correctionBins, flowState
+    });
+    if (correction !== 0) {
+        console.log(`🎯 EMA correction (${flowBin}/${flowState}): raw ${Math.round(rawFinalUnclipped)} − ${Math.round(correction)} = ${Math.round(correctedFinal)} cfs${ceilingApplied ? ' (ceiling)' : ''}`);
+    } else if (ceilingApplied) {
+        console.log(`🔒 LF ceiling: ${Math.round(rawFinalUnclipped)} → ${Math.round(correctedFinal)} cfs (120% of LF ${Math.round(lf.q)})`);
     }
-
-    const flowBin = getFlowBin(estimatedCFS);
 
     return {
         timestamp: new Date().toISOString(),
-        predictedCFS: Math.round(estimatedCFS),
-        predictedStage: Math.round(estimateLFStage(estimatedCFS) * 100) / 100,  // Round to 2 decimal places
+        predictedCFS: Math.round(correctedFinal),                                   // displayed + headline (corrected)
+        predictedStage: Math.round(estimateLFStage(correctedFinal) * 100) / 100,    // displayed stage
+        rawFinalCFS: Math.round(rawFinalUnclipped),                                 // EMA learning target (raw, unclipped)
+        rawFinalStage: Math.round(estimateLFStage(rawFinalUnclipped) * 100) / 100,  // stage-error learning target
+        correctionApplied: Math.round(correction),                                  // signed EMA correction applied
         porCFS: Math.round(por.q),
         porEstimateCFS: Math.round(porEstimateCFS),  // PoR-only estimate before blending
         historicPorCFS: historicPoR ? Math.round(historicPoR.cfs) : null,
@@ -887,15 +908,21 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             // both predict LF-scale flow, so comparing to actual LF is more correct)
             const actualCFS = lf.q;
 
-            // Calculate CFS error
-            const predictedCFS = pred.data.predictedCFS;
-            const errorCFS = predictedCFS - actualCFS;
-            const errorPercent = (errorCFS / actualCFS) * 100;
+            // v36.0: split the RAW residual (what the EMA learns — correction-independent, no
+            // feedback loop) from the CORRECTED residual (the headline — what the user is shown).
+            // Legacy pending rows written before v36.0 have no rawFinalCFS/rawFinalStage; the ??
+            // fallback treats their (corrected) predictedCFS as the raw value (no NaN).
+            const rawCFS = pred.data.rawFinalCFS ?? pred.data.predictedCFS;
+            const correctedCFS = pred.data.predictedCFS;
+
+            const errorCFS = rawCFS - actualCFS;                               // LEARNING target (raw)
+            const errorPercentRaw = (errorCFS / actualCFS) * 100;             // shadow leaderboard (raw)
+            const errorPercentCorrected = ((correctedCFS - actualCFS) / actualCFS) * 100;  // HEADLINE (corrected)
             const flowBin = pred.data.flowBin;
             const flowState = pred.data.flowState || 'steady';
 
-            // Calculate stage error (for rating curve analysis)
-            const predictedStage = pred.data.predictedStage;
+            // Stage error for rating-curve learning — on the RAW stage (same raw basis as errorCFS)
+            const predictedStage = pred.data.rawFinalStage ?? pred.data.predictedStage;
             const actualStage = lf.h;  // LF gauge stage at validation time
             const errorStage = (predictedStage && actualStage)
                 ? Math.round((predictedStage - actualStage) * 100) / 100
@@ -955,9 +982,10 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             }
 
             // Check 4: Large prediction error → SOFT (model error, not data corruption)
-            if (Math.abs(errorPercent) > 50) {
+            // Uses the RAW error — this gates the raw learning path (clamp/skip).
+            if (Math.abs(errorPercentRaw) > 50) {
                 softScore += 1;
-                anomalyFlags.push(`LARGE_ERROR:${errorPercent.toFixed(0)}%`);
+                anomalyFlags.push(`LARGE_ERROR:${errorPercentRaw.toFixed(0)}%`);
             }
 
             // Idempotency claim (C12): delete this prediction row BEFORE persisting any
@@ -1031,14 +1059,18 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 binData.sumErrorSq += errorCFS * errorCFS;
                 binData.meanError = binData.sumError / binData.count;
 
-                // EMA update with clamping for soft-flagged observations (R1)
+                // EMA update with clamping for soft-flagged observations (R1).
+                // v36.0: clamp around emaMeanError (the quantity actually being updated), not the
+                // cumulative meanError — during a regime shift the cumulative mean lags and tethers
+                // the clamp to a stale center.
                 let learningError = errorCFS;
                 if (isSoftFlagged && binData.count >= 10) {
                     const variance = (binData.sumErrorSq / binData.count) - (binData.meanError * binData.meanError);
                     const stdDev = Math.sqrt(Math.max(0, variance));
                     const maxDelta = 2 * stdDev;
-                    learningError = Math.max(binData.meanError - maxDelta,
-                                    Math.min(binData.meanError + maxDelta, errorCFS));
+                    const center = binData.emaMeanError ?? binData.meanError;
+                    learningError = Math.max(center - maxDelta,
+                                    Math.min(center + maxDelta, errorCFS));
                     if (learningError !== errorCFS) {
                         console.log(`   EMA clamped: ${Math.round(errorCFS)} → ${Math.round(learningError)} cfs (±2σ = ±${Math.round(maxDelta)})`);
                     }
@@ -1079,14 +1111,16 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                     stageBinData.sumErrorSq += errorStage * errorStage;
                     stageBinData.meanError = stageBinData.sumError / stageBinData.count;
 
-                    // EMA with soft-flag clamp (mirrors flow bin logic — Fix A)
+                    // EMA with soft-flag clamp (mirrors flow bin logic — Fix A).
+                    // v36.0: clamp around emaMeanError (the updated quantity), not cumulative meanError.
                     let stageLearningError = errorStage;
                     if (isSoftFlagged && stageBinData.count >= 10) {
                         const stageVariance = (stageBinData.sumErrorSq / stageBinData.count) - (stageBinData.meanError * stageBinData.meanError);
                         const stageStdDev = Math.sqrt(Math.max(0, stageVariance));
                         const stageMaxDelta = 2 * stageStdDev;
-                        stageLearningError = Math.max(stageBinData.meanError - stageMaxDelta,
-                                             Math.min(stageBinData.meanError + stageMaxDelta, errorStage));
+                        const stageCenter = stageBinData.emaMeanError ?? stageBinData.meanError;
+                        stageLearningError = Math.max(stageCenter - stageMaxDelta,
+                                             Math.min(stageCenter + stageMaxDelta, errorStage));
                         if (stageLearningError !== errorStage) {
                             console.log(`   Stage EMA clamped: ${errorStage.toFixed(3)} → ${stageLearningError.toFixed(3)} ft (±2σ = ±${stageMaxDelta.toFixed(3)})`);
                         }
@@ -1233,7 +1267,8 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                     metaData.softFlaggedValidations = (metaData.softFlaggedValidations || 0) + 1;
                 }
                 metaData.validValidations = (metaData.validValidations || 0) + 1;
-                metaData.sumAbsErrorPercent = (metaData.sumAbsErrorPercent || 0) + Math.abs(errorPercent);
+                // Headline accuracy scores the CORRECTED model (what the user sees), prequentially.
+                metaData.sumAbsErrorPercent = (metaData.sumAbsErrorPercent || 0) + Math.abs(errorPercentCorrected);
             }
 
             // Compute accuracy from valid (non-hard-flagged) observations only
@@ -1278,7 +1313,8 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             }
 
             if (!isHardFlagged) {
-                await storeValidationPair(client, predictedCFS, actualCFS, errorPercent, flowBin, flowState);
+                // Validation pair records the CORRECTED (displayed) estimate vs actual.
+                await storeValidationPair(client, correctedCFS, actualCFS, errorPercentCorrected, flowBin, flowState);
             }
 
             // Score shadow model predictions (non-blocking — failure must not break validation)
@@ -1298,10 +1334,13 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                         lb = null;
                     }
 
+                    // Shadows are RAW-model variants — score the production row on the RAW error so
+                    // the leaderboard comparison stays apples-to-apples (the EMA correction is an
+                    // orthogonal post-hoc layer, not part of the horse race).
                     const updatedLB = scoreShadowPredictions(
                         pred.data.shadowModels,
                         actualCFS,
-                        errorPercent,
+                        errorPercentRaw,
                         lb
                     );
 
@@ -1328,7 +1367,7 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 }
             }
 
-            console.log(`✅ Validated prediction: predicted=${predictedCFS}, actual=${Math.round(actualCFS)}, error=${errorPercent.toFixed(1)}%`);
+            console.log(`✅ Validated prediction: corrected=${correctedCFS} (raw=${rawCFS}), actual=${Math.round(actualCFS)}, error=${errorPercentCorrected.toFixed(1)}% (raw ${errorPercentRaw.toFixed(1)}%)`);
             validated++;
         }
     }
@@ -1658,14 +1697,17 @@ exports.handler = async (event, context) => {
         let prediction = null;
         if (!criticalIce) {
             console.log('Making new prediction...');
-            prediction = makeGFPrediction(usgsData, fullHistory, waterTempC);
+            const correctionBins = await loadCorrectionBins(client);
+            prediction = makeGFPrediction(usgsData, fullHistory, waterTempC, correctionBins);
             if (prediction) {
-                // Run server-side shadow models and attach before storing
+                // Run server-side shadow models and attach before storing.
+                // Shadows are RAW-model variants — seed them off the raw final (rawFinalCFS), NOT the
+                // corrected predictedCFS, so their operating point is unchanged by the v36.0 cutover.
                 try {
                     const shadowState = await loadShadowModelState(client);
                     const porRiseRate = getPoRRiseRateFromHistory(fullHistory);
                     const shadowResults = runServerShadowModels(
-                        prediction.predictedCFS, usgsData, prediction, porRiseRate, shadowState
+                        prediction.rawFinalCFS, usgsData, prediction, porRiseRate, shadowState
                     );
                     prediction.shadowModels = shadowResults;
                     await saveShadowModelState(client, shadowState);

@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v35.6 (June 2026)
+**Current Version**: v36.0 (June 2026)
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ Frontend (PWA)                    Netlify Functions (Backend)
 ├── analysis/                         # Model calibration scripts, audit reports (CSVs gitignored — reproducible from scripts)
 ```
 
-## Current Model (v35.6)
+## Current Model (v36.0)
 
 All estimation parameters validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits.
 
@@ -175,6 +175,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v36.0 | 2026-06-16 | **Closed the learning loop (C1) — MAJOR.** The server now end-applies the learned EMA correction to its own prediction, so the model that is stored, validated, learned-on, and reported is the same corrected model the user sees. The correction is applied at unit gain (`corrected = raw − correction`, after the EF ensemble and the 120%-LF display ceiling) on both client and server via one shared helper (`applyGFCorrection`) — eliminating the old pre-ensemble dilution (only ~60% of the correction reached the output at high flow) and unifying the two estimators (characterization fixtures now match the server **exactly**; previously a ~13% gap and two flow-bin mismatches). Learning stays honest and feedback-free: the EMA learns on the **raw** residual (correction-independent), while the **headline** accuracy now scores the **corrected** residual, prequentially. The cron is now the **sole** prediction writer (client `sendGFPrediction`/retry-queue removed, finishing C12). The 120%-LF ceiling is a display-only guard on the corrected output and no longer censors the EMA target. Soft-flag clamp re-centered on `emaMeanError`; shadow leaderboard scored on the raw error. Correction bins carry over unchanged (they already encoded the raw residual). 181 → 374 unit tests. The empirical CI band's asymmetry/sign fix and re-derivation (C2) are deferred to v36.1. |
 | v35.6 | 2026-06-16 | Reliability & data-integrity hardening from a re-verified science review — no change to the GF estimate. (C20) Netlify deploys are gated on `npm test`. (C24) The three NWS/persistence forecast baselines previously dropped at insert are now stored, so forecast-vs-NWS skill scoring can accrue. (C12) Fixed a validation-pipeline deadlock (a malformed `validationDue` could permanently occupy the single pending slot, in both the cron and API write paths) and made EMA learning idempotent (claim-before-learn prevents a mid-cycle crash from double-counting). (C13a) The public `/api/sync` write path validates nested prediction/forecast payloads — bounds CFS/dates, requires an in-vocabulary flow bin/state, and couples `flowBin` to `predictedCFS` so a caller can't free-target a learning bin (full auth hardening tracked separately). (C46) The legacy observation sync no longer reports "synced" when its insert failed. (C49) Stopped fabricating a gauge's stage from Point-of-Rocks stage (display-only). 137→181 tests; each fix independently audited. |
 | v35.5 | 2026-06-01 | Client-side flow-state & graph robustness fix. Nowcast could show a false RISING trend and a graph spike from a stale/out-of-order/glitch entry in browser `localStorage` PoR/GF history (server data unaffected). Hardened interpretation without discarding readings: `getPoRRiseRate()` uses median-of-record for current + 6h-ago readings (≥3 pts in window, 3–9h baseline, else NWS fallback); `getPoRFromHoursAgo()` uses outlier-resistant selection returning a real entry; record functions stay timestamp-sorted, replace (not drop) the freshest reading, reject only >500k cfs; server history self-heals local drift on merge; graph has a display-only spike filter. Pure helpers in `rise-rate-robust.mjs`, 16 new tests. Server estimation untouched. No model-output change for clean inputs. |
 | v35.4 | 2026-05-27 | Server-side shadow models. Move all three shadow model horse race estimators (LF Feedback, Online Regression, Kalman Filter) from client browser to server cron function. Eliminates selection bias (shadow scores were only attached when browser was open, oversampling storms). State persisted in Supabase. Leaderboard reset on first server-side validation round via `gf_metadata.shadowServerMigration`. Client Learning tab display unchanged. `estimateLFStage` moved to `shared/model.js`. |
@@ -221,4 +222,4 @@ See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–
 
 ---
 
-*Last updated: 2026-06-16 (v35.6 — reliability & data-integrity hardening from re-verified review)*
+*Last updated: 2026-06-16 (v36.0 — closed the learning loop: displayed model == validated model)*
