@@ -7,8 +7,9 @@
   # Functions directory
   functions = "netlify/functions"
 
-  # Install dependencies and build
-  command = "npm install && npm run build"
+  # Install dependencies, gate the deploy on the test suite, then build.
+  # If `npm test` fails the build fails and Netlify keeps the last good deploy.
+  command = "npm install && npm test && npm run build"
 
 [functions]
   # Use Node.js 18 for serverless functions
