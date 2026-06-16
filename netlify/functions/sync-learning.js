@@ -61,6 +61,31 @@ function validatePostBody(body, endpoint) {
     return null; // valid
 }
 
+// Build the rows inserted by the 'storeForecastPredictions' action.
+// Pure (timestamp injected) so it can be unit-tested. The three NWS/persistence
+// baseline fields are preserved here so scheduled-update.js can score model
+// forecast skill against them (C24 — previously dropped at insert).
+function buildForecastRows(forecasts, timestamp) {
+    return forecasts
+        .filter(f => f && typeof f === 'object' && f.horizon && f.targetTime)
+        .map(f => ({
+            observation_type: 'gf_forecast_pending',
+            gauge_id: `+${f.horizon}h_${timestamp}`,
+            data: {
+                horizon: f.horizon,  // Store horizon in data for validation lookup
+                targetTime: f.targetTime,
+                predictedCFS: f.predictedCFS,
+                predictedStage: f.predictedStage,
+                source: f.source,
+                createdAt: f.createdAt,
+                // Baselines for accuracy comparison (scored in scheduled-update.js)
+                nwsLfRawCFS: f.nwsLfRawCFS ?? null,
+                nwsLfBiasCorrectedCFS: f.nwsLfBiasCorrectedCFS ?? null,
+                persistenceCFS: f.persistenceCFS ?? null
+            }
+        }));
+}
+
 const headers = {
     'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -521,18 +546,7 @@ async function saveGFLearningData(client, data) {
             // Store each forecast as a pending prediction
             // Use unique gauge_id with timestamp to allow multiple forecasts per horizon
             const timestamp = Date.now();
-            const insertData = forecasts.filter(f => f && typeof f === 'object' && f.horizon && f.targetTime).map(f => ({
-                observation_type: 'gf_forecast_pending',
-                gauge_id: `+${f.horizon}h_${timestamp}`,
-                data: {
-                    horizon: f.horizon,  // Store horizon in data for validation lookup
-                    targetTime: f.targetTime,
-                    predictedCFS: f.predictedCFS,
-                    predictedStage: f.predictedStage,
-                    source: f.source,
-                    createdAt: f.createdAt
-                }
-            }));
+            const insertData = buildForecastRows(forecasts, timestamp);
 
             const { error } = await client.from('potomac_observations').insert(insertData);
             if (error) {
@@ -868,3 +882,6 @@ async function loadPoRHistory(client) {
         };
     }
 }
+
+// Test-only exports (mirrors the convention in scheduled-update.js)
+exports._test = { buildForecastRows };
