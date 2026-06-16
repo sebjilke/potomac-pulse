@@ -9,8 +9,41 @@ const {
     getEFWeight, getFlowMultiplier, getFlowState,
     CEILING_RATIO, DECAY_CAP,
     TRIB_FALLBACK,
-    getBinCorrection, getFallbackCorrection
+    getBinCorrection, getFallbackCorrection,
+    isExistingPredictionReplaceable, VALIDATION_MAX_DELAY_MS
 } = require('../netlify/functions/shared/model');
+
+// ─── isExistingPredictionReplaceable (C12 deadlock fix) ─────────────────────────
+// A truthy-but-unparseable validationDue used to make a pending row un-replaceable
+// forever (Invalid Date is truthy; now - InvalidDate is NaN; NaN > MAX is false).
+describe('isExistingPredictionReplaceable', () => {
+    const now = Date.parse('2026-06-16T12:00:00.000Z');
+
+    it('future due date → not replaceable', () => {
+        assert.equal(isExistingPredictionReplaceable({ validationDue: '2026-06-16T13:00:00.000Z' }, now), false);
+    });
+    it('1h past due (within 2.5h window) → not replaceable', () => {
+        assert.equal(isExistingPredictionReplaceable({ validationDue: '2026-06-16T11:00:00.000Z' }, now), false);
+    });
+    it('3h past due (beyond window) → replaceable', () => {
+        assert.equal(isExistingPredictionReplaceable({ validationDue: '2026-06-16T09:00:00.000Z' }, now), true);
+    });
+    it('exactly at the window boundary → not replaceable (not strictly greater)', () => {
+        const dueIso = new Date(now - VALIDATION_MAX_DELAY_MS).toISOString();
+        assert.equal(isExistingPredictionReplaceable({ validationDue: dueIso }, now), false);
+    });
+    it('missing validationDue → replaceable', () => {
+        assert.equal(isExistingPredictionReplaceable({}, now), true);
+    });
+    it('null/undefined existingData → replaceable', () => {
+        assert.equal(isExistingPredictionReplaceable(null, now), true);
+        assert.equal(isExistingPredictionReplaceable(undefined, now), true);
+    });
+    it('truthy-but-unparseable validationDue → replaceable (the deadlock case)', () => {
+        assert.equal(isExistingPredictionReplaceable({ validationDue: 'not-a-date' }, now), true);
+        assert.equal(isExistingPredictionReplaceable({ validationDue: 'Invalid Date' }, now), true);
+    });
+});
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

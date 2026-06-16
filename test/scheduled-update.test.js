@@ -661,6 +661,96 @@ describe('validatePendingPredictions', () => {
         const result = await validatePendingPredictions(client, usgsData);
         assert.equal(result, 0);
     });
+
+    // ── C12: claim-delete idempotency + invalid/stale deadlock cleanup ──
+    // Universal mock for the full validation-window branch: select→single returns null
+    // (callers fall back to defaults); upserts/inserts are captured; the pending-list read
+    // resolves via .order(); `.delete().eq()` awaited directly returns {error:null} (stale/
+    // invalid cleanup) while `.delete().eq().select()` returns the claimed rows.
+    function validateClient({ pending, claimRows = [{ id: 'p1' }], captures }) {
+        return {
+            from() {
+                const q = { op: 'select' };
+                const builder = {
+                    select() {
+                        if (q.op === 'delete') {
+                            captures.deletes.push({ withSelect: true });
+                            return Promise.resolve({ data: claimRows, error: null });
+                        }
+                        return builder;
+                    },
+                    eq() { return builder; },
+                    order() { return Promise.resolve({ data: pending, error: null }); },
+                    single() { return Promise.resolve({ data: null, error: null }); },
+                    upsert(row) { captures.upserts.push(row); return Promise.resolve({ error: null }); },
+                    insert(row) { captures.inserts.push(row); return Promise.resolve({ error: null }); },
+                    delete() { q.op = 'delete'; return builder; },
+                    then(resolve, reject) {
+                        if (q.op === 'delete') { captures.deletes.push({ withSelect: false }); return Promise.resolve({ error: null }).then(resolve, reject); }
+                        return Promise.resolve({ data: null, error: null }).then(resolve, reject);
+                    },
+                };
+                return builder;
+            }
+        };
+    }
+
+    // LF at 10000cfs/3.95ft is self-consistent on the rating curve → no hard anomaly flag,
+    // so a claimed prediction reaches the learning (gf_correction_bin) upsert.
+    const usgs = {
+        data: { '01646500': { q: 10000, h: 3.95 }, '01645000': {}, '01644148': {} },
+        gauges: { lf: '01646500', seneca: '01645000', ef: '01644148' }
+    };
+    function pendingRow(overrides = {}) {
+        return {
+            id: 'p1',
+            created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(), // 1h old — not stale
+            data: {
+                validationDue: new Date(Date.now() - 10 * 60 * 1000).toISOString(), // due 10min ago — in window
+                predictedCFS: 10500, predictedStage: 4.0,
+                flowBin: '7500-12000', flowState: 'steady',
+                ...overrides
+            }
+        };
+    }
+    const binUpserts = (caps) => caps.upserts.filter(u => u.observation_type === 'gf_correction_bin');
+
+    it('claim succeeds (1 row) → learns: a correction bin is upserted, validated=1', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const client = validateClient({ pending: [pendingRow()], claimRows: [{ id: 'p1' }], captures });
+        const result = await validatePendingPredictions(client, usgs);
+        assert.equal(result.validated, 1);
+        assert.ok(binUpserts(captures).length >= 1, 'expected a gf_correction_bin upsert');
+    });
+
+    it('claim returns 0 rows (already claimed) → NO learning, validated=0 (idempotency)', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const client = validateClient({ pending: [pendingRow()], claimRows: [], captures });
+        const result = await validatePendingPredictions(client, usgs);
+        assert.equal(result.validated, 0);
+        assert.equal(binUpserts(captures).length, 0, 'must not learn when the row was not claimed');
+    });
+
+    it('invalid validationDue → row deleted (cleaned), not learned (FIX 1 deadlock)', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const client = validateClient({ pending: [pendingRow({ validationDue: 'not-a-date' })], captures });
+        const result = await validatePendingPredictions(client, usgs);
+        assert.equal(result.cleaned, 1);
+        assert.equal(result.validated, 0);
+        assert.equal(binUpserts(captures).length, 0);
+        assert.ok(captures.deletes.some(d => !d.withSelect), 'invalid-date row should be deleted');
+    });
+
+    it('stale (>48h) prediction → cleaned, not learned (reorder regression)', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const stale = pendingRow();
+        stale.created_at = new Date(Date.now() - 50 * 60 * 60 * 1000).toISOString();
+        const client = validateClient({ pending: [stale], captures });
+        const result = await validatePendingPredictions(client, usgs);
+        assert.equal(result.cleaned, 1);
+        assert.equal(result.validated, 0);
+        assert.equal(binUpserts(captures).length, 0);
+    });
 });
 
 // ─── Server Shadow Models ────────────────────────────────────────────────────

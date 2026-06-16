@@ -1,7 +1,7 @@
 // Potomac Forecaster - Secure Supabase Sync Function
 // Handles learning data sync without exposing credentials to client
 
-const { getSupabase, GF_FLOW_BINS } = require('./shared/model');
+const { getSupabase, GF_FLOW_BINS, isExistingPredictionReplaceable } = require('./shared/model');
 
 // Admin PIN from environment variable (no hardcoded fallback for security)
 const ADMIN_PIN = process.env.ADMIN_PIN;
@@ -498,11 +498,10 @@ async function saveGFLearningData(client, data) {
                 .single();
 
             if (existing) {
-                const validationDue = existing.data?.validationDue ? new Date(existing.data.validationDue) : null;
-                const now = new Date();
-                const pastWindow = !validationDue || (now - validationDue) > 2.5 * 60 * 60 * 1000;
-
-                if (!pastWindow) {
+                // Replace only if the existing pending row missed its window or has a
+                // missing/unparseable due date (C12 — shared with scheduled-update.js so
+                // both write paths agree and neither deadlocks on a bad-date row).
+                if (!isExistingPredictionReplaceable(existing.data, Date.now())) {
                     result = { success: true, action: 'storePrediction', skipped: true,
                                reason: 'Existing prediction still in validation window' };
                     return { statusCode: 200, headers, body: JSON.stringify(result) };

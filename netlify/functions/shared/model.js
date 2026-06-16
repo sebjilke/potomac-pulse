@@ -252,8 +252,26 @@ function estimateLFStage(cfs) {
     return 10.93 + ((cfs - 150000) / 100000) * 2.5;
 }
 
+// --- Pending-prediction validation window ---
+
+// A validated prediction is accepted only within this delay after its due time.
+// With a 1h cron, normal delay is 0-1h; beyond this, flow conditions have changed
+// too much to learn from. Shared by the cron validator and the API write path.
+const VALIDATION_MAX_DELAY_MS = 2.5 * 60 * 60 * 1000;
+
+// Should an EXISTING pending prediction be replaced by a newly computed one?
+// True if it has missed its validation window, OR if its validationDue is missing
+// or unparseable. An Invalid Date is truthy and `now - InvalidDate` is NaN, so the
+// old `!validationDue || (now - validationDue) > MAX` guard treated a bad-date row
+// as still-in-window forever — deadlocking the single pending slot (C12).
+function isExistingPredictionReplaceable(existingData, nowMs) {
+    const dueMs = Date.parse(existingData?.validationDue);
+    return isNaN(dueMs) || (nowMs - dueMs) > VALIDATION_MAX_DELAY_MS;
+}
+
 module.exports = {
     getSupabase,
+    VALIDATION_MAX_DELAY_MS, isExistingPredictionReplaceable,
     GF_FLOW_BINS, getFlowBin,
     estimateLFFlowFromStage,
     TRAVEL_COEF, TRAVEL_EXP, MEDIAN_TRAVEL, TRAVEL_POR_GF_BASELINE, TRAVEL_GF_LF_BASELINE,

@@ -12,7 +12,8 @@ const {
     getPoRRiseRateFromHistory,
     CEILING_RATIO, DECAY_CAP,
     TRIB_FALLBACK,
-    estimateLFStage
+    estimateLFStage,
+    VALIDATION_MAX_DELAY_MS, isExistingPredictionReplaceable
 } = require('./shared/model');
 
 // Validate USGS API response schema
@@ -837,18 +838,16 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
     for (const pred of pending) {
         const validationDue = new Date(pred.data.validationDue);
         const createdAt = new Date(pred.created_at);
-
-        // Skip invalid timestamps
-        if (isNaN(validationDue.getTime())) {
-            console.log(`⚠️ Skipping prediction with invalid validationDue: ${pred.id}`);
-            continue;
-        }
-
-        // Clean up stale predictions (>48 hours old) - delete them
-        // Note: UPDATE to 'expired' hits unique constraint since only one row per gauge_id allowed
         const ageMs = now - createdAt;
-        if (ageMs > staleThreshold) {
-            console.log(`🧹 Cleaning stale prediction from ${createdAt.toISOString()} (${Math.round(ageMs/3600000)}h old)`);
+
+        // Clean up stale predictions FIRST — older than 48h, or with an unparseable
+        // created_at (NaN age) that could otherwise never age out. This must run
+        // before the validationDue check below so a row with a bad due date can't
+        // occupy the single pending slot forever (C12 deadlock).
+        // Note: UPDATE to 'expired' hits the unique constraint, so we delete.
+        if (isNaN(ageMs) || ageMs > staleThreshold) {
+            const ageLabel = isNaN(ageMs) ? 'unparseable created_at' : `${Math.round(ageMs/3600000)}h old`;
+            console.log(`🧹 Cleaning stale prediction (${ageLabel})`);
             const { error: staleErr } = await client.from('potomac_observations')
                 .delete()
                 .eq('id', pred.id);
@@ -859,11 +858,24 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             continue;
         }
 
+        // A prediction whose validationDue can't be parsed can never validate —
+        // delete it now rather than skip it forever (C12 deadlock).
+        if (isNaN(validationDue.getTime())) {
+            console.log(`🧹 Cleaning prediction with invalid validationDue: ${pred.id}`);
+            const { error: badDueErr } = await client.from('potomac_observations')
+                .delete()
+                .eq('id', pred.id);
+            if (badDueErr) {
+                console.error(`❌ Invalid-date cleanup FAILED for ${pred.id}:`, badDueErr.message, badDueErr.code, badDueErr.details);
+            }
+            cleaned++;
+            continue;
+        }
+
         // v34.0: Reject validations >2.5h after due time
         // With 1h cron, normal delay is 0-1h; beyond that, flow conditions have changed too much
         // Predictions that miss the window remain pending until 48h stale cleanup expires them
         const validationDelayMs = now - validationDue;
-        const VALIDATION_MAX_DELAY_MS = 2.5 * 60 * 60 * 1000;
         if (now >= validationDue && validationDelayMs <= VALIDATION_MAX_DELAY_MS) {
             const delayMinutes = Math.round(validationDelayMs / 60000);
             console.log(`⏱️ Validation delay: ${delayMinutes}min after due time`);
@@ -946,6 +958,24 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             if (Math.abs(errorPercent) > 50) {
                 softScore += 1;
                 anomalyFlags.push(`LARGE_ERROR:${errorPercent.toFixed(0)}%`);
+            }
+
+            // Idempotency claim (C12): delete this prediction row BEFORE persisting any
+            // learning, and proceed only if we actually removed it. If 0 rows come back,
+            // a concurrent run already claimed it — skip to avoid double-counting the same
+            // observation into the EMA. A crash after the claim but before the bin write
+            // loses one observation (noise), far better than a double-counted EMA (bias).
+            const { data: claimed, error: claimErr } = await client.from('potomac_observations')
+                .delete()
+                .eq('id', pred.id)
+                .select('id');
+            if (claimErr) {
+                console.error(`❌ Prediction CLAIM failed for ${pred.id}:`, claimErr.message, claimErr.code, claimErr.details);
+                continue;
+            }
+            if (!claimed || claimed.length === 0) {
+                console.log(`↩️ Prediction ${pred.id} already claimed by another run — skipping`);
+                continue;
             }
 
             // Update correction bin
@@ -1165,14 +1195,8 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 console.log(`🔗 EF correlation: n=${corrData.count}, slope=${corrData.slope?.toFixed(0)}, R²=${corrData.rSquared || 'N/A'}`);
             }
 
-            // Delete validated prediction (unique constraint prevents status-move pattern)
-            // Learning data is already persisted in correction bins and metadata above
-            const { error: statusErr } = await client.from('potomac_observations')
-                .delete()
-                .eq('id', pred.id);
-            if (statusErr) {
-                console.error(`❌ Prediction DELETE FAILED for ${pred.id}:`, statusErr.message, statusErr.code, statusErr.details);
-            }
+            // (The prediction row was already claimed/deleted above, before learning —
+            // see the idempotency claim. No second delete needed.)
 
             // Update metadata
             const { data: meta } = await client
@@ -1327,18 +1351,15 @@ async function storePrediction(client, prediction) {
         .single();
 
     if (existing) {
-        const validationDue = existing.data?.validationDue ? new Date(existing.data.validationDue) : null;
-        const now = new Date();
-        const pastWindow = !validationDue || (now - validationDue) > 2.5 * 60 * 60 * 1000;
-
-        if (!pastWindow) {
-            // Existing prediction still in or before its validation window — don't overwrite it
-            console.log(`⏳ Skipping new prediction — existing pending still in window (due: ${existing.data.validationDue})`);
+        // Replace the existing pending row only if it has missed its validation window,
+        // or has a missing/unparseable due date that could never validate (C12 — an
+        // Invalid Date is truthy, so the old guard left bad-date rows un-replaceable).
+        if (!isExistingPredictionReplaceable(existing.data, Date.now())) {
+            console.log(`⏳ Skipping new prediction — existing pending still in window (due: ${existing.data?.validationDue})`);
             return;
         }
 
-        // Existing prediction has missed its window and will never validate — safe to replace
-        console.log(`🗑️ Removing missed-window prediction (due: ${existing.data.validationDue})`);
+        console.log(`🗑️ Removing missed-window/invalid prediction (due: ${existing.data?.validationDue})`);
         await client.from('potomac_observations')
             .delete()
             .eq('observation_type', 'gf_prediction')
