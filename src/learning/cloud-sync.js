@@ -67,9 +67,16 @@ export async function syncToCloud() {
             }
 
             const result = await response.json();
-            setLastSyncTime(Date.now());
-            updateSyncStatus('synced');
-            console.log(`☁️ Synced to cloud (${result.savedCount} items)`);
+            if (result && result.success === false) {
+                // C46: the server accepted the request (200) but the write failed — report it
+                // honestly and don't advance lastSyncTime, so un-saved data isn't marked synced.
+                updateSyncStatus('error');
+                console.warn('Cloud sync: server reported failure —', result.error);
+            } else {
+                setLastSyncTime(Date.now());
+                updateSyncStatus('synced');
+                console.log(`☁️ Synced to cloud (${result.savedCount} items)`);
+            }
 
         } catch(e) {
             console.log('Cloud sync error:', e);

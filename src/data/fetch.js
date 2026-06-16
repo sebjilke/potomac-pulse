@@ -259,24 +259,20 @@ export function backfillPoRHistory(timeSeries) {
 export function fillMissingData() {
     // Get Little Falls and Point of Rocks as reference
     const lfQ = data[LF.id]?.q;
-    const ptRocksQ = data["01638500"]?.q;
-    const ptRocksH = data["01638500"]?.h;
 
     for (const [id, g] of Object.entries(GAUGES)) {
         if (id === LF.id) continue;
         if (!data[id]) data[id] = {};
 
-        // Estimate missing discharge from drainage area ratio
+        // Estimate missing discharge from drainage area ratio (defensible approximation).
         if (!data[id].q && lfQ) {
             data[id].q = Math.round(lfQ * (g.area / 11560));
             data[id].estimated = true;
         }
 
-        // Estimate missing stage from Point of Rocks (rough approximation)
-        if (!data[id].h && ptRocksH) {
-            data[id].h = ptRocksH;
-            data[id].estimated = true;
-        }
+        // (C49) Do NOT fabricate stage. Point-of-Rocks stage is a different river reach
+        // and datum; copying it to other gauges produced a physically meaningless number.
+        // Leave a missing stage as missing — the UI shows "n/a".
     }
 }
 

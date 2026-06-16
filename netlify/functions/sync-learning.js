@@ -406,6 +406,7 @@ async function saveLearningData(client, data) {
         }
 
         // Save new observations
+        let obsError = null;
         if (observations && Array.isArray(observations) && observations.length > 0) {
             // Limit to 100 observations per sync to prevent abuse
             const limitedObs = observations.slice(0, 100);
@@ -421,6 +422,10 @@ async function saveLearningData(client, data) {
             if (!error) {
                 savedCount += records.length;
             } else {
+                // C46: surface the failure instead of swallowing it. The legacy System-1
+                // observation insert fails on the (observation_type, gauge_id) unique constraint;
+                // returning success:true here made the client report "synced" while nothing saved.
+                obsError = error;
                 console.error('Observations save error:', error);
             }
         }
@@ -429,8 +434,9 @@ async function saveLearningData(client, data) {
             statusCode: 200,
             headers,
             body: JSON.stringify({
-                success: true,
+                success: !obsError,
                 savedCount,
+                error: obsError ? `observations: ${obsError.message}` : undefined,
                 syncTime: new Date().toISOString()
             })
         };
@@ -971,4 +977,4 @@ async function loadPoRHistory(client) {
 }
 
 // Test-only exports (mirrors the convention in scheduled-update.js)
-exports._test = { buildForecastRows, validateGFWritePayload };
+exports._test = { buildForecastRows, validateGFWritePayload, saveLearningData };
