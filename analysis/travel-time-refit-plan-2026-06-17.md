@@ -307,6 +307,13 @@ Low-flow removable routed-PoR error is mean +1.6% (EMA-absorbed) + scatter from 
 **No credible accuracy/band gain ⇒ the relation refit is NOT worth a MAJOR release + CI re-derivation +
 server refactor.** Decision: **close the relation refit** (like #7, the cheap diagnostics right-sized it).
 
+**Robustness to bin width (added after review question).** The flow bins above were ad hoc. Re-ran
+Layer A on FINE bins (≈1.2× spans) to check whether the low r was a flow-heterogeneity smearing
+artifact (wide bins pool different lags → depress the CCF). It is NOT: low-flow r stays **0.08–0.16**
+from 1,000–4,000 cfs even in tight bins, while r rises monotonically with flow (0.12→0.46→0.92) and
+the deployed−observed gap closes to ≤1.5h exactly where r becomes trustworthy (≥~12k). **No flow band
+is both well-identified and meaningfully biased** — strengthening, not weakening, the verdict.
+
 **Survivor (worth doing):** the **C6 doc-range fix** — displayed "19–33h" is wrong; the deployed
 formula spans ~5–50.6h. Pure display-accuracy, no model change → folded into the #10 doc sweep.
 (The C8 iteration-parity / C16 history-extension server fixes are real but were only justified as
