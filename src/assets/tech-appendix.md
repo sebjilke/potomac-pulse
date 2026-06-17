@@ -1,6 +1,6 @@
 # Potomac Pulse — Technical Appendix
 
-**Version:** 36.1 | **Date:** June 2026 | **Full changelog:** [CHANGELOG.md](CHANGELOG.md)
+**Version:** 36.2 | **Date:** June 2026 | **Full changelog:** [CHANGELOG.md](CHANGELOG.md)
 
 This document provides full methodological transparency for the Potomac Pulse prediction system. It is intended for scientists, hydrologists, and technically curious users who want to understand exactly how the model works.
 
@@ -10,7 +10,7 @@ This document provides full methodological transparency for the Potomac Pulse pr
 
 Potomac Pulse estimates real-time water conditions at Great Falls on the Potomac River, where no USGS gauge exists. The system uses two complementary methods:
 
-**Nowcast (current conditions):** The primary predictor is Point of Rocks (USGS 01638500), 20 miles upstream, which captures 83.5% of the Little Falls drainage area. Its reading from 19 to 33 hours ago (travel time is flow-dependent, per Searcy 1961 with an empirical 0.80 correction factor) represents the water currently at Great Falls. Four gauged tributaries (Monocacy, Goose Creek, Broad Run, Seneca Creek) add inflows between the two points. The result is blended with an independent stage-discharge estimate from Edwards Ferry, 2 miles above the falls, using a flow-dependent logistic weight (0% at low flows, up to 40% at high flows). A PoR-delta correction adjusts for rising or falling conditions. The estimate is capped at 120% of observed Little Falls discharge. Every two hours, the server validates the prediction against actual Little Falls data and updates learned correction factors across 18 bins (6 flow levels by 3 flow states) using exponential moving averages.
+**Nowcast (current conditions):** The primary predictor is Point of Rocks (USGS 01638500), 20 miles upstream, which captures 83.5% of the Little Falls drainage area. Its reading from roughly 5 to 50 hours ago — flow-dependent: about 19h at median flow, as little as ~5h in high water and up to ~50h near the 1,000-cfs low-water floor, per Searcy 1961 with an empirical 0.80 correction factor — represents the water currently at Great Falls. Four gauged tributaries (Monocacy, Goose Creek, Broad Run, Seneca Creek) add inflows between the two points. The result is blended with an independent stage-discharge estimate from Edwards Ferry, 2 miles above the falls, using a flow-dependent logistic weight (0% at low flows, up to 40% at high flows). A PoR-delta correction adjusts for rising or falling conditions. The estimate is capped at 120% of observed Little Falls discharge. Every two hours, the server validates the prediction against actual Little Falls data and updates learned correction factors across 18 bins (6 flow levels by 3 flow states) using exponential moving averages.
 
 **Forecast (48 hours ahead):** Uses NWS predictions for Little Falls (downstream), shifted earlier in time by the Great Falls to Little Falls travel time (~6 hours at typical flows), with additive bias correction anchored to the current gauge-vs-forecast discrepancy.
 
@@ -23,7 +23,7 @@ Potomac Pulse estimates real-time water conditions at Great Falls on the Potomac
 Potomac Pulse is a real-time web application that estimates water conditions at Great Falls on the Potomac River, where no USGS gauge exists. It combines data from multiple upstream gauges using an ensemble model, validates predictions against a downstream gauge, and learns correction factors over time.
 
 **Core approach:**
-1. Look up what Point of Rocks was reading when today's Great Falls water passed through (~19-33 hours ago)
+1. Look up what Point of Rocks was reading when today's Great Falls water passed through (~5-50 hours ago, flow-dependent)
 2. Add tributary contributions (Monocacy, Goose Creek, Broad Run, Seneca Creek) at their confluence points
 3. Blend with a nearby stage-only gauge (Edwards Ferry) using flow-dependent weights
 4. Validate every prediction ~6 hours later when water reaches Little Falls
@@ -108,17 +108,21 @@ Where T = travel time in hours, Q = Little Falls discharge in cfs.
 - Conservative approach: preserve Searcy's physically-derived exponent (-0.5963), adjust coefficient only
 - Likely cause: changed channel conditions (sediment, vegetation, cross-section geometry) over 60+ years
 
+**What the time-shift represents:** the quantity we need is the *hydrograph* (flow-signal) propagation lag, which travels faster than the bulk water itself — so this is a wave-celerity time, not literal dye-tracer water-particle travel. The modern cross-correlation above (24h rising-limb peak) measures exactly that propagation lag, and the ×0.80 factor brings Searcy's water-velocity relation into line with it. The lag is well-constrained at higher flows (the PoR↔Little Falls signal correlation is strong there) but poorly identified at low flow, where tributary inflow and slow recession dominate; the low-flow times above should be read as order-of-magnitude.
+
 ### 3.3 Travel Time by Flow Regime
 
 | LF Flow (cfs) | Searcy (1961) | Corrected (×0.80) | PoR → GF (75%) | GF → LF (25%) |
 |---------------|---------------|-------------------|----------------|----------------|
-| 1,200 | 55 hrs | 44 hrs | ~33 hrs | ~11 hrs |
-| 2,000 | 44 hrs | 35 hrs | ~26 hrs | ~9 hrs |
+| 1,000 (floor) | 84 hrs | 67 hrs | ~50 hrs | ~17 hrs |
+| 2,000 | 56 hrs | 45 hrs | ~33 hrs | ~11 hrs |
 | 5,000 | 32 hrs | 26 hrs | ~19 hrs | ~6.5 hrs |
-| 15,000 | 18 hrs | 14 hrs | ~11 hrs | ~3.6 hrs |
-| 50,000 | 9 hrs | 7 hrs | ~5.5 hrs | ~1.8 hrs |
+| 15,000 | 17 hrs | 13 hrs | ~10 hrs | ~3.3 hrs |
+| 50,000 | 8 hrs | 6.5 hrs | ~5 hrs | ~1.6 hrs |
 
-The PoR→GF segment accounts for 75% of total travel time (slower pooled sections above the falls), while GF→LF accounts for 25% (faster flow through the gorge).
+*Values computed from the deployed relation `T = 4139·Q^−0.5963` (the Corrected column), not Searcy's raw table — they diverge below ~5,000 cfs.*
+
+The PoR→GF segment accounts for 75% of total travel time (slower pooled sections above the falls), while GF→LF accounts for 25% (faster flow through the gorge). Discharge is floored at 1,000 cfs, so the PoR→GF time-shift spans **~5h (high water) to ~50h (the low-water floor), ~19h at median flow** — not the "19–33h" stated in earlier versions, which understated the low-flow end.
 
 ### 3.4 Upstream Gauge Extensions
 
@@ -137,7 +141,7 @@ For gauges upstream of Point of Rocks, baseline travel times are from Searcy Tab
 
 Travel time depends on flow, but we look up *historical* flow — creating a circular dependency.
 
-**Problem:** Current flow = 1,200 cfs → travel time ~33h → look up PoR from 33h ago → find 1,900 cfs → but 1,900 cfs travels in ~25h, so that water already passed.
+**Problem:** Current flow = 1,200 cfs → travel time ~45h → look up PoR from 45h ago → find 1,900 cfs → but 1,900 cfs corresponds to ~34h, so that water already passed.
 
 **Solution:** Iterate until convergence (within 1 hour):
 1. Start with current flow → calculate travel time
@@ -502,7 +506,7 @@ EF estimate: 11,200 cfs (from 3.50 ft stage)
 
 ### 8.1 Why a Different Method is Needed
 
-The nowcast estimate looks backward: "What PoR reading from ~19-33 hours ago has arrived at GF now?" For forecasting, at low flow (~1,000 cfs, travel time ~40h):
+The nowcast estimate looks backward: "What PoR reading from ~5-50 hours ago has arrived at GF now?" For forecasting, at low flow (~1,000 cfs, travel time ~40h):
 - +6h forecast needs PoR from 34 hours *ago* (historical, not forecast)
 - +48h forecast needs PoR from 8 hours *ago* (still historical)
 
@@ -642,10 +646,10 @@ Starting with v25.0, Potomac Pulse uses **MAJOR.MINOR** versioning:
 - **MAJOR** (v25 → v26): Changes to the core GF estimation logic — model recalibration, new estimation approach, architectural changes that alter outputs for the same inputs.
 - **MINOR** (.0 → .1): Bug fixes, UI changes, new features/tabs, documentation updates, display changes — anything that does not alter the core estimation output.
 
-**Current version:** v36.1 | **Last calibration:** v30.0 (Feb 2026) | **Last structural change:** v36.0 (Jun 2026 — closed the learning loop: server end-applies the EMA correction; displayed model == validated model)
+**Current version:** v36.2 | **Last calibration:** v30.0 (Feb 2026) | **Last structural change:** v36.0 (Jun 2026 — closed the learning loop: server end-applies the EMA correction; displayed model == validated model)
 
-For the complete version history (v16 through v36.1), see [CHANGELOG.md](CHANGELOG.md).
+For the complete version history (v16 through v36.2), see [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
-*Generated by Potomac Pulse v36.1 — Corrected-residual confidence band (C2): the 90% CI is now applied sign-aware and asymmetric as `[estimate − q95, estimate − q05]` (replacing the v36.0 symmetric ±halfWidth), and `EMPIRICAL_CI_90` was re-derived on the corrected residual the user sees by replaying the real model over 126,916 hourly obs (incl. tributaries + LF stage) in a prequential EMA backtest, binned by the model's own flow bin/state, with high-flow bins widened to the multi/single-pending union. EMA bin-update extracted to a shared `updateCorrectionBin`. MINOR — point estimate unchanged. Blind Python+R (<1e-9) + auditor + live-USGS verified; deployed-proxy coverage 89.1%.*
+*Generated by Potomac Pulse v36.2 — Travel-time documentation accuracy (C6): the displayed PoR→GF range is corrected from the stale "19–33h" to the true flow-dependent ~5–50h (≈19h at median flow, up to ~50h at the 1,000-cfs floor), the §3.3 table low-flow rows are rebuilt from the deployed relation `T = 4139·Q^−0.5963` (they had understated low flow), and the time-shift rationale is clarified as a hydrograph wave-celerity propagation lag rather than dye-tracer water travel, with an explicit note that the low-flow lag is poorly constrained empirically. Docs/display only — no model change. (v36.1: corrected-residual confidence band, C2.)*

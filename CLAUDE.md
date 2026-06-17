@@ -98,7 +98,7 @@ Format: **vMAJOR.MINOR** (e.g., v25.0, v25.1, v25.2)
 ## Model Mechanisms
 
 ### Nowcast (GF Estimate)
-Works upstream → downstream. Takes observed PoR discharge (~19–33h travel time to GF, flow-adjusted),
+Works upstream → downstream. Takes observed PoR discharge (~5–50h travel time to GF, flow-dependent: ~19h median, up to ~50h near the 1,000-cfs floor),
 adds tributary inflows (Monocacy 7.1%, Goose Creek 3.0%, Broad Run 0.66%, Seneca 0.87%), blends in
 EF power-law estimate (flow-dependent weight: near 0% at low flows, ~40% at high), applies a PoR-delta
 correction for rising/falling rivers, end-applies the learned EMA bin correction at unit gain (after the
@@ -129,7 +129,7 @@ horizon (6/12/24/48h). Stored as `gf_forecast_pending` → validated when water 
 Client estimation: `src/estimation/great-falls.js`. Forecast UI: `src/ui/great-falls-ui.js`.
 NWS integration: `src/estimation/nws.js`. Learning UI: `src/ui/learning-ui.js`.
 
-## Current Model Parameters (v36.1)
+## Current Model Parameters (v36.2)
 
 - **EF Power-Law**: 126×EF^2.46 (default), 160×EF^2.36 (cold water ≤10°C)
 - **EF Weight (Logistic Ramp)**: `ef_weight = 0.40 / (1 + exp(-5.0 × (ln(flow) - ln(10000))))`. Near 0% at low flows, ~40% at high. EF has negative predictive skill below 6k cfs.

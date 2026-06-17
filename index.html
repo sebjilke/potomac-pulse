@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v36.1</title>
+    <title>Potomac Pulse v36.2</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -228,7 +228,7 @@
                         </div>
 
                         <p style="font-size:0.75rem;color:var(--text-tertiary);line-height:1.7;margin-bottom:14px;">
-                        Water takes roughly a day to flow from Point of Rocks to Great Falls. To estimate conditions at Great Falls <i>right now</i>, we look at what Point of Rocks was reading 19 to 33 hours ago (depending on how fast the river is moving), then adjust for everything that happens along the way.
+                        Water takes roughly a day to flow from Point of Rocks to Great Falls. To estimate conditions at Great Falls <i>right now</i>, we look at what Point of Rocks was reading roughly 5 to 50 hours ago (depending on how fast the river is moving — about 19 hours at typical flows, much longer in low water), then adjust for everything that happens along the way.
                         </p>
 
                         <!-- DIAGRAM -->
@@ -303,7 +303,7 @@
                             <!-- (a) Time-shifting -->
                             <div style="margin-bottom:10px;padding:8px 10px;background:var(--bg-base);border-radius:6px;">
                                 <div style="font-size:0.65rem;color:var(--accent-blue);font-weight:600;margin-bottom:3px;">Time-shifting</div>
-                                The primary input is the Point of Rocks gauge, 20 miles upstream. Travel time depends on flow: about 19 hours at high water, up to 33 hours at low water. We look back by that amount to find the reading that corresponds to Great Falls right now. If the river is currently rising or falling at Point of Rocks, the estimate adjusts for how much of that change has reached Great Falls.
+                                The primary input is the Point of Rocks gauge, 20 miles upstream. Travel time depends on flow: roughly 5 hours at very high water and about 19 hours at typical flows, lengthening to ~50 hours in low water. We look back by that amount to find the reading that corresponds to Great Falls right now. If the river is currently rising or falling at Point of Rocks, the estimate adjusts for how much of that change has reached Great Falls.
                             </div>
 
                             <!-- (b) Tributaries + blending -->

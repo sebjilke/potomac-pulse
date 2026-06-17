@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v36.1 (June 2026)
+**Current Version**: v36.2 (June 2026)
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ Frontend (PWA)                    Netlify Functions (Backend)
 ├── analysis/                         # Model calibration scripts, audit reports (CSVs gitignored — reproducible from scripts)
 ```
 
-## Current Model (v36.1)
+## Current Model (v36.2)
 
 Core estimation parameters (travel time, EF power-law, EF weight) validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits. The v36.1 confidence band was re-derived separately on **126,916 hourly observations** (the same period, with the four tributaries + LF stage added) — see the v36.1 changelog entry.
 
@@ -68,12 +68,12 @@ Core estimation parameters (travel time, EF power-law, EF weight) validated on *
 | **EF Weight (Logistic Ramp)** | `0.40 / (1 + exp(-5.0 × (ln(Q) - ln(10000))))` | Near 0% at low flows, ~40% at high. Winner of 7-approach horse race (−4.6% RMSE). |
 | **Soft LF Ceiling** | 120% of LF actual | Near-zero rising bias (-29 cfs) vs -476 cfs with 110% |
 | **Decay Cap** | 0.50 | PoR-delta correction. At hourly resolution, effectively irrelevant. |
-| **Travel Time** | `T = 4139 × Q^(-0.5963)` | Searcy (1961) × 0.80 empirical correction |
+| **Travel Time** | `T = 4139 × Q^(-0.5963)` | Searcy (1961) × 0.80; hydrograph (wave-celerity) lag. PoR→GF ~5h (high water) to ~50h (1,000-cfs floor), ~19h median |
 
 ### Estimation Pipeline
 
 ```
-1. Look up PoR reading from ~19-33 hours ago (iterative convergence)
+1. Look up PoR reading from ~5-50 hours ago, flow-dependent (~19h median; iterative convergence)
 2. Add tributary flows (Monocacy 7.1%, Goose Creek 3.0%, Broad Run 0.66%, Seneca Creek 0.87%)
 3. Blend with EF power-law estimate (logistic ramp: 0-40% weight by flow)
 4. Apply PoR-delta correction for rising/falling rivers
@@ -175,6 +175,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v36.2 | 2026-06-17 | **Travel-time documentation accuracy (C6) — MINOR (docs/display only, no model change).** Corrected the displayed PoR→GF travel-time range from the stale "19–33h" to the true flow-dependent **~5–50h** (≈19h median, ~5h high water, up to ~50h at the 1,000-cfs floor) across the tech appendix, README, index.html and CLAUDE.md; rebuilt the §3.3 table's low-flow rows from the deployed relation `T = 4139·Q^−0.5963` (they understated low flow — e.g. 2,000 cfs is ~33h PoR→GF, not ~26h); clarified that the time-shift is a hydrograph wave-celerity propagation lag, not dye-tracer water travel, and that the low-flow lag is poorly constrained empirically (PoR↔LF cross-correlation r≈0.10 below ~4,000 cfs). The travel-time *relation* refit itself was investigated (Layer-0/Layer-A no-model-change diagnostics) and closed as low-leverage — see `analysis/travel-time-refit-plan-2026-06-17.md`. |
 | v36.1 | 2026-06-17 | **Corrected-residual confidence band (C2) — MINOR** (display + a behavior-preserving refactor; the point estimate is unchanged). Fixed the 90% CI band on two coupled axes. The band is now applied **sign-aware and asymmetric** as `[estimate − q95, estimate − q05]` — the v36.0 symmetric `estimate ± (q95−q05)/2` discarded the residual's sign and could not represent an asymmetric or same-signed interval (e.g. `50000+/falling` is q05 −4,099 / q95 +6,429). And the `EMPIRICAL_CI_90` table was re-derived on the **corrected** residual the user actually sees (not the bare ensemble error): the real production model was replayed over 126,916 hourly obs (2011-2026, now including the four tributaries + LF stage) with its prequential EMA learn loop, and the corrected residual was quantiled binned by the model's own `(flowBin, flowState)`. High-flow bins (25000-50000, 50000+) use the wider of the multi-/single-pending tails so the band doesn't under-cover the laggier correction the deployed cron serves. The EMA bin update was extracted to a shared `updateCorrectionBin` so cron and backtest learn identically (behavior-preserving, cross-checked against the real validator). Blind Python + R derivation (agree <1e-9), independent auditor, 6/6 live-USGS provenance checks; out-of-sample coverage 88.4%, deployed-proxy (single-pending) coverage 89.1%. 386 → 391 unit tests. Methodology pre-audited by two independent lenses before coding. |
 | v36.0 | 2026-06-16 | **Closed the learning loop (C1) — MAJOR.** The server now end-applies the learned EMA correction to its own prediction, so the model that is stored, validated, learned-on, and reported is the same corrected model the user sees. The correction is applied at unit gain (`corrected = raw − correction`, after the EF ensemble and the 120%-LF display ceiling) on both client and server via one shared helper (`applyGFCorrection`) — eliminating the old pre-ensemble dilution (only ~60% of the correction reached the output at high flow) and unifying the two estimators (characterization fixtures now match the server **exactly**; previously a ~13% gap and two flow-bin mismatches). Learning stays honest and feedback-free: the EMA learns on the **raw** residual (correction-independent), while the **headline** accuracy now scores the **corrected** residual, prequentially. The cron is now the **sole** prediction writer (client `sendGFPrediction`/retry-queue removed, finishing C12). The 120%-LF ceiling is a display-only guard on the corrected output and no longer censors the EMA target. Soft-flag clamp re-centered on `emaMeanError`; shadow leaderboard scored on the raw error. Correction bins carry over unchanged (they already encoded the raw residual). 181 → 374 unit tests. The empirical CI band's asymmetry/sign fix and re-derivation (C2) are deferred to v36.1. |
 | v35.6 | 2026-06-16 | Reliability & data-integrity hardening from a re-verified science review — no change to the GF estimate. (C20) Netlify deploys are gated on `npm test`. (C24) The three NWS/persistence forecast baselines previously dropped at insert are now stored, so forecast-vs-NWS skill scoring can accrue. (C12) Fixed a validation-pipeline deadlock (a malformed `validationDue` could permanently occupy the single pending slot, in both the cron and API write paths) and made EMA learning idempotent (claim-before-learn prevents a mid-cycle crash from double-counting). (C13a) The public `/api/sync` write path validates nested prediction/forecast payloads — bounds CFS/dates, requires an in-vocabulary flow bin/state, and couples `flowBin` to `predictedCFS` so a caller can't free-target a learning bin (full auth hardening tracked separately). (C46) The legacy observation sync no longer reports "synced" when its insert failed. (C49) Stopped fabricating a gauge's stage from Point-of-Rocks stage (display-only). 137→181 tests; each fix independently audited. |
