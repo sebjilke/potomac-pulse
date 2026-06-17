@@ -3,7 +3,7 @@
 // Extracted from index.html inline script
 
 import {
-    SYNC_API, EMPIRICAL_CI_90,
+    SYNC_API,
     GF_OUTLIER_THRESHOLD, FORECAST_PREDICTION_INTERVAL,
     FORECAST_HORIZONS
 } from '../model/constants.js';

@@ -13,7 +13,7 @@ const {
     CEILING_RATIO, DECAY_CAP,
     TRIB_FALLBACK,
     estimateLFStage,
-    applyGFCorrection, buildCorrectionBins,
+    applyGFCorrection, buildCorrectionBins, updateCorrectionBin,
     VALIDATION_MAX_DELAY_MS, isExistingPredictionReplaceable
 } = require('./shared/model');
 
@@ -1054,32 +1054,13 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
 
             // Update learning: hard flags skip entirely, soft flags use EMA clamping
             if (!isHardFlagged) {
-                binData.count += 1;
-                binData.sumError += errorCFS;
-                binData.sumErrorSq += errorCFS * errorCFS;
-                binData.meanError = binData.sumError / binData.count;
-
-                // EMA update with clamping for soft-flagged observations (R1).
-                // v36.0: clamp around emaMeanError (the quantity actually being updated), not the
-                // cumulative meanError — during a regime shift the cumulative mean lags and tethers
-                // the clamp to a stale center.
-                let learningError = errorCFS;
-                if (isSoftFlagged && binData.count >= 10) {
-                    const variance = (binData.sumErrorSq / binData.count) - (binData.meanError * binData.meanError);
-                    const stdDev = Math.sqrt(Math.max(0, variance));
-                    const maxDelta = 2 * stdDev;
-                    const center = binData.emaMeanError ?? binData.meanError;
-                    learningError = Math.max(center - maxDelta,
-                                    Math.min(center + maxDelta, errorCFS));
-                    if (learningError !== errorCFS) {
-                        console.log(`   EMA clamped: ${Math.round(errorCFS)} → ${Math.round(learningError)} cfs (±2σ = ±${Math.round(maxDelta)})`);
-                    }
-                }
-
-                if (binData.count === 1) {
-                    binData.emaMeanError = learningError;
-                } else {
-                    binData.emaMeanError = GF_EMA_ALPHA * learningError + (1 - GF_EMA_ALPHA) * (binData.emaMeanError || binData.meanError);
+                // v36.1: EMA bin update extracted to shared/model.js `updateCorrectionBin` so the
+                // cron and the offline CI backtest harness (analysis/) learn through identical code
+                // (no drift). Behavior-preserving — same accumulation, ±2σ soft-clamp, and EMA
+                // recurrence as v36.0. Hard-flagged obs are filtered above and never reach here.
+                const { learningError, clamped, maxDelta } = updateCorrectionBin(binData, errorCFS, isSoftFlagged);
+                if (clamped) {
+                    console.log(`   EMA clamped: ${Math.round(errorCFS)} → ${Math.round(learningError)} cfs (±2σ = ±${Math.round(maxDelta)})`);
                 }
 
                 const { error: binErr } = await client.from('potomac_observations').upsert({

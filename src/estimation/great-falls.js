@@ -93,6 +93,17 @@ export function getGFUncertainty(flowBin, flowState) {
     };
 }
 
+// v36.1 (C2): sign-aware, asymmetric 90% band. EMPIRICAL_CI_90 holds q05/q95 of the CORRECTED
+// residual r = (estimate − actual), so a 90% interval for the true flow is [est − q95, est − q05].
+// Pure + exported for regression testing — this is the exact formula the pre-v36.1 ±(q95−q05)/2
+// got wrong (it discarded the sign and forced symmetry around the estimate). Low end floored at 0.
+export function computeUncertaintyBand(estimatedCFS, q05, q95) {
+    return {
+        lowCFS: Math.max(0, Math.round(estimatedCFS - q95)),
+        highCFS: Math.round(estimatedCFS - q05)
+    };
+}
+
 export function isGFOutlier(errorCFS, binData) {
     if (!binData || binData.count < 10) return false;
 
@@ -501,9 +512,9 @@ export function estimateGreatFalls() {
     // Uncertainty range — empirical 90% CI
     let uncertaintyRange = null;
     if (uncertainty) {
-        const halfWidth = (uncertainty.q95 - uncertainty.q05) / 2;
-        const lowCFS = Math.max(0, Math.round(estimatedCFS - halfWidth));
-        const highCFS = Math.round(estimatedCFS + halfWidth);
+        // v36.1 (C2): sign-aware, asymmetric band — see computeUncertaintyBand. e.g. 50000+/falling
+        // q05/q95 = [−4099, +6429] → band [est − 6429, est + 4099], which ±(q95−q05)/2 cannot represent.
+        const { lowCFS, highCFS } = computeUncertaintyBand(estimatedCFS, uncertainty.q05, uncertainty.q95);
         uncertaintyRange = {
             lowCFS: lowCFS,
             highCFS: highCFS,

@@ -85,15 +85,22 @@ export const EF_MODEL = {
 
 export const EF_HISTORY_MAX = 48;
 
-// Empirical 90% Confidence Intervals
-// Validated on 117,704 hourly observations (2011-2026)
+// Empirical 90% Confidence Intervals — CORRECTED-residual quantiles (v36.1, C2).
+// q05/q95 of the corrected residual r = (displayed estimate − actual LF), per flowBin × flowState.
+// Applied SIGN-AWARE and asymmetric as the band [estimate − q95, estimate − q05] (great-falls.js).
+// Derived by replaying the REAL production model over 126,916 hourly obs (2011-2026, incl. the 4
+// tributaries + LF stage) in a prequential EMA backtest (analysis/ci_backtest_harness.mjs), binned
+// by the model's own (flowBin, flowState) output — the exact lookup key — then quantiled blind in
+// Python and R (agree <1e-9) and verified against live USGS. High-flow bins (25000-50000, 50000+)
+// take the wider of the multi/single-pending tails so the band doesn't under-cover the laggier
+// correction production actually serves. See analysis/ci_v36.1_backtest_plan.md.
 export const EMPIRICAL_CI_90 = {
-    '0-3000':     { rising: { q05: -1039, q95: 280 }, steady: { q05: -467, q95: 440 }, falling: { q05: -875, q95: 560 }, all: { q05: -489, q95: 440 } },
-    '3000-6000':  { rising: { q05: -2451, q95: 431 }, steady: { q05: -1230, q95: 251 }, falling: { q05: -2497, q95: 254 }, all: { q05: -1399, q95: 254 } },
-    '6000-12000': { rising: { q05: -4560, q95: 1174 }, steady: { q05: -2377, q95: -159 }, falling: { q05: -5041, q95: -77 }, all: { q05: -2786, q95: -128 } },
-    '12000-25000':{ rising: { q05: -7695, q95: 3921 }, steady: { q05: -4003, q95: -450 }, falling: { q05: -9093, q95: -540 }, all: { q05: -4588, q95: -146 } },
-    '25000-50000':{ rising: { q05: -12368, q95: 7884 }, steady: { q05: -7709, q95: -707 }, falling: { q05: -15543, q95: -1861 }, all: { q05: -8824, q95: 976 } },
-    '50000+':     { rising: { q05: -17648, q95: 34116 }, steady: { q05: -13163, q95: 12622 }, falling: { q05: -16344, q95: -1048 }, all: { q05: -14377, q95: 17848 } }
+    '0-3000':     { rising: { q05: -547, q95: 369 }, steady: { q05: -271, q95: 250 }, falling: { q05: -315, q95: 336 }, all: { q05: -309, q95: 284 } },
+    '3000-6000':  { rising: { q05: -676, q95: 535 }, steady: { q05: -327, q95: 287 }, falling: { q05: -391, q95: 361 }, all: { q05: -425, q95: 356 } },
+    '6000-12000': { rising: { q05: -1650, q95: 1046 }, steady: { q05: -404, q95: 320 }, falling: { q05: -451, q95: 359 }, all: { q05: -628, q95: 506 } },
+    '12000-25000':{ rising: { q05: -2384, q95: 1543 }, steady: { q05: -549, q95: 425 }, falling: { q05: -514, q95: 464 }, all: { q05: -884, q95: 741 } },
+    '25000-50000':{ rising: { q05: -3851, q95: 2860 }, steady: { q05: -2013, q95: 1844 }, falling: { q05: -1068, q95: 1059 }, all: { q05: -2402, q95: 1899 } },
+    '50000+':     { rising: { q05: -7354, q95: 5519 }, steady: { q05: -5858, q95: 6410 }, falling: { q05: -4099, q95: 6429 }, all: { q05: -5858, q95: 6410 } }
 };
 
 export const BRANCHES = {

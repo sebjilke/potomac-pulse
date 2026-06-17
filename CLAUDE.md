@@ -129,13 +129,13 @@ horizon (6/12/24/48h). Stored as `gf_forecast_pending` → validated when water 
 Client estimation: `src/estimation/great-falls.js`. Forecast UI: `src/ui/great-falls-ui.js`.
 NWS integration: `src/estimation/nws.js`. Learning UI: `src/ui/learning-ui.js`.
 
-## Current Model Parameters (v36.0)
+## Current Model Parameters (v36.1)
 
 - **EF Power-Law**: 126×EF^2.46 (default), 160×EF^2.36 (cold water ≤10°C)
 - **EF Weight (Logistic Ramp)**: `ef_weight = 0.40 / (1 + exp(-5.0 × (ln(flow) - ln(10000))))`. Near 0% at low flows, ~40% at high. EF has negative predictive skill below 6k cfs.
 - **PoR-Delta Correction**: Observed PoR change ratio × wave-travel decay (cap 0.50)
 - **Soft LF Ceiling**: corrected GF estimate capped at 120% of LF actual — display-only guard applied AFTER the end-apply correction; the EMA learns on the unclipped raw, so the ceiling never censors learning (v36.0)
-- **Empirical 90% CI**: Per-bin q05/q95 error quantiles (non-normal errors in all 18 bins). Lookup table `EMPIRICAL_CI_90` in `src/model/constants.js`. Display-only, symmetric band now centered on the corrected estimate; asymmetric/sign fix + re-derivation on corrected residuals deferred to v36.1 (C2).
+- **Empirical 90% CI (v36.1, C2)**: Per-(flowBin × flowState) q05/q95 of the **corrected** residual `r = estimate − actual`. Lookup table `EMPIRICAL_CI_90` in `src/model/constants.js`. Display-only, applied **sign-aware and asymmetric** as `[estimate − q95, estimate − q05]` (the v36.0 symmetric `±(q95−q05)/2` is gone). Re-derived by replaying the real model over 126,916 hourly obs (incl. tributaries + LF stage) in a prequential EMA backtest; high-flow bins use the wider of multi/single-pending tails. An *LF-equivalent-flow* band. See `analysis/ci_v36.1_backtest_plan.md`.
 - **Tributaries**: Monocacy (7.1%), Goose Creek (3.0%), Broad Run (0.66%), Seneca (0.87%). Catoctin Creek excluded (enters above PoR gauge — would double-count).
 - **Two-Tier Anomaly Flagging**: Hard flags (data corruption) skip learning AND accuracy. Soft flags (model disagreement) included in both (EMA clamped ±2σ). Three gauge_id tiers: `hard_flagged`, `soft_flagged`, `validated`.
 - **EMA Learning**: Server-only and server-sole-writer (client `checkGFValidations()` and prediction posting both disabled — the cron is the only writer). End-applied at unit gain so displayed == validated; learns on the RAW residual, headline scores the corrected model (v36.0). Validation capped at 2.5h after validationDue. Forecast-based learning rejected (domain mismatch).

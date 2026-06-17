@@ -60,7 +60,7 @@ export async function loadEstimators() {
     installLocalStorageShim();
 
     const entry = [
-        `export { estimateGreatFalls } from ${JSON.stringify(resolve(ROOT, 'src/estimation/great-falls.js'))};`,
+        `export { estimateGreatFalls, computeUncertaintyBand } from ${JSON.stringify(resolve(ROOT, 'src/estimation/great-falls.js'))};`,
         `export * as store from ${JSON.stringify(resolve(ROOT, 'src/state/store.js'))};`,
         `export * as model from ${JSON.stringify(resolve(ROOT, 'src/model/shared-model.js'))};`,
     ].join('\n');
@@ -84,6 +84,7 @@ export async function loadEstimators() {
 
     _cache = {
         estimateGreatFalls: client.estimateGreatFalls,
+        computeUncertaintyBand: client.computeUncertaintyBand,
         store: client.store,
         model: client.model,
         makeGFPrediction: _test.makeGFPrediction,

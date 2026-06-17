@@ -288,6 +288,47 @@ function applyGFCorrection({ rawFinalUnclipped, lfCFS, correctionBins, flowState
     return { flowBin, correction, correctedFinalUnclipped, correctedFinal, ceilingApplied };
 }
 
+// --- EMA correction-bin update (v36.1) ---
+// Pure, in-place update of a single correction bin's running stats from one RAW residual
+// (errorCFS = rawFinalCFS − actualLF). Extracted verbatim from validatePendingPredictions
+// (scheduled-update.js) so the cron AND the offline CI backtest harness learn through the
+// SAME code — no drift (the v36.0 shared-helper philosophy, applied to learning).
+//
+// Contract:
+//  - HARD-flagged observations must be filtered by the CALLER; they never reach this function.
+//  - SOFT-flagged observations are clamped to ±2σ around the current EMA center, but ONLY once
+//    the bin has ≥10 observations (so σ is meaningful). The center is `emaMeanError ?? meanError`
+//    and the recurrence falls back `emaMeanError || meanError` — both preserved EXACTLY as the
+//    original, because a fresh bin's seed may or may not carry an `emaMeanError` key.
+//  - count===1 seeds emaMeanError = learningError (the EMA's first value), matching the original.
+// Mutates `binData` and returns { learningError, clamped, maxDelta } for the caller to log.
+function updateCorrectionBin(binData, errorCFS, isSoftFlagged) {
+    binData.count += 1;
+    binData.sumError += errorCFS;
+    binData.sumErrorSq += errorCFS * errorCFS;
+    binData.meanError = binData.sumError / binData.count;
+
+    let learningError = errorCFS;
+    let clamped = false;
+    let maxDelta = null;
+    if (isSoftFlagged && binData.count >= 10) {
+        const variance = (binData.sumErrorSq / binData.count) - (binData.meanError * binData.meanError);
+        const stdDev = Math.sqrt(Math.max(0, variance));
+        maxDelta = 2 * stdDev;
+        const center = binData.emaMeanError ?? binData.meanError;
+        learningError = Math.max(center - maxDelta, Math.min(center + maxDelta, errorCFS));
+        clamped = (learningError !== errorCFS);
+    }
+
+    if (binData.count === 1) {
+        binData.emaMeanError = learningError;
+    } else {
+        binData.emaMeanError = GF_EMA_ALPHA * learningError + (1 - GF_EMA_ALPHA) * (binData.emaMeanError || binData.meanError);
+    }
+
+    return { learningError, clamped, maxDelta };
+}
+
 // --- Tributary drainage-area fallback ratios ---
 // Used only when real-time gauge data is unavailable.
 const TRIB_FALLBACK = {
@@ -351,5 +392,6 @@ module.exports = {
     TRIB_FALLBACK,
     getBinCorrection, getFallbackCorrection,
     getGFCorrection, buildCorrectionBins, applyGFCorrection,
+    updateCorrectionBin,
     estimateLFStage
 };
