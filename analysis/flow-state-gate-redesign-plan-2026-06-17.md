@@ -1,7 +1,8 @@
 # Flow-State Learning Gate — Parcel-Aligned Redesign — Methodology Plan
 
 **Date:** 2026-06-17
-**Status:** DRAFT — methodology plan for review. **No code until this plan is audited and signed off.**
+**Status:** **Step 1 RUN — primary fix (D1 parcel-alignment) REFUTED by data; redesign halted. See §10.**
+(Plan drafted, two-lens audited; the cheap Step-1 label diagnostic was run before any A/B and killed it.)
 **Author:** planning session (Claude Opus 4.8)
 **Versioning if implemented:** **MAJOR (v37.0)** — changes the core estimate for the same inputs
 (the binning key that selects the applied EMA correction changes).
@@ -294,3 +295,56 @@ rows (`${flowBin}_${flowState}`), and (2) **`EMPIRICAL_CI_90`** in `constants.js
 Plan is **SOUND-WITH-FIXES, awaiting user sign-off** on the §8 decisions (now informed by 9.1–9.4).
 On sign-off: run **Step 1** (cheap, no code) → report → only then decide Step 2. The Code-Change
 Verification Protocol (plan → audit → implement → re-audit) applies to any Step-2 source change.
+
+---
+
+## 10. Step-1 results (RUN 2026-06-17) — primary fix REFUTED; redesign halted
+
+**Spec:** `analysis/flow-state-step1-diagnostic-spec.md`. **Scripts (provenance):**
+`analysis/flow_state_step1.py`, `analysis/flow_state_step1.R`. **Outputs:**
+`analysis/flow_state_step1_{python,R}.csv`. Ran on the existing v36.1 backtest (110,290 validated
+predictions, 2011–2026) — **no model change, no refetch.**
+
+**Verification.** Blind Python + R agreed on every deterministic metric to **~1e-10** (gate <0.01;
+PASS). Classifier self-validated: reimplemented A_current matched the logged `flowState` on
+**99.95%** of rows. Independent third auditor (ran neither analysis): **TRUSTWORTHY** — adversarially
+tested and rejected four artifact explanations (circularity — `rawResidual` confirmed *uncorrected*,
+so A_current has no head-start; steady/edge inflation — occupancy flat across arms; fixed-lag
+artifact — the per-row `Parcel_model` lag also loses; join selection — clean 1:1 hourly join).
+
+**Result — the parcel-aligned label is WORSE, not better, at every lag:**
+
+| arm | lag h | eta2_full | within_var | Δwithin_var vs A | boot CI excludes 0? |
+|---|---|---|---|---|---|
+| **A_current** | 0 | **0.4290** | **1,077,668** | — (best) | — |
+| Parcel_L6 | 6 | 0.3976 | 1,136,982 | −59,314 | yes (losing side) |
+| Parcel_L12 | 12 | 0.3036 | 1,314,348 | −236,680 | yes (losing) |
+| Parcel_L18 | 18 | 0.2408 | 1,432,866 | −355,198 | yes (losing) |
+| Parcel_L24 | 24 | 0.1897 | 1,529,388 | −451,720 | yes (losing) |
+| Parcel_L30 | 30 | 0.1681 | 1,570,233 | −492,565 | yes (losing) |
+| Parcel_L36 | 36 | 0.1601 | 1,585,310 | −507,642 | yes (losing) |
+| Parcel_model | ~17.5 (per-row) | 0.4031 | 1,126,528 | −48,860 | yes (losing) |
+
+Lower `within_var` / higher `eta2` = the label carves the model's raw bias more cleanly. The
+**current-T0 label wins on both**, and parcel labels degrade monotonically with lag — including the
+data-provenanced per-row lag. Travel-time sensitivity (audit F2) is moot: the effect is one-signed
+across the whole 6–36h range, so no plausible lag correction flips it.
+
+**Decision (pre-registered go/no-go, §9.3): NULL → do not build the Step-2 A/B.** Stronger than null:
+re-keying learning to the parcel limb would *increase* residual variance. Decision **D1 = keep
+current-T0 basis.** Likely mechanism: the model's bias is dominated by *current*-condition effects
+(travel-time/celerity error, EF blend) governed by the current PoR trend, not the historic parcel's
+limb — so the "wrong water parcel" framing, though literally true in code (§1.1), is empirically the
+*better* predictor.
+
+**What survives (NOT tested by Step 1, still open as smaller, SEPARATE items):**
+- **C45 step-function display jumps** (rising↔steady flips, ~1,400 cfs snaps). Independent of D1 — a
+  *display-side* continuous/hysteresis smoothing at correction-*application* could still help without
+  re-keying learning. Candidate for its own small plan if desired.
+- **D4 classifier unification** (C41/C19/C10) — parity/cold-start, already shown low-severity by the
+  C19 cadence verification; orthogonal to this null.
+
+**Disposition of #7:** the parcel-aligned redesign (the headline of this item) is **closed —
+investigated and refuted by data.** No code shipped, no model change. Net cost: one spec + two blind
+scripts on existing data. This is the planning protocol working as intended — the cheap diagnostic
+prevented a multi-week build on a false premise.
