@@ -251,3 +251,63 @@ safety-tool judgment), e.g. "≥ N cfs or ≥ M% at low flow."
 **SOUND-WITH-FIXES, awaiting user sign-off** on §8 + D-new. On sign-off, run **Layer 0 (sensitivity,
 no code)** first — like #7's Step-1 it is cheap and may decisively kill or green-light the refit before
 any lag fit or model-seam work. The Code-Change Verification Protocol applies to any seam/source change.
+
+---
+
+## 10. Decisions locked (user, 2026-06-17)
+
+- **D-new (the gate):** the bar is **display accuracy/honesty**, NOT decision-changing impact — the
+  user confirmed a few-hundred-cfs low-flow sharpening typically does **not** change a go/no-go
+  paddling call, but wants the displayed number accurate. ⇒ A *real, out-of-sample, non-noise*
+  accuracy improvement counts even if small; but it must clear a pre-registered effect-size floor (not
+  just "paired CI ≠ 0", which the smooth-lag correlation can fake). **Corollary:** the **C6 doc-range
+  fix** (displayed "19–33h" is simply wrong) is worth doing **regardless** of the relation refit —
+  pure display-accuracy, no model change; fold into the #10 doc sweep.
+- **D2:** user knows of **no Great Falls ground truth** (no gauge / NPS / adjusted-flow station). ⇒
+  the 75/25 PoR→GF split is **held fixed**, documented as an explicit unfalsifiable assumption; the
+  "re-estimate indirect" option is dropped.
+- **D1:** ✓ **free 2-parameter refit** on the 14-yr corrected estimand; `2438·Q^−0.5491` and
+  status-quo are benchmarks only (the candidate was fit on the confounded basis, so not adopted blind).
+- **D3:** ✓ **replace** the ad-hoc rising-only celerity add-on with **limb-stratified fitted lags**
+  (rising vs steady/falling) derived in Layer A — removes the double-count by construction.
+- **D0:** ✓ **bundle the server fixes** (C8 iteration parity + C16 history extension + explicit
+  `unshiftedFallback` flag); **exclude** EF refit + forecast routing.
+- **Sequencing:** ✓ travel-time **alone first**; decide EF-bundling only if Layer-0 clears.
+
+Methodology is signed off. Proceeding to **Layer 0**.
+
+---
+
+## 11. Layer-0 + Layer-A results (RUN 2026-06-17) — relation refit NOT worth building
+
+Two cheap, no-model-change probes (exploratory single-language; formalize blind Py+R only if a build
+is pursued) on `hourly_backtest_data_v361.csv`. They **concur against** the relation refit.
+
+**Layer 0 — input sensitivity** (how much routed PoR moves if the lag is shortened by the claimed
+6–16h). Low flow (1,400–4,000): median |Δ| ~3.9% @12h but **signed mean only −0.5%** — near-zero-mean
+scatter, and the small stationary part is **already absorbed by the EMA correction**. High flow:
+sensitive (6–16%) but (see Layer A) the lag there is already accurate.
+
+**Layer A — observed PoR→LF lag** (differenced, gauged-tributaries subtracted, labeled by current LF;
+circular `por_lagged`/`travel_time_h` excluded):
+
+| LF regime | n | obs lag* | r* | deployed | gap |
+|---|---|---|---|---|---|
+| 1,000–1,400 | 2,740 | 38h | **0.10** | 60.4h | +22h |
+| 1,400–4,000 | 34,500 | 24h | **0.11** | 37.2h | +13h |
+| 4,000–6,000 | 16,000 | 19h | 0.21 | 25.8h | +7h |
+| 6,000–12,000 | 32,077 | 15h | 0.30 | 18.2h | +3h |
+| 12,000–50,000 | 33,129 | 9h | **0.67** | 8.7h | −0.3h |
+| 50,000+ | 2,670 | 7h | **0.92** | 5.9h | −1.1h |
+
+**Verdict.** Where the relation is biased (low/mid flow) the lag is **not identifiable** (r≈0.10–0.11 —
+the audit's F1/F2 confound realized) *and* the estimate is insensitive (EMA-absorbed); where the lag
+**is** well-identified (high flow, r 0.67–0.92) the deployed relation **already matches** (gap ≤1h).
+Low-flow removable routed-PoR error is mean +1.6% (EMA-absorbed) + scatter from an unidentified lag.
+**No credible accuracy/band gain ⇒ the relation refit is NOT worth a MAJOR release + CI re-derivation +
+server refactor.** Decision: **close the relation refit** (like #7, the cheap diagnostics right-sized it).
+
+**Survivor (worth doing):** the **C6 doc-range fix** — displayed "19–33h" is wrong; the deployed
+formula spans ~5–50.6h. Pure display-accuracy, no model change → folded into the #10 doc sweep.
+(The C8 iteration-parity / C16 history-extension server fixes are real but were only justified as
+support for the refit; without the refit they drop to minor correctness items for the backlog.)
