@@ -6,10 +6,53 @@ const {
     getPoRFromHistory, estimateLFStage, makeGFPrediction,
     scoreShadowPredictions, storePrediction, validatePendingPredictions,
     shadowLFFeedback, shadowOnlineRegression, shadowKalman,
-    runServerShadowModels,
+    runServerShadowModels, computeRunHealth,
 } = require('../netlify/functions/scheduled-update')._test;
 
 const { estimateLFFlowFromStage, EF_MODEL } = require('../netlify/functions/shared/model');
+
+// ─── computeRunHealth (C7: hourly-cadence missed-run / consecutive math) ──────
+
+describe('computeRunHealth', () => {
+    // round(gapHours) ≈ hourly cycles elapsed; missed = cycles − 1; healthy when cycles ≤ 1.
+    const cases = [
+        { gap: 0,   missedThisGap: 0, healthy: true,  note: 'first run / no prior timestamp' },
+        { gap: 1.0, missedThisGap: 0, healthy: true,  note: 'on time' },
+        { gap: 1.4, missedThisGap: 0, healthy: true,  note: 'late but within jitter (rounds to 1)' },
+        { gap: 1.6, missedThisGap: 1, healthy: false, note: 'rounds to 2 cycles → 1 missed' },
+        { gap: 2.0, missedThisGap: 1, healthy: false, note: 'one full hour skipped' },
+        { gap: 2.9, missedThisGap: 2, healthy: false, note: 'rounds to 3 (floor would undercount to 1)' },
+        { gap: 3.0, missedThisGap: 2, healthy: false, note: 'two hours skipped' },
+        { gap: 6.0, missedThisGap: 5, healthy: false, note: 'five hours skipped' },
+    ];
+
+    for (const c of cases) {
+        it(`gap=${c.gap}h → +${c.missedThisGap} missed, ${c.healthy ? 'healthy' : 'reset'} (${c.note})`, () => {
+            const out = computeRunHealth(c.gap, { missedRuns: 0, consecutiveRuns: 5 });
+            assert.equal(out.missedThisGap, c.missedThisGap);
+            assert.equal(out.missedRuns, c.missedThisGap);
+            assert.equal(out.consecutiveRuns, c.healthy ? 6 : 1); // 5+1 if on-time, else reset to 1
+        });
+    }
+
+    it('accumulates missedRuns onto the prior count', () => {
+        const out = computeRunHealth(3.0, { missedRuns: 10, consecutiveRuns: 4 });
+        assert.equal(out.missedRuns, 12);     // 10 + 2
+        assert.equal(out.consecutiveRuns, 1); // reset on a missed cycle
+    });
+
+    it('increments consecutiveRuns on a healthy gap', () => {
+        const out = computeRunHealth(1.0, { missedRuns: 3, consecutiveRuns: 7 });
+        assert.equal(out.missedRuns, 3);      // unchanged
+        assert.equal(out.consecutiveRuns, 8); // 7 + 1
+    });
+
+    it('treats missing prior counters as zero', () => {
+        const out = computeRunHealth(1.0, {});
+        assert.equal(out.missedRuns, 0);
+        assert.equal(out.consecutiveRuns, 1);
+    });
+});
 
 // ─── validateUSGSResponse ─────────────────────────────────────────────────────
 

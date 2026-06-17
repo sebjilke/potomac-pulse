@@ -51,6 +51,9 @@ exports.handler = async (event, context) => {
             .single();
 
         // 4. Get recent validated predictions with stage data
+        // NOTE: gauge_id 'validated' is never written (validated rows are deleted on
+        // validation, scheduled-update.js), so this query is inert and returns nothing.
+        // Kept as a known-dead read path — see C10 / docsweep-v36.3.
         const { data: validations, error: valError } = await client
             .from('potomac_observations')
             .select('data, created_at')

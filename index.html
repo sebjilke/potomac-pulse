@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v36.2</title>
+    <title>Potomac Pulse v36.3</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -238,14 +238,14 @@
                             <div style="display:flex;justify-content:center;margin-bottom:6px;">
                                 <div style="background:var(--bg-surface);border:1px solid var(--accent-blue);border-radius:6px;padding:10px 16px;text-align:center;min-width:180px;">
                                     <div style="font-size:0.75rem;color:var(--accent-blue);font-weight:600;">Point of Rocks</div>
-                                    <div style="font-size:0.6rem;color:var(--text-tertiary);">20 mi upstream &middot; flow + level</div>
+                                    <div style="font-size:0.6rem;color:var(--text-tertiary);">~34 mi upstream &middot; flow + level</div>
                                 </div>
                             </div>
 
                             <!-- Arrow + time label -->
                             <div style="text-align:center;margin:2px 0;">
                                 <div style="font-size:1rem;color:var(--accent-blue);">&#8595;</div>
-                                <div style="font-size:0.55rem;color:var(--text-muted);">19&ndash;33 hrs travel time</div>
+                                <div style="font-size:0.55rem;color:var(--text-muted);">~5&ndash;50 hrs travel time</div>
                             </div>
 
                             <!-- Tributary inflows (converging) -->
@@ -265,7 +265,7 @@
                             <div style="display:flex;justify-content:center;margin:4px 0;">
                                 <div style="background:var(--bg-surface);border:1px solid var(--accent-teal);border-radius:6px;padding:6px 14px;text-align:center;">
                                     <div style="font-size:0.6rem;color:var(--accent-teal);font-weight:600;">Blended with Edwards Ferry</div>
-                                    <div style="font-size:0.55rem;color:var(--text-muted);">2 mi upstream &middot; level only &middot; weight 0&ndash;40% by flow</div>
+                                    <div style="font-size:0.55rem;color:var(--text-muted);">~16 mi upstream &middot; level only &middot; weight 0&ndash;40% by flow</div>
                                 </div>
                             </div>
 
@@ -303,19 +303,19 @@
                             <!-- (a) Time-shifting -->
                             <div style="margin-bottom:10px;padding:8px 10px;background:var(--bg-base);border-radius:6px;">
                                 <div style="font-size:0.65rem;color:var(--accent-blue);font-weight:600;margin-bottom:3px;">Time-shifting</div>
-                                The primary input is the Point of Rocks gauge, 20 miles upstream. Travel time depends on flow: roughly 5 hours at very high water and about 19 hours at typical flows, lengthening to ~50 hours in low water. We look back by that amount to find the reading that corresponds to Great Falls right now. If the river is currently rising or falling at Point of Rocks, the estimate adjusts for how much of that change has reached Great Falls.
+                                The primary input is the Point of Rocks gauge, ~34 river miles upstream. Travel time depends on flow: roughly 5 hours at very high water and about 19 hours at typical flows, lengthening to ~50 hours in low water. We look back by that amount to find the reading that corresponds to Great Falls right now. If the river is currently rising or falling at Point of Rocks, the estimate adjusts for how much of that change has reached Great Falls.
                             </div>
 
                             <!-- (b) Tributaries + blending -->
                             <div style="margin-bottom:10px;padding:8px 10px;background:var(--bg-base);border-radius:6px;">
                                 <div style="font-size:0.65rem;color:var(--accent-teal);font-weight:600;margin-bottom:3px;">Tributaries and blending</div>
-                                Four tributaries enter the Potomac between Point of Rocks and Great Falls. Their current flows are added to the time-shifted estimate. The result is then blended with an independent estimate from the Edwards Ferry gauge, 2 miles above the falls. Edwards Ferry measures water level only, so a calibrated power-law model converts its stage reading to flow. At low flows the blend gives Edwards Ferry almost no weight; at high flows it contributes up to 40%.
+                                Four tributaries enter the Potomac between Point of Rocks and Great Falls. Their current flows are added to the time-shifted estimate. The result is then blended with an independent estimate from the Edwards Ferry gauge, ~16 river miles above the falls. Edwards Ferry measures water level only, so a calibrated power-law model converts its stage reading to flow. At low flows the blend gives Edwards Ferry almost no weight; at high flows it contributes up to 40%.
                             </div>
 
                             <!-- (c) Learning -->
                             <div style="margin-bottom:10px;padding:8px 10px;background:var(--bg-base);border-radius:6px;">
                                 <div style="font-size:0.65rem;color:var(--accent-amber);font-weight:600;margin-bottom:3px;">Self-correcting</div>
-                                Every two hours, the server checks its earlier prediction against what Little Falls actually recorded when that water arrived. The error is stored by flow level and flow direction (rising, falling, or steady), and a correction factor is updated so the next prediction in similar conditions is closer. The model improves continuously, even when no one is looking at the site. The estimate is also capped at 120% of the downstream gauge reading to prevent runaway overestimates during fast rises.
+                                Every hour, the server checks its earlier prediction against what Little Falls actually recorded when that water arrived. The error is stored by flow level and flow direction (rising, falling, or steady), and a correction factor is updated so the next prediction in similar conditions is closer. The model improves continuously, even when no one is looking at the site. The estimate is also capped at 120% of the downstream gauge reading to prevent runaway overestimates during fast rises.
                             </div>
                         </div>
 
@@ -386,8 +386,8 @@
                             <summary style="font-size:0.7rem;color:var(--text-secondary);cursor:pointer;padding:4px 0;">Travel times by flow level</summary>
                             <table style="font-size:0.65rem;margin:8px 0;width:100%;">
                                 <tr><th style="text-align:left;">Flow</th><th>Speed</th><th>PoR &rarr; Little Falls</th></tr>
-                                <tr><td>Very low (~1.2k cfs)</td><td>~0.9 mph</td><td>~44 hrs</td></tr>
-                                <tr><td>Low (~2k cfs)</td><td>~1.2 mph</td><td>~35 hrs</td></tr>
+                                <tr><td>Very low (~1.2k cfs)</td><td>~0.7 mph</td><td>~60 hrs</td></tr>
+                                <tr><td>Low (~2k cfs)</td><td>~0.9 mph</td><td>~45 hrs</td></tr>
                                 <tr style="background:var(--bg-highlight);"><td><b>Typical (~5k cfs)</b></td><td><b>~1.6 mph</b></td><td><b>~26 hrs</b></td></tr>
                                 <tr><td>High (~15k cfs)</td><td>~3 mph</td><td>~14 hrs</td></tr>
                                 <tr><td>Flood (~50k+ cfs)</td><td>~6 mph</td><td>~7 hrs</td></tr>

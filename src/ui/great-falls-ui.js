@@ -207,7 +207,7 @@ export function updateGreatFallsUI() {
     // Display Edwards Ferry cross-check
     const efCrosscheck = document.getElementById("gf-ef-crosscheck");
     const efEstimateEl = document.getElementById("gf-ef-estimate");
-    if (gfEstimate.efEstimate && gfEstimate.efEstimate.correlationCount >= 10) {
+    if (gfEstimate.efEstimate) {
         const efEst = gfEstimate.efEstimate;
         const efStage = estimateLFStage(efEst.cfs);
         const diff = efEst.cfs - gfEstimate.cfs;

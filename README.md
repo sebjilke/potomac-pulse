@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v36.2 (June 2026)
+**Current Version**: v36.3 (June 2026)
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ Frontend (PWA)                    Netlify Functions (Backend)
 ├── analysis/                         # Model calibration scripts, audit reports (CSVs gitignored — reproducible from scripts)
 ```
 
-## Current Model (v36.2)
+## Current Model (v36.3)
 
 Core estimation parameters (travel time, EF power-law, EF weight) validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits. The v36.1 confidence band was re-derived separately on **126,916 hourly observations** (the same period, with the four tributaries + LF stage added) — see the v36.1 changelog entry.
 
@@ -66,7 +66,7 @@ Core estimation parameters (travel time, EF power-law, EF weight) validated on *
 | **EF Power-Law (default)** | `LF = 126 × EF^2.46` | R² = 0.91, validated on 117k hourly obs |
 | **EF Power-Law (cold ≤10°C)** | `LF = 160 × EF^2.36` | R² = 0.98, 12,959 hourly cold-water obs |
 | **EF Weight (Logistic Ramp)** | `0.40 / (1 + exp(-5.0 × (ln(Q) - ln(10000))))` | Near 0% at low flows, ~40% at high. Winner of 7-approach horse race (−4.6% RMSE). |
-| **Soft LF Ceiling** | 120% of LF actual | Near-zero rising bias (-29 cfs) vs -476 cfs with 110% |
+| **Soft LF Ceiling** | 120% of LF actual | Near-zero rising bias (-61 cfs) vs -509 cfs with 110% |
 | **Decay Cap** | 0.50 | PoR-delta correction. At hourly resolution, effectively irrelevant. |
 | **Travel Time** | `T = 4139 × Q^(-0.5963)` | Searcy (1961) × 0.80; hydrograph (wave-celerity) lag. PoR→GF ~5h (high water) to ~50h (1,000-cfs floor), ~19h median |
 
@@ -86,8 +86,8 @@ Core estimation parameters (travel time, EF power-law, EF weight) validated on *
 
 | Gauge | USGS ID | Role | Distance | % of Basin |
 |-------|---------|------|----------|:----------:|
-| Point of Rocks | 01638500 | Primary predictor | 20 mi upstream | 83.5% |
-| Edwards Ferry | 01644148 | Ensemble cross-check (stage only) | 2 mi upstream | 96.3% |
+| Point of Rocks | 01638500 | Primary predictor | ~34 mi upstream | 83.5% |
+| Edwards Ferry | 01644148 | Ensemble cross-check (stage only) | ~16 mi upstream | 96.3% |
 | Little Falls | 01646500 | Validation target | — | 100% |
 | Monocacy | 01643000 | Tributary addition | 14 hrs | 7.1% |
 | Goose Creek | 01644000 | Tributary addition | 10 hrs | 3.0% |
@@ -121,7 +121,7 @@ estimatedCFS = 160 * Math.pow(efStage, 2.36);
 
 ### Flow State Classification
 ```javascript
-// Observed PoR rate (6-hour lookback), falls back to NWS forecast on cold start
+// Observed PoR rate (6h lookback); client falls back to NWS trend on cold start, server returns 'steady'
 const threshold = Math.max(100, flow * 0.02);
 if (change >= threshold && rising) return 'rising';
 if (change >= threshold && falling) return 'falling';
@@ -175,6 +175,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v36.3 | 2026-06-17 | **Documentation-accuracy sweep (C4/C5/C7/C9/C10/C36/C38/C39/C40/C41/C50 + §8.1 nit) — MINOR (docs + health-telemetry only; no GF model-output change).** Regenerated the §5.4 EF-weight table, §5.6 ceiling figures (−509/−61), §7.5 worked examples, and the §8.1 travel-time example from the deployed model; reconciled the Edwards Ferry metrics (R² 0.91; median error 11.7% hourly / 6.3% daily; 5,220 deduped obs); corrected the hourly cron cadence and the run-health missed-run math (round-based, unit-tested); fixed the Seneca confluence ordering and the PoR/Edwards Ferry river distances (~34 / ~16 mi); reframed §5.8 hysteresis as fixed priors (not learned) and §6.6 cold-start as client-vs-server; documented provisional USGS-data jitter; removed two dead functions, stale "sync with index.html" comments, and the retired §6.9 accuracy badge. All doc numbers blind Python+R verified and USGS-checked; plan + independent audit in `analysis/docsweep-v36.3-plan-2026-06-17.md`. 407 → 418 tests. |
 | v36.2 | 2026-06-17 | **Travel-time documentation accuracy (C6) — MINOR (docs/display only, no model change).** Corrected the displayed PoR→GF travel-time range from the stale "19–33h" to the true flow-dependent **~5–50h** (≈19h median, ~5h high water, up to ~50h at the 1,000-cfs floor) across the tech appendix, README, index.html and CLAUDE.md; rebuilt the §3.3 table's low-flow rows from the deployed relation `T = 4139·Q^−0.5963` (they understated low flow — e.g. 2,000 cfs is ~33h PoR→GF, not ~26h); clarified that the time-shift is a hydrograph wave-celerity propagation lag, not dye-tracer water travel, and that the low-flow lag is poorly constrained empirically (PoR↔LF cross-correlation r≈0.10 below ~4,000 cfs). The travel-time *relation* refit itself was investigated (Layer-0/Layer-A no-model-change diagnostics) and closed as low-leverage — see `analysis/travel-time-refit-plan-2026-06-17.md`. |
 | v36.1 | 2026-06-17 | **Corrected-residual confidence band (C2) — MINOR** (display + a behavior-preserving refactor; the point estimate is unchanged). Fixed the 90% CI band on two coupled axes. The band is now applied **sign-aware and asymmetric** as `[estimate − q95, estimate − q05]` — the v36.0 symmetric `estimate ± (q95−q05)/2` discarded the residual's sign and could not represent an asymmetric or same-signed interval (e.g. `50000+/falling` is q05 −4,099 / q95 +6,429). And the `EMPIRICAL_CI_90` table was re-derived on the **corrected** residual the user actually sees (not the bare ensemble error): the real production model was replayed over 126,916 hourly obs (2011-2026, now including the four tributaries + LF stage) with its prequential EMA learn loop, and the corrected residual was quantiled binned by the model's own `(flowBin, flowState)`. High-flow bins (25000-50000, 50000+) use the wider of the multi-/single-pending tails so the band doesn't under-cover the laggier correction the deployed cron serves. The EMA bin update was extracted to a shared `updateCorrectionBin` so cron and backtest learn identically (behavior-preserving, cross-checked against the real validator). Blind Python + R derivation (agree <1e-9), independent auditor, 6/6 live-USGS provenance checks; out-of-sample coverage 88.4%, deployed-proxy (single-pending) coverage 89.1%. 386 → 391 unit tests. Methodology pre-audited by two independent lenses before coding. |
 | v36.0 | 2026-06-16 | **Closed the learning loop (C1) — MAJOR.** The server now end-applies the learned EMA correction to its own prediction, so the model that is stored, validated, learned-on, and reported is the same corrected model the user sees. The correction is applied at unit gain (`corrected = raw − correction`, after the EF ensemble and the 120%-LF display ceiling) on both client and server via one shared helper (`applyGFCorrection`) — eliminating the old pre-ensemble dilution (only ~60% of the correction reached the output at high flow) and unifying the two estimators (characterization fixtures now match the server **exactly**; previously a ~13% gap and two flow-bin mismatches). Learning stays honest and feedback-free: the EMA learns on the **raw** residual (correction-independent), while the **headline** accuracy now scores the **corrected** residual, prequentially. The cron is now the **sole** prediction writer (client `sendGFPrediction`/retry-queue removed, finishing C12). The 120%-LF ceiling is a display-only guard on the corrected output and no longer censors the EMA target. Soft-flag clamp re-centered on `emaMeanError`; shadow leaderboard scored on the raw error. Correction bins carry over unchanged (they already encoded the raw residual). 181 → 374 unit tests. The empirical CI band's asymmetry/sign fix and re-derivation (C2) are deferred to v36.1. |
@@ -220,8 +221,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v35.3).
+See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v36.3).
 
 ---
 
-*Last updated: 2026-06-16 (v36.0 — closed the learning loop: displayed model == validated model)*
+*Last updated: 2026-06-17 (v36.3 — documentation-accuracy sweep)*

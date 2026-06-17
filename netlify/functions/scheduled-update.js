@@ -808,7 +808,7 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null, correctionBin
         efStage,
         efEstimateCFS: efEstimateCFS ? Math.round(efEstimateCFS) : null,
         efModelType,                         // 'cold', 'default', or 'default-no-temp'
-        efWeight: efWeightUsed,              // Flow-dependent weight used (0% <3k, 35% ≥3k)
+        efWeight: efWeightUsed,              // Flow-dependent logistic weight (0 below 1000 cfs, ramps to W_MAX=0.40)
         waterTempC,                          // Water temperature used for model selection
         useTimeShifted,
         useEfEnsemble,
@@ -1421,6 +1421,22 @@ async function storePrediction(client, prediction) {
 }
 
 // Update function execution health — fires every run regardless of prediction outcome.
+// Pure: given hours since the last run and the prior counters, return updated run-health
+// counters. The cron cadence is hourly (netlify.toml: "0 */1 * * *"), so round(gapHours)
+// approximates the number of hourly cycles elapsed; the current run itself is not a miss,
+// hence the −1. round() (vs floor()) tolerates scheduler jitter symmetrically and avoids
+// undercounting on large fractional gaps. Extracted + exported (_test) so the arithmetic is
+// unit-tested without DB/network.
+function computeRunHealth(gapHours, prev = {}) {
+    const cycles = Math.round(gapHours);
+    const missedThisGap = Math.max(0, cycles - 1);
+    return {
+        missedRuns: (prev.missedRuns || 0) + missedThisGap,
+        consecutiveRuns: cycles <= 1 ? (prev.consecutiveRuns || 0) + 1 : 1,
+        missedThisGap,
+    };
+}
+
 // Separated from storePrediction so skipped-prediction runs are still tracked correctly.
 async function updateRunHealth(client) {
     const { data: meta } = await client
@@ -1435,14 +1451,14 @@ async function updateRunHealth(client) {
     const lastRun = metaData.lastPrediction ? new Date(metaData.lastPrediction) : null;
     const gapHours = lastRun ? (now - lastRun) / (60 * 60 * 1000) : 0;
 
-    // Detect missed runs (gap > 3h means at least one 2h cycle was skipped)
-    if (gapHours > 3) {
-        metaData.missedRuns = (metaData.missedRuns || 0) + Math.floor(gapHours / 2) - 1;
-        console.log(`⚠️ Gap detected: ${gapHours.toFixed(1)}h since last run (~${Math.floor(gapHours / 2) - 1} missed cycles)`);
+    // Update run-health counters under the hourly cadence (see computeRunHealth).
+    const health = computeRunHealth(gapHours, metaData);
+    if (health.missedThisGap > 0) {
+        console.log(`⚠️ Gap detected: ${gapHours.toFixed(1)}h since last run (~${health.missedThisGap} missed cycles)`);
     }
-
+    metaData.missedRuns = health.missedRuns;
+    metaData.consecutiveRuns = health.consecutiveRuns;
     metaData.lastPrediction = now.toISOString();
-    metaData.consecutiveRuns = gapHours <= 3 ? (metaData.consecutiveRuns || 0) + 1 : 1;
 
     const { error } = await client.from('potomac_observations').upsert({
         observation_type: 'gf_metadata',
@@ -1595,6 +1611,7 @@ exports._test = {
     scoreShadowPredictions, storePrediction, validatePendingPredictions,
     shadowLFFeedback, shadowOnlineRegression, shadowKalman,
     runServerShadowModels, loadShadowModelState, saveShadowModelState,
+    computeRunHealth,
 };
 
 // Main handler

@@ -70,7 +70,7 @@ export const EDWARDS_FERRY = {
 
 // Edwards Ferry → Little Falls Correlation Model
 // Power-law: LF_cfs = EF_COEF × EF_stage^EF_EXP
-// Generated: 2026-02-11 | Data range: 2011-2026 (10,434 daily observations)
+// Generated: 2026-02-11 | Data range: 2011-2026 (5,220 deduplicated daily observations)
 export const EF_MODEL = {
     coef: 126,
     exp: 2.46,
@@ -78,7 +78,7 @@ export const EF_MODEL = {
     coldExp: 2.36,
     coldMaxTemp: 10,
     rSquared: 0.91,
-    medianErrorPct: 6.3,
+    medianErrorPct: 6.3,    // daily-resolution median |error|; hourly refit = 11.7% (analysis/powerlaw_refit_audit.md)
     minStage: 2.5,
     maxStage: 20.0
 };

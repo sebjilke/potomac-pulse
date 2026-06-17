@@ -202,44 +202,10 @@ export function getPoRRiseRate() {
     };
 }
 
-// ==================== GF HISTORY FROM PoR ====================
-
-export function computeGFHistoryFromPoR(hoursBack = 6) {
-    if (porHistory.length === 0) return [];
-
-    const cutoff = Date.now() - hoursBack * 3600000;
-    const historyPoints = [];
-
-    for (const entry of porHistory) {
-        if (entry.timestamp < cutoff) continue;
-
-        let estCFS = entry.cfs;
-        const flowBin = getGFFlowBin(estCFS);
-        // Use observed flow state rather than always 'steady' (approximation: applies
-        // current state to all history points — acceptable for cold-start fallback only)
-        const histRiseRate = getPoRRiseRate();
-        const histFlowState = histRiseRate?.flowState ?? 'steady';
-        const correction = getGFCorrection(gfLearningData?.correctionBins, flowBin, histFlowState);
-        estCFS = estCFS - correction;
-        if (estCFS < 0) estCFS = 0;
-        const stage = estimateLFStage(estCFS);
-
-        const hrsAgo = (Date.now() - entry.timestamp) / 3600000;
-        historyPoints.push({
-            hrs: -hrsAgo,
-            cfs: Math.round(estCFS),
-            stage: stage,
-            time: new Date(entry.timestamp),
-            isHistory: true
-        });
-    }
-
-    historyPoints.sort((a, b) => a.hrs - b.hrs);
-    return historyPoints;
-}
-
 // ==================== TRAVEL-TIME-AWARE PoR ====================
 
+// TODO(C22): wire into the forecast PoR fallback — needs the PoR→GF travel offset AND
+// tributary scaling (currently has neither threaded through to the fallback). Unused until then.
 export function getTravelTimeAwarePor(targetHrsFromNow, porPoints, interpolateFn, currentPorCFS, currentMult) {
     const maxIterations = 3;
     let travelTime = TRAVEL_POR_GF_BASELINE * currentMult;

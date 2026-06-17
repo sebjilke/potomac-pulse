@@ -1,6 +1,6 @@
 // Potomac Pulse — Shared Server Module
 // Canonical source for constants and functions used by both scheduled-update.js and sync-learning.js.
-// Client-side copies exist in index.html — keep all three in sync for any model changes.
+// Client-side copies live in src/model/shared-model.js (+ src/model/constants.js) — keep in sync for any model changes.
 
 const { createClient } = require('@supabase/supabase-js');
 
@@ -35,7 +35,7 @@ function getFlowBin(cfs) {
 // Piecewise linear interpolation from USGS field measurements at Little Falls (01646500)
 // Used for ice/anomaly detection — if actual CFS is much lower than expected from stage,
 // likely indicates frazil ice affecting ADVM velocity measurement.
-// SYNC WARNING: Client copy exists in index.html — keep in sync!
+// SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
 
 function estimateLFFlowFromStage(stage) {
     if (stage < 2.40) return 0;
@@ -61,7 +61,7 @@ function estimateLFFlowFromStage(stage) {
 // --- Travel time constants ---
 // Searcy & Davis (1961) dye-tracer model × 0.80 empirical correction
 // Investigated via cross-correlation on 117k obs (travel_time_audit.md).
-// SYNC WARNING: Client copy exists in index.html — keep in sync!
+// SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
 
 const TRAVEL_COEF = 4139;        // Adjusted (5174 × 0.80)
 const TRAVEL_EXP = -0.5963;      // Searcy exponent (unchanged)
@@ -73,7 +73,7 @@ const TRAVEL_GF_LF_BASELINE = 6.5;    // Adjusted (8.1 × 0.80)
 // Updated 2026-02-18: Deduped dataset (v24.16)
 // Cold water (≤10°C): 160 × EF^2.36 (deduped fit, R²=0.96)
 // Default (>10°C): 126 × EF^2.46 (deduped fit, R²=0.91)
-// SYNC WARNING: Client copy exists in index.html — keep in sync!
+// SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
 
 const EF_MODEL = {
     coef: 126,
@@ -88,7 +88,7 @@ const EF_MODEL = {
 // --- Flow-dependent EF weight ---
 // v30.0: Logistic EF weight ramp — smooth 0% → 40%, midpoint 10k cfs.
 // Calibrated via Approach 5 horse race on 117,704 hourly obs (2011-2026).
-// SYNC WARNING: Client copy exists in index.html — keep in sync!
+// SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
 
 function getEFWeight(estimatedFlow) {
     if (estimatedFlow < 1000) return 0.0;
@@ -99,7 +99,7 @@ function getEFWeight(estimatedFlow) {
 }
 
 // --- Flow multiplier for travel time scaling ---
-// SYNC WARNING: Client copy exists in index.html — keep in sync!
+// SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
 
 function getFlowMultiplier(lfFlow) {
     const flow = Math.max(lfFlow, 1000);
@@ -109,7 +109,7 @@ function getFlowMultiplier(lfFlow) {
 
 // --- Flow state classification ---
 // Threshold scales with flow: max(100 cfs, 2% of flow)
-// SYNC WARNING: Client copy exists in index.html — keep in sync!
+// SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
 
 function getFlowState(history, currentCFS) {
     if (!history?.length || history.length < 8) return 'steady';
@@ -340,7 +340,7 @@ const TRIB_FALLBACK = {
 
 // --- LF stage from flow (inverse rating curve) ---
 // Based on USGS field measurements at Little Falls (01646500), 2015-2025
-// SYNC WARNING: Client copy exists in index.html — keep in sync!
+// SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
 function estimateLFStage(cfs) {
     if (cfs < 600) return 2.40 + (cfs / 600) * 0.06;
     if (cfs < 1300) return 2.46 + ((cfs - 600) / 700) * 0.23;

@@ -106,9 +106,9 @@ export function getEdwardsFerryTrend() {
 
 // Estimate LF CFS directly from Edwards Ferry stage using power-law model
 // Model: LF_cfs = coef × EF_stage^exp (coefficients depend on water temperature)
-// Cold water (≤10°C): 160 × EF^2.36 (deduped fit, R²=0.96)
+// Cold water (≤10°C): 160 × EF^2.36 (deduped fit, R²=0.98 on the cold-water subset)
 // Default (>10°C or unknown): 126 × EF^2.46 (deduped fit, R²=0.91)
-// Includes learnable hysteresis correction: rising limb carries more flow than falling at same stage
+// Applies a FIXED prior hysteresis multiplier (frozen, client-only): rising limb carries more flow than falling at same stage
 // Returns null if EF data missing or stage out of valid range
 export function estimateGFFromEdwardsFerry() {
     const ef = edwardsFerryData;
@@ -135,8 +135,9 @@ export function estimateGFFromEdwardsFerry() {
     // Power-law model: LF_cfs = coef × stage^exp
     let estimatedCFS = coef * Math.pow(stage, exp);
 
-    // Apply learned hysteresis correction based on EF trend
-    // Multipliers start at 1.0 and are updated based on validation errors
+    // Apply the FIXED hysteresis multiplier based on EF trend (frozen, not learned).
+    // Literature-informed priors (rising ×1.08 / falling ×0.92 / steady ×1.0); an EMA update
+    // path exists but is unwired, so they stay frozen. Client-only. See tech-appendix §5.8.
     const efTrend = getEdwardsFerryTrend();
     const hysteresisData = efHysteresis[efTrend] || { multiplier: 1.0, count: 0 };
     const hysteresisMultiplier = hysteresisData.multiplier;
@@ -158,8 +159,6 @@ export function estimateGFFromEdwardsFerry() {
         efTrend: efTrend,
         hysteresisMultiplier: hysteresisMultiplier,
         hysteresisCount: hysteresisData.count,  // How many observations informed this multiplier
-        // Legacy field for backwards compatibility
-        correlationCount: 16971
     };
 }
 
