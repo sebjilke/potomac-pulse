@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v36.4 (June 2026)
+**Current Version**: v37.0 (June 2026)
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ Frontend (PWA)                    Netlify Functions (Backend)
 ├── analysis/                         # Model calibration scripts, audit reports (CSVs gitignored — reproducible from scripts)
 ```
 
-## Current Model (v36.4)
+## Current Model (v37.0)
 
 Core estimation parameters (travel time, EF power-law, EF weight) validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits. The v36.1 confidence band was re-derived separately on **126,916 hourly observations** (the same period, with the four tributaries + LF stage added) — see the v36.1 changelog entry.
 
@@ -175,6 +175,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v37.0 | 2026-06-18 | **C45 flow-edge correction smoothing — MAJOR.** The applied EMA correction is now **continuous in flow** across the low/mid bin boundaries (3k/6k/12k): within ±12% flow it ramps (log-flow) between the adjacent bins' corrections instead of stepping; flows away from a boundary keep their exact binned value. The 25000/50000 boundaries are **left as steps** — at high flow the correction is genuine regime structure. Validated by a prequential 14-yr backtest (110,548 obs, blind Python+R, independent auditor): the rejected full-width (+3.4% MAE, +17.4% at 25-50k) and all-boundary (+5.7% at 25-50k) variants degraded accuracy; the shipped low/mid-only design is accuracy-neutral-to-better (pooled MAE −1.1%, RMSE −0.6%; worst bin +1.1% median; 25-50k/50k+ exactly unchanged). Learning unchanged (no feedback). **Accuracy-series discontinuity** at the v36→v37 boundary (methodology change, not a regression). Plan + gate: `analysis/c45-phase1-flow-interp-plan-2026-06-18.md`. 521 → 599 tests. |
 | v36.4 | 2026-06-18 | **Server travel-time parity + PoR-history coverage (C8/C16) — MINOR.** C8: the server now iterates the PoR→GF travel time to PoR-self-consistency and uses the client's outlier-robust historic-reading selection (travel helpers centralized into `shared-model.js`↔`shared/model.js`; `selectHistoricReading` ported), closing a displayed-vs-validated divergence. Normal/high steady flow is **bit-identical** to v36.3 (golden-tested); only the low-flow lookup shifts (sparse low-flow EMA bins re-learn). C16: server PoR-history retention 48h→72h (≥ the ~50.6h max travel) so the low-flow time-shift no longer silently falls back to unshifted current PoR. The PoR rise-rate input stays deliberately divergent (client robust / server raw). Plan + independent audit in `analysis/c8-c16-parity-fix-plan-2026-06-18.md`. 418 → 521 tests. |
 | v36.3 | 2026-06-17 | **Documentation-accuracy sweep (C4/C5/C7/C9/C10/C36/C38/C39/C40/C41/C50 + §8.1 nit) — MINOR (docs + health-telemetry only; no GF model-output change).** Regenerated the §5.4 EF-weight table, §5.6 ceiling figures (−509/−61), §7.5 worked examples, and the §8.1 travel-time example from the deployed model; reconciled the Edwards Ferry metrics (R² 0.91; median error 11.7% hourly / 6.3% daily; 5,220 deduped obs); corrected the hourly cron cadence and the run-health missed-run math (round-based, unit-tested); fixed the Seneca confluence ordering and the PoR/Edwards Ferry river distances (~34 / ~16 mi); reframed §5.8 hysteresis as fixed priors (not learned) and §6.6 cold-start as client-vs-server; documented provisional USGS-data jitter; removed two dead functions, stale "sync with index.html" comments, and the retired §6.9 accuracy badge. All doc numbers blind Python+R verified and USGS-checked; plan + independent audit in `analysis/docsweep-v36.3-plan-2026-06-17.md`. 407 → 418 tests. |
 | v36.2 | 2026-06-17 | **Travel-time documentation accuracy (C6) — MINOR (docs/display only, no model change).** Corrected the displayed PoR→GF travel-time range from the stale "19–33h" to the true flow-dependent **~5–50h** (≈19h median, ~5h high water, up to ~50h at the 1,000-cfs floor) across the tech appendix, README, index.html and CLAUDE.md; rebuilt the §3.3 table's low-flow rows from the deployed relation `T = 4139·Q^−0.5963` (they understated low flow — e.g. 2,000 cfs is ~33h PoR→GF, not ~26h); clarified that the time-shift is a hydrograph wave-celerity propagation lag, not dye-tracer water travel, and that the low-flow lag is poorly constrained empirically (PoR↔LF cross-correlation r≈0.10 below ~4,000 cfs). The travel-time *relation* refit itself was investigated (Layer-0/Layer-A no-model-change diagnostics) and closed as low-leverage — see `analysis/travel-time-refit-plan-2026-06-17.md`. |
@@ -222,8 +223,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v36.4).
+See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v37.0).
 
 ---
 
-*Last updated: 2026-06-18 (v36.4 — server travel-time parity + PoR-history coverage)*
+*Last updated: 2026-06-18 (v37.0 — C45 flow-edge correction smoothing)*

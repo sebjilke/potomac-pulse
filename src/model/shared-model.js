@@ -71,6 +71,37 @@ export function getGFCorrection(correctionBins, flowBin, flowState) {
     return weight * binVal + (1 - weight) * fallback;
 }
 
+// --- C45 (v37.0): flow-edge transition smoothing of the APPLIED correction ---
+// Removes the displayed step as flow crosses the LOW/MID bin boundaries (3k/6k/12k) by ramping the
+// correction linearly (in log flow) within a ±CORR_SMOOTH_BAND band around each boundary; flows away from a
+// boundary keep their exact binned correction. The 25000/50000 boundaries are deliberately LEFT as steps —
+// the correction is genuine high-flow regime structure there (backtest: smoothing them degraded the
+// 25-50k bin). Learning is unchanged (bins still keyed by getGFFlowBin(rawFinal)); only the APPLICATION is
+// continuous, so there is no learn↔apply feedback. Byte-identical to the server copy
+// (netlify/functions/shared/model.js) — keep in sync; the correction-parity test asserts equality.
+export const CORR_SMOOTH_BAND = 0.12;   // ±12% flow around each smoothed boundary (gated value)
+export const CORR_SMOOTH_BOUNDARIES = [
+    { B: 3000,  below: '0-3000',     above: '3000-6000' },
+    { B: 6000,  below: '3000-6000',  above: '6000-12000' },
+    { B: 12000, below: '6000-12000', above: '12000-25000' },
+];
+export function getGFCorrectionInterpolated(correctionBins, flowCFS, flowState) {
+    if (!correctionBins) return 0;
+    const f = Math.max(flowCFS, 1);
+    const lnf = Math.log(f);
+    for (const bd of CORR_SMOOTH_BOUNDARIES) {
+        const lnLo = Math.log(bd.B / (1 + CORR_SMOOTH_BAND));
+        const lnHi = Math.log(bd.B * (1 + CORR_SMOOTH_BAND));
+        if (lnf > lnLo && lnf < lnHi) {                 // inside a smoothed boundary's band → ramp
+            const t = (lnf - lnLo) / (lnHi - lnLo);
+            const cLo = getGFCorrection(correctionBins, bd.below, flowState);
+            const cHi = getGFCorrection(correctionBins, bd.above, flowState);
+            return (1 - t) * cLo + t * cHi;
+        }
+    }
+    return getGFCorrection(correctionBins, getGFFlowBin(f), flowState);  // away from a smoothed boundary → own bin (exact)
+}
+
 // Assemble the 18-bin correction structure from raw DB rows; skips stage_* keys.
 // Mirror of server buildCorrectionBins — keep in sync.
 export function buildCorrectionBins(rows) {
@@ -99,8 +130,8 @@ export function buildCorrectionBins(rows) {
 // correctedFinal = rawFinalUnclipped − correction, then a display-only 120%-LF ceiling guard.
 // The correction is looked up off the bin of the UNCLIPPED raw final (= the bin the EMA learns into).
 export function applyGFCorrection({ rawFinalUnclipped, lfCFS, correctionBins, flowState }) {
-    const flowBin = getGFFlowBin(rawFinalUnclipped);
-    const correction = getGFCorrection(correctionBins, flowBin, flowState);
+    const flowBin = getGFFlowBin(rawFinalUnclipped);   // still the discrete learn-bin (telemetry + CI lookup)
+    const correction = getGFCorrectionInterpolated(correctionBins, rawFinalUnclipped, flowState);  // C45 v37.0: continuous in flow
     const correctedFinalUnclipped = rawFinalUnclipped - correction;
 
     let correctedFinal = correctedFinalUnclipped;

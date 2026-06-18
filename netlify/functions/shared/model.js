@@ -298,6 +298,36 @@ function getGFCorrection(correctionBins, flowBin, flowState) {
     return weight * binVal + (1 - weight) * fallback;
 }
 
+// --- C45 (v37.0): flow-edge transition smoothing of the APPLIED correction ---
+// SYNC WARNING: byte-identical LOGIC to src/model/shared-model.js getGFCorrectionInterpolated — keep in
+// sync (the correction-parity test asserts equality). Ramps the correction linearly (in log flow) within a
+// ±CORR_SMOOTH_BAND band around the LOW/MID boundaries (3k/6k/12k) only; flows away from a boundary keep
+// their exact binned correction; the 25000/50000 boundaries are LEFT as steps (genuine high-flow regime
+// structure — backtest showed smoothing them degraded accuracy). Learning is unchanged (bins still keyed by
+// getFlowBin(rawFinal)); only the APPLICATION is continuous, so there is no learn↔apply feedback.
+const CORR_SMOOTH_BAND = 0.12;   // ±12% flow around each smoothed boundary (gated value)
+const CORR_SMOOTH_BOUNDARIES = [
+    { B: 3000,  below: '0-3000',     above: '3000-6000' },
+    { B: 6000,  below: '3000-6000',  above: '6000-12000' },
+    { B: 12000, below: '6000-12000', above: '12000-25000' },
+];
+function getGFCorrectionInterpolated(correctionBins, flowCFS, flowState) {
+    if (!correctionBins) return 0;
+    const f = Math.max(flowCFS, 1);
+    const lnf = Math.log(f);
+    for (const bd of CORR_SMOOTH_BOUNDARIES) {
+        const lnLo = Math.log(bd.B / (1 + CORR_SMOOTH_BAND));
+        const lnHi = Math.log(bd.B * (1 + CORR_SMOOTH_BAND));
+        if (lnf > lnLo && lnf < lnHi) {                 // inside a smoothed boundary's band → ramp
+            const t = (lnf - lnLo) / (lnHi - lnLo);
+            const cLo = getGFCorrection(correctionBins, bd.below, flowState);
+            const cHi = getGFCorrection(correctionBins, bd.above, flowState);
+            return (1 - t) * cLo + t * cHi;
+        }
+    }
+    return getGFCorrection(correctionBins, getFlowBin(f), flowState);  // away from a smoothed boundary → own bin (exact)
+}
+
 // Assemble the 18-bin correction structure from raw DB rows (observation_type
 // 'gf_correction_bin'). Seeds every (bin × state) empty, then overlays matching rows.
 // Skips stage_* keys (a separate rating-curve series) explicitly. Shared by the cron
@@ -330,8 +360,8 @@ function buildCorrectionBins(rows) {
 // The correction is looked up off the bin of the UNCLIPPED raw final, which is also the bin
 // the EMA learns into — so apply-bin == learn-bin by construction. Pure (no rounding; callers round).
 function applyGFCorrection({ rawFinalUnclipped, lfCFS, correctionBins, flowState }) {
-    const flowBin = getFlowBin(rawFinalUnclipped);
-    const correction = getGFCorrection(correctionBins, flowBin, flowState);
+    const flowBin = getFlowBin(rawFinalUnclipped);   // still the discrete learn-bin (telemetry + CI lookup)
+    const correction = getGFCorrectionInterpolated(correctionBins, rawFinalUnclipped, flowState);  // C45 v37.0: continuous in flow
     const correctedFinalUnclipped = rawFinalUnclipped - correction;
 
     let correctedFinal = correctedFinalUnclipped;
@@ -453,7 +483,7 @@ module.exports = {
     CEILING_RATIO, DECAY_CAP,
     TRIB_FALLBACK,
     getBinCorrection, getFallbackCorrection,
-    getGFCorrection, buildCorrectionBins, applyGFCorrection,
+    getGFCorrection, getGFCorrectionInterpolated, buildCorrectionBins, applyGFCorrection,
     updateCorrectionBin,
     estimateLFStage
 };
