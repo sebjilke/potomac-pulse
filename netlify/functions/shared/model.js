@@ -69,6 +69,11 @@ const MEDIAN_TRAVEL = 25.8;      // Adjusted (32.3 × 0.80)
 const TRAVEL_POR_GF_BASELINE = 19.4;  // Adjusted (24.3 × 0.80)
 const TRAVEL_GF_LF_BASELINE = 6.5;    // Adjusted (8.1 × 0.80)
 
+// PoR-history retention (server). 72h > max PoR→GF travel (~50.6h at the 1,000-cfs
+// floor) so the time-shift lookup is covered at every flow (C16, v36.4).
+// SYNC WARNING: Client copy is src/model/constants.js:11 POR_HISTORY_MAX_AGE — keep in sync!
+const POR_HISTORY_MAX_AGE = 72 * 60 * 60 * 1000; // 72 hours
+
 // --- Edwards Ferry power-law model ---
 // Updated 2026-02-18: Deduped dataset (v24.16)
 // Cold water (≤10°C): 160 × EF^2.36 (deduped fit, R²=0.96)
@@ -105,6 +110,60 @@ function getFlowMultiplier(lfFlow) {
     const flow = Math.max(lfFlow, 1000);
     const travelHrs = TRAVEL_COEF * Math.pow(flow, TRAVEL_EXP);
     return travelHrs / MEDIAN_TRAVEL;
+}
+
+// --- Travel-time helpers (wave-celerity adjusted) ---
+// SYNC WARNING: byte-identical LOGIC to the client copies in src/model/shared-model.js
+// (re-exported by src/estimation/great-falls.js). console.log intentionally dropped — the
+// server runs these up to 3× per cron inside the iteration loop. Rising rivers propagate
+// waves faster, so travel time is reduced (capped at 30%).
+function getPoRtoGFTravelTime(mult, riseRate = null) {
+    const baseTravelTime = TRAVEL_POR_GF_BASELINE * mult;
+    if (riseRate && riseRate.flowState === 'rising' && riseRate.ratePerHour > 0) {
+        const reductionFactor = Math.min(0.30, riseRate.ratePerHour * 0.02);
+        return baseTravelTime * (1 - reductionFactor);
+    }
+    return baseTravelTime;
+}
+
+function getGFtoLFTravelTime(mult, riseRate = null) {
+    const baseTravelTime = TRAVEL_GF_LF_BASELINE * mult;
+    if (riseRate && riseRate.flowState === 'rising' && riseRate.ratePerHour > 0) {
+        const reductionFactor = Math.min(0.30, riseRate.ratePerHour * 0.02);
+        return baseTravelTime * (1 - reductionFactor);
+    }
+    return baseTravelTime;
+}
+
+// --- Outlier-robust historic-reading selection ---
+// SYNC WARNING: byte-identical LOGIC to src/estimation/rise-rate-robust.mjs
+// (medianCfs lines 15-20, selectHistoricReading lines 71-88). Server history is clean
+// USGS data, so the outlier filter is effectively a no-op here; ported so the server's
+// time-shift lookup matches the client's on identical input (C8, v36.4) + future-proofing.
+function medianCfs(entries) {
+    if (!entries || entries.length === 0) return null;
+    const vals = entries.map(e => e.cfs).sort((a, b) => a - b);
+    const mid = Math.floor(vals.length / 2);
+    return vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+}
+
+function selectHistoricReading(history, targetTime, opts = {}) {
+    const matchMs = opts.matchMs ?? 60 * 60 * 1000;
+    const outlierFrac = opts.outlierFrac ?? 0.40;
+    const minForFilter = opts.minForFilter ?? 3;
+    const candidates = history.filter(e =>
+        e && e.cfs > 0 && Math.abs(e.timestamp - targetTime) < matchMs);
+    if (candidates.length === 0) return null;
+    let pool = candidates;
+    if (candidates.length >= minForFilter) {
+        const med = medianCfs(candidates);
+        if (med > 0) {
+            const filtered = candidates.filter(e => Math.abs(e.cfs - med) / med <= outlierFrac);
+            if (filtered.length > 0) pool = filtered;
+        }
+    }
+    return pool.reduce((best, e) =>
+        Math.abs(e.timestamp - targetTime) < Math.abs(best.timestamp - targetTime) ? e : best, pool[0]);
 }
 
 // --- Flow state classification ---
@@ -384,8 +443,11 @@ module.exports = {
     GF_FLOW_BINS, getFlowBin,
     estimateLFFlowFromStage,
     TRAVEL_COEF, TRAVEL_EXP, MEDIAN_TRAVEL, TRAVEL_POR_GF_BASELINE, TRAVEL_GF_LF_BASELINE,
+    POR_HISTORY_MAX_AGE,
     EF_MODEL,
     getEFWeight, getFlowMultiplier, getFlowState,
+    getPoRtoGFTravelTime, getGFtoLFTravelTime,
+    medianCfs, selectHistoricReading,
     GF_EMA_ALPHA,
     getPoRRiseRateFromHistory,
     CEILING_RATIO, DECAY_CAP,

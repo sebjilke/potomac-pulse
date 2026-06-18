@@ -5,9 +5,11 @@
 const {
     getSupabase,
     GF_FLOW_BINS, getFlowBin, estimateLFFlowFromStage,
-    TRAVEL_COEF, TRAVEL_EXP, MEDIAN_TRAVEL, TRAVEL_POR_GF_BASELINE, TRAVEL_GF_LF_BASELINE,
+    TRAVEL_COEF, TRAVEL_EXP, MEDIAN_TRAVEL,
+    POR_HISTORY_MAX_AGE,
     EF_MODEL,
     getEFWeight, getFlowMultiplier, getFlowState,
+    getPoRtoGFTravelTime, getGFtoLFTravelTime, selectHistoricReading,
     GF_EMA_ALPHA,
     getPoRRiseRateFromHistory,
     CEILING_RATIO, DECAY_CAP,
@@ -268,8 +270,9 @@ async function storePoRHistory(client, history) {
     const allReadings = [...(existing?.data?.readings || []), ...newReadings]
         .sort((a, b) => a.timestamp - b.timestamp);
 
-    // Keep only last 48 hours
-    const cutoff = Date.now() - (48 * 60 * 60 * 1000);
+    // Keep only the retention window (72h ≥ max PoR→GF travel ~50.6h, so the
+    // time-shift lookup is covered at every flow — C16, v36.4).
+    const cutoff = Date.now() - POR_HISTORY_MAX_AGE;
     const trimmedReadings = allReadings.filter(r => r.timestamp > cutoff);
 
     const { error: porHistErr } = await client.from('potomac_observations').upsert({
@@ -393,32 +396,24 @@ async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent
     console.log(`📊 Validation history: stored ${Math.round(predictedCFS)} vs ${Math.round(actualCFS)} cfs (${errorPercent.toFixed(1)}%), ${trimmedReadings.length} entries in 7d window`);
 }
 
-// Get PoR reading from X hours ago
+// Get PoR reading from X hours ago. Uses the same outlier-robust selection as the
+// client (selectHistoricReading, shared/model.js) so the server's time-shift lookup
+// matches the displayed one on identical input (C8, v36.4). The 1h null-within-window
+// guard now comes solely from selectHistoricReading's internal matchMs default (1h).
 function getPoRFromHistory(history, hoursAgo) {
     if (!history?.length) return null;
 
     const targetTime = Date.now() - (hoursAgo * 60 * 60 * 1000);
+    const closest = selectHistoricReading(history, targetTime);
+    if (!closest) return null;
 
-    let closest = null;
-    let closestDiff = Infinity;
-
-    for (const entry of history) {
-        const diff = Math.abs(entry.timestamp - targetTime);
-        if (diff < closestDiff) {
-            closestDiff = diff;
-            closest = entry;
-        }
-    }
-
-    // Only return if within 1 hour of target
-    if (closest && closestDiff < 60 * 60 * 1000) {
-        return {
-            cfs: closest.cfs,
-            actualHoursAgo: (Date.now() - closest.timestamp) / (60 * 60 * 1000)
-        };
-    }
-
-    return null;
+    // Build the {cfs, actualHoursAgo} shape explicitly from the selected ENTRY — do not
+    // return the entry itself, or actualHoursAgo would be undefined and silently zero out
+    // the PoR-delta staleness decay downstream.
+    return {
+        cfs: closest.cfs,
+        actualHoursAgo: (Date.now() - closest.timestamp) / (60 * 60 * 1000)
+    };
 }
 
 // estimateLFFlowFromStage and estimateLFStage imported from ./shared/model
@@ -679,22 +674,25 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null, correctionBin
         return null;
     }
 
-    // Calculate travel times based on current flow
-    const mult = getFlowMultiplier(lf.q);
-    let travelPoRtoGF = TRAVEL_POR_GF_BASELINE * mult;
-    let travelGFtoLF = TRAVEL_GF_LF_BASELINE * mult;
-
-    // Wave celerity: rising rivers propagate waves faster (same logic as client great-falls.js)
+    // Travel times, iterated to PoR-self-consistency — mirrors the client
+    // great-falls.js:340-360 loop so the server's time-shift matches the displayed one
+    // (C8, v36.4). Converges in 1 pass at normal/high flow (historic≈current), so output
+    // is unchanged there; it only shifts the lookup at low flow where the curve is steep.
     const porRiseRate = getPoRRiseRateFromHistory(porHistory);
-    if (porRiseRate && porRiseRate.flowState === 'rising' && porRiseRate.ratePerHour > 0) {
-        const reductionFactor = Math.min(0.30, porRiseRate.ratePerHour * 0.02);
-        travelPoRtoGF *= (1 - reductionFactor);
-        travelGFtoLF *= (1 - reductionFactor);
-        console.log(`⚡ Server wave celerity: ${(reductionFactor*100).toFixed(0)}% faster (${porRiseRate.ratePerHour.toFixed(1)}%/hr rise)`);
+    let mult = getFlowMultiplier(lf.q);   // scalar (server returns a number); lf.q guaranteed by the !lf?.q guard above
+    let travelPoRtoGF = getPoRtoGFTravelTime(mult, porRiseRate);
+    let historicPoR = null;
+    for (let iteration = 0; iteration < 3; iteration++) {
+        const tryHistoric = getPoRFromHistory(porHistory, travelPoRtoGF);
+        if (!tryHistoric) break;
+        historicPoR = tryHistoric;
+        const historicMult = getFlowMultiplier(historicPoR.cfs);   // bare scalar — NO .mult (server getFlowMultiplier returns a number)
+        const newTravelTime = getPoRtoGFTravelTime(historicMult, porRiseRate);
+        if (Math.abs(newTravelTime - travelPoRtoGF) < 1.0) break;  // converged: keep current historicPoR / travel / mult
+        travelPoRtoGF = newTravelTime;
+        mult = historicMult;
     }
-
-    // Get time-shifted PoR
-    const historicPoR = getPoRFromHistory(porHistory, travelPoRtoGF);
+    const travelGFtoLF = getGFtoLFTravelTime(mult, porRiseRate);
 
     // Tributary contributions (real-time gauge data, with drainage-area fallbacks)
     const monocacyFlow = monocacy?.q || (lf.q * TRIB_FALLBACK.monocacy);

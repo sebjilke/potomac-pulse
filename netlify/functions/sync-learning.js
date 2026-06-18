@@ -248,7 +248,7 @@ exports.handler = async (event, context) => {
             }
         }
 
-        // PoR history endpoint — server-side 48h history for cross-device time-shifting
+        // PoR history endpoint — server-side 72h history for cross-device time-shifting
         if (endpoint === 'por-history') {
             if (event.httpMethod === 'GET') {
                 return await loadPoRHistory(client);
@@ -935,8 +935,9 @@ async function loadGFHistory(client) {
     }
 }
 
-// Load server-side PoR history (48h rolling) for cross-device time-shifting
-// Written by storePoRHistory() in scheduled-update.js every 2h
+// Load server-side PoR history (72h rolling) for cross-device time-shifting
+// Written by storePoRHistory() in scheduled-update.js every hour (serves whatever
+// retention storePoRHistory writes — POR_HISTORY_MAX_AGE, 72h since v36.4)
 // Returns array of {timestamp, cfs} readings from USGS 15-min data
 async function loadPoRHistory(client) {
     try {

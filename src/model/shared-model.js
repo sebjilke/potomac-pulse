@@ -3,7 +3,7 @@
 // This file contains ONLY pure math/constants — NO Supabase dependency.
 // When changing model constants, formulas, or logic, update BOTH files + tests.
 
-import { TRAVEL_COEF, TRAVEL_EXP, MEDIAN_TRAVEL, GF_FLOW_BINS, CEILING_RATIO } from './constants.js';
+import { TRAVEL_COEF, TRAVEL_EXP, MEDIAN_TRAVEL, TRAVEL_POR_GF_BASELINE, TRAVEL_GF_LF_BASELINE, GF_FLOW_BINS, CEILING_RATIO } from './constants.js';
 
 // --- Hierarchical correction fallback (v35.1) ---
 // SOURCE OF TRUTH: netlify/functions/shared/model.js — keep client copy in sync
@@ -197,6 +197,29 @@ export function getFlowMultiplier(lfFlow) {
     const mult = travelHrs / MEDIAN_TRAVEL;
     const cond = getFlowCondition(flow);
     return { flow, mult, cond, travelHrs };
+}
+
+// --- Travel-time helpers (wave-celerity adjusted) ---
+// Canonical home for the PoR→GF / GF→LF travel-time helpers (moved here from
+// great-falls.js in v36.4 so client and server share one node-importable source).
+// SYNC WARNING: Server copy is netlify/functions/shared/model.js — keep in sync!
+// Both take a SCALAR mult. Rising rivers propagate waves faster (reduction capped at 30%).
+export function getPoRtoGFTravelTime(mult, riseRate = null) {
+    const baseTravelTime = TRAVEL_POR_GF_BASELINE * mult;
+    if (riseRate && riseRate.flowState === 'rising' && riseRate.ratePerHour > 0) {
+        const reductionFactor = Math.min(0.30, riseRate.ratePerHour * 0.02);
+        return baseTravelTime * (1 - reductionFactor);
+    }
+    return baseTravelTime;
+}
+
+export function getGFtoLFTravelTime(mult, riseRate = null) {
+    const baseTravelTime = TRAVEL_GF_LF_BASELINE * mult;
+    if (riseRate && riseRate.flowState === 'rising' && riseRate.ratePerHour > 0) {
+        const reductionFactor = Math.min(0.30, riseRate.ratePerHour * 0.02);
+        return baseTravelTime * (1 - reductionFactor);
+    }
+    return baseTravelTime;
 }
 
 // --- Flow state classification ---

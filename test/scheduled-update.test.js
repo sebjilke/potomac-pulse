@@ -476,6 +476,98 @@ describe('makeGFPrediction', () => {
     });
 });
 
+// ─── C8/C16 v36.4: travel-time iteration + PoR-history coverage ───────────────
+
+describe('makeGFPrediction — C8 iteration + C16 coverage (v36.4)', () => {
+    const FIXED = 1700000000000;
+    const GAUGES = { por: '01638500', lf: '01646500', monocacy: '01643000',
+        goose: '01644000', broadRun: '01644280', seneca: '01645000', ef: '01644148' };
+
+    // Steady hourly PoR history spanning `spanH` hours (oldest first), constant cfs.
+    function steadyHistory(cfs, spanH = 60) {
+        const h = [];
+        for (let k = spanH; k >= 0; k--) h.push({ cfs, stage: 4.0, timestamp: FIXED - k * 3600000 });
+        return h;
+    }
+    function build(lfQ, porQ) {
+        return { gauges: GAUGES, data: {
+            '01638500': { q: porQ, history: [] },
+            '01646500': { q: lfQ, h: 3.85 },
+            '01643000': { q: 800 }, '01644000': { q: 350 }, '01644280': { q: 75 }, '01645000': { q: 100 },
+            '01644148': {},  // no EF — isolate the PoR/travel path
+        }};
+    }
+
+    // No-regression golden: captured from the pre-C8 single-pass implementation (2026-06-18).
+    // On steady normal/high flow the iteration converges in 1 pass, so output MUST stay identical.
+    // If these drift, the change has become a MAJOR (output-changing) one — re-classify, don't re-bless.
+    const GOLDEN = [
+        { name: 'normal-6500',  lfQ: 6500,  porQ: 6000,  predictedCFS: 7325,  predictedStage: 3.65, gfToLF: 5.553270679362408,  bin: '6000-12000' },
+        { name: 'normal-11000', lfQ: 11000, porQ: 10000, predictedCFS: 11325, predictedStage: 4.1,  gfToLF: 4.057949321141065,  bin: '6000-12000' },
+        { name: 'high-20000',   lfQ: 20000, porQ: 18500, predictedCFS: 19825, predictedStage: 4.84, gfToLF: 2.8410893402674526, bin: '12000-25000' },
+        { name: 'high-35000',   lfQ: 35000, porQ: 33000, predictedCFS: 34325, predictedStage: 5.87, gfToLF: 2.0349854211189125, bin: '25000-50000' },
+    ];
+
+    for (const g of GOLDEN) {
+        it(`no-regression on steady flow: ${g.name}`, (t) => {
+            t.mock.timers.enable({ apis: ['Date'] });
+            t.mock.timers.setTime(FIXED);
+            const r = makeGFPrediction(build(g.lfQ, g.porQ), steadyHistory(g.porQ), 15.0, {});
+            assert.ok(r);
+            assert.equal(r.predictedCFS, g.predictedCFS);
+            assert.equal(r.predictedStage, g.predictedStage);
+            assert.equal(r.travelTimeGFtoLF, g.gfToLF);
+            assert.equal(r.historicPorCFS, g.porQ);     // converged → looked up the steady value
+            assert.equal(r.useTimeShifted, true);
+            assert.equal(r.flowBin, g.bin);
+            assert.equal(r.flowState, 'steady');
+        });
+    }
+
+    it('C16: 72h history enables the low-flow (~50h) lookup that 48h could not', (t) => {
+        t.mock.timers.enable({ apis: ['Date'] });
+        t.mock.timers.setTime(FIXED);
+        const full72 = steadyHistory(1000, 72);
+        const only48 = steadyHistory(1000, 48);
+        // At the 1000-cfs floor travelPoRtoGF ≈ 50.6h.
+        assert.ok(getPoRFromHistory(full72, 50.6), '72h history must serve a ~50.6h lookup');
+        assert.equal(getPoRFromHistory(only48, 50.6), null, '48h history cannot reach ~50.6h (the C16 bug)');
+    });
+
+    it('C16: low-flow prediction is time-shifted (not the unshifted fallback)', (t) => {
+        t.mock.timers.enable({ apis: ['Date'] });
+        t.mock.timers.setTime(FIXED);
+        const r = makeGFPrediction(build(1000, 950), steadyHistory(950, 72), 15.0, {});
+        assert.ok(r);
+        assert.equal(r.useTimeShifted, true);   // would be false (unshifted) under the old 48h retention
+    });
+
+    it('getPoRFromHistory returns finite actualHoursAgo on a hit', (t) => {
+        t.mock.timers.enable({ apis: ['Date'] });
+        t.mock.timers.setTime(FIXED);
+        const hit = getPoRFromHistory(steadyHistory(9000, 60), 12);
+        assert.ok(hit);
+        assert.equal(typeof hit.actualHoursAgo, 'number');
+        assert.ok(Number.isFinite(hit.actualHoursAgo));
+        assert.equal(hit.cfs, 9000);
+    });
+
+    it('getPoRFromHistory drops a lone +50% glitch among ≥3 candidates (robust selection)', (t) => {
+        t.mock.timers.enable({ apis: ['Date'] });
+        t.mock.timers.setTime(FIXED);
+        // Three readings in the 1h window around the 12h target; the 13500 is >40% off median → dropped,
+        // so the returned reading is one of the ~9000 survivors, never the glitch.
+        const hist = [
+            { cfs: 9000,  stage: 4.0, timestamp: FIXED - 11.5 * 3600000 },
+            { cfs: 13500, stage: 4.0, timestamp: FIXED - 12.0 * 3600000 },
+            { cfs: 9100,  stage: 4.0, timestamp: FIXED - 12.5 * 3600000 },
+        ];
+        const got = getPoRFromHistory(hist, 12);
+        assert.ok(got);
+        assert.notEqual(got.cfs, 13500);
+    });
+});
+
 // ─── scoreShadowPredictions ─────────────────────────────────────────────────
 
 describe('scoreShadowPredictions', () => {

@@ -2,14 +2,15 @@
 // Extracted from index.html inline script
 
 import {
-    LF, TRAVEL_POR_GF_BASELINE, TRAVEL_GF_LF_BASELINE,
+    LF, TRAVEL_POR_GF_BASELINE,
     TRIB_FALLBACK, DECAY_CAP, EF_DISCREPANCY_MAX,
     EMPIRICAL_CI_90, GF_OUTLIER_THRESHOLD
 } from '../model/constants.js';
 
 import {
     getFlowMultiplier, estimateLFStage, getGFFlowBin, getEFWeight,
-    getGFCorrection, applyGFCorrection
+    getGFCorrection, applyGFCorrection,
+    getPoRtoGFTravelTime, getGFtoLFTravelTime
 } from '../model/shared-model.js';
 
 import {
@@ -24,30 +25,10 @@ import {
 } from './rise-rate-robust.mjs';
 
 // ==================== TRAVEL TIME HELPERS ====================
-
-export function getPoRtoGFTravelTime(mult, riseRate = null) {
-    let baseTravelTime = TRAVEL_POR_GF_BASELINE * mult;
-
-    if (riseRate && riseRate.flowState === 'rising' && riseRate.ratePerHour > 0) {
-        const reductionFactor = Math.min(0.30, riseRate.ratePerHour * 0.02);
-        const adjusted = baseTravelTime * (1 - reductionFactor);
-        console.log(`⚡ Wave celerity: ${baseTravelTime.toFixed(1)}h → ${adjusted.toFixed(1)}h (${(reductionFactor*100).toFixed(0)}% faster, +${riseRate.ratePerHour.toFixed(1)}%/hr rise)`);
-        return adjusted;
-    }
-
-    return baseTravelTime;
-}
-
-export function getGFtoLFTravelTime(mult, riseRate = null) {
-    let baseTravelTime = TRAVEL_GF_LF_BASELINE * mult;
-
-    if (riseRate && riseRate.flowState === 'rising' && riseRate.ratePerHour > 0) {
-        const reductionFactor = Math.min(0.30, riseRate.ratePerHour * 0.02);
-        return baseTravelTime * (1 - reductionFactor);
-    }
-
-    return baseTravelTime;
-}
+// getPoRtoGFTravelTime / getGFtoLFTravelTime moved to src/model/shared-model.js in
+// v36.4 (so client and server share one node-importable source — see C8). Re-exported
+// here to preserve this module's public surface.
+export { getPoRtoGFTravelTime, getGFtoLFTravelTime };
 
 // ==================== ICE DETECTION ====================
 
