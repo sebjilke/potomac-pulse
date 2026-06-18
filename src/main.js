@@ -22,9 +22,7 @@ import './estimation/edwards-ferry.js';
 import './estimation/shadow-models.js';
 import './estimation/nws.js';
 
-// Learning system
-import './learning/cloud-sync.js';
-import './learning/gauge-learning.js';
+// Learning system (System 2 — server-side GF EMA correction)
 import './learning/gf-learning.js';
 
 // UI modules

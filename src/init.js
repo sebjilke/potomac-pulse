@@ -1,12 +1,9 @@
 // Potomac Pulse — Application initialization
 // Extracted from index.html inline script
 
-import { setLearningData } from './state/store.js';
-import { initCloudSync, updateSyncStatus } from './learning/cloud-sync.js';
 import { loadPoRHistory, loadGFHistory } from './data/history.js';
 import { loadShadowModelState } from './estimation/shadow-models.js';
 import { loadEFHysteresis } from './estimation/edwards-ferry.js';
-import { loadLearning, createEmptyLearning } from './learning/gauge-learning.js';
 import { loadGFLearningData, loadForecastAccuracy, resetGFLearning, resetLowFlowBins } from './learning/gf-learning.js';
 import { fetchData, dismissErrorBanner } from './data/fetch.js';
 import { initMap, toggleMap } from './ui/map.js';
@@ -55,10 +52,6 @@ export async function init() {
         bindButton('resetShadowModelsBtn', resetShadowModels);
         bindButton('lockLearningBtn', lockLearning);
 
-        // Initialize cloud sync via serverless function
-        initCloudSync();
-        updateSyncStatus('syncing');
-
         // Load PoR history for Great Falls time-shifting
         loadPoRHistory();
 
@@ -70,10 +63,6 @@ export async function init() {
 
         // Load EF hysteresis corrections (local learning)
         loadEFHysteresis();
-
-        // Load learning data (from cloud + local)
-        const loadedLearning = await loadLearning();
-        setLearningData(loadedLearning);
 
         // Load GF learning data for Great Falls corrections
         await loadGFLearningData();
@@ -95,7 +84,6 @@ export async function init() {
     } catch(e) {
         console.error('Init error:', e);
         // Fallback: at least show the map
-        setLearningData(createEmptyLearning());
         initMap();
         buildBranches();
         buildCreeks();

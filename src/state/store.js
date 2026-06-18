@@ -37,10 +37,6 @@ export let dataSource = "loading";
 export let lastFetchTime = null;
 export let isFetching = false;
 
-// --- Cloud sync ---
-export let cloudSyncEnabled = true;
-export let lastSyncTime = null;
-
 // --- Edwards Ferry ---
 export let efHysteresis = {
     rising: { multiplier: 1.08, count: 0, sumError: 0 },
@@ -79,12 +75,6 @@ export let graphScales = null;
 export let map = null;
 export let data = {};
 export let markers = {};
-export let learningEnabled = false;
-export let learningData = null;
-
-// --- Sync state ---
-export let syncPending = false;
-export let syncTimeout = null;
 
 // --- Error banner ---
 export let errorBannerTimeout = null;
@@ -99,8 +89,6 @@ export function setShadowResults(v) { shadowResults = v; }
 export function setDataSource(v) { dataSource = v; }
 export function setLastFetchTime(v) { lastFetchTime = v; }
 export function setIsFetching(v) { isFetching = v; }
-export function setCloudSyncEnabled(v) { cloudSyncEnabled = v; }
-export function setLastSyncTime(v) { lastSyncTime = v; }
 export function setEfHysteresis(v) { efHysteresis = v; }
 export function setEdwardsFerryData(v) { edwardsFerryData = v; }
 export function setWaterTempC(v) { waterTempC = v; }
@@ -116,8 +104,4 @@ export function setGraphScales(v) { graphScales = v; }
 export function setMap(v) { map = v; }
 export function setData(v) { data = v; }
 export function setMarkers(v) { markers = v; }
-export function setLearningEnabled(v) { learningEnabled = v; }
-export function setLearningData(v) { learningData = v; }
-export function setSyncPending(v) { syncPending = v; }
-export function setSyncTimeout(v) { syncTimeout = v; }
 export function setErrorBannerTimeout(v) { errorBannerTimeout = v; }

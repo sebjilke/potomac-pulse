@@ -1,7 +1,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildForecastRows, validateGFWritePayload, saveLearningData } = require('../netlify/functions/sync-learning')._test;
+const { buildForecastRows, validateGFWritePayload } = require('../netlify/functions/sync-learning')._test;
 
 // C24: the storeForecastPredictions insert used to drop the three NWS/persistence
 // baseline fields, so scheduled-update.js could never score forecast skill against
@@ -156,30 +156,6 @@ describe('validateGFWritePayload (C13 write-path bounds)', () => {
     });
 });
 
-// C46: saveLearningData must not report success when the observation insert fails
-// (the legacy System-1 sync hits the unique constraint), or the client shows "synced"
-// while nothing was saved.
-describe('saveLearningData (C46 honest failure reporting)', () => {
-    const learnClient = ({ insertError = null } = {}) => ({
-        from: () => ({
-            upsert: () => Promise.resolve({ error: null }),
-            insert: () => Promise.resolve({ error: insertError }),
-        })
-    });
-    const obs = { observations: [{ gauge_id: '01646500', data: { q: 1, timestamp: 1 } }] };
-
-    it('reports success:true and counts the rows when the insert succeeds', async () => {
-        const res = await saveLearningData(learnClient(), obs);
-        const body = JSON.parse(res.body);
-        assert.equal(body.success, true);
-        assert.equal(body.savedCount, 1);
-    });
-
-    it('reports success:false with an error when the observation insert fails', async () => {
-        const res = await saveLearningData(learnClient({ insertError: { message: 'duplicate key value' } }), obs);
-        const body = JSON.parse(res.body);
-        assert.equal(body.success, false);
-        assert.match(body.error, /observations/);
-        assert.equal(body.savedCount, 0);
-    });
-});
+// (v37.1) The System-1 saveLearningData honest-failure tests (C46) were removed with the
+// gauge-learning sync retirement. C49 "don't fabricate gauge stage" lives in fetch.js and is
+// unaffected. C24 forecast-baseline passthrough and the GF write-payload validation remain above.

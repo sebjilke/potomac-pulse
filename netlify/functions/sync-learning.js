@@ -255,24 +255,13 @@ exports.handler = async (event, context) => {
             }
         }
 
-        // Default: Original learning endpoints
-        if (event.httpMethod === 'GET') {
-            return await loadLearningData(client);
-        }
-
-        if (event.httpMethod === 'POST') {
-            const body = JSON.parse(event.body || '{}');
-            const validationError = validatePostBody(body, endpoint);
-            if (validationError) {
-                return { statusCode: 400, headers, body: JSON.stringify({ error: validationError }) };
-            }
-            return await saveLearningData(client, body);
-        }
-
+        // System-1 (gauge-learning) sync was retired in v37.1. All live traffic uses a named
+        // `endpoint` (gf, forecast-accuracy, validation-history, gf-history, por-history), each
+        // handled above. A request with no recognized endpoint is no longer a valid route.
         return {
-            statusCode: 405,
+            statusCode: 404,
             headers,
-            body: JSON.stringify({ error: 'Method not allowed' })
+            body: JSON.stringify({ error: 'Unknown or missing endpoint' })
         };
 
     } catch (error) {
@@ -284,177 +273,6 @@ exports.handler = async (event, context) => {
         };
     }
 };
-
-// Load learning data from Supabase
-async function loadLearningData(client) {
-    try {
-        // Load corrections
-        const { data: corrections, error: corrErr } = await client
-            .from('potomac_observations')
-            .select('gauge_id, data')
-            .eq('observation_type', 'correction');
-
-        if (corrErr) throw corrErr;
-
-        // Load recent observations (last 2000)
-        const { data: observations, error: obsErr } = await client
-            .from('potomac_observations')
-            .select('gauge_id, data, created_at')
-            .eq('observation_type', 'observation')
-            .order('created_at', { ascending: false })
-            .limit(2000);
-
-        if (obsErr) throw obsErr;
-
-        // Load metadata
-        const { data: meta, error: metaErr } = await client
-            .from('potomac_observations')
-            .select('data')
-            .eq('observation_type', 'metadata')
-            .eq('gauge_id', 'system')
-            .single();
-
-        // Build learning data structure
-        const learningData = {
-            startDate: meta?.data?.startDate || new Date().toISOString(),
-            observations: {},
-            corrections: {},
-            totalObs: meta?.data?.totalObs || 0
-        };
-
-        // Process corrections
-        if (corrections) {
-            corrections.forEach(c => {
-                if (c.data?.correction_factor) {
-                    learningData.corrections[c.gauge_id] = c.data.correction_factor;
-                }
-            });
-        }
-
-        // Process observations (group by gauge)
-        if (observations) {
-            observations.forEach(o => {
-                if (!learningData.observations[o.gauge_id]) {
-                    learningData.observations[o.gauge_id] = [];
-                }
-                if (o.data) {
-                    learningData.observations[o.gauge_id].push(o.data);
-                }
-            });
-        }
-
-        return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify(learningData)
-        };
-
-    } catch (error) {
-        console.error('Load error:', error);
-        return {
-            statusCode: 500,
-            headers,
-            body: JSON.stringify({ error: 'Failed to load learning data' })
-        };
-    }
-}
-
-// Save learning data to Supabase
-async function saveLearningData(client, data) {
-    try {
-        const { metadata, corrections, observations, lastSyncTime } = data;
-
-        // Validate input structure
-        if (!metadata && !corrections && !observations) {
-            return {
-                statusCode: 400,
-                headers,
-                body: JSON.stringify({ error: 'No data provided' })
-            };
-        }
-
-        let savedCount = 0;
-
-        // Save metadata
-        if (metadata) {
-            const { error } = await client.from('potomac_observations').upsert({
-                observation_type: 'metadata',
-                gauge_id: 'system',
-                data: {
-                    startDate: metadata.startDate,
-                    totalObs: metadata.totalObs,
-                    lastSync: new Date().toISOString()
-                }
-            }, { onConflict: 'observation_type,gauge_id' });
-
-            if (error) {
-                console.error('Metadata save error:', error);
-            } else {
-                savedCount++;
-            }
-        }
-
-        // Save corrections
-        if (corrections && typeof corrections === 'object') {
-            for (const [gaugeId, factor] of Object.entries(corrections)) {
-                // Validate correction factor is a reasonable number
-                if (typeof factor === 'number' && factor > 0.1 && factor < 10) {
-                    const { error } = await client.from('potomac_observations').upsert({
-                        observation_type: 'correction',
-                        gauge_id: gaugeId,
-                        data: { correction_factor: factor }
-                    }, { onConflict: 'observation_type,gauge_id' });
-
-                    if (!error) savedCount++;
-                }
-            }
-        }
-
-        // Save new observations
-        let obsError = null;
-        if (observations && Array.isArray(observations) && observations.length > 0) {
-            // Limit to 100 observations per sync to prevent abuse
-            const limitedObs = observations.slice(0, 100);
-
-            const records = limitedObs.map(o => ({
-                observation_type: 'observation',
-                gauge_id: o.gauge_id,
-                data: o.data
-            }));
-
-            const { error } = await client.from('potomac_observations').insert(records);
-
-            if (!error) {
-                savedCount += records.length;
-            } else {
-                // C46: surface the failure instead of swallowing it. The legacy System-1
-                // observation insert fails on the (observation_type, gauge_id) unique constraint;
-                // returning success:true here made the client report "synced" while nothing saved.
-                obsError = error;
-                console.error('Observations save error:', error);
-            }
-        }
-
-        return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({
-                success: !obsError,
-                savedCount,
-                error: obsError ? `observations: ${obsError.message}` : undefined,
-                syncTime: new Date().toISOString()
-            })
-        };
-
-    } catch (error) {
-        console.error('Save error:', error);
-        return {
-            statusCode: 500,
-            headers,
-            body: JSON.stringify({ error: 'Failed to save learning data' })
-        };
-    }
-}
 
 // ==================== GREAT FALLS LEARNING ====================
 // Handles GF predictions, validations, and correction bins
@@ -970,4 +788,4 @@ async function loadPoRHistory(client) {
 }
 
 // Test-only exports (mirrors the convention in scheduled-update.js)
-exports._test = { buildForecastRows, validateGFWritePayload, saveLearningData };
+exports._test = { buildForecastRows, validateGFWritePayload };

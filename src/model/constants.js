@@ -2,7 +2,6 @@
 // All configuration constants used across the client application.
 
 export const LF = { id: "01646500", name: "Little Falls", lat: 38.9498, lon: -77.1278, area: 11560 };
-export const STORAGE_KEY = "potomac_learning_v24";
 export const CACHE_KEY = "potomac_cached_data";
 export const CACHE_MAX_AGE = 6 * 60 * 60 * 1000; // 6 hours
 
@@ -18,9 +17,8 @@ export const GF_HISTORY_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 export const SHADOW_STATE_KEY = "potomac_shadow_models";
 export const SHADOW_PREDICTION_KEY = "potomac_shadow_predictions";
 
-// Cloud sync
+// Server API (System-2 GF learning, forecast accuracy, PoR/GF history)
 export const SYNC_API = '/api/sync';
-export const MIN_OBS_FOR_CORRECTION = 30;
 
 // GAUGES with baseline hours derived from USGS Circular 438 / Searcy (1961)
 // EMPIRICAL CORRECTION (Jan 2026): Original Searcy values × 0.80

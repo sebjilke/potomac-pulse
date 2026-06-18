@@ -133,7 +133,7 @@ horizon (6/12/24/48h). Stored as `gf_forecast_pending` → validated when water 
 Client estimation: `src/estimation/great-falls.js`. Forecast UI: `src/ui/great-falls-ui.js`.
 NWS integration: `src/estimation/nws.js`. Learning UI: `src/ui/learning-ui.js`.
 
-## Current Model Parameters (v37.0)
+## Current Model Parameters (v37.1)
 
 - **EF Power-Law**: 126×EF^2.46 (default), 160×EF^2.36 (cold water ≤10°C)
 - **EF Weight (Logistic Ramp)**: `ef_weight = 0.40 / (1 + exp(-5.0 × (ln(flow) - ln(10000))))`. Near 0% at low flows, ~40% at high. EF has negative predictive skill below 6k cfs.
@@ -145,3 +145,4 @@ NWS integration: `src/estimation/nws.js`. Learning UI: `src/ui/learning-ui.js`.
 - **EMA Learning**: Server-only and server-sole-writer (client `checkGFValidations()` and prediction posting both disabled — the cron is the only writer). End-applied at unit gain so displayed == validated; learns on the RAW residual, headline scores the corrected model (v36.0). Validation capped at 2.5h after validationDue. Forecast-based learning rejected (domain mismatch).
 - **Hierarchical Correction Fallback**: Bins with <5 obs blend with fallback: same-bin cross-state average → adjacent bin → 0. Linear blend: `weight = count/5`.
 - **Flow-edge Correction Smoothing (v37.0, C45)**: the *applied* correction is continuous in flow across the **low/mid** boundaries (3k/6k/12k) — within ±12% flow `getGFCorrectionInterpolated` ramps (log-flow) between adjacent bins' corrections; away from a boundary it returns the exact binned value. The **25000/50000 boundaries stay as steps** (high-flow correction is real regime structure; backtest showed smoothing them degrades accuracy). Application-only — the 18-bin EMA learning is unchanged (keyed on the discrete raw-final bin), so no learn↔apply feedback. Shared helper in `shared-model.js` ↔ `shared/model.js` (parity-tested).
+- **System-1 retired (v37.1)**: the legacy client-side per-gauge travel-time learning ("System 1": `gauge-learning.js`, `cloud-sync.js`, the `/api/sync` default `load/saveLearningData` handlers) is **gone**. It had been a dead write path since the Feb-2026 modularization but still multiplied 15 frozen `correction` factors into the **displayed** per-gauge arrival times. The GF estimate never used them (it computes its own PoR→GF travel time), so removal is display-only/MINOR; displayed gauge arrivals now equal `baseHrs × Searcy-multiplier`. The only learning system is **System 2** (server-side GF EMA bins).

@@ -3,7 +3,7 @@
 
 import { GAUGES, SHADOW_STATE_KEY } from '../model/constants.js';
 import {
-    data, learningData, learningEnabled, setLearningEnabled,
+    data,
     gfLearningData, gfEstimate,
     edwardsFerryData, lastFetchTime,
     shadowModelState, shadowResults, setShadowModelState, setShadowResults,
@@ -171,14 +171,6 @@ export function updateGFBinStats() {
     }
 }
 
-// ==================== TOGGLE LEARNING ====================
-
-export function toggleLearning() {
-    setLearningEnabled(!learningEnabled);
-    const btn = document.getElementById("learnBtn");
-    if (btn) btn.classList.toggle("active", learningEnabled);
-}
-
 // ==================== ADMIN DASHBOARD ====================
 
 export function updateAdminDashboard() {
@@ -267,62 +259,8 @@ export function updateAdminDashboard() {
 // ==================== UPDATE LEARNING UI ====================
 
 export function updateLearningUI() {
-    if (!learningData) return;
-
     // Update admin dashboard
     updateAdminDashboard();
-
-    const gaugesWithCorrections = Object.keys(learningData.corrections).length;
-
-    // Update learning tab
-    document.getElementById("learnTotal").textContent = learningData.totalObs.toLocaleString();
-
-    const startDate = new Date(learningData.startDate);
-    const daysSince = Math.floor((Date.now() - startDate) / 86400000);
-    document.getElementById("learnSince").textContent = daysSince > 0 ? `${daysSince} days ago` : "Today";
-
-    document.getElementById("learnAccuracy").textContent =
-        gaugesWithCorrections === 0 ? "Waiting for rise events..." :
-        gaugesWithCorrections < 5 ? `Calibrating (${gaugesWithCorrections} gauges)` :
-        "Model calibrated";
-
-    document.getElementById("learnGauges").textContent =
-        `${gaugesWithCorrections} / ${Object.keys(GAUGES).length - 1}`;
-
-    // Update correction list
-    const list = document.getElementById("correctionList");
-    list.textContent = ''; // Clear existing content
-    const corrections = Object.entries(learningData.corrections);
-    if (corrections.length === 0) {
-        const p = document.createElement('p');
-        p.style.color = 'var(--text-muted)';
-        p.style.fontSize = '0.6rem';
-        p.textContent = 'Corrections calculated after detecting rise events at gauges and matching arrivals at Little Falls';
-        list.appendChild(p);
-    } else {
-        for (const [id, factor] of corrections) {
-            const g = GAUGES[id];
-            const obs = learningData.observations[id] || [];
-            const rises = obs.filter(o => o.rising).length;
-            const diff = ((factor - 1) * 100).toFixed(1);
-            const sign = factor >= 1 ? "+" : "";
-
-            const div = document.createElement('div');
-            div.className = 'correction-item';
-
-            const nameSpan = document.createElement('span');
-            nameSpan.className = 'gauge-name';
-            nameSpan.textContent = g?.name || id;
-
-            const factorSpan = document.createElement('span');
-            factorSpan.className = 'factor';
-            factorSpan.textContent = factor.toFixed(3) + '× (' + sign + diff + '%) • ' + rises + ' rises';
-
-            div.appendChild(nameSpan);
-            div.appendChild(factorSpan);
-            list.appendChild(div);
-        }
-    }
 
     // Update shadow model horse race display
     updateShadowModelUI();

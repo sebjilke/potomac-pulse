@@ -3,7 +3,7 @@
 
 import {
     LF, CACHE_KEY, CACHE_MAX_AGE, GAUGES, EDWARDS_FERRY,
-    EF_MODEL, EF_HISTORY_MAX, MEDIAN_FLOW, SYNC_API,
+    EF_MODEL, EF_HISTORY_MAX, MEDIAN_FLOW,
     POR_HISTORY_MAX_AGE, CREEK_RUNS
 } from '../model/constants.js';
 
@@ -23,8 +23,6 @@ import {
     errorBannerTimeout, setErrorBannerTimeout
 } from '../state/store.js';
 
-import { getCorrectionFactor } from '../learning/gauge-learning.js';
-import { recordObservation } from '../learning/gauge-learning.js';
 import { fetchNWSForecasts } from '../estimation/nws.js';
 import { fetchEdwardsFerry, fetchWaterTemp } from '../estimation/edwards-ferry.js';
 import { updateUI } from '../ui/gauges-ui.js';
@@ -130,23 +128,15 @@ export function calcTravelTimes() {
         const d = data[id];
         if (!d) continue;
 
-        // Base calculation using flow-based multiplier
-        let travelHrs = g.baseHrs * multInfo.mult;
-
-        // Apply learning correction
-        const correction = getCorrectionFactor(id);
-        travelHrs *= correction;
+        // Travel time from flow-based multiplier (Searcy power law)
+        const travelHrs = g.baseHrs * multInfo.mult;
 
         d.travelHrs = travelHrs;
         d.baseHrs = g.baseHrs;
         d.mult = multInfo.mult;
-        d.correction = correction;
         d.arrival = new Date(Date.now() + travelHrs * 3600000);
         d.pctLF = g.pctLF;
     }
-
-    // Record observation for learning
-    recordObservation();
 }
 
 // ==================== DATA PROCESSING ====================

@@ -24,10 +24,11 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 
 | # | Item | Effort | Notes |
 |---|------|--------|-------|
-| 0a | **Finish dead System-1 write-path removal** | ~1h | Phase-1 (`26bc64f`) removed most; residual orphans remain in `src/ui/learning-ui.js`, `src/learning/gauge-learning.js`, `src/state/store.js`, `src/data/fetch.js` (permanently-false `learningEnabled` path). Keep the gauge travel-time *display*. Snapshot/golden tests must prove the estimate is invariant. |
-| 0b | **Low-flow flow-state classification floor** | ~days | The `max(100, q×2%)` floor binds at 3–5k cfs, so slow recessions still classify ~77–80% steady (per `analysis/flow_state_window_diagnostic.md`). A flow-dependent window or scaled floor is the deferred second-pass fix. Empirical-analysis protocol applies (plan → auditor → blind Python+R → audit). |
+| 0a | **Low-flow flow-state classification floor** | ~days | The `max(100, q×2%)` floor binds at 3–5k cfs, so slow recessions still classify ~77–80% steady (per `analysis/flow_state_window_diagnostic.md`). A flow-dependent window or scaled floor is the deferred second-pass fix. Methodology plan drafted (`analysis/flow-state-floor-methodology-2026-06-18.md`) — awaiting sign-off before implementation. Empirical-analysis protocol applies (plan → auditor → blind Python+R → audit). |
 
-**Closed (no longer open):** the travel-time *relation* refit was investigated and **closed as low-leverage — no model change** (v36.2; Layer-0/A diagnostics). See `analysis/travel-time-refit-plan-2026-06-17.md`. The dominant residual error is high-flow *level* over-prediction, already absorbed by the EMA correction.
+**Closed (no longer open):**
+- **System-1 (gauge travel-time learning) fully retired** (v37.1) — the dead client-side per-gauge correction is gone (client + server + 43 stale DB rows); displayed gauge arrivals now equal `baseHrs × Searcy-multiplier`. Display-only; GF estimate unchanged. See `analysis/system1-retirement-plan-2026-06-18.md`.
+- **Travel-time relation refit** — investigated and **closed as low-leverage, no model change** (v36.2; Layer-0/A diagnostics). See `analysis/travel-time-refit-plan-2026-06-17.md`. The dominant residual error is high-flow *level* over-prediction, already absorbed by the EMA correction.
 
 ---
 
@@ -104,6 +105,8 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 
 ## Recently completed (reference)
 
+- **v37.1** (2026-06-18) — System-1 gauge travel-time learning retired (MINOR, display-only): removed dead
+  client + server code + 43 stale DB rows; displayed gauge arrivals now `baseHrs × Searcy-multiplier`.
 - **v37.0** (2026-06-18) — C45 flow-edge correction smoothing (MAJOR): applied correction continuous in flow
   across 3k/6k/12k; 25k/50k left stepped (backtest-gated). Learning unchanged.
 - **v36.4** (2026-06-18) — C8/C16 server travel-time parity + 72h PoR-history retention (MINOR).

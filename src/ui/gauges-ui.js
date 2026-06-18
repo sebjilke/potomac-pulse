@@ -4,7 +4,7 @@
 import L from 'leaflet';
 import { LF, GAUGES, BRANCHES } from '../model/constants.js';
 import {
-    data, markers, learningData
+    data, markers
 } from '../state/store.js';
 
 import { fmt, fmtArrival, applyTrendToElement, getTrendData, getTrendText } from '../data/fetch.js';
@@ -242,17 +242,7 @@ export function popup(id, g, color, bk) {
         </div>
         <div class="pop-arr"><b>Arrival:</b> ${d.arrival?.toLocaleString("en-US",{weekday:"short",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>`;
 
-        html += `<div class="pop-note">Calculation: ${g.baseHrs}h × ${d.mult?.toFixed(2) || "1.00"} mult`;
-        if (d.correction && d.correction !== 1.0) {
-            html += ` × ${d.correction.toFixed(3)} learned`;
-        }
-        html += `</div>`;
-
-        // Learning status
-        const obs = learningData?.observations[id]?.length || 0;
-        if (obs > 0) {
-            html += `<div class="pop-learn">🧠 ${obs} observations recorded</div>`;
-        }
+        html += `<div class="pop-note">Calculation: ${g.baseHrs}h × ${d.mult?.toFixed(2) || "1.00"} mult</div>`;
 
         if (bk === "belowPtR") {
             html += `<div class="pop-warn">⚠️ Below Point of Rocks — can raise LF before upstream signal</div>`;
