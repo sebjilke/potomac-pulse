@@ -22,11 +22,10 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 
 ## Tier 0 — Model accuracy (*changes the estimate*)
 
-| # | Item | Effort | Notes |
-|---|------|--------|-------|
-| 0a | **Low-flow flow-state classification floor** | ~days | The `max(100, q×2%)` floor binds at 3–5k cfs, so slow recessions still classify ~77–80% steady (per `analysis/flow_state_window_diagnostic.md`). A flow-dependent window or scaled floor is the deferred second-pass fix. Methodology plan drafted (`analysis/flow-state-floor-methodology-2026-06-18.md`) — awaiting sign-off before implementation. Empirical-analysis protocol applies (plan → auditor → blind Python+R → audit). |
+**✅ Tier 0 is cleared — no open model-accuracy items.** All three Tier-0 lines are closed (below).
 
 **Closed (no longer open):**
+- **Low-flow flow-state floor (0a)** — Step-1 leverage diagnostic (blind Python+R) showed the floor masks 17.7% of low-flow hours but leverage is marginal/concentrated; the gated A/B (single continuous-taper candidate, prequential, blind Python+R + 4-layer verification) then **REJECTED** it: it slightly *degrades* the corrected estimate (+0.5 cfs MAE in 3000-6000, rising cell regresses +2.3, 54% of flips worsen) — the static raw-residual gradient doesn't survive re-keying (marginal obs dilute the rising cell, v35.0 noise signature). **Closed as low-leverage; the live `max(100, q×0.02)` classifier stands.** See `analysis/flow-state-floor-gate-findings-2026-06-18.md`.
 - **System-1 (gauge travel-time learning) fully retired** (v37.1) — the dead client-side per-gauge correction is gone (client + server + 43 stale DB rows); displayed gauge arrivals now equal `baseHrs × Searcy-multiplier`. Display-only; GF estimate unchanged. See `analysis/system1-retirement-plan-2026-06-18.md`.
 - **Travel-time relation refit** — investigated and **closed as low-leverage, no model change** (v36.2; Layer-0/A diagnostics). See `analysis/travel-time-refit-plan-2026-06-17.md`. The dominant residual error is high-flow *level* over-prediction, already absorbed by the EMA correction.
 
