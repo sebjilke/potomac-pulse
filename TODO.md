@@ -4,7 +4,7 @@
 Session state is in `.claude/HANDOFF.md`; methodology provenance for shipped versions is the
 small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, prioritize, go.
 
-*Last updated: 2026-06-18 (current version: v37.0). Verified against live DB + git history, not memory.*
+*Last updated: 2026-06-18 (current version: v37.2). Verified against live DB + git history, not memory.*
 
 ---
 
@@ -14,7 +14,7 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 - Effort is a rough order-of-magnitude.
 - 🔒 = needs a decision from you before work starts · 📅 = date-gated · 🔍 = verify-only.
 - Anything touching the estimate must keep the characterization/golden tests green and the
-  client↔server parity tests green (`npm test` = **599**), or deliberately re-baseline + version-bump.
+  client↔server parity tests green (`npm test` = **602**), or deliberately re-baseline + version-bump.
 - **Pushing auto-deploys from `main`** through the Netlify gate (`npm install && npm test && npm run build`);
   a red suite blocks deploy. Pushing needs explicit approval each time.
 
@@ -49,12 +49,11 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 
 | # | Item | Effort | Notes |
 |---|------|--------|-------|
-| 5 | **Fix the silent USGS-null cron early return** | ~2 lines | `netlify/functions/scheduled-update.js:~1634` returns on null USGS data writing nothing — pings neither healthchecks success nor `/fail`, doesn't bump `missedRuns`, so a stall is invisible (it masked a ~2h outage on 2026-06-18). Fire the `/fail` ping there. Load-bearing → plan→audit→push. |
-| 6 | **Set `VITE_SENTRY_DSN`** in Netlify env vars | ~15 min | Code + sourcemaps done; just needs the DSN. |
-| 7 | **Uptime HTTP checks** in healthchecks.io | ~10 min | Site + USGS API availability alerts. |
-| 8 | **Scope MCP servers per-project** | ~15 min | Gmail/Calendar/Drive/Scholar waste ~17k context tokens; not needed here. |
+| 5 | **Set `VITE_SENTRY_DSN`** in Netlify env vars | ~15 min | Code + sourcemaps done; just needs the DSN. |
+| 6 | **Uptime HTTP checks** in healthchecks.io | ~10 min | Site + USGS API availability alerts. Also: set `HEALTHCHECKS_PING_URL` in Netlify env so the cron success/`/fail` pings (now wired correctly, v37.2) actually reach a monitor. |
+| 7 | **Scope MCP servers per-project** | ~15 min | Gmail/Calendar/Drive/Scholar waste ~17k context tokens; not needed here. |
 
-**Closed:** shadow-leaderboard reset verified (`shadowServerMigration` non-null) · honest sync-failure reporting + stop fabricating gauge stage (C46/C49, `ad6f486`) · Netlify deploys gated on `npm test` (C20, `4a85a4c`).
+**Closed:** **silent USGS-null cron early-return fixed** (v37.2 — now `throw`s into the healthchecks `/fail` ping instead of returning; `analysis/cron-failping-fix-2026-06-18.md`) · shadow-leaderboard reset verified (`shadowServerMigration` non-null) · honest sync-failure reporting + stop fabricating gauge stage (C46/C49, `ad6f486`) · Netlify deploys gated on `npm test` (C20, `4a85a4c`).
 
 ---
 
@@ -105,6 +104,8 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 
 ## Recently completed (reference)
 
+- **v37.2** (2026-06-18) — Cron observability fix (MINOR, server-only): USGS-fetch-failure path now throws
+  into the healthchecks `/fail` ping instead of silently early-returning. `analysis/cron-failping-fix-2026-06-18.md`.
 - **v37.1** (2026-06-18) — System-1 gauge travel-time learning retired (MINOR, display-only): removed dead
   client + server code + 43 stale DB rows; displayed gauge arrivals now `baseHrs × Searcy-multiplier`.
 - **v37.0** (2026-06-18) — C45 flow-edge correction smoothing (MAJOR): applied correction continuous in flow

@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v37.1 (June 2026)
+**Current Version**: v37.2 (June 2026)
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ Frontend (PWA)                    Netlify Functions (Backend)
 ├── analysis/                         # Model calibration scripts, audit reports (CSVs gitignored — reproducible from scripts)
 ```
 
-## Current Model (v37.1)
+## Current Model (v37.2)
 
 Core estimation parameters (travel time, EF power-law, EF weight) validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits. The v36.1 confidence band was re-derived separately on **126,916 hourly observations** (the same period, with the four tributaries + LF stage added) — see the v36.1 changelog entry.
 
@@ -175,6 +175,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v37.2 | 2026-06-18 | **Cron observability fix — MINOR (server-only).** The hourly scheduled function's USGS-fetch-failure path did an early `return` inside its `try`, which bypassed the catch block's healthchecks `/fail` ping — so a fetch stall pinged neither success nor failure and was invisible to monitoring (it masked the ~2h cron outage earlier today). Now it `throw`s, routing the failure through the existing `/fail` ping and 500 return. New end-to-end test invokes the handler with `fetch` mocked to fail and asserts the `/fail` ping fires (and the success ping does not). Live alerting still requires `HEALTHCHECKS_PING_URL` set in Netlify env (Tier 2, separate). Plan + verification: `analysis/cron-failping-fix-2026-06-18.md`. 601 → 602 tests. |
 | v37.1 | 2026-06-18 | **System-1 gauge travel-time learning retired — MINOR (display-only).** The pre-2026-02 per-gauge travel-time correction ("System 1") had been a dead write path since the Feb-2026 Vite modularization (`learningEnabled` permanently false) but a **live read path**: the `/api/sync` GET returned 15 frozen `correction` rows (mean 0.935, frozen 2026-02-24) that `calcTravelTimes()` still multiplied into the **displayed** per-gauge arrival times. The GF *estimate* never consumed them (it computes its own PoR→GF travel time via `getPoRtoGFTravelTime`), so the characterization snapshots are unchanged → MINOR. Removed: client `gauge-learning.js` + `cloud-sync.js`, the System-1 store state + `toggleLearning`/correction-list/observations UI, the server `/api/sync` default `load/saveLearningData` handlers (named endpoints unaffected), and 43 stale DB rows (`correction`/`observation`/`rise_event`/`metadata`). **Observable effect:** displayed gauge arrival times shift ~+6.5% on average (up to +21%) as the frozen factors stop applying — the display now equals the documented `baseHrs × Searcy-multiplier`. The C46 System-1 honest-failure tests retired with it (C49 stays). Plan + independent audit: `analysis/system1-retirement-plan-2026-06-18.md`. 599 → 601 tests. |
 | v37.0 | 2026-06-18 | **C45 flow-edge correction smoothing — MAJOR.** The applied EMA correction is now **continuous in flow** across the low/mid bin boundaries (3k/6k/12k): within ±12% flow it ramps (log-flow) between the adjacent bins' corrections instead of stepping; flows away from a boundary keep their exact binned value. The 25000/50000 boundaries are **left as steps** — at high flow the correction is genuine regime structure. Validated by a prequential 14-yr backtest (110,548 obs, blind Python+R, independent auditor): the rejected full-width (+3.4% MAE, +17.4% at 25-50k) and all-boundary (+5.7% at 25-50k) variants degraded accuracy; the shipped low/mid-only design is accuracy-neutral-to-better (pooled MAE −1.1%, RMSE −0.6%; worst bin +1.1% median; 25-50k/50k+ exactly unchanged). Learning unchanged (no feedback). **Accuracy-series discontinuity** at the v36→v37 boundary (methodology change, not a regression). Plan + gate: `analysis/c45-phase1-flow-interp-plan-2026-06-18.md`. 521 → 599 tests. |
 | v36.4 | 2026-06-18 | **Server travel-time parity + PoR-history coverage (C8/C16) — MINOR.** C8: the server now iterates the PoR→GF travel time to PoR-self-consistency and uses the client's outlier-robust historic-reading selection (travel helpers centralized into `shared-model.js`↔`shared/model.js`; `selectHistoricReading` ported), closing a displayed-vs-validated divergence. Normal/high steady flow is **bit-identical** to v36.3 (golden-tested); only the low-flow lookup shifts (sparse low-flow EMA bins re-learn). C16: server PoR-history retention 48h→72h (≥ the ~50.6h max travel) so the low-flow time-shift no longer silently falls back to unshifted current PoR. The PoR rise-rate input stays deliberately divergent (client robust / server raw). Plan + independent audit in `analysis/c8-c16-parity-fix-plan-2026-06-18.md`. 418 → 521 tests. |
@@ -224,8 +225,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v37.1).
+See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v37.2).
 
 ---
 
-*Last updated: 2026-06-18 (v37.1 — System-1 gauge-learning retirement)*
+*Last updated: 2026-06-18 (v37.2 — cron observability fix)*

@@ -1631,7 +1631,10 @@ exports.handler = async (event, context) => {
             fetchWaterTemp()
         ]);
         if (!usgsData) {
-            return { statusCode: 500, body: 'Failed to fetch USGS data' };
+            // Throw (don't early-return) so the failure flows into the catch block's healthchecks
+            // /fail ping — an early return here pinged neither success nor /fail, making a USGS-fetch
+            // stall invisible to monitoring (it masked a ~2h outage on 2026-06-18). (Tier 2 #5)
+            throw new Error('Failed to fetch USGS data');
         }
         console.log('USGS data fetched successfully');
 
