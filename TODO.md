@@ -49,7 +49,7 @@ All remaining items need your dashboard / env access.
 
 | # | Item | Effort | Notes |
 |---|------|--------|-------|
-| 9  | **Phase 2 — internal decomposition** | ~1 day | Extract `shared/observations.js` data-access helper; decompose `validatePendingPredictions` (~517 lines); pull model invocation out of `updateGreatFallsUI`. Behavior-neutral. Biggest clean autonomous target. |
+| 9  | **Phase 2 — internal decomposition** | done (partial) | ✅ **v37.3** — extracted `computeGFEstimate()` (model invocation out of `updateGreatFallsUI`) + added server-only `shared/observations.js` and DRY'd ~21 data-access sites in `scheduled-update.js` (behavior-neutral; 602→626; byte-identical `validatePendingPredictions`). **Declined sub-scope:** decomposing `validatePendingPredictions` (untested EF-corr/shadow/stage blocks → unverifiable, not worth the risk on the live learning loop) and the `sync-learning.js` adoption (25 DB sites, no test net) — re-open only with test-hardening first. See `analysis/phase2-decomposition-plan-2026-06-18.md`. |
 | 10 | 🔒 **Phase 3 — unify the 3 runtimes** | ~2–3 days | One shared `gf-pipeline` for client + server; unify 3 flow-state impls; golden sync-guard test. **Needs a decision first:** which side is canonical (provisional: server math canonical). Changes observable output on the non-canonical side. (v36.0 already unified correction *application* via the shared `applyGFCorrection` helper — this is the remaining pipeline unification.) |
 | 11 | **Phase 4 — render path (optional)** | ~1 day | Store pub/sub + targeted re-render; remove the 4s NWS render gate. Highest UX-feel risk. |
 | 12 | **Parallelize Supabase queries** | ~2h | `Promise.all()` for independent SELECTs in `sync-learning.js`. |

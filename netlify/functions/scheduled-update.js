@@ -19,6 +19,11 @@ const {
     VALIDATION_MAX_DELAY_MS, isExistingPredictionReplaceable
 } = require('./shared/model');
 
+const {
+    getObs, getObsRows,
+    upsertObs, insertObs, deleteObs, deleteObsById
+} = require('./shared/observations');
+
 // Validate USGS API response schema
 function validateUSGSResponse(json) {
     // Check required top-level structure
@@ -249,15 +254,10 @@ async function storePoRHistory(client, history) {
     if (!history?.length) return true;
 
     // Get existing timestamps to avoid duplicates
-    const { data: existing } = await client
-        .from('potomac_observations')
-        .select('data')
-        .eq('observation_type', 'por_history')
-        .eq('gauge_id', 'system')
-        .single();
+    const existing = await getObs(client, 'por_history', 'system');
 
     const existingTimestamps = new Set(
-        (existing?.data?.readings || []).map(r => r.timestamp)
+        (existing?.readings || []).map(r => r.timestamp)
     );
 
     // Merge new readings
@@ -267,7 +267,7 @@ async function storePoRHistory(client, history) {
         return true;
     }
 
-    const allReadings = [...(existing?.data?.readings || []), ...newReadings]
+    const allReadings = [...(existing?.readings || []), ...newReadings]
         .sort((a, b) => a.timestamp - b.timestamp);
 
     // Keep only the retention window (72h ≥ max PoR→GF travel ~50.6h, so the
@@ -275,14 +275,10 @@ async function storePoRHistory(client, history) {
     const cutoff = Date.now() - POR_HISTORY_MAX_AGE;
     const trimmedReadings = allReadings.filter(r => r.timestamp > cutoff);
 
-    const { error: porHistErr } = await client.from('potomac_observations').upsert({
-        observation_type: 'por_history',
-        gauge_id: 'system',
-        data: {
-            readings: trimmedReadings,
-            lastUpdate: new Date().toISOString()
-        }
-    }, { onConflict: 'observation_type,gauge_id' });
+    const { error: porHistErr } = await upsertObs(client, 'por_history', 'system', {
+        readings: trimmedReadings,
+        lastUpdate: new Date().toISOString()
+    });
 
     if (porHistErr) {
         console.error('❌ PoR history upsert FAILED:', porHistErr.message, porHistErr.code, porHistErr.details);
@@ -307,14 +303,9 @@ async function storeGFHistory(client, prediction) {
     };
 
     // Load existing history
-    const { data: existing } = await client
-        .from('potomac_observations')
-        .select('data')
-        .eq('observation_type', 'gf_history')
-        .eq('gauge_id', 'system')
-        .single();
+    const existing = await getObs(client, 'gf_history', 'system');
 
-    const existingReadings = existing?.data?.readings || [];
+    const existingReadings = existing?.readings || [];
 
     // Dedup guard: skip if last entry is within 30 minutes (prevents duplicates on retries)
     if (existingReadings.length > 0) {
@@ -330,14 +321,10 @@ async function storeGFHistory(client, prediction) {
     const cutoff = now - (24 * 60 * 60 * 1000);
     const trimmedReadings = allReadings.filter(r => r.timestamp > cutoff);
 
-    const { error: gfHistErr } = await client.from('potomac_observations').upsert({
-        observation_type: 'gf_history',
-        gauge_id: 'system',
-        data: {
-            readings: trimmedReadings,
-            lastUpdate: new Date().toISOString()
-        }
-    }, { onConflict: 'observation_type,gauge_id' });
+    const { error: gfHistErr } = await upsertObs(client, 'gf_history', 'system', {
+        readings: trimmedReadings,
+        lastUpdate: new Date().toISOString()
+    });
 
     if (gfHistErr) {
         console.error('❌ GF history upsert FAILED:', gfHistErr.message, gfHistErr.code, gfHistErr.details);
@@ -358,14 +345,9 @@ async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent
         flowState
     };
 
-    const { data: existing } = await client
-        .from('potomac_observations')
-        .select('data')
-        .eq('observation_type', 'gf_validation_history')
-        .eq('gauge_id', 'system')
-        .single();
+    const existing = await getObs(client, 'gf_validation_history', 'system');
 
-    const existingReadings = existing?.data?.readings || [];
+    const existingReadings = existing?.readings || [];
 
     if (existingReadings.length > 0) {
         const lastEntry = existingReadings[existingReadings.length - 1];
@@ -379,14 +361,10 @@ async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent
     const cutoff = now - (7 * 24 * 60 * 60 * 1000);
     const trimmedReadings = allReadings.filter(r => r.timestamp > cutoff);
 
-    const { error: valHistErr } = await client.from('potomac_observations').upsert({
-        observation_type: 'gf_validation_history',
-        gauge_id: 'system',
-        data: {
-            readings: trimmedReadings,
-            lastUpdate: new Date().toISOString()
-        }
-    }, { onConflict: 'observation_type,gauge_id' });
+    const { error: valHistErr } = await upsertObs(client, 'gf_validation_history', 'system', {
+        readings: trimmedReadings,
+        lastUpdate: new Date().toISOString()
+    });
 
     if (valHistErr) {
         console.error('❌ Validation history upsert FAILED:', valHistErr.message, valHistErr.code, valHistErr.details);
@@ -428,10 +406,8 @@ async function loadShadowModelState(client) {
         kalman: { x: null, P: null, Q_base: 0.0001, initialized: false }
     };
     try {
-        const { data } = await client.from('potomac_observations').select('data')
-            .eq('observation_type', 'shadow_model_state').eq('gauge_id', 'system').single();
-        if (data?.data) {
-            const stored = data.data;
+        const stored = await getObs(client, 'shadow_model_state', 'system');
+        if (stored) {
             if (stored.lfFeedback) Object.assign(defaults.lfFeedback, stored.lfFeedback);
             if (stored.onlineRegression) Object.assign(defaults.onlineRegression, stored.onlineRegression);
             if (stored.kalman) Object.assign(defaults.kalman, stored.kalman);
@@ -446,9 +422,7 @@ async function loadShadowModelState(client) {
 async function saveShadowModelState(client, state) {
     try {
         state.lastUpdated = new Date().toISOString();
-        await client.from('potomac_observations').upsert({
-            observation_type: 'shadow_model_state', gauge_id: 'system', data: state
-        }, { onConflict: 'observation_type,gauge_id' });
+        await upsertObs(client, 'shadow_model_state', 'system', state);
     } catch (e) {
         console.warn('Shadow state save failed (non-fatal):', e.message);
     }
@@ -645,9 +619,7 @@ function runServerShadowModels(productionCFS, usgsData, prediction, porRiseRate,
 // return {} so the model predicts RAW (correction 0) rather than crashing, and WARN
 // loudly so a silent raw-model regression is visible in the cron logs.
 async function loadCorrectionBins(client) {
-    const { data: rows, error } = await client.from('potomac_observations')
-        .select('gauge_id, data')
-        .eq('observation_type', 'gf_correction_bin');
+    const { data: rows, error } = await getObsRows(client, 'gf_correction_bin', { columns: 'gauge_id, data' });
     if (error) {
         console.warn(`⚠️ Failed to load correction bins — predicting RAW (correction=0): ${error.message}`);
         return {};
@@ -1362,6 +1334,11 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
 async function storePrediction(client, prediction) {
     // Check if there's an existing pending prediction still within its validation window.
     // If so, skip storing a new one — overwriting it would prevent it from ever being validated.
+    // NOTE: this read is intentionally NOT swapped to getObs(). The original branches on
+    // ROW existence (`if (existing)`), then passes the PAYLOAD (`existing.data`) to
+    // isExistingPredictionReplaceable. getObs() collapses both into the payload, which would
+    // skip the replace-and-reinsert path for a (pathological) pending row whose `data` column
+    // is null — a behavior change. Kept raw to preserve row-vs-payload distinction exactly.
     const { data: existing } = await client.from('potomac_observations')
         .select('data')
         .eq('observation_type', 'gf_prediction')
@@ -1378,17 +1355,10 @@ async function storePrediction(client, prediction) {
         }
 
         console.log(`🗑️ Removing missed-window/invalid prediction (due: ${existing.data?.validationDue})`);
-        await client.from('potomac_observations')
-            .delete()
-            .eq('observation_type', 'gf_prediction')
-            .eq('gauge_id', 'pending');
+        await deleteObs(client, 'gf_prediction', { gaugeId: 'pending' });
     }
 
-    const { error: insertErr } = await client.from('potomac_observations').insert({
-        observation_type: 'gf_prediction',
-        gauge_id: 'pending',
-        data: prediction
-    });
+    const { error: insertErr } = await insertObs(client, 'gf_prediction', 'pending', prediction);
 
     if (insertErr) {
         console.error(`❌ Prediction INSERT FAILED:`, insertErr.message, insertErr.code, insertErr.details);
@@ -1396,21 +1366,10 @@ async function storePrediction(client, prediction) {
     }
 
     // Increment prediction count (health tracking moved to updateRunHealth)
-    const { data: meta } = await client
-        .from('potomac_observations')
-        .select('data')
-        .eq('observation_type', 'gf_metadata')
-        .eq('gauge_id', 'system')
-        .single();
-
-    const metaData = meta?.data || { totalValidations: 0, totalPredictions: 0 };
+    const metaData = await getObs(client, 'gf_metadata', 'system') || { totalValidations: 0, totalPredictions: 0 };
     metaData.totalPredictions += 1;
 
-    const { error: predMetaErr } = await client.from('potomac_observations').upsert({
-        observation_type: 'gf_metadata',
-        gauge_id: 'system',
-        data: metaData
-    }, { onConflict: 'observation_type,gauge_id' });
+    const { error: predMetaErr } = await upsertObs(client, 'gf_metadata', 'system', metaData);
     if (predMetaErr) {
         console.error(`❌ Prediction metadata upsert FAILED:`, predMetaErr.message, predMetaErr.code, predMetaErr.details);
     }
@@ -1437,14 +1396,7 @@ function computeRunHealth(gapHours, prev = {}) {
 
 // Separated from storePrediction so skipped-prediction runs are still tracked correctly.
 async function updateRunHealth(client) {
-    const { data: meta } = await client
-        .from('potomac_observations')
-        .select('data')
-        .eq('observation_type', 'gf_metadata')
-        .eq('gauge_id', 'system')
-        .single();
-
-    const metaData = meta?.data || { totalValidations: 0, totalPredictions: 0 };
+    const metaData = await getObs(client, 'gf_metadata', 'system') || { totalValidations: 0, totalPredictions: 0 };
     const now = new Date();
     const lastRun = metaData.lastPrediction ? new Date(metaData.lastPrediction) : null;
     const gapHours = lastRun ? (now - lastRun) / (60 * 60 * 1000) : 0;
@@ -1458,11 +1410,7 @@ async function updateRunHealth(client) {
     metaData.consecutiveRuns = health.consecutiveRuns;
     metaData.lastPrediction = now.toISOString();
 
-    const { error } = await client.from('potomac_observations').upsert({
-        observation_type: 'gf_metadata',
-        gauge_id: 'system',
-        data: metaData
-    }, { onConflict: 'observation_type,gauge_id' });
+    const { error } = await upsertObs(client, 'gf_metadata', 'system', metaData);
     if (error) {
         console.error(`❌ Health metadata upsert FAILED:`, error.message, error.code, error.details);
     }
@@ -1484,12 +1432,12 @@ async function validateForecastPredictions(client, usgsData) {
     }
 
     // Get pending forecast predictions
-    const { data: pending, error } = await client
-        .from('potomac_observations')
-        .select('id, gauge_id, data, created_at')
-        .eq('observation_type', 'gf_forecast_pending')
-        .order('created_at', { ascending: true })
-        .limit(100);
+    const { data: pending, error } = await getObsRows(client, 'gf_forecast_pending', {
+        columns: 'id, gauge_id, data, created_at',
+        orderBy: 'created_at',
+        ascending: true,
+        limit: 100
+    });
 
     if (error) {
         console.error('Error loading pending forecasts:', error);
@@ -1516,7 +1464,7 @@ async function validateForecastPredictions(client, usgsData) {
         // Check if prediction is stale (>72h old)
         const ageHours = (now - createdAt) / (1000 * 60 * 60);
         if (ageHours > 72) {
-            const { error: staleDelErr } = await client.from('potomac_observations').delete().eq('id', pred.id);
+            const { error: staleDelErr } = await deleteObsById(client, pred.id);
             if (staleDelErr) {
                 console.error('❌ Stale forecast delete FAILED:', staleDelErr.message, staleDelErr.code, staleDelErr.details);
             } else {
@@ -1541,14 +1489,7 @@ async function validateForecastPredictions(client, usgsData) {
         console.log(`📈 Validating ${horizonKey} forecast: predicted=${predictedCFS} cfs, actual=${actualCFS} cfs, error=${errorPercent.toFixed(1)}%`);
 
         // Update metadata for this horizon
-        const { data: meta } = await client
-            .from('potomac_observations')
-            .select('data')
-            .eq('observation_type', 'gf_forecast_metadata')
-            .eq('gauge_id', horizonKey)
-            .single();
-
-        const metaData = meta?.data || { validations: 0, sumAbsErrorPercent: 0 };
+        const metaData = await getObs(client, 'gf_forecast_metadata', horizonKey) || { validations: 0, sumAbsErrorPercent: 0 };
         metaData.validations += 1;
         metaData.sumAbsErrorPercent = (metaData.sumAbsErrorPercent || 0) + errorPercent;
         metaData.avgErrorPercent = metaData.sumAbsErrorPercent / metaData.validations;
@@ -1580,18 +1521,14 @@ async function validateForecastPredictions(client, usgsData) {
             metaData.persistenceAvgErrorPercent = metaData.persistenceSumAbsErrorPercent / metaData.persistenceValidations;
         }
 
-        const { error: fcastMetaErr } = await client.from('potomac_observations').upsert({
-            observation_type: 'gf_forecast_metadata',
-            gauge_id: horizonKey,
-            data: metaData
-        }, { onConflict: 'observation_type,gauge_id' });
+        const { error: fcastMetaErr } = await upsertObs(client, 'gf_forecast_metadata', horizonKey, metaData);
 
         if (fcastMetaErr) {
             console.error('❌ Forecast metadata upsert FAILED:', fcastMetaErr.message, fcastMetaErr.code, fcastMetaErr.details);
         }
 
         // Delete the validated prediction
-        const { error: delErr } = await client.from('potomac_observations').delete().eq('id', pred.id);
+        const { error: delErr } = await deleteObsById(client, pred.id);
         if (delErr) {
             console.error('❌ Forecast prediction delete FAILED:', delErr.message, delErr.code, delErr.details);
             continue; // skip validated++ to prevent double-counting
@@ -1645,14 +1582,9 @@ exports.handler = async (event, context) => {
         if (!porStored) console.warn('⚠️ PoR history write failed — predictions may use incomplete history');
 
         // 3. Load stored PoR history for time-shifting
-        const { data: storedHistory } = await client
-            .from('potomac_observations')
-            .select('data')
-            .eq('observation_type', 'por_history')
-            .eq('gauge_id', 'system')
-            .single();
+        const storedHistory = await getObs(client, 'por_history', 'system');
 
-        const fullHistory = storedHistory?.data?.readings || porHistory;
+        const fullHistory = storedHistory?.readings || porHistory;
 
         // Check if critical gauges are ice-affected (PoR, LF, or EF missing)
         const porIce = usgsData.data[usgsData.gauges.por]?.iceAffected;

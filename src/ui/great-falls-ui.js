@@ -31,6 +31,16 @@ import { dropLocalSpikes } from '../estimation/rise-rate-robust.mjs';
 let _updateGFLearningUI = null;
 export function setUpdateGFLearningUIRef(fn) { _updateGFLearningUI = fn; }
 
+// ==================== GF ESTIMATE (compute, separated from render) ====================
+
+// Compute the production GF estimate and publish it to the gfEstimate store.
+// Separated from updateGreatFallsUI's rendering so the estimate can be (re)computed independently;
+// behavior is identical — updateGreatFallsUI calls this at the same point it used to compute inline.
+export function computeGFEstimate() {
+    setGfEstimate(estimateGreatFalls());
+    return gfEstimate;
+}
+
 // ==================== MAIN GF UI UPDATE ====================
 
 export function updateGreatFallsUI() {
@@ -51,7 +61,7 @@ export function updateGreatFallsUI() {
         return;
     }
 
-    setGfEstimate(estimateGreatFalls());
+    computeGFEstimate();
 
     if (!gfEstimate) {
         // Check if this is due to ice-affected critical gauges
