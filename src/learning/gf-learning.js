@@ -19,15 +19,7 @@ import {
 
 import { getEdwardsFerryTrend } from '../estimation/edwards-ferry.js';
 import { isCriticalGaugeIceAffected } from '../estimation/great-falls.js';
-
-// Forward declarations — resolved at runtime to avoid circular deps
-let _updateGFLearningUI = null;
-let _updateGFBinStats = null;
-let _updateForecastAccuracyUI = null;
-
-export function setUpdateGFLearningUI(fn) { _updateGFLearningUI = fn; }
-export function setUpdateGFBinStats(fn) { _updateGFBinStats = fn; }
-export function setUpdateForecastAccuracyUI(fn) { _updateForecastAccuracyUI = fn; }
+import { emit } from '../state/event-bus.js';
 
 // ==================== GF LEARNING DATA ====================
 
@@ -144,7 +136,7 @@ export async function loadForecastAccuracy() {
         const response = await fetch(SYNC_API + '?endpoint=forecast-accuracy');
         if (response.ok) {
             setForecastAccuracyData(await response.json());
-            if (_updateForecastAccuracyUI) _updateForecastAccuracyUI();
+            emit('forecast-accuracy:updated');
         }
     } catch (e) {
         console.warn('Failed to load forecast accuracy:', e);
@@ -171,8 +163,7 @@ export async function resetGFLearning() {
             alert("GF learning data reset.\n\nFlow-bin corrections cleared.\nNew observations will start accumulating with proper flow state classification.");
             // Reload GF learning data
             await loadGFLearningData();
-            if (_updateGFLearningUI) _updateGFLearningUI();
-            if (_updateGFBinStats) _updateGFBinStats();
+            emit('learning:reset');
         } else {
             alert("Reset failed: " + (result.error || 'Unknown error'));
         }
@@ -200,8 +191,7 @@ export async function resetLowFlowBins() {
             alert(`Ice cleanup complete!\n\nCleared:\n• ${result.deletedCount} low-flow bins (0-3k, 3k-6k cfs)\n• Validation count and accuracy metrics\n\nHigher flow bins preserved.\nAccuracy will rebuild from fresh validations.\n\nv24 anomaly detection will prevent future contamination.`);
             // Reload GF learning data
             await loadGFLearningData();
-            if (_updateGFLearningUI) _updateGFLearningUI();
-            if (_updateGFBinStats) _updateGFBinStats();
+            emit('learning:reset');
         } else {
             alert("Reset failed: " + (result.error || 'Unknown error'));
         }

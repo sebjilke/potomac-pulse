@@ -13,13 +13,7 @@ import {
     gfDataReady, gfEstimate
 } from '../state/store.js';
 
-// Forward declaration — resolved at runtime to avoid circular deps
-// updateGreatFallsUI and updateForecastPeriods are imported lazily
-let _updateGreatFallsUI = null;
-let _updateForecastPeriods = null;
-
-export function setUpdateGreatFallsUI(fn) { _updateGreatFallsUI = fn; }
-export function setUpdateForecastPeriods(fn) { _updateForecastPeriods = fn; }
+import { emit } from '../state/event-bus.js';
 
 // ==================== PoR HISTORY MANAGEMENT ====================
 
@@ -91,9 +85,9 @@ export async function fetchServerPoRHistory() {
             console.log(`📊 Merged ${newFromServer} new + healed ${healed} server PoR history entries, total: ${porHistory.length}`);
 
             const expanded = countBefore < 4 && porHistory.length >= 4;
-            if (gfDataReady && (expanded || healed > 0) && _updateGreatFallsUI) {
+            if (gfDataReady && (expanded || healed > 0)) {
                 console.log(`📊 PoR history updated (expanded=${expanded}, healed=${healed}) — re-running GF estimation`);
-                _updateGreatFallsUI();
+                emit('por-history:healed');
             }
         }
     } catch (e) {
@@ -210,8 +204,8 @@ export async function fetchServerGFHistory() {
             saveGFHistory();
             console.log(`📈 Merged ${newFromServer} new + healed ${healed} server GF history entries, total: ${gfHistory.length}`);
 
-            if (gfEstimate && _updateForecastPeriods) {
-                _updateForecastPeriods(gfEstimate);
+            if (gfEstimate) {
+                emit('gf-history:updated', gfEstimate);
             }
         }
     } catch (e) {

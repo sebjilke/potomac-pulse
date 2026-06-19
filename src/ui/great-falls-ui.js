@@ -26,10 +26,7 @@ import { storeForecastPredictions } from '../learning/gf-learning.js';
 import { renderForecastGraph, getForecastGraphData, getGraphScales } from '../ui/forecast-graph.js';
 import { updateShadowModelUI } from '../ui/learning-ui.js';
 import { dropLocalSpikes } from '../estimation/rise-rate-robust.mjs';
-
-// Forward declaration
-let _updateGFLearningUI = null;
-export function setUpdateGFLearningUIRef(fn) { _updateGFLearningUI = fn; }
+import { emit } from '../state/event-bus.js';
 
 // ==================== GF ESTIMATE (compute, separated from render) ====================
 
@@ -262,8 +259,8 @@ export function updateGreatFallsUI() {
     // The client neither writes predictions nor validates them — it only reads learning data and
     // applies the correction for display. (Forecast predictions are still client-written elsewhere.)
 
-    // Update GF learning status display
-    if (_updateGFLearningUI) _updateGFLearningUI();
+    // Refresh the GF learning status display (subscribed to 'gf-estimate:rendered' in init.js)
+    emit('gf-estimate:rendered');
 }
 
 // ==================== FORECAST PERIODS ====================

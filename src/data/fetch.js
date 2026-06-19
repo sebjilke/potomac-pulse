@@ -25,9 +25,7 @@ import {
 
 import { fetchNWSForecasts } from '../estimation/nws.js';
 import { fetchEdwardsFerry, fetchWaterTemp } from '../estimation/edwards-ferry.js';
-import { updateUI } from '../ui/gauges-ui.js';
-import { updateLearningUI } from '../ui/learning-ui.js';
-import { updateCreeksUI } from '../ui/creeks-ui.js';
+import { emit } from '../state/event-bus.js';
 
 // ==================== CORE FUNCTIONS ====================
 
@@ -402,36 +400,24 @@ export async function fetchData() {
         setLastFetchTime(null);
         setDataSource("unavailable");
         setStatus("error");
-        updateUI();
+        emit('data:unavailable');
         return;
     }
 
     processData(usgsJson);
 
-    let nwsFinished = false;
-    const nwsFetch = fetchNWSForecasts().then(() => { nwsFinished = true; });
-
-    try {
-        await Promise.race([
-            nwsFetch,
-            new Promise(resolve => setTimeout(resolve, 4000))
-        ]);
-    } catch(e) {
-        console.warn('NWS forecast fetch error:', e);
-    }
-
+    // Render immediately with USGS + EF data; the forecast/trends use NWS, which is fetched in the
+    // background and triggers a re-render via 'nws:arrived' when it lands (v37.4 — replaces the old 4s
+    // Promise.race render gate). 'data:unavailable' / 'data:updated' / 'nws:arrived' are all wired in init.js.
     setStatus(dataSource === "live" ? "ok" : (dataSource === "stale" ? "stale" : "cached"));
-    updateUI();
-    updateLearningUI();
-    updateCreeksUI();
+    emit('data:updated');
 
-    // If NWS didn't finish within the 4s race, re-render when it arrives
-    if (!nwsFinished) {
-        nwsFetch.then(() => {
-            console.log('📡 NWS arrived late — re-rendering forecast');
-            updateUI();
-        }).catch(() => {});
-    }
+    fetchNWSForecasts()
+        .then(() => {
+            console.log('📡 NWS arrived — re-rendering forecast');
+            emit('nws:arrived');
+        })
+        .catch(e => console.warn('NWS forecast fetch error:', e));
 
     } finally {
         setIsFetching(false);

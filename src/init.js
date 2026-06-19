@@ -7,26 +7,19 @@ import { loadEFHysteresis } from './estimation/edwards-ferry.js';
 import { loadGFLearningData, loadForecastAccuracy, resetGFLearning, resetLowFlowBins } from './learning/gf-learning.js';
 import { fetchData, dismissErrorBanner } from './data/fetch.js';
 import { initMap, toggleMap } from './ui/map.js';
-import { buildBranches } from './ui/gauges-ui.js';
-import { buildCreeks } from './ui/creeks-ui.js';
-import { updateLearningUI, resetShadowModels } from './ui/learning-ui.js';
+import { buildBranches, updateUI } from './ui/gauges-ui.js';
+import { buildCreeks, updateCreeksUI } from './ui/creeks-ui.js';
+import { updateLearningUI, updateGFLearningUI, updateGFBinStats, resetShadowModels } from './ui/learning-ui.js';
 import { initTabs } from './ui/tabs.js';
 import { initAuth } from './ui/auth.js';
 import { initAbout } from './ui/about.js';
 import { downloadTechAppendix } from './ui/tech-appendix.js';
 import { lockLearning } from './ui/auth.js';
 
-// Wire up cross-module lazy callbacks
-import { setUpdateGFLearningUI, setUpdateGFBinStats, setUpdateForecastAccuracyUI } from './learning/gf-learning.js';
-import { updateGFLearningUI, updateGFBinStats } from './ui/learning-ui.js';
-import { updateForecastAccuracyUI } from './ui/great-falls-ui.js';
-
-// Wire up history module lazy callbacks
-import { setUpdateGreatFallsUI as setHistoryUpdateGFUI, setUpdateForecastPeriods as setHistoryUpdateForecast } from './data/history.js';
-import { updateGreatFallsUI, updateForecastPeriods } from './ui/great-falls-ui.js';
-
-// Wire up great-falls-ui lazy callback
-import { setUpdateGFLearningUIRef as setGFUILearningCallback } from './ui/great-falls-ui.js';
+// Render wiring (v37.4): the event bus replaces the old setter-injection lazy callbacks. Producers emit;
+// the UI re-render functions below are subscribed once, here, at the top of init().
+import { on } from './state/event-bus.js';
+import { updateForecastAccuracyUI, updateGreatFallsUI, updateForecastPeriods } from './ui/great-falls-ui.js';
 
 function bindButton(id, handler) {
     document.getElementById(id)?.addEventListener('click', handler);
@@ -34,13 +27,18 @@ function bindButton(id, handler) {
 
 export async function init() {
     try {
-        // Register lazy callbacks to break circular dependencies
-        setUpdateGFLearningUI(updateGFLearningUI);
-        setUpdateGFBinStats(updateGFBinStats);
-        setUpdateForecastAccuracyUI(updateForecastAccuracyUI);
-        setHistoryUpdateGFUI(updateGreatFallsUI);
-        setHistoryUpdateForecast(updateForecastPeriods);
-        setGFUILearningCallback(updateGFLearningUI);
+        // Subscribe UI re-render functions to bus events (must run before the first fetchData below).
+        on('data:updated', updateUI);
+        on('data:updated', updateLearningUI);
+        on('data:updated', updateCreeksUI);
+        on('data:unavailable', updateUI);
+        on('nws:arrived', updateUI);
+        on('gf-estimate:rendered', updateGFLearningUI);
+        on('forecast-accuracy:updated', updateForecastAccuracyUI);
+        on('learning:reset', updateGFLearningUI);
+        on('learning:reset', updateGFBinStats);
+        on('por-history:healed', updateGreatFallsUI);
+        on('gf-history:updated', updateForecastPeriods);
 
         // Bind event listeners (replaces inline onclick handlers)
         bindButton('mapToggleBtn', toggleMap);
