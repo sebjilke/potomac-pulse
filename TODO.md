@@ -31,15 +31,12 @@ Cleared this session. Full detail in CHANGELOG / git / `analysis/`.
 
 ---
 
-## Tier 2 — Observability & infra
+## Tier 2 — Observability & infra · ⏸️ NOT PURSUING
 
-All remaining items need your dashboard / env access.
-
-| # | Item | Effort | Notes |
-|---|------|--------|-------|
-| 5 | **Set `VITE_SENTRY_DSN`** in Netlify env vars | ~15 min | Code + sourcemaps done; just needs the DSN. |
-| 6 | **Uptime HTTP checks** in healthchecks.io | ~10 min | Site + USGS API availability alerts. Also: set `HEALTHCHECKS_PING_URL` in Netlify env so the cron success/`/fail` pings (now wired correctly, v37.2) actually reach a monitor. |
-| 7 | **Scope MCP servers per-project** | ~15 min | Gmail/Calendar/Drive/Scholar waste ~17k context tokens; not needed here. |
+Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need your dashboard/env access). Re-open any if wanted:
+- **Set `VITE_SENTRY_DSN`** in Netlify env vars — code + sourcemaps already done; just needs the DSN.
+- **Uptime HTTP checks** in healthchecks.io — site + USGS availability alerts. Includes setting `HEALTHCHECKS_PING_URL` in Netlify env so the v37.2 cron success/`/fail` ping actually reaches a monitor (it's wired correctly but is a **no-op until that env var is set** — so there is currently no live cron-stall alerting).
+- **Scope MCP servers per-project** — Gmail/Calendar/Drive/Scholar waste ~17k context tokens; not needed here.
 
 **Closed:** **silent USGS-null cron early-return fixed** (v37.2 — now `throw`s into the healthchecks `/fail` ping instead of returning; `analysis/cron-failping-fix-2026-06-18.md`) · shadow-leaderboard reset verified (`shadowServerMigration` non-null) · honest sync-failure reporting + stop fabricating gauge stage (C46/C49, `ad6f486`) · Netlify deploys gated on `npm test` (C20, `4a85a4c`).
 
