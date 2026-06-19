@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v37.4 (June 2026)
+**Current Version**: v37.5 (June 2026)
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ Frontend (PWA)                    Netlify Functions (Backend)
 ├── analysis/                         # Model calibration scripts, audit reports (CSVs gitignored — reproducible from scripts)
 ```
 
-## Current Model (v37.4)
+## Current Model (v37.5)
 
 Core estimation parameters (travel time, EF power-law, EF weight) validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits. The v36.1 confidence band was re-derived separately on **126,916 hourly observations** (the same period, with the four tributaries + LF stage added) — see the v36.1 changelog entry.
 
@@ -175,6 +175,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v37.5 | 2026-06-19 | **Parallelize `loadGFLearningData` SELECTs (Tier 3 #12) — MINOR, behavior-neutral (server-only, no output change).** The sync API's `loadGFLearningData` (hit on every cold load, `await`ed before the first GF estimate paints) ran 5 independent SELECTs sequentially (correction bins, pending predictions, metadata, EF correlation, shadow leaderboard); now they fire concurrently via `Promise.all`, shaving ~100–400ms off the cold-load critical path. Error semantics preserved exactly: bins/pending errors throw → 500; metadata/efCorrelation/shadowLeaderboard tolerate a missing row. **Test-first** (the file had zero DB-site coverage): 8 characterization tests with a mock Supabase client lock the asymmetric error semantics, the efCorrelation sumCFSSq on-load heal, the correctionBins build, and the pending mapping — they pass against both the sequential and the parallel implementation, proving equivalence (`test/sync-learning-loadgf.test.js`, 637 → 645). Process: plan → independent plan-audit (tightened the bins-row test shape + mock fidelity) → implement → re-audit. Plan: `analysis/sync-learning-parallel-selects-plan-2026-06-19.md`. |
 | v37.4 | 2026-06-19 | **Render-path event-bus refactor (Tier 3 #11) — MINOR (client display/timing; no estimate-output change).** Replaced the setter-injection lazy-callback scaffolding (6 forward-declared callbacks wired in `init.js`) and the manually-scattered re-render triggers with a small synchronous pub/sub event bus (`src/state/event-bus.js`): producers `emit()` semantic events; the UI re-render functions are subscribed once in `init.js`. Also removed the 4-second NWS render gate in `fetch.js` — the page now paints immediately on USGS+EF data and re-renders trends/forecast via an `nws:arrived` event when NWS lands (forecast cards + trend arrows paint a beat later instead of after a ≤4s race). Dissolves the `fetch ↔ gauges-ui ↔ great-falls-ui` import cycle (fetch no longer imports the UI modules). Render functions themselves unchanged; estimate math untouched (parity/characterization green). New `test/event-bus.test.mjs` adds bus-primitive unit tests + a static `emit`/`on` wiring-consistency check; **626 → 637**. Plan + audit: `analysis/phase4-render-path-plan-2026-06-19.md`. |
 | v37.3 | 2026-06-18 | **Phase 2 internal decomposition (partial) — MINOR, behavior-neutral (no estimate/UI/output change).** (1) Extracted `computeGFEstimate()` in `great-falls-ui.js` (model invocation separated from rendering). (2) Added a server-only data-access helper `netlify/functions/shared/observations.js` and swapped ~21 `.from('potomac_observations')` boilerplate sites in `scheduled-update.js`, preserving each site's exact operation/filter/onConflict/error-handling. `validatePendingPredictions` left **byte-for-byte unchanged** (untested blocks, deliberately out of scope) and `sync-learning.js` untouched (no test net — deferred). Verified by the `gf-characterization` snapshot + `ci-harness-crosscheck` + two independent audits; 24 new helper tests, 602 → 626. Plan: `analysis/phase2-decomposition-plan-2026-06-18.md`. |
 | v37.2 | 2026-06-18 | **Cron observability fix — MINOR (server-only).** The hourly scheduled function's USGS-fetch-failure path did an early `return` inside its `try`, which bypassed the catch block's healthchecks `/fail` ping — so a fetch stall pinged neither success nor failure and was invisible to monitoring (it masked the ~2h cron outage earlier today). Now it `throw`s, routing the failure through the existing `/fail` ping and 500 return. New end-to-end test invokes the handler with `fetch` mocked to fail and asserts the `/fail` ping fires (and the success ping does not). Live alerting still requires `HEALTHCHECKS_PING_URL` set in Netlify env (Tier 2, separate). Plan + verification: `analysis/cron-failping-fix-2026-06-18.md`. 601 → 602 tests. |
@@ -227,8 +228,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v37.4).
+See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v37.5).
 
 ---
 
-*Last updated: 2026-06-19 (v37.4 — render-path event-bus refactor + NWS gate removal)*
+*Last updated: 2026-06-19 (v37.5 — parallelize loadGFLearningData SELECTs, behavior-neutral server perf)*

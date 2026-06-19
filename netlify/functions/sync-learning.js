@@ -324,48 +324,60 @@ exports.handler = async (event, context) => {
  */
 async function loadGFLearningData(client) {
     try {
-        // Load correction bins
-        const { data: bins, error: binErr } = await client
-            .from('potomac_observations')
-            .select('gauge_id, data')
-            .eq('observation_type', 'gf_correction_bin');
+        // v37.5: fire the 5 independent reads concurrently. Bins, pending, metadata, EF correlation,
+        // and shadow leaderboard have no inter-dependency, so Promise.all collapses 5 sequential
+        // round-trips into 1 on the cold-load critical path (this endpoint is awaited before the first
+        // GF estimate paints). Error semantics preserved EXACTLY: bins/pending throw -> caught -> 500;
+        // metadata/efCorrelation/shadowLeaderboard tolerate a missing row (errors ignored). Supabase
+        // query builders resolve to {data,error} (never reject), so Promise.all resolves with all 5.
+        const [binsRes, pendRes, metaRes, efRes, shadowRes] = await Promise.all([
+            // Correction bins
+            client
+                .from('potomac_observations')
+                .select('gauge_id, data')
+                .eq('observation_type', 'gf_correction_bin'),
+            // Pending predictions (not yet validated)
+            client
+                .from('potomac_observations')
+                .select('gauge_id, data, created_at')
+                .eq('observation_type', 'gf_prediction')
+                .eq('gauge_id', 'pending')
+                .order('created_at', { ascending: false })
+                .limit(50),
+            // GF metadata (total validations, accuracy stats)
+            client
+                .from('potomac_observations')
+                .select('data')
+                .eq('observation_type', 'gf_metadata')
+                .eq('gauge_id', 'system')
+                .single(),
+            // Edwards Ferry to GF correlation
+            client
+                .from('potomac_observations')
+                .select('data')
+                .eq('observation_type', 'ef_gf_correlation')
+                .eq('gauge_id', 'system')
+                .single(),
+            // Shadow model leaderboard
+            client
+                .from('potomac_observations')
+                .select('data')
+                .eq('observation_type', 'shadow_leaderboard')
+                .eq('gauge_id', 'system')
+                .single()
+        ]);
 
+        const { data: bins, error: binErr } = binsRes;
         if (binErr) throw binErr;
 
-        // Load pending predictions (not yet validated)
-        const { data: pending, error: pendErr } = await client
-            .from('potomac_observations')
-            .select('gauge_id, data, created_at')
-            .eq('observation_type', 'gf_prediction')
-            .eq('gauge_id', 'pending')
-            .order('created_at', { ascending: false })
-            .limit(50);
-
+        const { data: pending, error: pendErr } = pendRes;
         if (pendErr) throw pendErr;
 
-        // Load GF metadata (total validations, accuracy stats)
-        const { data: meta, error: metaErr } = await client
-            .from('potomac_observations')
-            .select('data')
-            .eq('observation_type', 'gf_metadata')
-            .eq('gauge_id', 'system')
-            .single();
-
-        // Load Edwards Ferry to GF correlation
-        const { data: efCorr, error: efErr } = await client
-            .from('potomac_observations')
-            .select('data')
-            .eq('observation_type', 'ef_gf_correlation')
-            .eq('gauge_id', 'system')
-            .single();
-
-        // Load shadow model leaderboard
-        const { data: shadowLB } = await client
-            .from('potomac_observations')
-            .select('data')
-            .eq('observation_type', 'shadow_leaderboard')
-            .eq('gauge_id', 'system')
-            .single();
+        // metadata / efCorrelation / shadowLeaderboard: a missing row is tolerated (errors ignored),
+        // exactly as the prior sequential code did (it destructured but never checked these errors).
+        const { data: meta } = metaRes;
+        const { data: efCorr } = efRes;
+        const { data: shadowLB } = shadowRes;
 
         // Build correction bins via the shared helper (single source of truth with the cron;
         // seeds all 18 cells and skips stage_* keys). v36.0 — replaces the inline duplicate.
@@ -856,4 +868,4 @@ async function loadPoRHistory(client) {
 }
 
 // Test-only exports (mirrors the convention in scheduled-update.js)
-exports._test = { buildForecastRows, validateGFWritePayload };
+exports._test = { buildForecastRows, validateGFWritePayload, loadGFLearningData };
