@@ -35,12 +35,10 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 
 | # | Item | Effort | Notes |
 |---|------|--------|-------|
-| 1 | **Move Supabase `service_role` key out of `settings.local.json`** → env var | ~15 min | Still plaintext in the local settings file. |
-| 2 | **Field-level write-path bounds (C13b)** | ~1h | C13a (`59d7546`) validates nested payload *shape*. Still want value bounds: `predictedCFS ∈ [0, 500000]`, `validationDue` parseable and in `(now, now+48h]`, cap forecast length. Load-bearing → plan→audit. |
-| 3 | **DB constraints** (`NOT NULL` on type/gauge, `CHECK created_at > 2020`) | ~15 min | Optional — app-level validation already exists. |
-| 4 | 🔍 **Review/rotate Supabase service key age** | ~5 min | Rotate if >6 months old. |
+| 1 | **DB constraints** (`NOT NULL` on type/gauge, `CHECK created_at > 2020`) | ~15 min | Optional — app-level validation already exists. Live prod DDL → confirm + check for violating rows first. |
+| 2 | 🔍 **Rotate Supabase service key** | ~5 min | **Now recommended:** the key sat in plaintext in `.claude/settings.local.json` (removed 2026-06-18). User-gated (Supabase dashboard). |
 
-**Closed:** RLS enabled (verified live, `relrowsecurity=true`) · composite index `idx_obs_type_gauge_created` exists · validation-pipeline deadlock + non-idempotency fixed (C12, `f181baa`).
+**Closed:** **field-level write-path value bounds (C13b) — already implemented by C13a (`59d7546`)**: `validateGFWritePayload` bounds `predictedCFS∈[0,500000]`, the `validationDue` window, forecast cap (16), per-field CFS/stage/date/source + the flowBin↔magnitude coupling; comprehensively unit-tested. The TODO's "still want value bounds" was stale — C13a did shape AND bounds. (A deeper learning-side magnitude defense — the z-score gate needing ≥10 obs — is separate, not field-level input validation.) · **service_role key removed from `.claude/settings.local.json`** (2026-06-18 — inline in a stale `permissions.allow` rule; gitignored/never committed; key stays available via env) · RLS enabled (verified live, `relrowsecurity=true`) · composite index `idx_obs_type_gauge_created` exists · validation-pipeline deadlock + non-idempotency fixed (C12, `f181baa`).
 
 ---
 
