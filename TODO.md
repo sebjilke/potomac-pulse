@@ -20,29 +20,20 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 
 ---
 
-## Tier 0 — Model accuracy (*changes the estimate*)
+## Tiers 0 & 1 — Model accuracy + Security · ✅ RESOLVED (nothing open)
 
-**✅ Tier 0 is cleared — no open model-accuracy items.** All three Tier-0 lines are closed (below).
-
-**Closed (no longer open):**
-- **Low-flow flow-state floor (0a)** — Step-1 leverage diagnostic (blind Python+R) showed the floor masks 17.7% of low-flow hours but leverage is marginal/concentrated; the gated A/B (single continuous-taper candidate, prequential, blind Python+R + 4-layer verification) then **REJECTED** it: it slightly *degrades* the corrected estimate (+0.5 cfs MAE in 3000-6000, rising cell regresses +2.3, 54% of flips worsen) — the static raw-residual gradient doesn't survive re-keying (marginal obs dilute the rising cell, v35.0 noise signature). **Closed as low-leverage; the live `max(100, q×0.02)` classifier stands.** See `analysis/flow-state-floor-gate-findings-2026-06-18.md`.
-- **System-1 (gauge travel-time learning) fully retired** (v37.1) — the dead client-side per-gauge correction is gone (client + server + 43 stale DB rows); displayed gauge arrivals now equal `baseHrs × Searcy-multiplier`. Display-only; GF estimate unchanged. See `analysis/system1-retirement-plan-2026-06-18.md`.
-- **Travel-time relation refit** — investigated and **closed as low-leverage, no model change** (v36.2; Layer-0/A diagnostics). See `analysis/travel-time-refit-plan-2026-06-17.md`. The dominant residual error is high-flow *level* over-prediction, already absorbed by the EMA correction.
-
----
-
-## Tier 1 — Security
-
-| # | Item | Effort | Notes |
-|---|------|--------|-------|
-| 1 | **DB constraints** (`NOT NULL` on type/gauge, `CHECK created_at > 2020`) | ~15 min | Optional — app-level validation already exists. Live prod DDL → confirm + check for violating rows first. |
-| 2 | 🔍 **Rotate Supabase service key** | ~5 min | **Now recommended:** the key sat in plaintext in `.claude/settings.local.json` (removed 2026-06-18). User-gated (Supabase dashboard). |
-
-**Closed:** **field-level write-path value bounds (C13b) — already implemented by C13a (`59d7546`)**: `validateGFWritePayload` bounds `predictedCFS∈[0,500000]`, the `validationDue` window, forecast cap (16), per-field CFS/stage/date/source + the flowBin↔magnitude coupling; comprehensively unit-tested. The TODO's "still want value bounds" was stale — C13a did shape AND bounds. (A deeper learning-side magnitude defense — the z-score gate needing ≥10 obs — is separate, not field-level input validation.) · **service_role key removed from `.claude/settings.local.json`** (2026-06-18 — inline in a stale `permissions.allow` rule; gitignored/never committed; key stays available via env) · RLS enabled (verified live, `relrowsecurity=true`) · composite index `idx_obs_type_gauge_created` exists · validation-pipeline deadlock + non-idempotency fixed (C12, `f181baa`).
+Cleared this session. Full detail in CHANGELOG / git / `analysis/`.
+- **Done / verified-done:** 0a low-flow floor (REJECTED, low-leverage) · System-1 retired (v37.1) ·
+  travel-time refit (v36.2) · RLS · composite index · C12 deadlock+idempotency · C13a/b write-path
+  validation · DB constraints (already in place) · service_role key removed from `settings.local.json`.
+- **Decided NOT to do:** rotate the Supabase service key (key was gitignored / never pushed → local-only;
+  revisit only on suspected local-machine compromise) · `NOT NULL` on `created_at` (optional, beyond spec).
 
 ---
 
 ## Tier 2 — Observability & infra
+
+All remaining items need your dashboard / env access.
 
 | # | Item | Effort | Notes |
 |---|------|--------|-------|
@@ -58,7 +49,7 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 
 | # | Item | Effort | Notes |
 |---|------|--------|-------|
-| 9  | **Phase 2 — internal decomposition** | ~1 day | Extract `shared/observations.js` data-access helper; decompose `validatePendingPredictions` (~517 lines); pull model invocation out of `updateGreatFallsUI`. Behavior-neutral. |
+| 9  | **Phase 2 — internal decomposition** | ~1 day | Extract `shared/observations.js` data-access helper; decompose `validatePendingPredictions` (~517 lines); pull model invocation out of `updateGreatFallsUI`. Behavior-neutral. Biggest clean autonomous target. |
 | 10 | 🔒 **Phase 3 — unify the 3 runtimes** | ~2–3 days | One shared `gf-pipeline` for client + server; unify 3 flow-state impls; golden sync-guard test. **Needs a decision first:** which side is canonical (provisional: server math canonical). Changes observable output on the non-canonical side. (v36.0 already unified correction *application* via the shared `applyGFCorrection` helper — this is the remaining pipeline unification.) |
 | 11 | **Phase 4 — render path (optional)** | ~1 day | Store pub/sub + targeted re-render; remove the 4s NWS render gate. Highest UX-feel risk. |
 | 12 | **Parallelize Supabase queries** | ~2h | `Promise.all()` for independent SELECTs in `sync-learning.js`. |
