@@ -13,6 +13,11 @@ import { panTo } from '../ui/map.js';
 
 const BRANCH_STATE_KEY = 'potomac_branch_state';
 
+/**
+ * Persists each branch's open/closed state to localStorage, keyed by branch key.
+ * Reads the `open` class on every `#b-<branchKey>` element and writes the map under BRANCH_STATE_KEY.
+ * @returns {void}
+ */
 function saveBranchState() {
     const state = {};
     for (const bk of Object.keys(BRANCHES)) {
@@ -22,6 +27,10 @@ function saveBranchState() {
     try { localStorage.setItem(BRANCH_STATE_KEY, JSON.stringify(state)); } catch {}
 }
 
+/**
+ * Reads the saved branch open/closed state from localStorage.
+ * @returns {Object<string, boolean>|null} Map of branch key to open state, or null if absent/unparseable.
+ */
 function loadBranchState() {
     try {
         const raw = localStorage.getItem(BRANCH_STATE_KEY);
@@ -31,6 +40,13 @@ function loadBranchState() {
 
 // ==================== BUILD BRANCHES ====================
 
+/**
+ * Builds and renders the gauge sidebar into #branches: a filter input, a column header, and one
+ * collapsible branch block per BRANCHES entry, each containing a gauge row per gauge id. Restores
+ * saved collapse state and wires up search/filter and click delegation (gauge row → panTo, branch
+ * header → toggle open + saveBranchState).
+ * @returns {void}
+ */
 export function buildBranches() {
     const savedState = loadBranchState();
 
@@ -126,6 +142,13 @@ export function buildBranches() {
 
 // ==================== UPDATE UI ====================
 
+/**
+ * Refreshes all gauge UI from the current `data` store: the Little Falls headline (CFS, stage, trend),
+ * the travel-time multiplier readout, every gauge row's CFS / hrs-to-LF / trend cells (with ice-affected
+ * and estimated styling and tooltips), each map marker's popup and flood-category border ring, and the
+ * Great Falls estimate.
+ * @returns {void}
+ */
 export function updateUI() {
     const lf = data[LF.id];
     document.getElementById("lfQ").textContent = lf?.q ? Math.round(lf.q).toLocaleString() : "--";
@@ -210,6 +233,16 @@ export function updateUI() {
 
 // ==================== POPUP ====================
 
+/**
+ * Builds the HTML string for a gauge's map popup: name, drainage area/%LF, CFS+stage, 24h trend,
+ * and (for non-target gauges with travel data) travel time, %LF drainage, arrival time, calculation
+ * note, below-Point-of-Rocks warning, and ice-affected/estimated status notices.
+ * @param {string} id - USGS gauge id, used to look up `data[id]`.
+ * @param {Object} g - Gauge config (name, area, pctLF, baseHrs).
+ * @param {string} color - CSS color for the gauge name heading.
+ * @param {string} bk - Branch key for this gauge (used to detect the "belowPtR" branch).
+ * @returns {string} HTML markup for the Leaflet popup body.
+ */
 export function popup(id, g, color, bk) {
     const d = data[id] || {};
     const isTarget = id === LF.id;

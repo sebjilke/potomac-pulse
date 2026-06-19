@@ -15,6 +15,11 @@ import { estimateGFFromEdwardsFerry } from '../estimation/edwards-ferry.js';
 // --- Shadow Model 1: LF Feedback ---
 // Tracks recent GF→LF discrepancy with fast EMA (α=0.4).
 // If our GF estimate leads to LF overshoot/undershoot, apply correction.
+/**
+ * Shadow Model 1: adjusts the production GF estimate by an EMA-tracked GF→LF discrepancy correction, validating any pending prediction against the latest LF reading first.
+ * @param {number} productionCFS - The production Great Falls flow estimate in cfs.
+ * @returns {{cfs: number, stage: number}|null} The corrected estimate with its LF stage, or null when inputs are missing/non-positive.
+ */
 export function shadowEstimateLFFeedback(productionCFS) {
     if (!productionCFS || productionCFS <= 0) return null;
     const lf = data[LF.id];
@@ -60,6 +65,11 @@ export function shadowEstimateLFFeedback(productionCFS) {
 // Multi-feature weighted regression with online SGD.
 // Features: [bias, PoR, PoR_rateOfChange, EF_estimate, tributary_sum, LF_actual, sin(hour), cos(hour), recent_error]
 // Initialized to approximate production model; weights learned via gradient descent.
+/**
+ * Shadow Model 2: predicts GF flow via a 9-feature online linear regression (lazily initialized to track PoR) and applies one decayed-learning-rate SGD step toward the latest LF reading.
+ * @param {number} productionCFS - The production Great Falls flow estimate in cfs, used to derive the recent-error feature.
+ * @returns {{cfs: number, stage: number}|null} The regression prediction with its LF stage, or null when inputs are missing/non-positive.
+ */
 export function shadowEstimateOnlineRegression(productionCFS) {
     if (!productionCFS || productionCFS <= 0) return null;
     const lf = data[LF.id];
@@ -145,6 +155,11 @@ export function shadowEstimateOnlineRegression(productionCFS) {
 // State: GF flow (CFS). Predict step: propagate using production model delta.
 // Update step: sequentially assimilate LF (R=2%), PoR time-shifted (R=5%), EF power-law (R=10%).
 // Process noise scales with flow state (4× on rising).
+/**
+ * Shadow Model 3: maintains a scalar Kalman filter over GF flow, predicting toward the production estimate (with rising-state-scaled process noise) then sequentially assimilating LF, time-shifted PoR, and EF observations.
+ * @param {number} productionCFS - The production Great Falls flow estimate in cfs, used to seed the state and drive the predict step.
+ * @returns {{cfs: number, stage: number}|null} The filtered estimate with its LF stage, or null when inputs are missing/non-positive.
+ */
 export function shadowEstimateKalman(productionCFS) {
     if (!productionCFS || productionCFS <= 0) return null;
     const lf = data[LF.id];
@@ -220,6 +235,10 @@ export function shadowEstimateKalman(productionCFS) {
 }
 
 // --- Shadow Model State Management ---
+/**
+ * Loads persisted shadow model state from localStorage, merging each model's stored fields into the in-memory defaults; failures are caught and logged.
+ * @returns {void}
+ */
 export function loadShadowModelState() {
     try {
         const stored = localStorage.getItem(SHADOW_STATE_KEY);
@@ -242,6 +261,10 @@ export function loadShadowModelState() {
     }
 }
 
+/**
+ * Persists the current in-memory shadow model state to localStorage as JSON; failures are caught and logged.
+ * @returns {void}
+ */
 export function saveShadowModelState() {
     try {
         localStorage.setItem(SHADOW_STATE_KEY, JSON.stringify(shadowModelState));
@@ -252,6 +275,11 @@ export function saveShadowModelState() {
 
 // Run all shadow models and store results. Called after estimateGreatFalls().
 // Wrapped in try/catch — shadow model failure must never affect production.
+/**
+ * Runs all three shadow models against the production estimate, storing each result (or null on per-model failure) into shadowResults and persisting state; fully wrapped in try/catch so shadow failures never affect production.
+ * @param {{cfs: number}} productionEstimate - The production Great Falls estimate; must have a truthy cfs or the call is a no-op.
+ * @returns {void}
+ */
 export function runShadowModels(productionEstimate) {
     if (!productionEstimate?.cfs) return;
     const prodCFS = productionEstimate.cfs;
@@ -300,6 +328,10 @@ export function runShadowModels(productionEstimate) {
     }
 }
 
+/**
+ * Prompts for confirmation, then resets all shadow model learned state and results to defaults and clears the persisted localStorage entry.
+ * @returns {void}
+ */
 export function resetShadowModels() {
     if (!confirm('Reset all shadow models? Learned state (Kalman covariance, regression weights, LF feedback) will be lost.')) return;
     setShadowModelState({

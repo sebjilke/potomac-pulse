@@ -24,6 +24,11 @@ const {
     upsertObs, insertObs, deleteObs, deleteObsById
 } = require('./shared/observations');
 
+/**
+ * Validates the shape of a parsed USGS IV-service JSON response before it is used.
+ * @param {Object} json - Parsed USGS response; expected to have value.timeSeries[] each with sourceInfo.siteCode, variable.variableCode, and a values array.
+ * @returns {{valid: boolean, error?: string}} valid:true when the schema checks pass; otherwise valid:false with a human-readable error describing the first failure.
+ */
 // Validate USGS API response schema
 function validateUSGSResponse(json) {
     // Check required top-level structure
@@ -54,6 +59,14 @@ function validateUSGSResponse(json) {
     return { valid: true };
 }
 
+/**
+ * Scores the production and shadow model predictions for one validation round against the actual LF CFS and returns the updated leaderboard. Pure function (no I/O).
+ * @param {Object} shadowModels - Per-model predicted CFS for this round, keyed lfFeedback/onlineRegression/kalman (null entries are skipped).
+ * @param {number} actualCFS - Observed Little Falls discharge (cfs); must be > 0 or the function returns null.
+ * @param {number} productionErrorPercent - Pre-computed signed error percent of the production (raw) model for this round.
+ * @param {Object|null} existingLeaderboard - Prior leaderboard ({models: {production, lfFeedback, onlineRegression, kalman} each with count/sumAbsErrorPercent/meanAbsErrorPercent/lastValidation/currentStreak/bestStreak, totalRounds, lastWinner, lastValidationTime}); a default structure is created when null.
+ * @returns {Object|null} The mutated/created leaderboard object, or null when inputs are missing/invalid.
+ */
 // Score shadow model predictions against actual CFS
 // Pure function: takes inputs, returns updated leaderboard (or null)
 function scoreShadowPredictions(shadowModels, actualCFS, productionErrorPercent, existingLeaderboard) {
@@ -125,6 +138,12 @@ function scoreShadowPredictions(shadowModels, actualCFS, productionErrorPercent,
     return lb;
 }
 
+/**
+ * Wraps fetch with an AbortController-based timeout.
+ * @param {string} url - The URL to fetch.
+ * @param {number} [timeoutMs=5000] - Timeout in milliseconds before the request is aborted.
+ * @returns {Promise<Response>} Resolves with the fetch Response; rejects with a timeout Error on abort or rethrows other fetch errors.
+ */
 // Fetch with timeout wrapper
 async function fetchWithTimeout(url, timeoutMs = 5000) {
     const controller = new AbortController();
@@ -143,6 +162,10 @@ async function fetchWithTimeout(url, timeoutMs = 5000) {
     }
 }
 
+/**
+ * Fetches the latest Point of Rocks water temperature (USGS param 00010) for cold-water EF model selection.
+ * @returns {Promise<number|null>} Latest water temperature in Celsius when within the sane range [-5, 40]; otherwise null (also null on fetch/parse failure or missing data).
+ */
 // Fetch water temperature from Point of Rocks for EF model cold adjustment
 async function fetchWaterTemp() {
     const url = 'https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00010&period=P1D&format=json';
@@ -168,6 +191,10 @@ async function fetchWaterTemp() {
     }
 }
 
+/**
+ * Fetches and parses current USGS discharge (00060) and stage (00065) for all model gauges (PoR, LF, Monocacy, Goose, Broad Run, Seneca, EF) over a 2-day window.
+ * @returns {Promise<{gauges: Object, data: Object}|null>} gauges maps logical names to site IDs; data is keyed by site ID with {q, h, iceAffected, history}, where history (PoR only) is an array of {timestamp, cfs}. Returns null on fetch/parse/validation failure.
+ */
 // Fetch current USGS data
 async function fetchUSGSData() {
     const gauges = {
@@ -249,6 +276,12 @@ async function fetchUSGSData() {
     }
 }
 
+/**
+ * Merges new Point of Rocks readings into the stored rolling history, dedups by timestamp, trims to the retention window (POR_HISTORY_MAX_AGE), and upserts.
+ * @param {Object} client - Supabase client.
+ * @param {Array<{timestamp: number, cfs: number}>} history - New PoR readings to merge.
+ * @returns {Promise<boolean>} true on success or no-op (no history / no new readings); false if the upsert fails.
+ */
 // Store PoR history to Supabase
 async function storePoRHistory(client, history) {
     if (!history?.length) return true;
@@ -289,6 +322,12 @@ async function storePoRHistory(client, history) {
     return true;
 }
 
+/**
+ * Appends the latest GF prediction to the rolling 24h server-side history (single row of {timestamp, cfs, stage} readings) so the graph stays continuous with no browser open. Skips if the last entry is <30min old.
+ * @param {Object} client - Supabase client.
+ * @param {Object} prediction - Prediction object; uses predictedCFS and predictedStage (no-op when predictedCFS is falsy).
+ * @returns {Promise<void>}
+ */
 // Store GF estimate in rolling 24h server-side history
 // Ensures continuous history for graph display even when no browser is open
 // Pattern: single row with array of {timestamp, cfs, stage} readings
@@ -334,6 +373,16 @@ async function storeGFHistory(client, prediction) {
     console.log(`📈 GF history: stored ${prediction.predictedCFS} cfs, ${trimmedReadings.length} entries in 24h window`);
 }
 
+/**
+ * Appends a predicted-vs-actual validation pair to the rolling 7-day server-side validation history. Skips if the last entry is <30min old.
+ * @param {Object} client - Supabase client.
+ * @param {number} predictedCFS - Predicted (corrected/displayed) GF discharge in cfs (rounded before storage).
+ * @param {number} actualCFS - Observed Little Falls discharge in cfs (rounded before storage).
+ * @param {number} errorPercent - Signed error percent (rounded to 0.1) for this pair.
+ * @param {string} flowBin - Flow-range bin label for the prediction.
+ * @param {string} flowState - Flow state ('rising'/'falling'/'steady') for the prediction.
+ * @returns {Promise<void>}
+ */
 async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent, flowBin, flowState) {
     const now = Date.now();
     const newEntry = {
@@ -374,6 +423,12 @@ async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent
     console.log(`📊 Validation history: stored ${Math.round(predictedCFS)} vs ${Math.round(actualCFS)} cfs (${errorPercent.toFixed(1)}%), ${trimmedReadings.length} entries in 7d window`);
 }
 
+/**
+ * Selects the Point of Rocks reading closest to `hoursAgo` ago using the shared outlier-robust selection (selectHistoricReading), matching the client's time-shift lookup.
+ * @param {Array<{timestamp: number, cfs: number}>} history - PoR reading history.
+ * @param {number} hoursAgo - How many hours back to look up.
+ * @returns {{cfs: number, actualHoursAgo: number}|null} The selected reading's cfs plus the actual age (hours) of the matched entry, or null if no history or no match within the selection window.
+ */
 // Get PoR reading from X hours ago. Uses the same outlier-robust selection as the
 // client (selectHistoricReading, shared/model.js) so the server's time-shift lookup
 // matches the displayed one on identical input (C8, v36.4). The 1h null-within-window
@@ -399,6 +454,11 @@ function getPoRFromHistory(history, hoursAgo) {
 
 // --- Server-side shadow model state management ---
 
+/**
+ * Loads persisted shadow-model state from Supabase, merging onto defaults so missing/new fields are populated. Fail-safe: returns defaults on read error.
+ * @param {Object} client - Supabase client.
+ * @returns {Promise<Object>} Shadow state with lfFeedback ({correctionFactor, lastPredictedLF, lastPredictionTime, alpha}), onlineRegression ({weights, learningRate, nFeatures, trainCount}), and kalman ({x, P, Q_base, initialized}).
+ */
 async function loadShadowModelState(client) {
     const defaults = {
         lfFeedback: { correctionFactor: 0, lastPredictedLF: null, lastPredictionTime: null, alpha: 0.4 },
@@ -419,6 +479,12 @@ async function loadShadowModelState(client) {
     return defaults;
 }
 
+/**
+ * Persists shadow-model state to Supabase, stamping state.lastUpdated. Fail-safe: swallows errors (non-fatal warning).
+ * @param {Object} client - Supabase client.
+ * @param {Object} state - Shadow-model state object (lfFeedback/onlineRegression/kalman) to persist.
+ * @returns {Promise<void>}
+ */
 async function saveShadowModelState(client, state) {
     try {
         state.lastUpdated = new Date().toISOString();
@@ -428,6 +494,13 @@ async function saveShadowModelState(client, state) {
     }
 }
 
+/**
+ * Shadow model 1: corrects the production CFS by a fast EMA (alpha) of the recent GF→LF discrepancy, learning only when the prior prediction is 4–12h old. Mutates `state`.
+ * @param {number} productionCFS - Current production (raw) GF estimate in cfs; null/<=0 returns null.
+ * @param {number} lfActualCFS - Observed Little Falls discharge in cfs; falsy returns null.
+ * @param {Object} state - LF-feedback state ({correctionFactor, lastPredictedLF, lastPredictionTime, alpha}); mutated in place.
+ * @returns {{cfs: number, stage: number}|null} Corrected LF-scale prediction (cfs + estimated stage), or null when inputs are missing or the corrected value is <= 0.
+ */
 // --- Server Shadow Model 1: LF Feedback ---
 // Tracks recent GF→LF discrepancy with fast EMA (α=0.4).
 // Ported from src/estimation/shadow-models.js lines 18-57
@@ -456,6 +529,13 @@ function shadowLFFeedback(productionCFS, lfActualCFS, state) {
     return { cfs: correctedCFS, stage: estimateLFStage(correctedCFS) };
 }
 
+/**
+ * Shadow model 2: predicts LF discharge from a 9-feature linear model trained online by SGD toward the observed LF. Mutates `state` (weights/trainCount).
+ * @param {number} productionCFS - Current production (raw) GF estimate in cfs; null/<=0 returns null. Also feeds the recent-error feature.
+ * @param {Object} inputs - Feature inputs: porCFS (required), porROC, efEstimateCFS, tribSumCFS, lfActualCFS (required), hourFraction.
+ * @param {Object} state - Online-regression state ({weights, learningRate, nFeatures, trainCount}); weights are lazily initialized and updated in place.
+ * @returns {{cfs: number, stage: number}|null} Predicted LF-scale value (cfs + estimated stage), or null when required inputs are missing or the result is <= 0.
+ */
 // --- Server Shadow Model 2: Online Regression ---
 // Multi-feature weighted regression with online SGD.
 // Ported from src/estimation/shadow-models.js lines 63-142
@@ -520,6 +600,13 @@ function shadowOnlineRegression(productionCFS, inputs, state) {
     return { cfs: resultCFS, stage: estimateLFStage(resultCFS) };
 }
 
+/**
+ * Shadow model 3: a sequential Kalman filter that predicts forward from production CFS then assimilates LF actual (R=2%), time-shifted PoR/0.835 (R=5%), and the EF estimate (R=10%). Mutates `state` (x, P).
+ * @param {number} productionCFS - Current production (raw) GF estimate in cfs; null/<=0 returns null. Used to seed/predict the state.
+ * @param {Object} inputs - Observation inputs: lfActualCFS (required), porCFS (optional), efEstimateCFS (optional), isRising (boolean, inflates process noise).
+ * @param {Object} state - Kalman state ({x, P, Q_base, initialized}); lazily initialized and updated in place.
+ * @returns {{cfs: number, stage: number}|null} Filtered LF-scale estimate (cfs + estimated stage), or null when inputs are missing or the result is <= 0.
+ */
 // --- Server Shadow Model 3: Kalman Filter ---
 // Sequential Kalman: assimilate LF (R=2%), PoR/0.835 (R=5%), EF (R=10%).
 // Ported from src/estimation/shadow-models.js lines 148-219
@@ -575,6 +662,15 @@ function shadowKalman(productionCFS, inputs, state) {
     return { cfs: resultCFS, stage: estimateLFStage(resultCFS) };
 }
 
+/**
+ * Runs all three shadow models against the current inputs, each guarded so one failure can't break the others, and returns their predicted CFS. Mutates the per-model state inside shadowState.
+ * @param {number} productionCFS - Production (raw) GF estimate in cfs used as each model's operating point.
+ * @param {{data: Object, gauges: Object}} usgsData - Parsed USGS data/gauge map; source of LF/PoR/tributary discharge.
+ * @param {Object} prediction - Current prediction object; uses efEstimateCFS.
+ * @param {Object|null} porRiseRate - PoR rise-rate descriptor ({ratePerHour, flowState}) used for ROC and rising flag.
+ * @param {Object} shadowState - Combined shadow state ({lfFeedback, onlineRegression, kalman}); mutated in place.
+ * @returns {{lfFeedback: number|null, onlineRegression: number|null, kalman: number|null}} Each model's predicted CFS, or null where the model declined/failed.
+ */
 // --- Server shadow model orchestrator ---
 function runServerShadowModels(productionCFS, usgsData, prediction, porRiseRate, shadowState) {
     const { data, gauges } = usgsData;
@@ -615,6 +711,11 @@ function runServerShadowModels(productionCFS, usgsData, prediction, porRiseRate,
     return results;
 }
 
+/**
+ * Loads the 18 EMA correction bins (gf_correction_bin rows) and assembles them via buildCorrectionBins for the prediction path. Fail-safe: returns {} (correction 0 / RAW model) on read error.
+ * @param {Object} client - Supabase client.
+ * @returns {Promise<Object>} Correction-bin map keyed by bin, or {} when the read fails.
+ */
 // Load the 18 EMA correction bins for the prediction path. Fail-safe: on read error
 // return {} so the model predicts RAW (correction 0) rather than crashing, and WARN
 // loudly so a silent raw-model regression is visible in the cron logs.
@@ -627,6 +728,14 @@ async function loadCorrectionBins(client) {
     return buildCorrectionBins(rows);
 }
 
+/**
+ * Computes the Great Falls nowcast: time-shifts PoR to GF (iterated to self-consistency), adds tributary inflows, applies the PoR-delta staleness correction, blends the flow-weighted EF power-law estimate, end-applies the learned EMA bin correction, and caps at 120% of LF (display-only).
+ * @param {{data: Object, gauges: Object}} usgsData - Parsed USGS data/gauge map; requires LF and PoR discharge (returns null if either missing).
+ * @param {Array<{timestamp: number, cfs: number}>} porHistory - PoR reading history for time-shifting and rise-rate.
+ * @param {number|null} [waterTempC=null] - Water temperature in Celsius for cold-water EF model selection (<= coldMaxTemp uses the cold coefficients).
+ * @param {Object} [correctionBins={}] - The 18 EMA correction bins; the learned correction is END-APPLIED (v36.0) via applyGFCorrection.
+ * @returns {Object|null} Prediction record with predictedCFS/predictedStage (corrected, displayed), rawFinalCFS/rawFinalStage (uncorrected learning target), correctionApplied, flowBin, flowState, travelTimeGFtoLF, validationDue, EF fields (efStage/efEstimateCFS/efModelType/efWeight), waterTempC, useTimeShifted, useEfEnsemble, ceilingApplied, and lfCFS. Returns null when LF or PoR data is missing.
+ */
 // Make GF prediction
 // waterTempC: water temperature in Celsius for cold-water EF model adjustment
 // correctionBins: the 18 EMA bins; the learned correction is END-APPLIED (v36.0) — see applyGFCorrection
@@ -787,6 +896,13 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null, correctionBin
     };
 }
 
+/**
+ * Validates due pending GF predictions against actual LF: cleans stale/unparseable rows, claims each row idempotently (delete-before-learn), runs two-tier anomaly detection, and on non-hard-flagged obs updates the EMA flow bin, stage bin, EF correlation, metadata accuracy, validation history, and shadow leaderboard. Learns on the RAW residual; headline scores the CORRECTED residual.
+ * @param {Object} client - Supabase client.
+ * @param {{data: Object, gauges: Object}} usgsData - Parsed USGS data/gauge map; requires LF discharge within [500, 500000] cfs or validation is skipped.
+ * @param {number|null|undefined} waterTempC - Current water temperature (Celsius) for cold-water EF model selection in the EF cross-check.
+ * @returns {Promise<{validated: number, cleaned: number}>} Counts of predictions validated and stale/invalid rows cleaned (returns 0 when there is no LF data, LF is out of range, or there are no pending rows).
+ */
 // Check and validate pending predictions
 // waterTempC: current water temperature (°C) for cold-water EF model selection in anomaly check
 async function validatePendingPredictions(client, usgsData, waterTempC) {
@@ -1330,6 +1446,12 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
     return { validated, cleaned };
 }
 
+/**
+ * Stores a new pending GF prediction, but only if no existing pending row is still within its validation window (replaces a missed-window/invalid-date row first, per isExistingPredictionReplaceable). Increments totalPredictions on success.
+ * @param {Object} client - Supabase client.
+ * @param {Object} prediction - Prediction record (as returned by makeGFPrediction) to insert under gauge_id 'pending'.
+ * @returns {Promise<void>}
+ */
 // Store new prediction
 async function storePrediction(client, prediction) {
     // Check if there's an existing pending prediction still within its validation window.
@@ -1377,6 +1499,12 @@ async function storePrediction(client, prediction) {
     console.log(`Stored prediction: ${prediction.predictedCFS} cfs, validation due: ${prediction.validationDue}`);
 }
 
+/**
+ * Pure: given hours since the last run and prior counters, computes updated run-health counters under the hourly cron cadence (the current run is not a miss, hence cycles − 1).
+ * @param {number} gapHours - Hours elapsed since the last recorded run.
+ * @param {Object} [prev={}] - Prior counters ({missedRuns, consecutiveRuns}).
+ * @returns {{missedRuns: number, consecutiveRuns: number, missedThisGap: number}} Updated total missed runs, consecutive-run streak (reset to 1 when a gap > 1 cycle), and misses attributed to this gap.
+ */
 // Update function execution health — fires every run regardless of prediction outcome.
 // Pure: given hours since the last run and the prior counters, return updated run-health
 // counters. The cron cadence is hourly (netlify.toml: "0 */1 * * *"), so round(gapHours)
@@ -1394,6 +1522,11 @@ function computeRunHealth(gapHours, prev = {}) {
     };
 }
 
+/**
+ * Updates persisted run-health metadata every run (independent of prediction outcome): computes the gap since lastPrediction, applies computeRunHealth, and upserts missedRuns/consecutiveRuns/lastPrediction.
+ * @param {Object} client - Supabase client.
+ * @returns {Promise<void>}
+ */
 // Separated from storePrediction so skipped-prediction runs are still tracked correctly.
 async function updateRunHealth(client) {
     const metaData = await getObs(client, 'gf_metadata', 'system') || { totalValidations: 0, totalPredictions: 0 };
@@ -1418,6 +1551,12 @@ async function updateRunHealth(client) {
     console.log(`📊 Health: ${metaData.consecutiveRuns} consecutive runs, ${metaData.missedRuns || 0} total missed`);
 }
 
+/**
+ * Validates due pending 48h forecast predictions against actual LF: skips not-yet-due rows, deletes stale (>72h) rows, and for each due row updates per-horizon forecast metadata scoring the model plus the NWS-raw, NWS-bias-corrected, and persistence baselines, then deletes the validated row.
+ * @param {Object} client - Supabase client.
+ * @param {{data: Object, gauges: Object}} usgsData - Parsed USGS data/gauge map; requires LF discharge within [500, 500000] cfs to validate a row.
+ * @returns {Promise<{validated: number, cleaned: number}>} Counts of forecast predictions validated and stale rows cleaned.
+ */
 // Validate pending 48h forecast predictions
 async function validateForecastPredictions(client, usgsData) {
     const { data, gauges } = usgsData;
@@ -1549,6 +1688,12 @@ exports._test = {
     computeRunHealth,
 };
 
+/**
+ * Netlify scheduled-function entry point (hourly cron). Fetches USGS data and water temp, stores PoR history, validates pending nowcast and 48h forecast predictions (skipping learning when PoR/LF are ice-affected), makes and stores a new prediction with attached shadow models, records GF history, updates run health, and pings healthchecks.io on success/failure.
+ * @param {Object} event - Netlify function event (unused).
+ * @param {Object} context - Netlify function context (unused).
+ * @returns {Promise<{statusCode: number, body: string}>} 200 with a JSON run summary on success; 500 when Supabase is unconfigured or the run throws (with a JSON error body).
+ */
 // Main handler
 exports.handler = async (event, context) => {
     console.log('=== Scheduled Update Starting ===');

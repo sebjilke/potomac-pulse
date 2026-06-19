@@ -1,6 +1,9 @@
 // Potomac Pulse — About tooltip + Easter eggs
 // Extracted from index.html inline script
 
+/**
+ * Initializes the About tooltip toggle/dismiss behavior and the Toby Woby Easter-egg interactions.
+ */
 export function initAbout() {
     // ==================== ABOUT TOOLTIP ====================
     const aboutBtn = document.getElementById('about-btn');

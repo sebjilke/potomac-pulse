@@ -18,6 +18,12 @@
 const listeners = new Map(); // event name -> Set<fn>
 
 // Subscribe `fn` to `event`. Returns an unsubscribe function.
+/**
+ * Subscribe a handler to an event.
+ * @param {string} event - The event name to subscribe to.
+ * @param {Function} fn - The handler invoked with the emit payload.
+ * @returns {Function} An unsubscribe function that removes this subscription.
+ */
 export function on(event, fn) {
     if (!listeners.has(event)) listeners.set(event, new Set());
     listeners.get(event).add(fn);
@@ -25,11 +31,21 @@ export function on(event, fn) {
 }
 
 // Unsubscribe `fn` from `event`.
+/**
+ * Unsubscribe a handler from an event.
+ * @param {string} event - The event name to unsubscribe from.
+ * @param {Function} fn - The previously subscribed handler to remove.
+ */
 export function off(event, fn) {
     listeners.get(event)?.delete(fn);
 }
 
 // Fire `event`, calling every subscriber synchronously (registration order) with `payload`.
+/**
+ * Fire an event, calling every subscriber synchronously in registration order.
+ * @param {string} event - The event name to fire.
+ * @param {*} [payload] - Optional value passed to each subscriber.
+ */
 export function emit(event, payload) {
     const fns = listeners.get(event);
     if (!fns) return;
@@ -37,6 +53,9 @@ export function emit(event, payload) {
 }
 
 // Remove all subscriptions. Test-isolation helper only.
+/**
+ * Remove all subscriptions for all events. Test-isolation helper only.
+ */
 export function clear() {
     listeners.clear();
 }

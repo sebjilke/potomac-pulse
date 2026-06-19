@@ -3,6 +3,9 @@
 
 import techAppendixContent from '../assets/tech-appendix.md?raw';
 
+/**
+ * Triggers a browser download of the bundled technical appendix as a Markdown file.
+ */
 export function downloadTechAppendix() {
     // Download as Markdown file
     const blob = new Blob([techAppendixContent], { type: 'text/markdown' });

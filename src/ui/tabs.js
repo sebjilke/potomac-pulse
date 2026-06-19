@@ -5,6 +5,10 @@ import { updateMapVisibility } from '../ui/map.js';
 
 // ==================== TAB SWITCHING ====================
 
+/**
+ * Activates the given tab and its associated panel, updating ARIA state and map visibility.
+ * @param {HTMLElement} tab - The tab element to activate; its dataset.tab identifies the panel.
+ */
 export function activateTab(tab) {
     const allTabs = document.querySelectorAll(".tab");
     const allPanels = document.querySelectorAll(".tab-content");
@@ -23,6 +27,9 @@ export function activateTab(tab) {
 
 // ==================== TAB EVENT SETUP ====================
 
+/**
+ * Wires up tab click handlers and WAI-ARIA keyboard navigation, then sets the initial map visibility.
+ */
 export function initTabs() {
     document.querySelectorAll(".tab").forEach(tab => {
         tab.addEventListener("click", () => activateTab(tab));

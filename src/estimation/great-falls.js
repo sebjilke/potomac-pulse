@@ -32,6 +32,10 @@ export { getPoRtoGFTravelTime, getGFtoLFTravelTime };
 
 // ==================== ICE DETECTION ====================
 
+/**
+ * Reports whether any gauge critical to the GF estimate is ice-affected or missing.
+ * @returns {boolean} True if PoR (01638500) or Little Falls (01646500) is ice-affected, or if no current Edwards Ferry reading exists.
+ */
 export function isCriticalGaugeIceAffected() {
     const por = data["01638500"];
     const lf = data["01646500"];
@@ -45,6 +49,12 @@ export function isCriticalGaugeIceAffected() {
 // flowState) function so the client and server apply the identical correction. Call it with
 // gfLearningData.correctionBins. The end-apply itself goes through applyGFCorrection (also shared).
 
+/**
+ * Computes the empirical 90% uncertainty bounds and learned residual standard deviation for a given flow bin and state.
+ * @param {string} flowBin - Flow-range bin key (e.g. '3000-6000') indexing EMPIRICAL_CI_90 and the learned correction bins.
+ * @param {string} flowState - Flow state ('rising' | 'falling' | 'steady') selecting the per-state CI; falls back to 'all'/'steady'.
+ * @returns {{q05: number, q95: number, stdDev: (number|null), count: number}|null} The q05/q95 residual quantiles (cfs), residual std dev (cfs, null if <5 observations), and observation count; null if the bin has no CI data.
+ */
 export function getGFUncertainty(flowBin, flowState) {
     const ciData = EMPIRICAL_CI_90[flowBin];
     if (!ciData) return null;
@@ -78,6 +88,13 @@ export function getGFUncertainty(flowBin, flowState) {
 // residual r = (estimate − actual), so a 90% interval for the true flow is [est − q95, est − q05].
 // Pure + exported for regression testing — this is the exact formula the pre-v36.1 ±(q95−q05)/2
 // got wrong (it discarded the sign and forced symmetry around the estimate). Low end floored at 0.
+/**
+ * Builds a sign-aware asymmetric 90% flow band from the estimate and the corrected-residual quantiles.
+ * @param {number} estimatedCFS - The corrected GF flow estimate, in cfs.
+ * @param {number} q05 - 5th-percentile of the corrected residual r = (estimate − actual), in cfs.
+ * @param {number} q95 - 95th-percentile of the corrected residual r = (estimate − actual), in cfs.
+ * @returns {{lowCFS: number, highCFS: number}} The 90% flow band [estimate − q95, estimate − q05] in cfs, with the low end floored at 0.
+ */
 export function computeUncertaintyBand(estimatedCFS, q05, q95) {
     return {
         lowCFS: Math.max(0, Math.round(estimatedCFS - q95)),
@@ -85,6 +102,12 @@ export function computeUncertaintyBand(estimatedCFS, q05, q95) {
     };
 }
 
+/**
+ * Tests whether a residual error is a statistical outlier relative to a learned bin's error distribution.
+ * @param {number} errorCFS - The residual error to test, in cfs.
+ * @param {{count: number, meanError: (number|undefined), sumErrorSq: number}} binData - Learned bin stats holding observation count, mean error (cfs), and sum of squared errors.
+ * @returns {boolean} True if the error's z-score exceeds GF_OUTLIER_THRESHOLD; false when the bin has fewer than 10 observations or zero variance.
+ */
 export function isGFOutlier(errorCFS, binData) {
     if (!binData || binData.count < 10) return false;
 
@@ -100,6 +123,11 @@ export function isGFOutlier(errorCFS, binData) {
 
 // ==================== PoR HISTORY LOOKUPS ====================
 
+/**
+ * Looks up the historic Point of Rocks reading closest to a target time in the past, using outlier-resistant selection.
+ * @param {number} hoursAgo - How many hours before now to look up the PoR reading.
+ * @returns {{cfs: number, stage: number, actualHoursAgo: number, timestamp: number}|null} The selected PoR discharge (cfs), stage (ft), the actual age of the matched entry (hours), and its timestamp (ms epoch); null when no history or no entry within tolerance.
+ */
 export function getPoRFromHoursAgo(hoursAgo) {
     if (porHistory.length === 0) {
         console.log(`📊 getPoRFromHoursAgo(${hoursAgo.toFixed(1)}h): No history available`);
@@ -138,6 +166,11 @@ export function getPoRFromHoursAgo(hoursAgo) {
 // up to 72h). The server input is rebuilt fresh from USGS and pre-sorted each
 // cron, so it does not need this. The rising/falling/steady THRESHOLDS stay
 // identical to the server — only the reading SELECTION is hardened here.
+/**
+ * Computes the Point of Rocks rise/fall rate by comparing a robust current reading to a robust reading ~6h ago.
+ * Uses median-of-record selection for both endpoints to harden against noisy localStorage history (client-only divergence from the server).
+ * @returns {{ratePerHour: number, ratePercent: number, changeCFS: number, flowState: string, currentCFS: number, pastCFS: number, hoursDiff: number}|null} Rate per hour (%/h), total percent change, absolute change (cfs), flow state ('rising'|'falling'|'steady'), the two endpoint flows (cfs), and the hours between them; null when history is too sparse, too clustered, or the baseline span is outside 3–9h.
+ */
 export function getPoRRiseRate() {
     if (porHistory.length < 4) return null;
 
@@ -187,6 +220,15 @@ export function getPoRRiseRate() {
 
 // TODO(C22): wire into the forecast PoR fallback — needs the PoR→GF travel offset AND
 // tributary scaling (currently has neither threaded through to the fallback). Unused until then.
+/**
+ * Iteratively resolves the PoR flow that arrives at GF at a target time, converging the flow-dependent PoR→GF travel time.
+ * @param {number} targetHrsFromNow - Target arrival time at GF, in hours from now (negative departure ⇒ historic lookup).
+ * @param {Array<Object>} porPoints - NWS PoR forecast points passed through to interpolateFn.
+ * @param {function(Array<Object>, number): (number|null)} interpolateFn - Interpolates a forecast PoR discharge (cfs) at a given departure hour, or null if unavailable.
+ * @param {number} currentPorCFS - Current observed PoR discharge, in cfs, used as fallback.
+ * @param {number} currentMult - Current flow multiplier seeding the first travel-time estimate.
+ * @returns {{cfs: number, source: string, travelTime: number, porDepartureHrs: number, actualHoursAgo: (number|null)}} The resolved PoR discharge (cfs), its source ('current'|'history'|'NWS'), the converged travel time (hours), the PoR departure time (hours from now), and the matched historic age (hours) when sourced from history.
+ */
 export function getTravelTimeAwarePor(targetHrsFromNow, porPoints, interpolateFn, currentPorCFS, currentMult) {
     const maxIterations = 3;
     let travelTime = TRAVEL_POR_GF_BASELINE * currentMult;
@@ -244,6 +286,12 @@ export function getTravelTimeAwarePor(targetHrsFromNow, porPoints, interpolateFn
 // ==================== FLOW STATE HELPERS ====================
 
 // Determine flow state from NWS trend data (used as fallback)
+/**
+ * Derives a flow state from NWS trend data, used as a fallback when observed PoR rise-rate is unavailable.
+ * @param {{rate: (number|undefined)}|null} trend - NWS trend object whose rate is a per-unit fractional change; null defaults to 'steady'.
+ * @param {number} currentFlow - Current flow in cfs, used to scale the change threshold (defaults to 5000 if falsy).
+ * @returns {string} The flow state: 'rising', 'falling', or 'steady'.
+ */
 function getFlowStateFromTrend(trend, currentFlow) {
     if (!trend) return 'steady';
 
@@ -264,6 +312,16 @@ function getFlowStateFromTrend(trend, currentFlow) {
 
 // ==================== MAIN ESTIMATION FUNCTION ====================
 
+/**
+ * Produces the current Great Falls nowcast by time-shifting observed PoR flow downstream, adding tributary inflows,
+ * blending the Edwards Ferry power-law estimate, applying the PoR-delta and learned EMA corrections, and computing
+ * confidence and an empirical 90% uncertainty band. Falls back to an EF-only estimate when critical gauges are ice-affected.
+ * @returns {Object|null} The GF estimate object with: cfs (rounded flow), stage (LF-equivalent stage, ft), flowState,
+ *   confidence ('low'|'medium'|'high'), useTimeShifted, timeShiftedHoursAgo (hours), useEfEnsemble, efWeight,
+ *   forecastCFS/forecastStage (current readings arriving at GF), an inputs breakdown (component flows in cfs, travel times in hours,
+ *   correction in cfs, flowBin, wave-celerity and PoR-delta details, ceilingApplied), uncertaintyRange, efEstimate, and
+ *   validationCountdown (GF→LF travel time, hours). Returns null when Little Falls or PoR data is missing, or when ice-affected with no EF fallback.
+ */
 export function estimateGreatFalls() {
     const por = data["01638500"];
     const monocacy = data["01643000"];

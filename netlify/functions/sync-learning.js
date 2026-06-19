@@ -16,6 +16,12 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
 const RATE_LIMIT_GET = 60;   // GET requests per minute per IP
 const RATE_LIMIT_POST = 10;  // POST requests per minute per IP
 
+/**
+ * Records a request against the in-memory per-instance rate limiter and reports whether it is within the limit.
+ * @param {string} ip - Client IP used (with method) as the bucket key.
+ * @param {string} method - HTTP method; 'POST' uses RATE_LIMIT_POST, anything else uses RATE_LIMIT_GET.
+ * @returns {boolean} True if the request is allowed (count within the window's limit), false if it should be throttled.
+ */
 function checkRateLimit(ip, method) {
     const key = `${ip}:${method}`;
     const now = Date.now();
@@ -39,6 +45,12 @@ function checkRateLimit(ip, method) {
 }
 
 // === POST body validation ===
+/**
+ * Validates top-level POST body shape (object, size, finite numbers, sane timestamp/CFS).
+ * @param {Object} body - Parsed JSON request body.
+ * @param {string} endpoint - Endpoint name the body targets (currently unused by the checks).
+ * @returns {(string|null)} An error message if invalid, or null if the body passes.
+ */
 function validatePostBody(body, endpoint) {
     if (!body || typeof body !== 'object') return 'Request body must be a JSON object';
     // Reject oversized payloads (checked as serialized string)
@@ -65,6 +77,12 @@ function validatePostBody(body, endpoint) {
 // Pure (timestamp injected) so it can be unit-tested. The three NWS/persistence
 // baseline fields are preserved here so scheduled-update.js can score model
 // forecast skill against them (C24 — previously dropped at insert).
+/**
+ * Maps forecast entries to `gf_forecast_pending` observation rows, keeping NWS/persistence baselines for later scoring.
+ * @param {Object[]} forecasts - Forecast objects; only those with both `horizon` and `targetTime` are kept.
+ * @param {number} timestamp - Batch timestamp (ms) embedded in each row's gauge_id (`+<horizon>h_<timestamp>`).
+ * @returns {Object[]} Observation rows ({ observation_type, gauge_id, data }) ready to insert.
+ */
 function buildForecastRows(forecasts, timestamp) {
     return forecasts
         .filter(f => f && typeof f === 'object' && f.horizon && f.targetTime)
@@ -100,11 +118,24 @@ const PRED_DUE_MIN_OFFSET_MS = -3 * 60 * 60 * 1000;   // validationDue may be sl
 const PRED_DUE_MAX_OFFSET_MS = 49 * 60 * 60 * 1000;   // ...up to the 48h horizon + slack
 const FCAST_TARGET_MAX_OFFSET_MS = 72 * 60 * 60 * 1000;
 
+/**
+ * Tests whether a value is a finite number within an inclusive [lo, hi] range.
+ * @param {*} x - Value to test.
+ * @param {number} lo - Inclusive lower bound.
+ * @param {number} hi - Inclusive upper bound.
+ * @returns {boolean} True if `x` is a finite number and lo <= x <= hi.
+ */
 function finiteInRange(x, lo, hi) {
     return typeof x === 'number' && isFinite(x) && x >= lo && x <= hi;
 }
 
 // Returns an error string if the write payload is invalid, else null.
+/**
+ * Bounds the nested write payloads of the storePrediction / storeForecastPredictions actions to sane ranges (C13).
+ * @param {Object} data - Parsed request body, including `action` and its nested `prediction` or `forecasts`.
+ * @param {number} nowMs - Current time (ms) used to range-check due/target timestamps.
+ * @returns {(string|null)} An error message if the payload is out of range, or null (also null for non-write actions).
+ */
 function validateGFWritePayload(data, nowMs) {
     const action = data && data.action;
 
@@ -181,6 +212,12 @@ const headers = {
     'Content-Type': 'application/json'
 };
 
+/**
+ * Netlify function entry point: handles CORS preflight, rate limiting, and routes GET/POST requests by `endpoint`.
+ * @param {Object} event - Netlify event (httpMethod, headers, queryStringParameters, body).
+ * @param {Object} context - Netlify function context (unused).
+ * @returns {Promise<{statusCode: number, headers: Object, body: string}>} HTTP response object.
+ */
 exports.handler = async (event, context) => {
     // Handle preflight CORS requests
     if (event.httpMethod === 'OPTIONS') {
@@ -280,6 +317,11 @@ exports.handler = async (event, context) => {
 // GF_FLOW_BINS imported from ./shared/model
 
 // Load GF learning data from Supabase
+/**
+ * Loads GF learning state (correction bins, pending predictions, metadata, EF correlation, shadow leaderboard) for the GET 'gf' endpoint.
+ * @param {Object} client - Supabase client.
+ * @returns {Promise<{statusCode: number, headers: Object, body: string}>} HTTP response with the assembled learning payload, or a 500 on failure.
+ */
 async function loadGFLearningData(client) {
     try {
         // Load correction bins
@@ -372,6 +414,12 @@ async function loadGFLearningData(client) {
 }
 
 // Save GF learning data to Supabase
+/**
+ * Handles POST 'gf' write actions: validates the payload then dispatches storePrediction, storeForecastPredictions, or the PIN-gated reset* actions.
+ * @param {Object} client - Supabase client.
+ * @param {Object} data - Validated request body carrying `action` and its action-specific fields (prediction/forecasts/pin).
+ * @returns {Promise<{statusCode: number, headers: Object, body: string}>} HTTP response with the action result, or a 400/403/500/503 on error.
+ */
 async function saveGFLearningData(client, data) {
     // C13: reject out-of-range nested write payloads before any DB write.
     const writeErr = validateGFWritePayload(data, Date.now());
@@ -646,6 +694,11 @@ async function saveGFLearningData(client, data) {
 }
 
 // Load forecast accuracy data
+/**
+ * Loads per-horizon forecast accuracy stats (model plus NWS-raw/NWS-corrected/persistence baselines) for the GET 'forecast-accuracy' endpoint.
+ * @param {Object} client - Supabase client.
+ * @returns {Promise<{statusCode: number, headers: Object, body: string}>} HTTP response with `{ horizons }` keyed by horizon hours, or a 500 on failure.
+ */
 async function loadForecastAccuracy(client) {
     try {
         // Load forecast accuracy metadata for each horizon
@@ -691,6 +744,11 @@ async function loadForecastAccuracy(client) {
     }
 }
 
+/**
+ * Loads the rolling predicted-vs-actual validation history for the GET 'validation-history' endpoint.
+ * @param {Object} client - Supabase client.
+ * @returns {Promise<{statusCode: number, headers: Object, body: string}>} HTTP response with `{ readings, lastUpdate }`, or a 500 on failure.
+ */
 async function loadValidationHistory(client) {
     try {
         const { data: row, error } = await client
@@ -723,6 +781,11 @@ async function loadValidationHistory(client) {
 
 // Load server-side GF history (24h rolling) for graph display
 // Returns array of {timestamp, cfs, stage} readings
+/**
+ * Loads the server-side 24h rolling GF history for graph display (GET 'gf-history' endpoint).
+ * @param {Object} client - Supabase client.
+ * @returns {Promise<{statusCode: number, headers: Object, body: string}>} HTTP response with `{ readings, lastUpdate }` (readings are {timestamp, cfs, stage}), or a 500 on failure.
+ */
 async function loadGFHistory(client) {
     try {
         const { data: row, error } = await client
@@ -757,6 +820,11 @@ async function loadGFHistory(client) {
 // Written by storePoRHistory() in scheduled-update.js every hour (serves whatever
 // retention storePoRHistory writes — POR_HISTORY_MAX_AGE, 72h since v36.4)
 // Returns array of {timestamp, cfs} readings from USGS 15-min data
+/**
+ * Loads the server-side 72h rolling PoR history for cross-device time-shifting (GET 'por-history' endpoint).
+ * @param {Object} client - Supabase client.
+ * @returns {Promise<{statusCode: number, headers: Object, body: string}>} HTTP response with `{ readings, lastUpdate }` (readings are {timestamp, cfs}), or a 500 on failure.
+ */
 async function loadPoRHistory(client) {
     try {
         const { data: row, error } = await client

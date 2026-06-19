@@ -12,6 +12,11 @@
 // values (<=0 or > 500,000 cfs), never for plausible river flows.
 
 // Numeric median of the cfs values in `entries`.
+/**
+ * Computes the numeric median of the `cfs` values across the given entries (averaging the two central values for even counts). Has a server copy in netlify/functions/shared/model.js that must stay in sync.
+ * @param {Array<{cfs: number}>} entries - History entries, each with a numeric cfs field.
+ * @returns {number|null} The median cfs value, or null when entries is empty/missing.
+ */
 export function medianCfs(entries) {
     if (!entries || entries.length === 0) return null;
     const vals = entries.map(e => e.cfs).sort((a, b) => a - b);
@@ -23,6 +28,11 @@ export function medianCfs(entries) {
 // timestamp stay mutually consistent (critical — callers compute rates from the
 // returned timestamp). For even counts, returns the NEWER of the two central
 // records, biasing toward recency without inventing a synthetic value.
+/**
+ * Returns the actual history entry whose cfs is the median (the newer of the two central records for even counts), keeping cfs and timestamp mutually consistent.
+ * @param {Array<{cfs: number, timestamp: number}>} entries - History entries, each with numeric cfs and timestamp fields.
+ * @returns {{cfs: number, timestamp: number}|null} The median-of-record entry, or null when entries is empty/missing.
+ */
 export function medianOfRecord(entries) {
     if (!entries || entries.length === 0) return null;
     const byCfs = [...entries].sort((a, b) => a.cfs - b.cfs);
@@ -37,6 +47,13 @@ export function medianOfRecord(entries) {
 // when fewer than `minPts` points fall in the window, so the caller can defer to
 // the NWS-trend fallback rather than trust a single (possibly stale) reading.
 // Future-dated entries (clock skew) are excluded.
+/**
+ * Robust "current" level: the median-of-record over a trailing window ending at `now`, excluding future-dated entries; returns null when too few points fall in the window.
+ * @param {Array<{cfs: number, timestamp: number}>} history - History entries with numeric cfs and timestamp fields.
+ * @param {number} now - Current time as an epoch-ms timestamp.
+ * @param {{windowMs?: number, minPts?: number}} [opts] - Optional trailing-window length (default 90 min) and minimum point count (default 3).
+ * @returns {{cfs: number, timestamp: number}|null} The median-of-record entry within the window, or null when fewer than `minPts` points qualify.
+ */
 export function robustCurrentReading(history, now, opts = {}) {
     const windowMs = opts.windowMs ?? 90 * 60 * 1000;
     const minPts = opts.minPts ?? 3;
@@ -50,6 +67,14 @@ export function robustCurrentReading(history, now, opts = {}) {
 // `currentTs`. Uses median-of-record when enough points cluster near the target;
 // otherwise falls back to the single closest older entry (acceptable: `current`
 // is already robust, and simultaneous glitches at both ends are improbable).
+/**
+ * Robust "past" level near `targetMsAgo` before `now` and strictly older than `currentTs`: median-of-record when enough points cluster near the target, otherwise the single closest older entry.
+ * @param {Array<{cfs: number, timestamp: number}>} history - History entries with numeric cfs and timestamp fields.
+ * @param {number} now - Current time as an epoch-ms timestamp.
+ * @param {number} currentTs - Timestamp of the current reading; only entries strictly older than this are considered.
+ * @param {{targetMsAgo?: number, windowMs?: number, minPts?: number}} [opts] - Optional lookback offset (default 6 h), clustering window (default 60 min), and minimum point count (default 3).
+ * @returns {{cfs: number, timestamp: number}|null} The chosen past entry, or null when no older entries exist.
+ */
 export function robustPastReading(history, now, currentTs, opts = {}) {
     const targetMsAgo = opts.targetMsAgo ?? 6 * 3600 * 1000;
     const windowMs = opts.windowMs ?? 60 * 60 * 1000;
@@ -68,6 +93,13 @@ export function robustPastReading(history, now, currentTs, opts = {}) {
 // lone glitches (cfs more than `outlierFrac` off the window median), then returns
 // the single closest survivor INTACT — its cfs/timestamp are preserved, so no
 // value-smearing or rising-limb bias is introduced (unlike medianizing the cfs).
+/**
+ * Outlier-resistant pick of the historic entry nearest `targetTime`: drops lone glitches more than `outlierFrac` off the window median (when enough candidates exist) then returns the single closest survivor intact. Has a server copy in netlify/functions/shared/model.js that must stay in sync.
+ * @param {Array<{cfs: number, timestamp: number}>} history - History entries with numeric cfs and timestamp fields.
+ * @param {number} targetTime - The target time as an epoch-ms timestamp to match against.
+ * @param {{matchMs?: number, outlierFrac?: number, minForFilter?: number}} [opts] - Optional match window (default 60 min), outlier fraction off the median (default 0.40), and minimum candidate count to enable filtering (default 3).
+ * @returns {{cfs: number, timestamp: number}|null} The closest surviving entry, or null when no candidate falls within the match window.
+ */
 export function selectHistoricReading(history, targetTime, opts = {}) {
     const matchMs = opts.matchMs ?? 60 * 60 * 1000;
     const outlierFrac = opts.outlierFrac ?? 0.40;
@@ -97,6 +129,12 @@ export function selectHistoricReading(history, targetTime, opts = {}) {
 // sparse, hourly-spaced surges. Endpoints are always kept (no two-sided context).
 // This NEVER mutates or deletes stored history — it only declines to *plot* a
 // reversal spike.
+/**
+ * Display-only spike filter: returns the points with any strict, reversing local extremum removed — a value exceeding BOTH neighbours by more than `frac` (peak) or below both by more than `frac` (trough); endpoints and monotone runs are always kept, and stored history is never mutated.
+ * @param {Array<Object>} points - Ordered data points; each is read via `key` for its numeric value.
+ * @param {{frac?: number, key?: string}} [opts] - Optional reversal threshold fraction (default 0.40) and the property name holding the value (default 'cfs').
+ * @returns {Array<Object>} A new array with reversal spikes dropped, or the original array unchanged when there are fewer than 3 points.
+ */
 export function dropLocalSpikes(points, opts = {}) {
     const frac = opts.frac ?? 0.40;
     const key = opts.key ?? 'cfs';

@@ -21,10 +21,22 @@ import { lockLearning } from './ui/auth.js';
 import { on } from './state/event-bus.js';
 import { updateForecastAccuracyUI, updateGreatFallsUI, updateForecastPeriods } from './ui/great-falls-ui.js';
 
+/**
+ * Attaches a click handler to the DOM element with the given id, if it exists.
+ * @param {string} id - The id of the target DOM element.
+ * @param {Function} handler - The click event handler to attach.
+ * @returns {void}
+ */
 function bindButton(id, handler) {
     document.getElementById(id)?.addEventListener('click', handler);
 }
 
+/**
+ * Bootstraps the application: subscribes UI re-render functions to bus events,
+ * binds button handlers, loads persisted state/history, initializes the UI, and
+ * fetches current data. Falls back to a minimal UI on error.
+ * @returns {Promise<void>}
+ */
 export async function init() {
     try {
         // Subscribe UI re-render functions to bus events (must run before the first fetchData below).

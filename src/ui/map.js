@@ -10,6 +10,12 @@ import { popup } from '../ui/gauges-ui.js';
 
 // Color rivers by name to match existing branch color scheme
 // coords = [lon, lat] of first geometry point, used to disambiguate same-named streams
+/**
+ * Returns a hex color for a river feature based on its GNIS name, using coordinates to disambiguate same-named streams.
+ * @param {string} name - The river's GNIS name (gnis_name).
+ * @param {Array<number>} coords - The [lon, lat] of the feature's first geometry point, used to disambiguate (e.g. MD vs WV Seneca Creek).
+ * @returns {string} A hex color string for the river line.
+ */
 function nhdColor(name, coords) {
     if (!name) return '#475569';
     if (name === 'Potomac River') return '#2563eb';
@@ -23,6 +29,11 @@ function nhdColor(name, coords) {
     return '#475569';
 }
 
+/**
+ * Builds the Leaflet path style (color, weight, opacity) for an NHD river GeoJSON feature, scaling line weight by stream order.
+ * @param {Object} feature - A GeoJSON river feature with properties (gnis_name, streamorde) and geometry.
+ * @returns {{color: string, weight: number, opacity: number}} The Leaflet style object for the river.
+ */
 function nhdStyle(feature) {
     const name = feature.properties.gnis_name || '';
     const order = feature.properties.streamorde || 3;
@@ -35,6 +46,11 @@ function nhdStyle(feature) {
 }
 
 // Load NHD river GeoJSON from static asset, add behind markers
+/**
+ * Fetches the NHD river GeoJSON static asset and adds the styled rivers layer behind the markers; logs a warning on failure.
+ * @param {L.Map} mapInstance - The Leaflet map to add the rivers layer to.
+ * @returns {void}
+ */
 function loadNHDRivers(mapInstance) {
     fetch('/potomac-nhd.geojson')
         .then(r => r.json())
@@ -45,6 +61,11 @@ function loadNHDRivers(mapInstance) {
 }
 
 // Load Potomac watershed boundary polygon, add behind rivers
+/**
+ * Fetches the Potomac watershed boundary GeoJSON and adds the styled boundary polygon behind the rivers; logs a warning on failure.
+ * @param {L.Map} mapInstance - The Leaflet map to add the watershed boundary layer to.
+ * @returns {void}
+ */
 function loadWatershedBoundary(mapInstance) {
     fetch('/potomac-watershed.geojson')
         .then(r => r.json())
@@ -64,6 +85,11 @@ function loadWatershedBoundary(mapInstance) {
 
 // ==================== MAP FUNCTIONS ====================
 
+/**
+ * Pans and zooms the map to the gauge with the given id and opens its marker popup.
+ * @param {string} id - The gauge id (key into GAUGES and markers).
+ * @returns {void}
+ */
 export function panTo(id) {
     const g = GAUGES[id];
     if (g && map) {
@@ -72,6 +98,10 @@ export function panTo(id) {
     }
 }
 
+/**
+ * Initializes the Leaflet map: creates the map and Esri tile layer with a loading overlay, loads the watershed and NHD river layers, places gauge markers (with popups and zoom-gated labels), adds the Great Falls virtual marker, and adds the legend control.
+ * @returns {void}
+ */
 export function initMap() {
     // Add loading overlay
     const mapEl = document.getElementById('map');
@@ -130,6 +160,10 @@ export function initMap() {
             });
         }
     }
+    /**
+     * Shows or hides all gauge label tooltips based on the current zoom level (visible at zoom >= 10).
+     * @returns {void}
+     */
     const updateLabelVisibility = () => {
         const show = mapInstance.getZoom() >= 10;
         for (const marker of Object.values(markers)) {
@@ -169,6 +203,10 @@ export function initMap() {
 
     // Add legend
     const legend = L.control({ position: 'bottomleft' });
+    /**
+     * Leaflet control onAdd hook: builds and returns the legend DOM element with color/marker keys.
+     * @returns {HTMLElement} The legend container div.
+     */
     legend.onAdd = function() {
         const div = L.DomUtil.create('div', 'map-legend');
         div.innerHTML = `
@@ -231,6 +269,11 @@ export function initMap() {
 // ==================== MAP VISIBILITY ====================
 
 // Tab switching - map now hidden by default on all tabs, use toggle button to show
+/**
+ * Hides the map on tab switch (map is always hidden by default) and resets the map toggle button's pressed/active state.
+ * @param {string} tabName - The name of the tab being switched to (currently unused in the body).
+ * @returns {void}
+ */
 export function updateMapVisibility(tabName) {
     const btn = document.getElementById('mapToggleBtn');
     // Map is always hidden by default on tab switch - user must toggle it on
@@ -242,6 +285,10 @@ export function updateMapVisibility(tabName) {
 }
 
 // Manual map toggle button
+/**
+ * Toggles map visibility via the 'show-map' body class, syncs the toggle button's aria-pressed/active state, and invalidates the map size when shown.
+ * @returns {void}
+ */
 export function toggleMap() {
     const btn = document.getElementById('mapToggleBtn');
     const show = document.body.classList.toggle('show-map');

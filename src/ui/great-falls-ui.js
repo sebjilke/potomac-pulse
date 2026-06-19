@@ -33,6 +33,10 @@ import { emit } from '../state/event-bus.js';
 // Compute the production GF estimate and publish it to the gfEstimate store.
 // Separated from updateGreatFallsUI's rendering so the estimate can be (re)computed independently;
 // behavior is identical — updateGreatFallsUI calls this at the same point it used to compute inline.
+/**
+ * Computes the production Great Falls estimate and publishes it to the gfEstimate store.
+ * @returns {object|null} The current gfEstimate store value (the computed estimate, or null if unavailable).
+ */
 export function computeGFEstimate() {
     setGfEstimate(estimateGreatFalls());
     return gfEstimate;
@@ -40,6 +44,12 @@ export function computeGFEstimate() {
 
 // ==================== MAIN GF UI UPDATE ====================
 
+/**
+ * Renders the main Great Falls "ESTIMATED NOW" section: computes the estimate, fills the
+ * cfs/stage/trend/confidence/data-source/forecast/inputs/CI/EF-crosscheck DOM nodes, updates the
+ * map popup and validation countdown, triggers the 48h forecast periods, and emits 'gf-estimate:rendered'.
+ * Handles loading, ice-affected, EF-only, and no-history states. No-op if the GF DOM is not present.
+ */
 export function updateGreatFallsUI() {
     if (!document.getElementById("gf-cfs")) return; // DOM not ready
     // Show loading state until GF corrections AND Edwards Ferry data are loaded
@@ -265,6 +275,13 @@ export function updateGreatFallsUI() {
 
 // ==================== FORECAST PERIODS ====================
 
+/**
+ * Builds the 48h Great Falls forecast (6-hour intervals) and renders it. Uses the NWS LF forecast
+ * (offset by GF→LF travel time, additive-bias-corrected, EF-blended when available) with PoR-forecast
+ * and linear-extrapolation fallbacks, renders the period cards into #gf-forecast-periods, draws the
+ * interactive forecast graph, stores forecast predictions, and wires per-card click handlers.
+ * @param {object} gfEst - The current GF estimate (uses cfs, stage, forecastCFS, inputs.travelPoRtoGF).
+ */
 export function updateForecastPeriods(gfEst) {
     const container = document.getElementById("gf-forecast-periods");
     if (!container || !gfEst) return;
@@ -309,6 +326,14 @@ export function updateForecastPeriods(gfEst) {
             return { hoursAhead, stage: p.primary };
         }) : [];
 
+        /**
+         * Linearly interpolates a forecast field at a target hours-ahead, clamping to the nearest
+         * endpoint when the target falls outside the available range.
+         * @param {Array<{hoursAhead: number, [key: string]: number}>} points - Forecast points sorted by hoursAhead.
+         * @param {number} targetHrs - Hours ahead to interpolate at.
+         * @param {string} [field='cfs'] - The numeric field to interpolate (e.g. 'cfs' or 'stage').
+         * @returns {number|null} The interpolated value, or null if no usable points exist.
+         */
         const interpolateForecast = (points, targetHrs, field = 'cfs') => {
             const before = points.filter(p => p.hoursAhead <= targetHrs).pop();
             const after = points.find(p => p.hoursAhead >= targetHrs);
@@ -347,6 +372,13 @@ export function updateForecastPeriods(gfEst) {
 
         const gfToLfTravel = TRAVEL_GF_LF_BASELINE * getFlowMultiplier(currentCFS).mult;
 
+        /**
+         * Estimates the GF-equivalent cfs at a target GF hours-ahead by reading the NWS LF forecast at
+         * (targetGFHrs + GF→LF travel time), applying the additive LF bias offset; falls back to the PoR
+         * forecast (then current PoR) when no LF forecast is available.
+         * @param {number} targetGFHrs - Hours ahead at Great Falls to estimate.
+         * @returns {number} The bias-corrected forecast cfs (floored at 0).
+         */
         const getGFAtTime = (targetGFHrs) => {
             const lfTimeForThisWater = targetGFHrs + gfToLfTravel;
             let rawForecastCFS = null;
@@ -537,6 +569,11 @@ export function updateForecastPeriods(gfEst) {
 
 // ==================== FORECAST HELPERS ====================
 
+/**
+ * Formats a date as a short weekday + 12-hour time label (e.g. "Tue 3pm") for forecast period display.
+ * @param {Date} date - The date/time to format.
+ * @returns {string} The formatted "Day Hour(am|pm)" string.
+ */
 export function formatForecastTime(date) {
     const hours = date.getHours();
     const ampm = hours >= 12 ? 'pm' : 'am';
@@ -545,6 +582,12 @@ export function formatForecastTime(date) {
     return `${days[date.getDay()]} ${hour12}${ampm}`;
 }
 
+/**
+ * Positions and shows the forecast-graph marker (vertical line + dot) and tooltip at the data point
+ * nearest the given hours-ahead, populating the tooltip's time/stage/cfs. No-op if the graph or its
+ * scales/data are unavailable.
+ * @param {number} hrs - Hours ahead to mark (matched to the nearest forecast-graph data point).
+ */
 export function showGraphMarker(hrs) {
     const marker = document.getElementById('gf-graph-marker');
     const markerLine = document.getElementById('gf-marker-line');
@@ -585,6 +628,11 @@ export function showGraphMarker(hrs) {
 
 // ==================== FORECAST ACCURACY UI ====================
 
+/**
+ * Renders the forecast-accuracy summary into #forecast-accuracy: per-horizon model accuracy and,
+ * when enough NWS validations exist, the model-vs-NWS-LF accuracy delta per horizon. Hides the
+ * container when data is missing or there are fewer than 10 total validations.
+ */
 export function updateForecastAccuracyUI() {
     const container = document.getElementById('forecast-accuracy');
     if (!container || !forecastAccuracyData?.horizons) {

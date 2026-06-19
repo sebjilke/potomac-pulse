@@ -7,6 +7,12 @@ const { createClient } = require('@supabase/supabase-js');
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
+/**
+ * Netlify function handler that analyzes accumulated stage-correction learning state: aggregates stage/CFS correction bins, computes the weighted mean stage error and the CFS-vs-stage error correlation, summarizes the EF correlation, and emits rating-curve recommendations.
+ * @param {Object} event - Netlify event; `queryStringParameters.pin` provides admin authentication.
+ * @param {Object} context - Netlify execution context (unused).
+ * @returns {Promise<{statusCode: number, headers?: Object, body: string}>} HTTP response whose JSON body is the analysis result, or an error payload (403/503 auth, 500 misconfig/exception).
+ */
 exports.handler = async (event, context) => {
     console.log('=== Stage Error Analysis ===');
 

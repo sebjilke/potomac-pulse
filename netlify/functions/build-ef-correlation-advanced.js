@@ -57,6 +57,11 @@ const SEARCY_COEF = 4139;        // Corrected Searcy coefficient (5174 × 0.80)
 const SEARCY_EXP = -0.5963;      // Searcy exponent (velocity-flow relationship)
 const EF_LF_COEF = 1120;         // Scaled coefficient for EF→LF (1400 × 0.80)
 
+/**
+ * Estimates EF→LF water travel time from an estimated Little Falls discharge using the scaled Searcy power law, clamped to physical bounds.
+ * @param {number} estimatedLfFlow - Estimated Little Falls discharge in cubic feet per second (cfs).
+ * @returns {number} Travel time in hours, bounded to [1.5, 5.0].
+ */
 function estimateTravelTimeHours(estimatedLfFlow) {
     // Clamp flow to reasonable range (avoid divide-by-zero type issues)
     const flow = Math.max(estimatedLfFlow, 1000);
@@ -85,6 +90,13 @@ function estimateTravelTimeHours(estimatedLfFlow) {
 }
 
 // Determine if stage is rising, falling, or steady based on recent history
+/**
+ * Classifies the hydrograph limb (rising, falling, or steady) at a point by inspecting stage changes over a preceding window.
+ * @param {Array<{stage: number, timestamp: number}>} history - Time-ordered EF readings; only `.stage` (feet) is used here.
+ * @param {number} currentIdx - Index into `history` of the reading being classified.
+ * @param {number} [windowSize=4] - Number of preceding intervals examined for the trend.
+ * @returns {string} One of 'rising', 'falling', 'steady', or 'unknown' (when too few prior readings exist).
+ */
 function classifyLimb(history, currentIdx, windowSize = 4) {
     if (currentIdx < windowSize) return 'unknown';
 
@@ -101,6 +113,11 @@ function classifyLimb(history, currentIdx, windowSize = 4) {
 
 // Fit power-law model: y = a * x^b using log-linear regression
 // ln(y) = ln(a) + b*ln(x)
+/**
+ * Fits a power-law model LF = a × EF^b via log-linear least-squares and reports fit quality and prediction-error percentiles.
+ * @param {Array<{efStage: number, lfFlow: number}>} pairs - EF stage (feet) / LF flow (cfs) observation pairs.
+ * @returns {{a: number, b: number, equation: string, rSquaredLog: number, rSquaredOrig: number, count: number, medianErrorPct: number, p90ErrorPct: number}|null} Fitted coefficients, R² in log and original space, valid sample count, and median/90th-percentile absolute percent errors; null if fewer than 10 valid pairs.
+ */
 function fitPowerLaw(pairs) {
     if (pairs.length < 10) return null;
 
@@ -168,6 +185,11 @@ function fitPowerLaw(pairs) {
 }
 
 // Fit simple linear model for comparison: y = mx + c
+/**
+ * Fits a simple ordinary-least-squares line LF = slope × EF + intercept for comparison against the power-law model.
+ * @param {Array<{efStage: number, lfFlow: number}>} pairs - EF stage (feet) / LF flow (cfs) observation pairs.
+ * @returns {{slope: number, intercept: number, equation: string, rSquared: number, count: number}|null} Rounded slope/intercept, equation string, R², and valid sample count; null if fewer than 10 valid pairs.
+ */
 function fitLinear(pairs) {
     if (pairs.length < 10) return null;
 
@@ -206,6 +228,12 @@ function fitLinear(pairs) {
 }
 
 // Detect outliers using IQR method on prediction errors
+/**
+ * Partitions observation pairs into clean and outlier sets using the 1.5×IQR upper-fence rule on power-law prediction percent errors.
+ * @param {Array<{efStage: number, lfFlow: number, timestamp: (string|number), limb: string}>} pairs - EF/LF observation pairs to screen.
+ * @param {{a: number, b: number}|null} model - Fitted power-law model used to compute prediction errors.
+ * @returns {{clean: Array<Object>, outliers: Array<Object>, upperFence: number}} The retained `clean` pairs, the rejected `outliers` (with predicted flow and rounded error percent), and the error-percent `upperFence` threshold; if no model or fewer than 20 pairs, returns all pairs as clean with an empty outlier list.
+ */
 function detectOutliers(pairs, model) {
     if (!model || pairs.length < 20) return { clean: pairs, outliers: [] };
 
@@ -238,6 +266,12 @@ function detectOutliers(pairs, model) {
     };
 }
 
+/**
+ * Netlify function handler that builds the advanced EF→LF correlation model: fetches multi-month instantaneous USGS data, discovers optimal flow-regime time shifts, fits power-law/linear/hysteresis/seasonal models, and optionally persists the result to Supabase.
+ * @param {Object} event - Netlify event; `queryStringParameters` may include `pin` (admin auth), `months` (lookback, capped at 24), and `save` ('true' to write to the database).
+ * @param {Object} context - Netlify execution context (unused).
+ * @returns {Promise<{statusCode: number, headers?: Object, body: string}>} HTTP response whose JSON body is the analysis result, or an error payload (403/503 auth, 400 insufficient data, 500 on exception).
+ */
 exports.handler = async (event, context) => {
     console.log('=== Advanced EF→LF Correlation (Limnologist Approach) ===');
 
@@ -346,6 +380,11 @@ exports.handler = async (event, context) => {
 
         console.log('Finding optimal time shift...');
 
+        /**
+         * Builds EF-stage/LF-flow pairs by shifting each classified EF reading forward in time and matching the nearest LF reading within ±15 minutes.
+         * @param {number} shiftMs - Forward time shift applied to EF timestamps, in milliseconds.
+         * @returns {Array<{efStage: number, lfFlow: number, limb: string, timestamp: number}>} Matched pairs (excludes readings with 'unknown' limb or no LF match within tolerance).
+         */
         function matchPairsWithShift(shiftMs) {
             const pairs = [];
             for (let i = 4; i < efHistory.length; i++) {
@@ -371,6 +410,11 @@ exports.handler = async (event, context) => {
             return pairs;
         }
 
+        /**
+         * Computes a fast log-space R² for a power-law fit, used to score candidate time shifts during the shift sweep.
+         * @param {Array<{efStage: number, lfFlow: number}>} pairs - EF stage (feet) / LF flow (cfs) pairs.
+         * @returns {number} R² of the log-linear fit, or 0 if fewer than 100 valid pairs or zero total variance.
+         */
         function quickR2(pairs) {
             if (pairs.length < 100) return 0;
             // Quick R² calculation for power-law fit in log space
@@ -439,6 +483,13 @@ exports.handler = async (event, context) => {
         const highFlowEF = initialPairs.filter(p => p.lfFlow >= 15000);
 
         // Find optimal shift for each regime
+        /**
+         * Sweeps candidate time shifts (in 0.25-hour steps) over the EF timestamps of a flow-regime subset and returns the shift that maximizes log-space R².
+         * @param {Array<{timestamp: number}>} basePairs - Pairs whose EF timestamps define the regime subset to re-match at each trial shift.
+         * @param {number} [minShift=1] - Minimum trial shift in hours.
+         * @param {number} [maxShift=8] - Maximum trial shift in hours.
+         * @returns {{shiftHrs: number, r2: number}} Best shift in hours and its R²; falls back to the overall best shift with r2 0 if fewer than 100 base pairs.
+         */
         function findOptimalShiftForPairs(basePairs, minShift = 1, maxShift = 8) {
             if (basePairs.length < 100) return { shiftHrs: bestShiftHrs, r2: 0 };
 

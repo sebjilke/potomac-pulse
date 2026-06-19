@@ -50,7 +50,7 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 | 10 | ⏸️ **Phase 3 — unify the 3 runtimes** | — | **NOT PURSUING** (decided 2026-06-19). One shared `gf-pipeline` for client + server + unify 3 flow-state impls would change observable output on the non-canonical side for ~2–3 days of risk on a live learning loop; the parity tests already guard client↔server drift and v36.0 unified correction *application* via `applyGFCorrection`. Re-open only if the three impls actually diverge in production. |
 | 11 | **Phase 4 — render path** | done | ✅ **v37.4** — replaced the 6 setter-injection lazy callbacks + scattered re-render triggers with a synchronous pub/sub event bus (`src/state/event-bus.js`; producers emit, UI subscribes once in `init.js`) and removed the 4s NWS render gate (paints immediately, re-renders on `nws:arrived`). Dissolves the `fetch ↔ gauges-ui ↔ great-falls-ui` cycle. Plan→audit→implement→re-audit; 626→637 (bus unit + static `emit`/`on` wiring test). ⚠️ **In-browser verification still pending** (no DOM test net) — watch the first-paint forecast-card flip (extrapolation→NWS) flagged in `analysis/phase4-render-path-plan-2026-06-19.md` §5. |
 | 12 | **Parallelize Supabase queries** | ~2h | `Promise.all()` for independent SELECTs in `sync-learning.js`. |
-| 13 | **JSDoc comments** | ~8h | Low priority — code is already well-structured. |
+| 13 | **JSDoc comments** | done | ✅ **2026-06-19** — exhaustive `@param`/`@returns` JSDoc added above every function across `src/` + `netlify/functions/` (~26 files, 515 tags, from 0). Doc-only (no version bump): provably comment-only (zero deletions, zero non-comment added lines), 637 tests + build green. Run via per-file subagents + central diff verification. |
 
 ---
 

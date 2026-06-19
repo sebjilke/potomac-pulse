@@ -17,6 +17,11 @@ import { isCriticalGaugeIceAffected } from '../estimation/great-falls.js';
 
 // Fetch Edwards Ferry data (hidden gauge for GF validation)
 // Stage-only gauge just above Great Falls
+/**
+ * Fetches the latest Edwards Ferry stage reading from USGS and appends it to the EF history buffer.
+ * Mutates edwardsFerryData.current and edwardsFerryData.history; trims history to EF_HISTORY_MAX.
+ * @returns {Promise<void>} Resolves when the fetch completes; silently returns on error or invalid data.
+ */
 export async function fetchEdwardsFerry() {
     const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${EDWARDS_FERRY.id}&parameterCd=00065&period=P1D&format=json`;
 
@@ -61,6 +66,11 @@ export async function fetchEdwardsFerry() {
 
 // Fetch water temperature from Point of Rocks for EF model cold adjustment
 // PoR is 15mi upstream of EF but on same mainstem, so temp is representative
+/**
+ * Fetches the latest Point of Rocks water temperature (°C) from USGS and stores it for EF model selection.
+ * Calls setWaterTempC only when the reading passes the -5°C to 40°C sanity check; leaves waterTempC null on error.
+ * @returns {Promise<void>} Resolves when the fetch completes; silently returns on error or invalid data.
+ */
 export async function fetchWaterTemp() {
     const url = 'https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00010&period=P1D&format=json';
     try {
@@ -88,6 +98,11 @@ export async function fetchWaterTemp() {
 // ==================== EDWARDS FERRY TREND & MODEL ====================
 
 // Get Edwards Ferry trend (rising/falling/steady)
+/**
+ * Determines the Edwards Ferry stage trend by comparing the current reading to roughly one hour ago.
+ * Uses a ±2% threshold on percent change between the latest stage and the reading ~5 samples back.
+ * @returns {('rising'|'falling'|'steady'|null)} The trend, or null if fewer than 4 history readings exist.
+ */
 export function getEdwardsFerryTrend() {
     const history = edwardsFerryData.history;
     if (history.length < 4) return null;  // Need at least 1 hour of data
@@ -110,6 +125,13 @@ export function getEdwardsFerryTrend() {
 // Default (>10°C or unknown): 126 × EF^2.46 (deduped fit, R²=0.91)
 // Applies a FIXED prior hysteresis multiplier (frozen, client-only): rising limb carries more flow than falling at same stage
 // Returns null if EF data missing or stage out of valid range
+/**
+ * Estimates Little Falls discharge (cfs) from the current Edwards Ferry stage via a temperature-dependent power-law,
+ * then applies the fixed EF trend hysteresis multiplier.
+ * @returns {{cfs: number, stage: number, model: string, modelType: ('cold'|'default'|'default-no-temp'), waterTempC: (number|null), coef: number, exp: number, rSquared: number, medianErrorPct: number, efTrend: ('rising'|'falling'|'steady'|null), hysteresisMultiplier: number, hysteresisCount: number}|null}
+ *   Estimate object (cfs in cubic feet per second, stage in feet), or null if EF data is missing,
+ *   stage is out of [minStage, maxStage], or the estimate falls outside 500–500000 cfs.
+ */
 export function estimateGFFromEdwardsFerry() {
     const ef = edwardsFerryData;
     if (!ef.current?.stage) return null;
@@ -166,6 +188,14 @@ export function estimateGFFromEdwardsFerry() {
 
 // Update EF hysteresis multiplier based on validation error
 // Called when a GF prediction is validated against actual LF reading
+/**
+ * Updates the EF hysteresis multiplier for the given trend via an EMA (alpha=0.2) on the prediction error ratio.
+ * No-ops for steady/missing trends or when a critical gauge is ice-affected; clamps the multiplier to [0.8, 1.2] and persists.
+ * @param {('rising'|'falling'|'steady'|null)} efTrend - The EF trend at prediction time; only 'rising'/'falling' are learned.
+ * @param {number} predictedCFS - The predicted Great Falls discharge in cfs.
+ * @param {number} actualCFS - The actual observed Little Falls discharge in cfs.
+ * @returns {void}
+ */
 export function updateEFHysteresis(efTrend, predictedCFS, actualCFS) {
     if (!efTrend || efTrend === 'steady') return;  // Only learn for rising/falling
     // Don't update hysteresis when critical gauges are ice-affected
@@ -198,6 +228,10 @@ export function updateEFHysteresis(efTrend, predictedCFS, actualCFS) {
 }
 
 // Save EF hysteresis to localStorage
+/**
+ * Persists the current efHysteresis state to localStorage under the 'potomac_ef_hysteresis' key.
+ * @returns {void}
+ */
 export function saveEFHysteresis() {
     try {
         localStorage.setItem('potomac_ef_hysteresis', JSON.stringify(efHysteresis));
@@ -207,6 +241,10 @@ export function saveEFHysteresis() {
 }
 
 // Load EF hysteresis from localStorage
+/**
+ * Loads saved EF hysteresis from localStorage and merges it into efHysteresis, preserving defaults for missing keys.
+ * @returns {void}
+ */
 export function loadEFHysteresis() {
     try {
         const saved = localStorage.getItem('potomac_ef_hysteresis');

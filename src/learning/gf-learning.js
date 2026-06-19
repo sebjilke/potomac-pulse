@@ -23,6 +23,12 @@ import { emit } from '../state/event-bus.js';
 
 // ==================== GF LEARNING DATA ====================
 
+/**
+ * Fetches GF (System 2) learning data from the sync API, populating the store with
+ * correction bins, EF correlation, and shadow leaderboard; falls back to an empty
+ * structure on failure and marks GF data as ready.
+ * @returns {Promise<void>}
+ */
 export async function loadGFLearningData() {
     // Default empty structure
     const emptyData = {
@@ -73,6 +79,13 @@ export async function loadGFLearningData() {
 // ==================== FORECAST PREDICTIONS ====================
 
 // Store 48h forecast predictions for accuracy tracking
+/**
+ * Posts the current display-horizon NWS-based forecast periods to the sync API for later
+ * accuracy validation, skipping when critical gauges are ice-affected, when throttled within
+ * the forecast prediction interval, or when no NWS-based forecasts qualify.
+ * @param {Array<Object>} periods - Forecast period objects (each with label, time, cfs, stage, source, isCurrent, isDisplayPeriod, and optional baseline CFS fields).
+ * @returns {Promise<void>}
+ */
 export async function storeForecastPredictions(periods) {
     // Don't store forecasts when critical gauges are ice-affected
     if (isCriticalGaugeIceAffected()) {
@@ -131,6 +144,11 @@ export async function storeForecastPredictions(periods) {
 // ==================== FORECAST ACCURACY ====================
 
 // Load forecast accuracy data from server
+/**
+ * Fetches forecast accuracy data from the sync API into the store and emits a
+ * 'forecast-accuracy:updated' event on success.
+ * @returns {Promise<void>}
+ */
 export async function loadForecastAccuracy() {
     try {
         const response = await fetch(SYNC_API + '?endpoint=forecast-accuracy');
@@ -146,6 +164,12 @@ export async function loadForecastAccuracy() {
 // ==================== ADMIN RESET ====================
 
 // Reset GF learning data (System 2) on server
+/**
+ * Prompts for confirmation and an admin PIN, then resets all server-side GF flow-bin
+ * corrections (System 2) via the sync-learning endpoint, reloading learning data and
+ * emitting 'learning:reset' on success.
+ * @returns {Promise<void>}
+ */
 export async function resetGFLearning() {
     if (!confirm("Reset all GF flow-bin corrections?\n\nThis clears System 2 (server-side) learning.\nGauge corrections (System 1) will be preserved.\n\nThis cannot be undone.")) return;
     const pin = prompt("Enter admin PIN to confirm reset:");
@@ -174,6 +198,12 @@ export async function resetGFLearning() {
 }
 
 // Reset only low-flow bins (ice cleanup, v24)
+/**
+ * Prompts for confirmation and an admin PIN, then resets only the low-flow correction bins
+ * (0-3k and 3k-6k cfs) plus accuracy stats via the sync-learning endpoint, reloading
+ * learning data and emitting 'learning:reset' on success.
+ * @returns {Promise<void>}
+ */
 export async function resetLowFlowBins() {
     if (!confirm("Reset low-flow bins AND accuracy stats?\n\nThis clears:\n• 0-3k and 3k-6k cfs correction bins\n• Validation count and accuracy %\n\nHigher flow bins (6k+) preserved.\nAccuracy will rebuild from fresh validations.\n\nUse this after winter ice conditions.")) return;
     const pin = prompt("Enter admin PIN to confirm reset:");

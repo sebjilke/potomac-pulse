@@ -30,6 +30,11 @@ import { emit } from '../state/event-bus.js';
 // ==================== CORE FUNCTIONS ====================
 
 // Validate USGS API response schema
+/**
+ * Validates that a parsed USGS IV API response has the expected schema (object with a value.timeSeries array, each series carrying siteCode and variableCode).
+ * @param {Object} json - The parsed JSON response from the USGS waterservices API.
+ * @returns {boolean} True if the response is structurally valid, false otherwise.
+ */
 export function validateUSGSResponse(json) {
     if (!json || typeof json !== 'object') {
         console.error('USGS validation: Response is not an object');
@@ -59,6 +64,12 @@ export function validateUSGSResponse(json) {
 }
 
 // Fetch with timeout wrapper (default 5 seconds)
+/**
+ * Performs a fetch that aborts and throws if the request exceeds the given timeout.
+ * @param {string} url - The URL to fetch.
+ * @param {number} [timeoutMs=5000] - Timeout in milliseconds before the request is aborted.
+ * @returns {Promise<Response>} The fetch Response if it completes before the timeout.
+ */
 export async function fetchWithTimeout(url, timeoutMs = 5000) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -78,6 +89,10 @@ export async function fetchWithTimeout(url, timeoutMs = 5000) {
 
 // ==================== DATA CACHING ====================
 
+/**
+ * Stores the USGS JSON in localStorage along with the current timestamp for later cache retrieval.
+ * @param {Object} json - The USGS response data to cache.
+ */
 export function saveToCache(json) {
     try {
         const cacheData = {
@@ -91,6 +106,10 @@ export function saveToCache(json) {
     }
 }
 
+/**
+ * Reads the cached USGS data from localStorage and reports its age and staleness.
+ * @returns {{data: Object, timestamp: number, age: number, stale: boolean}|null} The cached payload with metadata, or null if no cache exists or parsing fails.
+ */
 export function loadFromCache() {
     try {
         const cached = localStorage.getItem(CACHE_KEY);
@@ -114,6 +133,9 @@ export function loadFromCache() {
 
 // ==================== TRAVEL TIME CALCULATION ====================
 
+/**
+ * Computes flow-dependent travel times, arrival times, and multipliers for each gauge (except Little Falls) and writes them onto the shared `data` object.
+ */
 export function calcTravelTimes() {
     // Use Little Falls FLOW for multiplier (Searcy power law)
     const lfFlow = data[LF.id]?.q || MEDIAN_FLOW;
@@ -140,6 +162,10 @@ export function calcTravelTimes() {
 // ==================== DATA PROCESSING ====================
 
 // Process USGS JSON into the `data` object (no UI update)
+/**
+ * Parses USGS time series into the shared `data` object (discharge/stage per site, with ice-flag handling), backfills PoR history, fills missing gauges, and recomputes travel times.
+ * @param {Object} json - The validated USGS IV API response.
+ */
 export function processData(json) {
     setData({});
     if (!json?.value?.timeSeries) return;
@@ -205,6 +231,10 @@ export function processData(json) {
 }
 
 // Backfill PoR history from USGS time series data
+/**
+ * Backfills the Point-of-Rocks discharge history from a USGS time series, deduplicating into 10-minute buckets, pruning entries older than the max age, and persisting to localStorage.
+ * @param {Array<Object>} timeSeries - Array of USGS reading objects, each with `dateTime` and `value` fields.
+ */
 export function backfillPoRHistory(timeSeries) {
     if (!timeSeries?.length) return;
 
@@ -244,6 +274,9 @@ export function backfillPoRHistory(timeSeries) {
     }
 }
 
+/**
+ * Estimates missing per-gauge discharge values from the Little Falls flow scaled by drainage-area ratio, marking them as estimated; does not fabricate stage.
+ */
 export function fillMissingData() {
     // Get Little Falls and Point of Rocks as reference
     const lfQ = data[LF.id]?.q;
@@ -266,6 +299,10 @@ export function fillMissingData() {
 
 // ==================== FETCH CREEK DATA ====================
 
+/**
+ * Fetches discharge data for all configured creek run gauges from USGS, computing trend, runnable status, and hourly history, and writes results into the shared `creekData` object.
+ * @returns {Promise<void>} Resolves when the fetch and processing complete; failures are caught and logged.
+ */
 export async function fetchCreekData() {
     const sites = Object.keys(CREEK_RUNS).join(',');
     const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${sites}&parameterCd=00060&period=P1D&format=json`;
@@ -336,6 +373,10 @@ const PROXIES_LIST = [
     "https://corsproxy.io/?"
 ];
 
+/**
+ * Top-level data refresh: fetches USGS gauge data (direct, then proxies, then cache fallback) in parallel with Edwards Ferry, water temp, and creek data, processes it, updates status, emits render events, and kicks off the background NWS forecast fetch.
+ * @returns {Promise<void>} Resolves when the synchronous fetch/process pipeline completes (NWS forecast continues in the background).
+ */
 export async function fetchData() {
     if (isFetching) return;
     setIsFetching(true);
@@ -344,6 +385,10 @@ export async function fetchData() {
     const sites = Object.keys(GAUGES).join(",");
     const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${sites}&parameterCd=00060,00065&period=P7D&format=json`;
 
+    /**
+     * Attempts to fetch and validate USGS data directly, then via each CORS proxy, falling back to cached data if all network attempts fail; updates fetch time and data source accordingly.
+     * @returns {Promise<Object|null>} The validated USGS JSON (live or cached), or null if no data is available.
+     */
     async function fetchUSGS() {
         try {
             let r = await fetchWithTimeout(url, 10000);
@@ -426,6 +471,10 @@ export async function fetchData() {
 
 // ==================== STATUS & UI UTILITIES ====================
 
+/**
+ * Updates the status indicator dot, status text, refresh button state, and error banner to reflect the current connection/data state.
+ * @param {string} s - The status: "loading", "ok", "cached", "stale", or "error".
+ */
 export function setStatus(s) {
     const dot = document.getElementById("dot");
     const st = document.getElementById("status");
@@ -469,6 +518,10 @@ export function setStatus(s) {
     updateStalenessDisplay();
 }
 
+/**
+ * Displays the error banner with an optional message and schedules it to auto-dismiss after 10 seconds.
+ * @param {string} [msg] - The error message to show; if omitted, the existing banner text is kept.
+ */
 export function showErrorBanner(msg) {
     const b = document.getElementById('error-banner');
     if (msg) document.getElementById('error-banner-text').textContent = msg;
@@ -477,11 +530,17 @@ export function showErrorBanner(msg) {
     setErrorBannerTimeout(setTimeout(dismissErrorBanner, 10000));
 }
 
+/**
+ * Hides the error banner and clears any pending auto-dismiss timeout.
+ */
 export function dismissErrorBanner() {
     document.getElementById('error-banner').style.display = 'none';
     if (errorBannerTimeout) { clearTimeout(errorBannerTimeout); setErrorBannerTimeout(null); }
 }
 
+/**
+ * Updates the "last updated" UI element with a human-readable age (e.g. "just now", "5m ago") and a freshness CSS class based on time since the last successful fetch.
+ */
 export function updateStalenessDisplay() {
     const el = document.getElementById("lastUpdate");
     if (!el) return;
@@ -520,12 +579,22 @@ export function updateStalenessDisplay() {
 
 // ==================== FORMATTING UTILITIES ====================
 
+/**
+ * Formats a duration in hours as a compact human-readable string (minutes, hours, or days).
+ * @param {number} h - The duration in hours.
+ * @returns {string} The formatted duration (e.g. "45m", "12h", "2.5d").
+ */
 export function fmt(h) {
     if (h < 1) return Math.round(h*60) + "m";
     if (h < 48) return Math.round(h) + "h";
     return (h/24).toFixed(1) + "d";
 }
 
+/**
+ * Formats an arrival time, given hours from now, as a relative date-and-time string ("Today", "Tomorrow", or weekday plus a 12-hour clock time).
+ * @param {number} hrs - Hours from the current time until arrival.
+ * @returns {string} The formatted arrival string, or an empty string if hrs is falsy or non-positive.
+ */
 export function fmtArrival(hrs) {
     if (!hrs || hrs <= 0) return "";
     const arrival = new Date(Date.now() + hrs * 3600000);
@@ -547,6 +616,12 @@ export function fmtArrival(hrs) {
 
 // ==================== TREND DISPLAY ====================
 
+/**
+ * Derives the display icon, color, and optional magnitude string for an NWS trend object.
+ * @param {Object} trend - The trend object; must have `source === "NWS"` to produce output, with `direction` ("up"/"down"/other) and optional `rate`.
+ * @param {boolean} [showMagnitude=false] - Whether to include a percentage magnitude derived from `trend.rate`.
+ * @returns {{icon: string, color: string, magnitude: string}|null} The display data, or null if the trend is missing or not NWS-sourced.
+ */
 export function getTrendData(trend, showMagnitude = false) {
     if (!trend || trend.source !== "NWS") return null;
 
@@ -575,6 +650,12 @@ export function getTrendData(trend, showMagnitude = false) {
     return { icon, color, magnitude };
 }
 
+/**
+ * Renders an NWS trend's icon, magnitude, and color onto a DOM element, clearing it if the trend is not displayable.
+ * @param {HTMLElement} el - The target element to update.
+ * @param {Object} trend - The trend object passed through to getTrendData.
+ * @param {boolean} [showMagnitude=false] - Whether to include the percentage magnitude.
+ */
 export function applyTrendToElement(el, trend, showMagnitude = false) {
     if (!el) return;
     const tData = getTrendData(trend, showMagnitude);
@@ -588,6 +669,12 @@ export function applyTrendToElement(el, trend, showMagnitude = false) {
     el.style.fontWeight = "bold";
 }
 
+/**
+ * Builds an HTML snippet summarizing an NWS forecast trend's 24h and 48h discharge values, or an "n/a" snippet if no NWS trend is available.
+ * @param {Object} trend - The trend object; must have `source === "NWS"`, with optional `forecast24` and `forecast48` cfs values.
+ * @param {number} current - The current value (unused in output; present for call-site signature compatibility).
+ * @returns {string} An HTML string for the forecast tooltip/cell.
+ */
 export function getTrendText(trend, current) {
     if (!trend || trend.source !== "NWS") {
         return `<span style="color:var(--text-tertiary);">n/a</span>`;

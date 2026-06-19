@@ -12,6 +12,11 @@ import {
 
 // ==================== UPDATE GF LEARNING UI ====================
 
+/**
+ * Refreshes the GF learning validation status text on the GF and Learning tabs,
+ * then triggers updates to the health stats, bin-stats table, and validation chart.
+ * @returns {void}
+ */
 export function updateGFLearningUI() {
     if (!gfLearningData?.metadata) return;
 
@@ -56,6 +61,13 @@ export function updateGFLearningUI() {
 
 // ==================== HEALTH STATS ====================
 
+/**
+ * Renders the scheduled-function health stats (last run, consecutive/missed runs,
+ * pending count, and a status explanation) into the Learning tab, color-coded by threshold.
+ * @param {object} meta - GF learning metadata (lastPrediction, consecutiveRuns, missedRuns, etc.).
+ * @param {number} pendingCount - Number of pending (not-yet-validated) predictions.
+ * @returns {void}
+ */
 export function updateHealthStats(meta, pendingCount) {
     const lastRunEl = document.getElementById('healthLastRun');
     const consecutiveEl = document.getElementById('healthConsecutive');
@@ -106,6 +118,11 @@ export function updateHealthStats(meta, pendingCount) {
 
 // ==================== GF BIN STATS ====================
 
+/**
+ * Builds and renders the GF correction-bin statistics table (flow bins × rising/steady/falling
+ * observation counts, color-coded) plus a reset-info line, into the Learning tab container.
+ * @returns {void}
+ */
 export function updateGFBinStats() {
     const container = document.getElementById('gfBinStats');
     if (!container) return;
@@ -135,6 +152,11 @@ export function updateGFBinStats() {
 
     // Data rows
     const flowBins = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
+    /**
+     * Maps an observation count to a CSS color variable (green ≥5, amber >0, muted otherwise).
+     * @param {number} n - Observation count for a bin/state cell.
+     * @returns {string} CSS color variable string.
+     */
     const colorFor = n => n >= 5 ? 'var(--accent-green)' : n > 0 ? 'var(--accent-amber)' : 'var(--text-muted)';
 
     for (const bin of flowBins) {
@@ -173,6 +195,12 @@ export function updateGFBinStats() {
 
 // ==================== ADMIN DASHBOARD ====================
 
+/**
+ * Populates the admin dashboard with current gauge readings (LF, PoR, Monocacy, Goose,
+ * Edwards Ferry), the GF estimate, travel time, GF learning stats, ice-affected gauges,
+ * and the last fetch time. Reads from the global state store; no-ops if the dashboard is unrendered.
+ * @returns {void}
+ */
 export function updateAdminDashboard() {
     // Current gauge readings
     const lf = data["01646500"];
@@ -258,6 +286,11 @@ export function updateAdminDashboard() {
 
 // ==================== UPDATE LEARNING UI ====================
 
+/**
+ * Orchestrates the full Learning tab refresh: updates the admin dashboard, the shadow-model
+ * horse-race display, and the shadow leaderboard.
+ * @returns {void}
+ */
 export function updateLearningUI() {
     // Update admin dashboard
     updateAdminDashboard();
@@ -271,6 +304,12 @@ export function updateLearningUI() {
 
 // ==================== SHADOW MODEL UI ====================
 
+/**
+ * Renders the shadow-model horse-race panel: production reference, each shadow model's
+ * CFS/stage and delta vs production (LF Feedback, Online Regression, Kalman), and per-model
+ * diagnostics, then refreshes the leaderboard. No-ops if the Learning tab is locked.
+ * @returns {void}
+ */
 export function updateShadowModelUI() {
     // Only update if Learning tab is unlocked (elements exist in DOM)
     const prodEl = document.getElementById('shadow-prod-cfs');
@@ -285,6 +324,12 @@ export function updateShadowModelUI() {
     const prodCFS = gfEstimate?.cfs || 0;
 
     // Helper: format delta vs production
+    /**
+     * Formats a shadow model's CFS difference from the production estimate as a signed
+     * "cfs (pct%)" string, or '--' when either value is missing.
+     * @param {number} shadowCFS - The shadow model's estimated discharge in cfs.
+     * @returns {string} Signed delta string, e.g. "+1,200 cfs (+5.0%)", or '--'.
+     */
     function formatDelta(shadowCFS) {
         if (!shadowCFS || !prodCFS) return '--';
         const diff = shadowCFS - prodCFS;
@@ -338,6 +383,12 @@ export function updateShadowModelUI() {
 
 // ==================== SHADOW LEADERBOARD UI ====================
 
+/**
+ * Renders the shadow-model leaderboard: ranks models by mean absolute error percent
+ * (best first), shows medals, per-model error/count, the last-winner marker, and a
+ * last-scored footer. Shows an "awaiting" message when no validated rounds exist.
+ * @returns {void}
+ */
 export function updateShadowLeaderboardUI() {
     const container = document.getElementById('shadow-leaderboard');
     const header = document.getElementById('shadow-leaderboard-header');
@@ -403,6 +454,12 @@ export function updateShadowLeaderboardUI() {
 let _valChartData = null;
 let _valChartFetching = false;
 
+/**
+ * Fetches validation history (cached after first load) and draws an SVG line chart of
+ * predicted vs actual CFS over time with grid lines, axis labels, an accuracy summary,
+ * and interactive hover tooltips. No-ops if the chart elements are absent.
+ * @returns {Promise<void>} Resolves when the chart has been rendered (or skipped).
+ */
 async function renderValidationChart() {
     const svg = document.getElementById('valChartSvg');
     const summary = document.getElementById('valAccuracySummary');
@@ -492,6 +549,12 @@ async function renderValidationChart() {
     const hoverRect = document.getElementById('valChartHover');
     const tooltip = document.getElementById('valChartTooltip');
 
+    /**
+     * Shows the validation-chart tooltip for the reading nearest the pointer/touch x-position,
+     * populating time, predicted, actual, and signed error fields and positioning the tooltip.
+     * @param {MouseEvent|TouchEvent} e - The mousemove or touchmove event over the chart.
+     * @returns {void}
+     */
     function showValTooltip(e) {
         const rect = svg.getBoundingClientRect();
         const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
@@ -514,6 +577,10 @@ async function renderValidationChart() {
         tooltip.style.display = 'block';
     }
 
+    /**
+     * Hides the validation-chart hover tooltip.
+     * @returns {void}
+     */
     function hideValTooltip() {
         tooltip.style.display = 'none';
     }
@@ -526,6 +593,11 @@ async function renderValidationChart() {
 
 // ==================== RESET SHADOW MODELS ====================
 
+/**
+ * Prompts for confirmation, then resets all shadow-model learned state and results to
+ * defaults, clears the persisted state from localStorage, and refreshes the shadow UI.
+ * @returns {void}
+ */
 export function resetShadowModels() {
     if (!confirm('Reset all shadow models? Learned state (Kalman covariance, regression weights, LF feedback) will be lost.')) return;
     setShadowModelState({

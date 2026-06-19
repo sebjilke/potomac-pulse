@@ -11,6 +11,10 @@ const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
 let supabase = null;
 
+/**
+ * Lazily creates and returns the singleton Supabase client from env credentials.
+ * @returns {Object|null} The Supabase client, or null if URL/key env vars are unset.
+ */
 function getSupabase() {
     if (!supabase && supabaseUrl && supabaseKey) {
         supabase = createClient(supabaseUrl, supabaseKey);
@@ -22,6 +26,11 @@ function getSupabase() {
 
 const GF_FLOW_BINS = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
 
+/**
+ * Maps a flow value in cfs to its discrete Great Falls flow bin key.
+ * @param {number} cfs - Flow in cubic feet per second.
+ * @returns {string} The flow bin key (one of GF_FLOW_BINS).
+ */
 function getFlowBin(cfs) {
     if (cfs < 3000) return '0-3000';
     if (cfs < 6000) return '3000-6000';
@@ -37,6 +46,11 @@ function getFlowBin(cfs) {
 // likely indicates frazil ice affecting ADVM velocity measurement.
 // SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
 
+/**
+ * Estimates Little Falls flow (cfs) from gauge stage via the inverse piecewise-linear rating curve.
+ * @param {number} stage - Gauge stage in feet.
+ * @returns {number} Estimated flow in cubic feet per second (0 below the 2.40 ft floor).
+ */
 function estimateLFFlowFromStage(stage) {
     if (stage < 2.40) return 0;
     if (stage < 2.46) return ((stage - 2.40) / 0.06) * 600;
@@ -95,6 +109,11 @@ const EF_MODEL = {
 // Calibrated via Approach 5 horse race on 117,704 hourly obs (2011-2026).
 // SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
 
+/**
+ * Computes the logistic blend weight for the Edwards Ferry power-law estimate (0 below 1000 cfs, ramping to 0.40 max, midpoint 10k cfs).
+ * @param {number} estimatedFlow - Estimated flow in cfs.
+ * @returns {number} EF blend weight in [0, 0.40].
+ */
 function getEFWeight(estimatedFlow) {
     if (estimatedFlow < 1000) return 0.0;
     const W_MAX = 0.40;
@@ -106,6 +125,11 @@ function getEFWeight(estimatedFlow) {
 // --- Flow multiplier for travel time scaling ---
 // SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
 
+/**
+ * Computes the flow-dependent travel-time scaling multiplier (travel hours relative to median travel) for a given LF flow.
+ * @param {number} lfFlow - Little Falls flow in cfs (floored to 1000 internally).
+ * @returns {number} The travel-time multiplier (server returns the scalar only; the client copy returns an object).
+ */
 function getFlowMultiplier(lfFlow) {
     const flow = Math.max(lfFlow, 1000);
     const travelHrs = TRAVEL_COEF * Math.pow(flow, TRAVEL_EXP);
@@ -117,6 +141,12 @@ function getFlowMultiplier(lfFlow) {
 // (re-exported by src/estimation/great-falls.js). console.log intentionally dropped — the
 // server runs these up to 3× per cron inside the iteration loop. Rising rivers propagate
 // waves faster, so travel time is reduced (capped at 30%).
+/**
+ * Computes Point of Rocks → Great Falls travel time, reducing it (capped 30%) when the river is rising.
+ * @param {number} mult - Scalar flow-dependent travel multiplier (from getFlowMultiplier).
+ * @param {{flowState: string, ratePerHour: number}|null} [riseRate=null] - Optional rise-rate; reduction applies only when flowState is 'rising' and ratePerHour > 0.
+ * @returns {number} Travel time in hours.
+ */
 function getPoRtoGFTravelTime(mult, riseRate = null) {
     const baseTravelTime = TRAVEL_POR_GF_BASELINE * mult;
     if (riseRate && riseRate.flowState === 'rising' && riseRate.ratePerHour > 0) {
@@ -126,6 +156,12 @@ function getPoRtoGFTravelTime(mult, riseRate = null) {
     return baseTravelTime;
 }
 
+/**
+ * Computes Great Falls → Little Falls travel time, reducing it (capped 30%) when the river is rising.
+ * @param {number} mult - Scalar flow-dependent travel multiplier (from getFlowMultiplier).
+ * @param {{flowState: string, ratePerHour: number}|null} [riseRate=null] - Optional rise-rate; reduction applies only when flowState is 'rising' and ratePerHour > 0.
+ * @returns {number} Travel time in hours.
+ */
 function getGFtoLFTravelTime(mult, riseRate = null) {
     const baseTravelTime = TRAVEL_GF_LF_BASELINE * mult;
     if (riseRate && riseRate.flowState === 'rising' && riseRate.ratePerHour > 0) {
@@ -140,6 +176,11 @@ function getGFtoLFTravelTime(mult, riseRate = null) {
 // (medianCfs lines 15-20, selectHistoricReading lines 71-88). Server history is clean
 // USGS data, so the outlier filter is effectively a no-op here; ported so the server's
 // time-shift lookup matches the client's on identical input (C8, v36.4) + future-proofing.
+/**
+ * Computes the median cfs value over a set of reading entries.
+ * @param {Array<{cfs: number}>} entries - Reading entries (only the cfs field is used).
+ * @returns {number|null} The median cfs, or null if entries is empty/falsy.
+ */
 function medianCfs(entries) {
     if (!entries || entries.length === 0) return null;
     const vals = entries.map(e => e.cfs).sort((a, b) => a - b);
@@ -147,6 +188,16 @@ function medianCfs(entries) {
     return vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
 }
 
+/**
+ * Selects the historic reading closest to a target time, after a median-based outlier filter on candidates within the match window.
+ * @param {Array<{timestamp: number, cfs: number}>} history - Candidate readings (epoch ms + cfs).
+ * @param {number} targetTime - Target timestamp in epoch ms.
+ * @param {Object} [opts={}] - Tuning options.
+ * @param {number} [opts.matchMs=3600000] - Max time distance (ms) for a candidate to qualify.
+ * @param {number} [opts.outlierFrac=0.40] - Max fractional deviation from the median cfs to survive the filter.
+ * @param {number} [opts.minForFilter=3] - Min candidate count before the outlier filter is applied.
+ * @returns {{timestamp: number, cfs: number}|null} The closest qualifying reading, or null if none.
+ */
 function selectHistoricReading(history, targetTime, opts = {}) {
     const matchMs = opts.matchMs ?? 60 * 60 * 1000;
     const outlierFrac = opts.outlierFrac ?? 0.40;
@@ -170,6 +221,13 @@ function selectHistoricReading(history, targetTime, opts = {}) {
 // Threshold scales with flow: max(100 cfs, 2% of flow)
 // SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
 
+/**
+ * Classifies the flow trend ('rising' | 'falling' | 'steady') by comparing the current flow to the reading ~6h ago.
+ * Requires ≥8 history entries; the change must exceed max(100 cfs, 2% of current) to be non-steady.
+ * @param {Array<{timestamp: number, cfs: number}>} history - Chronological readings (epoch ms + cfs).
+ * @param {number} currentCFS - The current flow in cfs.
+ * @returns {string} 'rising', 'falling', or 'steady'.
+ */
 function getFlowState(history, currentCFS) {
     if (!history?.length || history.length < 8) return 'steady';
 
@@ -224,6 +282,11 @@ const DECAY_CAP = 0.50;
 // cron — clean by construction. Only the rising/falling/steady THRESHOLDS must
 // stay identical across the two (they do).
 
+/**
+ * Computes the Point of Rocks rise rate from server-side history (last entry vs. closest entry at/before 6h ago).
+ * @param {Array<{timestamp: number, cfs: number}>} history - Readings sorted ascending (oldest first); needs ≥4 entries.
+ * @returns {{ratePerHour: number, flowState: string}|null} Percent-change-per-hour and the flow state, or null if insufficient/invalid data.
+ */
 function getPoRRiseRateFromHistory(history) {
     if (!history || history.length < 4) return null;
     const sixHoursAgo = Date.now() - (6 * 60 * 60 * 1000);
@@ -246,11 +309,24 @@ function getPoRRiseRateFromHistory(history) {
 // has <5 observations, fall back through: same-bin pooled → adjacent-bin same-state → 0.
 // Linear blending eliminates discontinuity at the 5-obs threshold.
 
+/**
+ * Returns a correction bin's scalar correction value, preferring the EMA-smoothed mean over the raw mean.
+ * @param {Object} stateData - One (flowBin × flowState) bin's stats; may have {number} emaMeanError and/or {number} meanError.
+ * @returns {number} The EMA mean error if present, else the raw mean error, else 0.
+ */
 function getBinCorrection(stateData) {
     if (stateData.emaMeanError !== undefined) return stateData.emaMeanError;
     return stateData.meanError || 0;
 }
 
+/**
+ * Computes a hierarchical fallback correction when a (flowBin × flowState) bin has too few observations.
+ * Falls back through: same-bin count-weighted average of states with ≥5 obs → adjacent-bin same-state (or steady) with ≥5 obs → 0.
+ * @param {Object} correctionBins - Map of flowBin → { rising, falling, steady } stats objects.
+ * @param {string} flowBin - The target flow bin key (e.g. '3000-6000').
+ * @param {string} flowState - The flow state ('rising' | 'falling' | 'steady').
+ * @returns {number} The fallback correction value, or 0 if none qualifies.
+ */
 function getFallbackCorrection(correctionBins, flowBin, flowState) {
     const bin = correctionBins[flowBin];
     if (bin) {
@@ -283,6 +359,14 @@ function getFallbackCorrection(correctionBins, flowBin, flowState) {
 // Blends the bin's own EMA with the hierarchical fallback while the bin has <5 obs,
 // crossing smoothly to the bin value at the 5-obs threshold. Pure: correctionBins is
 // passed in (no globals), so the client mirror in src/model/shared-model.js is byte-identical.
+/**
+ * Pure hierarchical correction lookup for a (flowBin, flowState); blends the bin's own EMA with the
+ * hierarchical fallback while the bin has <5 obs, crossing smoothly to the bin value at 5 obs.
+ * @param {Object|null} correctionBins - Map of flowBin → { rising, falling, steady } stats; returns 0 if falsy.
+ * @param {string} flowBin - The target flow bin key (e.g. '3000-6000').
+ * @param {string} flowState - The flow state ('rising' | 'falling' | 'steady').
+ * @returns {number} The blended correction value.
+ */
 function getGFCorrection(correctionBins, flowBin, flowState) {
     if (!correctionBins) return 0;
 
@@ -311,6 +395,14 @@ const CORR_SMOOTH_BOUNDARIES = [
     { B: 6000,  below: '3000-6000',  above: '6000-12000' },
     { B: 12000, below: '6000-12000', above: '12000-25000' },
 ];
+/**
+ * Flow-continuous correction lookup: ramps linearly (in log flow) between adjacent bins' corrections within
+ * a ±CORR_SMOOTH_BAND band around the low/mid boundaries (3k/6k/12k); away from a boundary returns the exact binned value.
+ * @param {Object|null} correctionBins - Map of flowBin → { rising, falling, steady } stats; returns 0 if falsy.
+ * @param {number} flowCFS - Flow in cfs (floored to 1 internally for the log).
+ * @param {string} flowState - The flow state ('rising' | 'falling' | 'steady').
+ * @returns {number} The flow-continuous correction value.
+ */
 function getGFCorrectionInterpolated(correctionBins, flowCFS, flowState) {
     if (!correctionBins) return 0;
     const f = Math.max(flowCFS, 1);
@@ -332,6 +424,12 @@ function getGFCorrectionInterpolated(correctionBins, flowCFS, flowState) {
 // 'gf_correction_bin'). Seeds every (bin × state) empty, then overlays matching rows.
 // Skips stage_* keys (a separate rating-curve series) explicitly. Shared by the cron
 // (scheduled-update.js) and the API read path (sync-learning.js) so both build bins identically.
+/**
+ * Assembles the 18-bin (6 flow bins × 3 states) correction structure from raw DB rows, seeding every
+ * (bin × state) empty and overlaying matching rows; skips stage_* keys (a separate rating-curve series).
+ * @param {Array<Object>} rows - DB rows, each with {string} gauge_id ('<flowBin>_<flowState>') and {Object} data; non-array yields empty bins.
+ * @returns {Object} Map of flowBin → { rising, falling, steady } stats objects.
+ */
 function buildCorrectionBins(rows) {
     const correctionBins = {};
     GF_FLOW_BINS.forEach(bin => {
@@ -359,6 +457,16 @@ function buildCorrectionBins(rows) {
 //   correctedFinal = rawFinalUnclipped − correction, then a display-only 120%-LF ceiling guard.
 // The correction is looked up off the bin of the UNCLIPPED raw final, which is also the bin
 // the EMA learns into — so apply-bin == learn-bin by construction. Pure (no rounding; callers round).
+/**
+ * Turns a raw final estimate into the corrected/displayed estimate: subtracts the flow-continuous correction,
+ * then applies a display-only 120%-of-LF ceiling guard. The correction is looked up off the unclipped raw's bin (== the learn-bin).
+ * @param {Object} params - Destructured input.
+ * @param {number} params.rawFinalUnclipped - Raw final GF estimate in cfs (also the learn-bin source).
+ * @param {number} params.lfCFS - Observed Little Falls flow in cfs; ceiling applied only when > 0.
+ * @param {Object|null} params.correctionBins - Map of flowBin → { rising, falling, steady } stats.
+ * @param {string} params.flowState - The flow state ('rising' | 'falling' | 'steady').
+ * @returns {{flowBin: string, correction: number, correctedFinalUnclipped: number, correctedFinal: number, ceilingApplied: boolean}} Correction telemetry and the corrected estimate.
+ */
 function applyGFCorrection({ rawFinalUnclipped, lfCFS, correctionBins, flowState }) {
     const flowBin = getFlowBin(rawFinalUnclipped);   // still the discrete learn-bin (telemetry + CI lookup)
     const correction = getGFCorrectionInterpolated(correctionBins, rawFinalUnclipped, flowState);  // C45 v37.0: continuous in flow
@@ -391,6 +499,14 @@ function applyGFCorrection({ rawFinalUnclipped, lfCFS, correctionBins, flowState
 //    original, because a fresh bin's seed may or may not carry an `emaMeanError` key.
 //  - count===1 seeds emaMeanError = learningError (the EMA's first value), matching the original.
 // Mutates `binData` and returns { learningError, clamped, maxDelta } for the caller to log.
+/**
+ * In-place EMA update of one correction bin from a single raw residual; soft-flagged residuals are clamped
+ * to ±2σ around the EMA center once the bin has ≥10 obs. Mutates binData (count, sums, meanError, emaMeanError).
+ * @param {Object} binData - The bin's mutable stats { count, sumError, sumErrorSq, meanError, emaMeanError? }.
+ * @param {number} errorCFS - The raw residual (rawFinalCFS − actualLF) in cfs.
+ * @param {boolean} isSoftFlagged - Whether this observation is soft-flagged (model disagreement); enables ±2σ clamping.
+ * @returns {{learningError: number, clamped: boolean, maxDelta: number|null}} The value actually learned, whether it was clamped, and the clamp half-width (null when not applied).
+ */
 function updateCorrectionBin(binData, errorCFS, isSoftFlagged) {
     binData.count += 1;
     binData.sumError += errorCFS;
@@ -430,6 +546,11 @@ const TRIB_FALLBACK = {
 // --- LF stage from flow (inverse rating curve) ---
 // Based on USGS field measurements at Little Falls (01646500), 2015-2025
 // SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
+/**
+ * Estimates Little Falls gauge stage (feet) from flow via the piecewise-linear rating curve.
+ * @param {number} cfs - Flow in cubic feet per second.
+ * @returns {number} Estimated stage in feet.
+ */
 function estimateLFStage(cfs) {
     if (cfs < 600) return 2.40 + (cfs / 600) * 0.06;
     if (cfs < 1300) return 2.46 + ((cfs - 600) / 700) * 0.23;
@@ -462,6 +583,13 @@ const VALIDATION_MAX_DELAY_MS = 2.5 * 60 * 60 * 1000;
 // or unparseable. An Invalid Date is truthy and `now - InvalidDate` is NaN, so the
 // old `!validationDue || (now - validationDue) > MAX` guard treated a bad-date row
 // as still-in-window forever — deadlocking the single pending slot (C12).
+/**
+ * Decides whether an existing pending prediction may be overwritten by a new one — true if it has missed
+ * its validation window or its validationDue is missing/unparseable.
+ * @param {Object} existingData - The existing pending row; reads its {string} validationDue (ISO date).
+ * @param {number} nowMs - Current time in epoch ms.
+ * @returns {boolean} True if the prediction is replaceable.
+ */
 function isExistingPredictionReplaceable(existingData, nowMs) {
     const dueMs = Date.parse(existingData?.validationDue);
     return isNaN(dueMs) || (nowMs - dueMs) > VALIDATION_MAX_DELAY_MS;

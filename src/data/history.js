@@ -17,6 +17,10 @@ import { emit } from '../state/event-bus.js';
 
 // ==================== PoR HISTORY MANAGEMENT ====================
 
+/**
+ * Loads PoR (Point of Rocks) discharge history from localStorage, prunes entries older than the max age, updates the store, then triggers an async fetch of server-side history.
+ * @returns {void}
+ */
 export function loadPoRHistory() {
     try {
         const stored = localStorage.getItem(POR_HISTORY_KEY);
@@ -35,6 +39,10 @@ export function loadPoRHistory() {
     fetchServerPoRHistory();
 }
 
+/**
+ * Fetches authoritative server PoR history, merging new readings and self-healing drifted local values within a dedup window, then persists and emits a healed event when GF re-estimation is warranted.
+ * @returns {Promise<void>}
+ */
 export async function fetchServerPoRHistory() {
     try {
         const response = await fetch(SYNC_API + '?endpoint=por-history');
@@ -95,6 +103,10 @@ export async function fetchServerPoRHistory() {
     }
 }
 
+/**
+ * Persists the current PoR history array to localStorage as JSON.
+ * @returns {void}
+ */
 export function savePoRHistory() {
     try {
         localStorage.setItem(POR_HISTORY_KEY, JSON.stringify(porHistory));
@@ -103,6 +115,12 @@ export function savePoRHistory() {
     }
 }
 
+/**
+ * Records a new PoR reading, rejecting physically-impossible values, rate-limiting to one entry per ~10 min (replacing the recent slot), then sorting, pruning, and persisting the history.
+ * @param {number} cfs - Discharge in cubic feet per second.
+ * @param {number|null|undefined} stage - Gauge stage height; stored as null when falsy.
+ * @returns {void}
+ */
 export function recordPoRReading(cfs, stage) {
     // Reject ONLY physically-impossible values (mirrors backfillPoRHistory in
     // fetch.js). Plausible river flows are never dropped — robustness against
@@ -141,6 +159,10 @@ export function recordPoRReading(cfs, stage) {
 
 // ==================== GF ESTIMATE HISTORY MANAGEMENT ====================
 
+/**
+ * Loads GF (Great Falls) estimate history from localStorage, prunes entries older than the max age, updates the store, then triggers an async fetch of server-side history.
+ * @returns {void}
+ */
 export function loadGFHistory() {
     try {
         const stored = localStorage.getItem(GF_HISTORY_KEY);
@@ -159,6 +181,10 @@ export function loadGFHistory() {
     fetchServerGFHistory();
 }
 
+/**
+ * Fetches authoritative server GF history, merging new readings and self-healing drifted local values within a dedup window, then persists and emits an updated event when a GF estimate exists.
+ * @returns {Promise<void>}
+ */
 export async function fetchServerGFHistory() {
     try {
         const response = await fetch(SYNC_API + '?endpoint=gf-history');
@@ -213,6 +239,10 @@ export async function fetchServerGFHistory() {
     }
 }
 
+/**
+ * Persists the current GF history array to localStorage as JSON.
+ * @returns {void}
+ */
 export function saveGFHistory() {
     try {
         localStorage.setItem(GF_HISTORY_KEY, JSON.stringify(gfHistory));
@@ -221,6 +251,12 @@ export function saveGFHistory() {
     }
 }
 
+/**
+ * Records a new GF estimate, rejecting physically-impossible values, rate-limiting to one entry per ~10 min (replacing the recent slot), then sorting, pruning, and persisting the history.
+ * @param {number} cfs - Estimated discharge in cubic feet per second.
+ * @param {number|null|undefined} stage - Gauge stage height; stored as null when falsy.
+ * @returns {void}
+ */
 export function recordGFEstimate(cfs, stage) {
     if (!cfs || cfs <= 0 || cfs > 500000) return;
     const now = Date.now();

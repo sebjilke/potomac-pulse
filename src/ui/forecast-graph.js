@@ -9,6 +9,11 @@ import {
 } from '../state/store.js';
 
 // Local copy of formatForecastTime to avoid circular dependency with great-falls-ui.js
+/**
+ * Formats a Date as a short weekday + 12-hour clock label (e.g. "Tue 3pm").
+ * @param {Date} date - The date/time to format.
+ * @returns {string} The formatted "Day Hour(am|pm)" label.
+ */
 function formatForecastTime(date) {
     const hours = date.getHours();
     const ampm = hours >= 12 ? 'pm' : 'am';
@@ -18,9 +23,25 @@ function formatForecastTime(date) {
 }
 
 // Accessor functions for external modules (great-falls-ui.js showGraphMarker)
+/**
+ * Returns the stored forecast graph data points (history + forecast).
+ * @returns {Array<Object>} The current forecast graph data array from the store.
+ */
 export function getForecastGraphData() { return forecastGraphData; }
+/**
+ * Returns the stored graph scale functions and layout metrics.
+ * @returns {Object} The current graph scales object ({ xScale, yScale, padding, graphHeight }) from the store.
+ */
 export function getGraphScales() { return graphScales; }
 
+/**
+ * Renders the 48h Little Falls forecast graph (SVG): interpolates forecast periods to 2-hour intervals, prepends history points, draws the history/forecast lines, area fills, axes, NOW divider, and wires up hover/touch tooltip interactions.
+ * @param {Array<Object>} periods - Forecast period objects ({ isCurrent, label, cfs, stage, ... }) used to build the interpolated forecast curve.
+ * @param {number} currentCFS - Current discharge in cfs, used as a fallback stage estimate when no period brackets an hour.
+ * @param {boolean} hasNWSForecast - Whether an NWS forecast is available (currently unused in the body).
+ * @param {Array<Object>} [historyPoints=[]] - Precomputed history points ({ hrs, time, cfs, stage }) prepended to the curve.
+ * @returns {void}
+ */
 export function renderForecastGraph(periods, currentCFS, hasNWSForecast, historyPoints = []) {
     const svg = document.getElementById('gf-forecast-graph');
     if (!svg) return;
@@ -99,7 +120,17 @@ export function renderForecastGraph(periods, currentCFS, hasNWSForecast, history
     const bottom = padding.top + graphHeight;
 
     // Scale functions — domain [xMin, xMax] → [padding.left, padding.left + graphWidth]
+    /**
+     * Maps an hours-from-now value to an SVG x-coordinate.
+     * @param {number} hrs - Hours relative to now (negative = history).
+     * @returns {number} The x pixel coordinate.
+     */
     const xScale = (hrs) => padding.left + ((hrs - xMin) / xRange) * graphWidth;
+    /**
+     * Maps a stage value (ft) to an SVG y-coordinate (inverted, higher stage = smaller y).
+     * @param {number} stage - The river stage in feet.
+     * @returns {number} The y pixel coordinate.
+     */
     const yScale = (stage) => padding.top + (1 - (stage - minStage) / stageRange) * graphHeight;
 
     // Store scales for external marker positioning
@@ -227,6 +258,11 @@ export function renderForecastGraph(periods, currentCFS, hasNWSForecast, history
     const hoverRect = document.getElementById('gf-graph-hover');
     const tooltip = document.getElementById('gf-graph-tooltip');
 
+    /**
+     * Positions and shows the hover tooltip for the closest data point to the pointer/touch x-position.
+     * @param {MouseEvent|TouchEvent} e - The mousemove or touchmove event over the graph hover area.
+     * @returns {void}
+     */
     function showTooltip(e) {
         const rect = svg.getBoundingClientRect();
         const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
@@ -253,6 +289,10 @@ export function renderForecastGraph(periods, currentCFS, hasNWSForecast, history
         tooltip.style.display = 'block';
     }
 
+    /**
+     * Hides the hover tooltip.
+     * @returns {void}
+     */
     function hideTooltip() {
         tooltip.style.display = 'none';
     }

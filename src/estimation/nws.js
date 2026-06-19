@@ -6,6 +6,12 @@ import { data } from '../state/store.js';
 import { fetchWithTimeout } from '../data/fetch.js';
 
 // Fetch a single gauge's NWS forecast (tries multiple endpoints)
+/**
+ * Fetches one gauge's NWS stageflow forecast, trying multiple endpoint URL variants until one parses.
+ * @param {string} usgsId - The USGS site identifier for the gauge.
+ * @param {string} nwsLid - The NWS location identifier (LID) for the gauge.
+ * @returns {Promise<{usgsId: string, forecast: object}|null>} The gauge id paired with the parsed forecast, or null if no endpoint yields a valid forecast.
+ */
 export async function fetchSingleNWSForecast(usgsId, nwsLid) {
     // Try forecast-only endpoint first (12 points, fast) before full stageflow (500+ points, slow)
     const endpoints = [
@@ -34,6 +40,11 @@ export async function fetchSingleNWSForecast(usgsId, nwsLid) {
     return null;  // No forecast found for this gauge
 }
 
+/**
+ * Fetches NWS forecasts and flood categories for all gauges in NWS_LIDS in parallel and applies them to the store.
+ * Mutates data[usgsId] with floodCategory, forecast, and a derived trend (direction/rate) where forecast data exists.
+ * @returns {Promise<void>} Resolves when all forecasts and categories have been fetched and applied.
+ */
 export async function fetchNWSForecasts() {
     console.log("=== Fetching NWS forecasts (parallel) ===");
 
@@ -85,6 +96,12 @@ export async function fetchNWSForecasts() {
 }
 
 // Fetch current flood category for a single gauge
+/**
+ * Fetches the current observed flood category for a single gauge from the NWS gauge endpoint.
+ * @param {string} usgsId - The USGS site identifier for the gauge.
+ * @param {string} nwsLid - The NWS location identifier (LID) for the gauge.
+ * @returns {Promise<{usgsId: string, floodCategory: string}|null>} The gauge id paired with its flood category (defaults to 'no_flooding'), or null on fetch failure.
+ */
 async function fetchFloodCategory(usgsId, nwsLid) {
     try {
         const response = await fetchWithTimeout(
@@ -97,6 +114,15 @@ async function fetchFloodCategory(usgsId, nwsLid) {
     } catch { return null; }
 }
 
+/**
+ * Parses a raw NWS API response into 24h and 48h discharge forecasts, converting kcfs to cfs when needed.
+ * Scans forecast points for values near 24h/48h ahead, widening the time windows if exact matches are not found.
+ * @param {object} json - The raw NWS API JSON response.
+ * @param {string} usgsId - The USGS site identifier (used for logging).
+ * @param {string} nwsLid - The NWS location identifier (used for logging).
+ * @returns {{forecast24: (number|null), forecast48: (number|null), time24: (number|null), time48: (number|null), source: string, data: Array<object>}|null}
+ *   Forecast object (forecast24/forecast48 in cfs, time24/time48 as epoch ms), or null if no valid forecast data is found or on parse error.
+ */
 export function parseNWSForecast(json, usgsId, nwsLid) {
     try {
         console.log(`=== Parsing NWS for ${nwsLid} (${usgsId}) ===`);

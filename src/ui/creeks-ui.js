@@ -6,6 +6,12 @@ import { creekData } from '../state/store.js';
 
 // ==================== BUILD CREEKS ====================
 
+/**
+ * Builds and renders the creek run cards into #creeks-list: one collapsible card per CREEK_RUNS entry
+ * (name, optional micro-run tag, CFS, trend, class/last-ran/USGS meta, optional American Whitewater link,
+ * status, and a chart container). Attaches click and Enter/Space keydown listeners that toggle each card's chart.
+ * @returns {void}
+ */
 export function buildCreeks() {
     let html = '';
     for (const [id, c] of Object.entries(CREEK_RUNS)) {
@@ -45,6 +51,12 @@ export function buildCreeks() {
 
 // ==================== TOGGLE CHART ====================
 
+/**
+ * Toggles a creek card's expanded chart. Collapses all creek charts/cards first; if the target was
+ * closed, expands it (sets `expanded` class and aria-expanded) and renders its chart via renderCreekChart.
+ * @param {string} id - USGS gauge id of the creek card to toggle.
+ * @returns {void}
+ */
 function toggleCreekChart(id) {
     const chartEl = document.getElementById(`creek-chart-${id}`);
     const card = document.getElementById(`creek-${id}`);
@@ -70,6 +82,15 @@ function toggleCreekChart(id) {
 
 // ==================== RENDER CREEK CHART ====================
 
+/**
+ * Renders an inline SVG sparkline of the creek's last-24h flow history into the given element: a
+ * gradient-filled area + line (green when running, muted otherwise), round-CFS gridlines, a dashed
+ * runnable-threshold line and label, the current-value dot, and 24h-ago/12h-ago/Now x-axis labels.
+ * Shows a placeholder message instead if there is no data or fewer than two history points.
+ * @param {string} id - USGS gauge id, used to look up `creekData[id]` and CREEK_RUNS[id].
+ * @param {HTMLElement} el - Container element whose innerHTML is replaced with the chart SVG.
+ * @returns {void}
+ */
 function renderCreekChart(id, el) {
     const d = creekData[id];
     const c = CREEK_RUNS[id];
@@ -197,6 +218,13 @@ function renderCreekChart(id, el) {
 
 // ==================== UPDATE CREEKS UI ====================
 
+/**
+ * Refreshes all creek cards from the `creekData` store: per card updates the dot color, CFS, trend arrow,
+ * status text, running border glow, and "last ran" label (from localStorage), or shows a no-data state.
+ * Re-renders any expanded chart, reorders cards (running first by CFS descending), updates the master
+ * #creeks-status banner with running count / last activity, and toggles the creeks tab's has-running dot.
+ * @returns {void}
+ */
 export function updateCreeksUI() {
     const entries = Object.entries(CREEK_RUNS);
     let runningCount = 0;
