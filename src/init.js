@@ -9,7 +9,7 @@ import { fetchData, dismissErrorBanner } from './data/fetch.js';
 import { initMap, toggleMap } from './ui/map.js';
 import { buildBranches, updateUI } from './ui/gauges-ui.js';
 import { buildCreeks, updateCreeksUI } from './ui/creeks-ui.js';
-import { updateLearningUI, updateGFLearningUI, updateGFBinStats, resetShadowModels } from './ui/learning-ui.js';
+import { updateLearningUI, updateGFLearningUI, updateGFBinStats, resetShadowModels, downloadLearningBackup } from './ui/learning-ui.js';
 import { initTabs } from './ui/tabs.js';
 import { initAuth } from './ui/auth.js';
 import { initAbout } from './ui/about.js';
@@ -60,6 +60,7 @@ export async function init() {
         bindButton('resetGFLearningBtn', resetGFLearning);
         bindButton('resetLowFlowBinsBtn', resetLowFlowBins);
         bindButton('resetShadowModelsBtn', resetShadowModels);
+        bindButton('downloadBackupBtn', downloadLearningBackup);
         bindButton('lockLearningBtn', lockLearning);
 
         // Load PoR history for Great Falls time-shifting

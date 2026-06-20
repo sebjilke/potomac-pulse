@@ -1,7 +1,7 @@
 // Potomac Pulse — Learning UI (admin dashboard, GF learning, shadow models, health)
 // Extracted from index.html inline script
 
-import { GAUGES, SHADOW_STATE_KEY } from '../model/constants.js';
+import { GAUGES, SHADOW_STATE_KEY, SYNC_API } from '../model/constants.js';
 import {
     data,
     gfLearningData, gfEstimate,
@@ -613,4 +613,53 @@ export function resetShadowModels() {
     localStorage.removeItem(SHADOW_STATE_KEY);
     updateShadowModelUI();
     console.log('🏇 Shadow models reset');
+}
+
+// ==================== BACKUP EXPORT (v37.6) ====================
+
+/**
+ * Fetches the current server-side learning state fresh (GF correction bins + metadata + EF correlation +
+ * shadow leaderboard via the `gf` endpoint, plus forecast accuracy) and triggers a browser download of it
+ * as a timestamped JSON backup. Read-only — does not modify any learning data on the server.
+ * @returns {Promise<void>}
+ */
+export async function downloadLearningBackup() {
+    const btn = document.getElementById('downloadBackupBtn');
+    const label = btn ? btn.textContent : null;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Exporting...'; }
+    try {
+        // Fetch fresh so the backup reflects current server state, not page-load state.
+        const [gfRes, faRes] = await Promise.all([
+            fetch(SYNC_API + '?endpoint=gf'),
+            fetch(SYNC_API + '?endpoint=forecast-accuracy'),
+        ]);
+        if (!gfRes.ok) throw new Error(`GF endpoint returned ${gfRes.status}`);
+        const gf = await gfRes.json();
+        const forecastAccuracy = faRes.ok ? await faRes.json() : null;
+
+        const version = (document.title.match(/v[\d.]+/) || ['unknown'])[0];
+        const payload = {
+            app: 'Potomac Pulse',
+            kind: 'learning-backup',
+            version,
+            exportedAt: new Date().toISOString(),
+            endpoints: { gf, forecastAccuracy },
+        };
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `potomac-pulse-learning-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        console.log('💾 Learning backup exported');
+    } catch (e) {
+        console.error('Backup export failed:', e);
+        alert('Backup export failed: ' + (e.message || e));
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = label; }
+    }
 }

@@ -59,7 +59,7 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 | # | Item | Effort | Notes |
 |---|------|--------|-------|
 | 14 | ⏸️ **Multi-pending validation pipeline (Option B)** | — | **NOT PURSUING** (decided 2026-06-19, backtest-gated). Dual-arm prequential study (`multipending_gate.mjs`, blind Py+R, 3rd-agent audit; data integrity confirmed) was a **QUALIFIED PASS but rejected on cost-benefit**: multi-pending helps only the rare high-flow flood tail (25-50k & 50k+ rising, CI-significant), the **aggregate effect is not significant** (pooled CI straddles 0), it **mildly worsens all 7 everyday low/mid cells**, the targeted 12-25k-rising cell is a wash, and the edge **halves out-of-sample** (over-fit). Too thin to justify the riskiest implementation in the backlog (MAJOR live-loop change + test-hardening `validatePendingPredictions`). Re-open only to study the *responsiveness* benefit (out of scope here), not more correction-quality backtesting. Findings: `analysis/multipending-learning-findings-2026-06-19.md`. |
-| 15 | **Backup export function** | ~2h | Export correction bins / learning data as JSON. |
+| 15 | **Backup export function** | done | ✅ **v37.6** — PIN-gated "📥 Download Backup (JSON)" button in the Learning tab; `downloadLearningBackup()` fetches the live `gf` learning state + forecast accuracy fresh and downloads a timestamped JSON. Additive, read-only (no model/estimate/learning change). Build green, 645 tests. ⚠️ in-browser verification pending. |
 | 16 | **Admin monitoring dashboard** | ~4h | Health metrics, validation history. |
 | 17 | **Audit logging** | ~2h | Track admin actions (bin resets, manual overrides). |
 | 18 | **Log validation failures** | ~2h | Store failed validations for post-hoc analysis. |

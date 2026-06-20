@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v37.5</title>
+    <title>Potomac Pulse v37.6</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -634,6 +634,9 @@
                             <button class="learn-btn" id="resetShadowModelsBtn" style="background:var(--btn-purple);margin-top:5px;">🏇 Reset All Shadow Models</button>
                             <p style="font-size:0.45rem;color:var(--text-muted);margin-top:5px;">Clears all shadow model learned state. Models restart from scratch.</p>
                         </div>
+
+                        <button class="learn-btn" id="downloadBackupBtn" style="background:var(--btn-info);margin-top:10px;">📥 Download Backup (JSON)</button>
+                        <p style="font-size:0.45rem;color:var(--text-muted);margin-top:5px;">Exports current GF correction bins + learning metadata + forecast accuracy as a JSON file. Read-only — changes nothing.</p>
 
                         <button class="learn-btn" id="lockLearningBtn" style="background:var(--text-faint);margin-top:10px;">🔒 Lock Section</button>
                     </div>
