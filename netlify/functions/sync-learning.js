@@ -292,6 +292,13 @@ exports.handler = async (event, context) => {
             }
         }
 
+        // Audit log endpoint — recent admin actions (resets), newest-first (v37.8 #17)
+        if (endpoint === 'audit-log') {
+            if (event.httpMethod === 'GET') {
+                return await loadAuditLog(client);
+            }
+        }
+
         // System-1 (gauge-learning) sync was retired in v37.1. All live traffic uses a named
         // `endpoint` (gf, forecast-accuracy, validation-history, gf-history, por-history), each
         // handled above. A request with no recognized endpoint is no longer a valid route.
@@ -601,6 +608,7 @@ async function saveGFLearningData(client, data) {
 
             console.log(`🧊 Low-flow bins reset (ice cleanup): ${deletedCount} bins deleted, metadata reset`);
             result = { success: true, action: 'resetLowFlowBins', deletedCount, binsReset: lowFlowBins, metadataReset: true };
+            await logAdminAction(client, 'resetLowFlowBins', { deletedCount, binsReset: lowFlowBins });
         }
 
         // Action: Reset all GF learning data (admin only, requires PIN)
@@ -650,7 +658,7 @@ async function saveGFLearningData(client, data) {
                 consecutiveRuns: oldMeta.consecutiveRuns,
                 missedRuns: oldMeta.missedRuns,
                 resetAt: new Date().toISOString(),
-                resetReason: 'flow_state_window_fix_v35.0'
+                resetReason: 'manual_admin_reset'
             };
 
             await client.from('potomac_observations').upsert({
@@ -661,6 +669,7 @@ async function saveGFLearningData(client, data) {
 
             console.log('🔄 GF Learning data reset');
             result = { success: true, action: 'resetGFLearning', message: 'All GF learning data cleared' };
+            await logAdminAction(client, 'resetGFLearning', { cleared: 'correction bins + pending + shadow leaderboard + learning stats' });
         }
 
         // Action: Reset forecast accuracy data (admin only, requires PIN)
@@ -687,6 +696,7 @@ async function saveGFLearningData(client, data) {
                 message: 'Forecast accuracy data cleared',
                 errors: { metaErr: !!metaErr, pendingErr: !!pendingErr }
             };
+            await logAdminAction(client, 'resetForecastAccuracy', { cleared: 'forecast metadata + pending' });
         }
 
         return {
@@ -752,6 +762,59 @@ async function loadForecastAccuracy(client) {
             statusCode: 500,
             headers,
             body: JSON.stringify({ error: 'Failed to load forecast accuracy' })
+        };
+    }
+}
+
+// ==================== ADMIN AUDIT LOG (v37.8 #17) ====================
+
+/**
+ * Append-only audit record of a PIN-gated admin action. Inserts one `audit_log` row.
+ * NON-FATAL: a failed insert is swallowed (logged) so it can never break or 500 the action it records.
+ * @param {Object} client - Supabase client.
+ * @param {string} action - The admin action name (e.g. 'resetGFLearning').
+ * @param {Object|null} [details] - Optional structured details (e.g. {deletedCount}).
+ * @returns {Promise<void>}
+ */
+async function logAdminAction(client, action, details) {
+    try {
+        // Append-only: unique gauge_id per entry respects the (observation_type, gauge_id) key.
+        // Growth is negligible (manual resets are rare); pruning deferred. The GET caps the READ at 50.
+        await client.from('potomac_observations').insert({
+            observation_type: 'audit_log',
+            gauge_id: `${Date.now()}_${action}`,
+            data: { action, at: new Date().toISOString(), details: details || null }
+        });
+    } catch (e) {
+        console.warn('Audit log write failed (non-fatal):', e?.message || e);
+    }
+}
+
+/**
+ * Loads the 50 most-recent admin-action audit entries for the GET 'audit-log' endpoint (newest first).
+ * @param {Object} client - Supabase client.
+ * @returns {Promise<{statusCode: number, headers: Object, body: string}>} HTTP response with `{ entries }`, or a 500 on failure.
+ */
+async function loadAuditLog(client) {
+    try {
+        const { data: rows, error } = await client
+            .from('potomac_observations')
+            .select('data')
+            .eq('observation_type', 'audit_log')
+            .order('created_at', { ascending: false })
+            .limit(50);
+        if (error) throw error;
+        return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ entries: (rows || []).map(r => r.data) })
+        };
+    } catch (error) {
+        console.error('Load audit log error:', error);
+        return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to load audit log' })
         };
     }
 }
@@ -868,4 +931,4 @@ async function loadPoRHistory(client) {
 }
 
 // Test-only exports (mirrors the convention in scheduled-update.js)
-exports._test = { buildForecastRows, validateGFWritePayload, loadGFLearningData };
+exports._test = { buildForecastRows, validateGFWritePayload, loadGFLearningData, logAdminAction, loadAuditLog, saveGFLearningData };

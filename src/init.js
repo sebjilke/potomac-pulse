@@ -9,7 +9,7 @@ import { fetchData, dismissErrorBanner } from './data/fetch.js';
 import { initMap, toggleMap } from './ui/map.js';
 import { buildBranches, updateUI } from './ui/gauges-ui.js';
 import { buildCreeks, updateCreeksUI } from './ui/creeks-ui.js';
-import { updateLearningUI, updateGFLearningUI, updateGFBinStats, resetShadowModels, downloadLearningBackup } from './ui/learning-ui.js';
+import { updateLearningUI, updateGFLearningUI, updateGFBinStats, resetShadowModels, downloadLearningBackup, renderAuditLog } from './ui/learning-ui.js';
 import { initTabs } from './ui/tabs.js';
 import { initAuth } from './ui/auth.js';
 import { initAbout } from './ui/about.js';
@@ -49,6 +49,7 @@ export async function init() {
         on('forecast-accuracy:updated', updateForecastAccuracyUI);
         on('learning:reset', updateGFLearningUI);
         on('learning:reset', updateGFBinStats);
+        on('learning:reset', renderAuditLog);
         on('por-history:healed', updateGreatFallsUI);
         on('gf-history:updated', updateForecastPeriods);
 
@@ -89,6 +90,7 @@ export async function init() {
         initAuth();
         initAbout();
         updateLearningUI();
+        renderAuditLog();   // load recent admin actions (no-op if learning locked)
 
         // Fetch current data
         await fetchData();

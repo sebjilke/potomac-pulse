@@ -692,3 +692,34 @@ export async function downloadLearningBackup() {
         if (btn) { btn.disabled = false; btn.textContent = label; }
     }
 }
+
+// ==================== ADMIN AUDIT LOG (v37.8 #17) ====================
+
+/**
+ * Fetches recent admin-action audit entries and renders them into #auditLog (newest first).
+ * Read-only; no-op if the element is absent (learning locked) and shows a fallback on fetch failure.
+ * @returns {Promise<void>}
+ */
+export async function renderAuditLog() {
+    const el = document.getElementById('auditLog');
+    if (!el) return;
+    try {
+        const res = await fetch(SYNC_API + '?endpoint=audit-log');
+        if (!res.ok) throw new Error(`audit-log returned ${res.status}`);
+        const { entries } = await res.json();
+        if (!entries || entries.length === 0) {
+            el.innerHTML = '<p style="color:var(--text-muted);margin:0;">No admin actions recorded.</p>';
+            return;
+        }
+        el.innerHTML = entries.map(e => {
+            const when = e.at ? new Date(e.at).toLocaleString() : '?';
+            const det = (e.details && typeof e.details === 'object')
+                ? Object.entries(e.details).map(([k, v]) => `${k}: ${v}`).join(', ')
+                : '';
+            return `<div style="margin-bottom:4px;"><span style="color:var(--text-tertiary);">${when}</span> · <b style="color:var(--accent-amber);">${e.action || '?'}</b>${det ? ` · <span style="color:var(--text-muted);">${det}</span>` : ''}</div>`;
+        }).join('');
+    } catch (err) {
+        console.warn('Audit log render failed:', err);
+        el.innerHTML = '<p style="color:var(--text-muted);margin:0;">Audit log unavailable.</p>';
+    }
+}
