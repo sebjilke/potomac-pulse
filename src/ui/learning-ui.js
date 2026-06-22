@@ -262,6 +262,35 @@ export function updateAdminDashboard() {
         const softCount = meta.softFlaggedValidations || 0;
         document.getElementById("dash-flagged").textContent = `${hardCount} hard / ${softCount} soft`;
         document.getElementById("dash-runs").textContent = meta.consecutiveRuns || "--";
+
+        // v37.7 (#16): surface captured-but-previously-hidden diagnostics (all already loaded here).
+        const agoStr = (iso) => {
+            const ms = Date.now() - Date.parse(iso);
+            if (!Number.isFinite(ms)) return null;
+            const h = ms / 3600000;
+            return h < 1 ? `${Math.round(ms / 60000)}m ago` : h < 48 ? `${Math.round(h)}h ago` : `${(h / 24).toFixed(1)}d ago`;
+        };
+        document.getElementById("dash-throughput").textContent =
+            `${meta.totalPredictions || 0} pred / ${meta.totalValidations || 0} val`;
+        document.getElementById("dash-stage-err").textContent =
+            (meta.avgStageError != null) ? `±${meta.avgStageError.toFixed(2)} ft (n=${meta.stageValidations || 0})` : "--";
+        const bwFail = meta.binWriteFailures || 0;
+        const bwEl = document.getElementById("dash-binwrite");
+        bwEl.textContent = `${meta.binWriteSuccesses || 0} ok / ${bwFail} fail`;
+        bwEl.style.color = bwFail > 0 ? "var(--accent-red-light)" : "var(--text-tertiary)";
+        document.getElementById("dash-binwrite-err").textContent = (bwFail > 0 && meta.lastBinError) ? meta.lastBinError : "";
+        const flagAgo = meta.lastFlagged ? agoStr(meta.lastFlagged) : null;
+        document.getElementById("dash-lastflag").textContent = flagAgo || "none";
+        document.getElementById("dash-lastflag-reason").textContent = (flagAgo && meta.lastFlaggedReason) ? meta.lastFlaggedReason : "";
+    }
+
+    // EF stage→CFS regression quality (gap #4 — already loaded in gfLearningData.efCorrelation).
+    const efR2El = document.getElementById("dash-ef-r2");
+    if (efR2El) {
+        const efc = gfLearningData?.efCorrelation;
+        efR2El.textContent = (efc && typeof efc.rSquared === "number")
+            ? `R²=${efc.rSquared.toFixed(3)} (n=${efc.count || 0})`
+            : "--";
     }
 
     // Ice-affected gauges

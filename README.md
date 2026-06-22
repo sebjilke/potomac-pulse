@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v37.6 (June 2026)
+**Current Version**: v37.7 (June 2026)
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ Frontend (PWA)                    Netlify Functions (Backend)
 ├── analysis/                         # Model calibration scripts, audit reports (CSVs gitignored — reproducible from scripts)
 ```
 
-## Current Model (v37.6)
+## Current Model (v37.7)
 
 Core estimation parameters (travel time, EF power-law, EF weight) validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits. The v36.1 confidence band was re-derived separately on **126,916 hourly observations** (the same period, with the four tributaries + LF stage added) — see the v36.1 changelog entry.
 
@@ -175,6 +175,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v37.7 | 2026-06-21 | **Admin monitoring diagnostics (Tier 4 #16) — MINOR, additive display, read-only.** New "🔧 System Diagnostics" panel in the Learning tab surfaces metrics the server already captures and the client already loads in `gfLearningData` but never rendered: prediction/validation throughput (`totalPredictions` vs `totalValidations`), mean stage error (`avgStageError`, ft), correction-bin write health (`binWriteSuccesses`/`binWriteFailures`/`lastBinError`, red on failure), last-anomaly-flag recency + reason (`lastFlagged`/`lastFlaggedReason`), and the Edwards-Ferry stage→CFS regression R² (`efCorrelation.rSquared`). Rendered in `updateAdminDashboard()` (`learning-ui.js`); rows added to the `#learnUnlocked` panel in `index.html`. No new fetch, no server change, no model/learning/estimate impact. Build green, 645 tests. In-browser verification pending. |
 | v37.6 | 2026-06-19 | **Learning-data backup export (Tier 4 #15) — MINOR, additive, read-only.** New PIN-gated "📥 Download Backup (JSON)" button in the Learning tab: fetches the live server learning state fresh (the `gf` endpoint — correction bins, metadata, EF correlation, shadow leaderboard, pending — plus forecast accuracy) and downloads it as a timestamped `potomac-pulse-learning-backup-YYYY-MM-DD.json`. `downloadLearningBackup()` in `learning-ui.js` (reuses the Blob+anchor pattern), wired in `init.js`. Read-only — fetches and serializes only; changes nothing on the server, no model/estimate impact. Build green, 645 tests. In-browser verification pending. |
 | v37.5 | 2026-06-19 | **Parallelize `loadGFLearningData` SELECTs (Tier 3 #12) — MINOR, behavior-neutral (server-only, no output change).** The sync API's `loadGFLearningData` (hit on every cold load, `await`ed before the first GF estimate paints) ran 5 independent SELECTs sequentially (correction bins, pending predictions, metadata, EF correlation, shadow leaderboard); now they fire concurrently via `Promise.all`, shaving ~100–400ms off the cold-load critical path. Error semantics preserved exactly: bins/pending errors throw → 500; metadata/efCorrelation/shadowLeaderboard tolerate a missing row. **Test-first** (the file had zero DB-site coverage): 8 characterization tests with a mock Supabase client lock the asymmetric error semantics, the efCorrelation sumCFSSq on-load heal, the correctionBins build, and the pending mapping — they pass against both the sequential and the parallel implementation, proving equivalence (`test/sync-learning-loadgf.test.js`, 637 → 645). Process: plan → independent plan-audit (tightened the bins-row test shape + mock fidelity) → implement → re-audit. Plan: `analysis/sync-learning-parallel-selects-plan-2026-06-19.md`. |
 | v37.4 | 2026-06-19 | **Render-path event-bus refactor (Tier 3 #11) — MINOR (client display/timing; no estimate-output change).** Replaced the setter-injection lazy-callback scaffolding (6 forward-declared callbacks wired in `init.js`) and the manually-scattered re-render triggers with a small synchronous pub/sub event bus (`src/state/event-bus.js`): producers `emit()` semantic events; the UI re-render functions are subscribed once in `init.js`. Also removed the 4-second NWS render gate in `fetch.js` — the page now paints immediately on USGS+EF data and re-renders trends/forecast via an `nws:arrived` event when NWS lands (forecast cards + trend arrows paint a beat later instead of after a ≤4s race). Dissolves the `fetch ↔ gauges-ui ↔ great-falls-ui` import cycle (fetch no longer imports the UI modules). Render functions themselves unchanged; estimate math untouched (parity/characterization green). New `test/event-bus.test.mjs` adds bus-primitive unit tests + a static `emit`/`on` wiring-consistency check; **626 → 637**. Plan + audit: `analysis/phase4-render-path-plan-2026-06-19.md`. |
@@ -229,8 +230,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v37.6).
+See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v37.7).
 
 ---
 
-*Last updated: 2026-06-19 (v37.6 — admin learning-data backup export, additive feature)*
+*Last updated: 2026-06-21 (v37.7 — admin monitoring diagnostics, additive display)*
