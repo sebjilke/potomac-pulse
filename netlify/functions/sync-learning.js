@@ -299,6 +299,13 @@ exports.handler = async (event, context) => {
             }
         }
 
+        // Validation-failure log — dropped (hard-flagged) validations, newest-first (v37.9 #18)
+        if (endpoint === 'validation-failures') {
+            if (event.httpMethod === 'GET') {
+                return await loadValidationFailures(client);
+            }
+        }
+
         // System-1 (gauge-learning) sync was retired in v37.1. All live traffic uses a named
         // `endpoint` (gf, forecast-accuracy, validation-history, gf-history, por-history), each
         // handled above. A request with no recognized endpoint is no longer a valid route.
@@ -820,6 +827,38 @@ async function loadAuditLog(client) {
 }
 
 /**
+ * Loads the 50 most-recent dropped (hard-flagged) validation-failure rows for the GET
+ * 'validation-failures' endpoint (newest first). These are validations the cron rejected as
+ * data-corrupted (ice / stage-discharge inconsistency / statistical outlier) and excluded from
+ * both learning and accuracy — recorded by scheduled-update.js for post-hoc analysis (v37.9 #18).
+ * @param {Object} client - Supabase client.
+ * @returns {Promise<{statusCode: number, headers: Object, body: string}>} HTTP response with `{ entries }`, or a 500 on failure.
+ */
+async function loadValidationFailures(client) {
+    try {
+        const { data: rows, error } = await client
+            .from('potomac_observations')
+            .select('data')
+            .eq('observation_type', 'validation_failure')
+            .order('created_at', { ascending: false })
+            .limit(50);
+        if (error) throw error;
+        return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ entries: (rows || []).map(r => r.data) })
+        };
+    } catch (error) {
+        console.error('Load validation failures error:', error);
+        return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ error: 'Failed to load validation failures' })
+        };
+    }
+}
+
+/**
  * Loads the rolling predicted-vs-actual validation history for the GET 'validation-history' endpoint.
  * @param {Object} client - Supabase client.
  * @returns {Promise<{statusCode: number, headers: Object, body: string}>} HTTP response with `{ readings, lastUpdate }`, or a 500 on failure.
@@ -931,4 +970,4 @@ async function loadPoRHistory(client) {
 }
 
 // Test-only exports (mirrors the convention in scheduled-update.js)
-exports._test = { buildForecastRows, validateGFWritePayload, loadGFLearningData, logAdminAction, loadAuditLog, saveGFLearningData };
+exports._test = { buildForecastRows, validateGFWritePayload, loadGFLearningData, logAdminAction, loadAuditLog, loadValidationFailures, saveGFLearningData };

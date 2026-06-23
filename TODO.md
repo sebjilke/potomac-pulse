@@ -4,7 +4,7 @@
 Session state is in `.claude/HANDOFF.md`; methodology provenance for shipped versions is the
 small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, prioritize, go.
 
-*Last updated: 2026-06-19 (current version: v37.5). Verified against live DB + git history, not memory.*
+*Last updated: 2026-06-22 (current version: v37.9). Verified against live DB + git history, not memory.*
 
 ---
 
@@ -14,7 +14,7 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 - Effort is a rough order-of-magnitude.
 - 🔒 = needs a decision from you before work starts · 📅 = date-gated · 🔍 = verify-only.
 - Anything touching the estimate must keep the characterization/golden tests green and the
-  client↔server parity tests green (`npm test` = **645**), or deliberately re-baseline + version-bump.
+  client↔server parity tests green (`npm test` = **662**), or deliberately re-baseline + version-bump.
 - **Pushing auto-deploys from `main`** through the Netlify gate (`npm install && npm test && npm run build`);
   a red suite blocks deploy. Pushing needs explicit approval each time.
 
@@ -59,10 +59,10 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 | # | Item | Effort | Notes |
 |---|------|--------|-------|
 | 14 | ⏸️ **Multi-pending validation pipeline (Option B)** | — | **NOT PURSUING** (decided 2026-06-19, backtest-gated). Dual-arm prequential study (`multipending_gate.mjs`, blind Py+R, 3rd-agent audit; data integrity confirmed) was a **QUALIFIED PASS but rejected on cost-benefit**: multi-pending helps only the rare high-flow flood tail (25-50k & 50k+ rising, CI-significant), the **aggregate effect is not significant** (pooled CI straddles 0), it **mildly worsens all 7 everyday low/mid cells**, the targeted 12-25k-rising cell is a wash, and the edge **halves out-of-sample** (over-fit). Too thin to justify the riskiest implementation in the backlog (MAJOR live-loop change + test-hardening `validatePendingPredictions`). Re-open only to study the *responsiveness* benefit (out of scope here), not more correction-quality backtesting. Findings: `analysis/multipending-learning-findings-2026-06-19.md`. |
-| 15 | **Backup export function** | done | ✅ **v37.6** — PIN-gated "📥 Download Backup (JSON)" button in the Learning tab; `downloadLearningBackup()` fetches the live `gf` learning state + forecast accuracy fresh and downloads a timestamped JSON. Additive, read-only (no model/estimate/learning change). Build green, 645 tests. ⚠️ in-browser verification pending. |
-| 16 | **Admin monitoring dashboard** | done | ✅ **v37.7** — added a "🔧 System Diagnostics" panel surfacing already-captured-but-hidden metrics (throughput, stage error, bin-write health, last-flag recency+reason, EF regression R²) from the loaded `gfLearningData`. Additive read-only display, no new fetch/server change. Scoped down from timelines/heatmap (would need new fetches). Build green, 645 tests. ⚠️ in-browser verification pending. The existing dashboard (current conditions, model health, validation chart, bin stats, shadow horse-race, forecast accuracy) already covered most of this item. |
-| 17 | **Audit logging** | done | ✅ **v37.8** — the 3 PIN-gated reset actions append to a new `audit_log` observation type via a non-fatal `logAdminAction()` helper; GET `audit-log` endpoint + "🧾 Recent Admin Actions" list in the Learning tab. Fixed stale hardcoded `resetReason`. Full protocol (plan→audit→implement→re-audit); 9 new tests incl. non-fatal characterization (645→654). ⚠️ in-browser verification pending. Note: `resetForecastAccuracy` has no UI button (logs only via out-of-band POST). |
-| 18 | **Log validation failures** | ~2h | Store failed validations for post-hoc analysis. |
+| 15 | **Backup export function** | done | ✅ **v37.6** — PIN-gated "📥 Download Backup (JSON)" button in the Learning tab; `downloadLearningBackup()` fetches the live `gf` learning state + forecast accuracy fresh and downloads a timestamped JSON. Additive, read-only (no model/estimate/learning change). Build green, 645 tests. ✅ in-browser verified (2026-06-22, user). |
+| 16 | **Admin monitoring dashboard** | done | ✅ **v37.7** — added a "🔧 System Diagnostics" panel surfacing already-captured-but-hidden metrics (throughput, stage error, bin-write health, last-flag recency+reason, EF regression R²) from the loaded `gfLearningData`. Additive read-only display, no new fetch/server change. Scoped down from timelines/heatmap (would need new fetches). Build green, 645 tests. ✅ in-browser verified (2026-06-22, user). The existing dashboard (current conditions, model health, validation chart, bin stats, shadow horse-race, forecast accuracy) already covered most of this item. |
+| 17 | **Audit logging** | done | ✅ **v37.8** — the 3 PIN-gated reset actions append to a new `audit_log` observation type via a non-fatal `logAdminAction()` helper; GET `audit-log` endpoint + "🧾 Recent Admin Actions" list in the Learning tab. Fixed stale hardcoded `resetReason`. Full protocol (plan→audit→implement→re-audit); 9 new tests incl. non-fatal characterization (645→654). ✅ in-browser verified (2026-06-22, user). Note: `resetForecastAccuracy` has no UI button (logs only via out-of-band POST). |
+| 18 | **Log validation failures** | done | ✅ **v37.9** — hard-flagged validations (dropped from both learning + accuracy) now append to a new `validation_failure` observation type via the non-fatal `insertObs` helper, written inside the `if (isHardFlagged)` block after the claim-delete; GET `validation-failures` endpoint (`loadValidationFailures`, 50 newest, mirrors `audit-log`). Full protocol (plan→audit→test-first→re-audit); +8 tests incl. both non-fatal-guard halves + soft-flag/clean negatives (654→662). Append-only, no retention (hard flags rare; GET caps 50). Server-only, additive — no model/learning/accuracy/estimate change. See `analysis/validation-failure-logging-plan-2026-06-22.md`. |
 | 19 | **Service worker for offline** | ~4h | Cache last-known state for offline viewing. |
 | 20 | **Mobile sidebar scrolling** | ~1h | Sticky tabs, remove double-scroll on mobile. |
 

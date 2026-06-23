@@ -802,7 +802,9 @@ describe('validatePendingPredictions', () => {
     // (callers fall back to defaults); upserts/inserts are captured; the pending-list read
     // resolves via .order(); `.delete().eq()` awaited directly returns {error:null} (stale/
     // invalid cleanup) while `.delete().eq().select()` returns the claimed rows.
-    function validateClient({ pending, claimRows = [{ id: 'p1' }], captures }) {
+    // `failInsertType` (default null) makes an insert of that observation_type REJECT — used to
+    // characterize the non-fatal validation_failure logging (#18). Defaulted → existing callers unaffected.
+    function validateClient({ pending, claimRows = [{ id: 'p1' }], captures, failInsertType = null, errorInsertType = null }) {
         return {
             from() {
                 const q = { op: 'select' };
@@ -818,7 +820,12 @@ describe('validatePendingPredictions', () => {
                     order() { return Promise.resolve({ data: pending, error: null }); },
                     single() { return Promise.resolve({ data: null, error: null }); },
                     upsert(row) { captures.upserts.push(row); return Promise.resolve({ error: null }); },
-                    insert(row) { captures.inserts.push(row); return Promise.resolve({ error: null }); },
+                    insert(row) {
+                        captures.inserts.push(row);
+                        if (failInsertType && row.observation_type === failInsertType) return Promise.reject(new Error('insert boom'));
+                        if (errorInsertType && row.observation_type === errorInsertType) return Promise.resolve({ error: { message: 'insert error' } });
+                        return Promise.resolve({ error: null });
+                    },
                     delete() { q.op = 'delete'; return builder; },
                     then(resolve, reject) {
                         if (q.op === 'delete') { captures.deletes.push({ withSelect: false }); return Promise.resolve({ error: null }).then(resolve, reject); }
@@ -940,6 +947,81 @@ describe('validatePendingPredictions', () => {
         assert.equal(bin.data.sumError, 300);                       // 10300 − 10000 (predictedCFS used as raw)
         assert.ok(Number.isFinite(bin.data.emaMeanError));
         assert.ok(Number.isFinite(metaUpsert(captures).data.avgErrorPercent));
+    });
+
+    // ── v37.9 (#18): hard-flagged validations are logged to a `validation_failure` row ──
+    // The hard-flag branch drops the obs from BOTH learning and accuracy and (pre-v37.9) left no
+    // per-failure record. The append-only row is written inside `if (isHardFlagged)`, AFTER the
+    // claim-delete (the verdict isn't final until the bin read for Check 5), and is NON-FATAL.
+    const failRows = (caps) => caps.inserts.filter(i => i.observation_type === 'validation_failure');
+    // LF=1200cfs/2.5ft fires Check 3 (low-flow + high-stage) → hardScore≥2 → hard-flagged.
+    const hardUsgs = {
+        data: { '01646500': { q: 1200, h: 2.5 }, '01645000': {}, '01644148': {} },
+        gauges: { lf: '01646500', seneca: '01645000', ef: '01644148' }
+    };
+
+    it('#18: a hard-flagged validation writes ONE validation_failure row (predicted/actual/flags) and does NOT learn', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 4800, predictedCFS: 5000, rawFinalStage: 4.0, predictedStage: 4.0, flowBin: '1000-3000', flowState: 'steady' });
+        const result = await validatePendingPredictions(validateClient({ pending: [row], captures }), hardUsgs);
+        assert.equal(result.validated, 1);                       // hard rows still fall through to validated++
+        const rows = failRows(captures);
+        assert.equal(rows.length, 1, 'exactly one validation_failure row');
+        const f = rows[0];
+        assert.match(f.gauge_id, /^\d+_p1$/);                    // `${Date.now()}_${pred.id}` — collision-safe
+        assert.equal(f.data.predictionId, 'p1');
+        assert.equal(f.data.actualCFS, 1200);
+        assert.equal(f.data.predictedCFS, 5000);                 // corrected (headline)
+        assert.equal(f.data.rawPredictedCFS, 4800);              // raw (learning basis)
+        assert.equal(f.data.errorCFS, 4800 - 1200);              // raw − actual = 3600
+        assert.equal(f.data.flowBin, '1000-3000');
+        assert.equal(f.data.flowState, 'steady');
+        assert.ok(f.data.hardScore >= 2, `hardScore=${f.data.hardScore}`);
+        assert.ok(Array.isArray(f.data.anomalyFlags));
+        assert.ok(f.data.anomalyFlags.some(x => x.startsWith('LOW_FLOW_HIGH_STAGE')), 'flags include LOW_FLOW_HIGH_STAGE');
+        assert.ok(!Number.isNaN(Date.parse(f.data.validatedAt)), 'validatedAt is ISO');
+        assert.equal(binUpserts(captures).length, 0, 'hard flag must skip learning');
+    });
+
+    it('#18: a failing validation_failure insert is NON-FATAL — validation still completes + accounts', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ predictedCFS: 5000, flowBin: '1000-3000', flowState: 'steady' });
+        const client = validateClient({ pending: [row], captures, failInsertType: 'validation_failure' });
+        const result = await validatePendingPredictions(client, hardUsgs);   // must NOT throw
+        assert.equal(result.validated, 1);
+        assert.equal(failRows(captures).length, 1, 'the (failing) insert was still attempted');
+        assert.ok(metaUpsert(captures), 'metadata upsert still runs after a logging failure');
+    });
+
+    it('#18: a validation_failure insert that RESOLVES {error} is also non-fatal (the other guard half)', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ predictedCFS: 5000, flowBin: '1000-3000', flowState: 'steady' });
+        const client = validateClient({ pending: [row], captures, errorInsertType: 'validation_failure' });
+        const result = await validatePendingPredictions(client, hardUsgs);   // {error} return → logged, not thrown
+        assert.equal(result.validated, 1);
+        assert.ok(metaUpsert(captures), 'metadata upsert still runs when the insert returns {error}');
+    });
+
+    it('#18: a clean (non-flagged) validation writes NO validation_failure row', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const result = await validatePendingPredictions(validateClient({ pending: [pendingRow()], captures }), usgs);
+        assert.equal(result.validated, 1);
+        assert.equal(failRows(captures).length, 0);
+        assert.ok(binUpserts(captures).length >= 1, 'clean validation learns (sanity)');
+    });
+
+    it('#18: a SOFT-flagged validation learns but writes NO validation_failure row', async () => {
+        // lf=3000/2.6 + EF stage 5.0 → Check 1 EF-disc +120% (soft+2), Check 2 −66% (no hard), Check 3 false.
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const softUsgs = {
+            data: { '01646500': { q: 3000, h: 2.6 }, '01645000': {}, '01644148': { h: 5.0 } },
+            gauges: { lf: '01646500', seneca: '01645000', ef: '01644148' }
+        };
+        const row = pendingRow({ predictedCFS: 9000, flowBin: '1000-3000', flowState: 'steady' });
+        const result = await validatePendingPredictions(validateClient({ pending: [row], captures }), softUsgs);
+        assert.equal(result.validated, 1);
+        assert.equal(failRows(captures).length, 0, 'soft flag is not a failure — no row');
+        assert.ok(binUpserts(captures).length >= 1, 'soft flag is included in learning');
     });
 });
 

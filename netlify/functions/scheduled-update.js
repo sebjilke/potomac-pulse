@@ -1130,6 +1130,41 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             if (isHardFlagged) {
                 console.log(`🧊 HARD FLAG (score=${hardScore}): ${anomalyFlags.join(', ')}`);
                 console.log(`   LF reading: ${Math.round(actualCFS)} cfs — skipping learning + accuracy`);
+
+                // v37.9 (#18): persist the dropped validation for post-hoc analysis. Hard-flagged
+                // obs are excluded from BOTH learning and accuracy and otherwise vanish (only an
+                // aggregate count + the single last reason survive in gf_metadata). Append-only
+                // `validation_failure` row, unique gauge_id (`${Date.now()}_${pred.id}` — pred.id
+                // makes it collision-safe even for two flags in the same ms). NON-FATAL: a logging
+                // failure must never abort validation/accounting for this or any later pending row
+                // (the row is already claim-deleted above; `validated++` and the metadata upsert
+                // below still run). Mirrors the shadow-scoring try/catch.
+                try {
+                    const { error: failErr } = await insertObs(
+                        client, 'validation_failure', `${Date.now()}_${pred.id}`,
+                        {
+                            predictionId: pred.id,
+                            predictionCreatedAt: pred.created_at,
+                            validatedAt: new Date().toISOString(),
+                            predictedCFS: correctedCFS,      // headline (corrected) estimate
+                            rawPredictedCFS: rawCFS,         // raw estimate (learning basis)
+                            actualCFS,                       // the suspect LF reading that triggered the flag
+                            errorCFS,                        // raw − actual
+                            errorPercentCorrected,
+                            errorPercentRaw,
+                            predictedStage,
+                            actualStage,
+                            errorStage,
+                            flowBin,
+                            flowState,
+                            hardScore,
+                            anomalyFlags,                    // reason strings (e.g. LOW_FLOW_HIGH_STAGE:…)
+                        }
+                    );
+                    if (failErr) console.error(`❌ validation_failure log FAILED for ${pred.id}:`, failErr.message);
+                } catch (logErr) {
+                    console.error(`❌ validation_failure log threw (non-fatal) for ${pred.id}:`, logErr?.message || logErr);
+                }
             } else if (isSoftFlagged) {
                 console.log(`⚠️ SOFT FLAG (score=${softScore}): ${anomalyFlags.join(', ')}`);
                 console.log(`   LF reading: ${Math.round(actualCFS)} cfs — included in learning (EMA clamped) + accuracy`);
