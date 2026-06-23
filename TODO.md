@@ -4,7 +4,7 @@
 Session state is in `.claude/HANDOFF.md`; methodology provenance for shipped versions is the
 small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, prioritize, go.
 
-*Last updated: 2026-06-23 (current version: v37.10). Verified against live DB + git history, not memory.*
+*Last updated: 2026-06-23 (current version: v37.11). Verified against live DB + git history, not memory.*
 
 ---
 
@@ -64,7 +64,7 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 | 17 | **Audit logging** | done | ✅ **v37.8** — the 3 PIN-gated reset actions append to a new `audit_log` observation type via a non-fatal `logAdminAction()` helper; GET `audit-log` endpoint + "🧾 Recent Admin Actions" list in the Learning tab. Fixed stale hardcoded `resetReason`. Full protocol (plan→audit→implement→re-audit); 9 new tests incl. non-fatal characterization (645→654). ✅ in-browser verified (2026-06-22, user). Note: `resetForecastAccuracy` has no UI button (logs only via out-of-band POST). |
 | 18 | **Log validation failures** | done | ✅ **v37.9** — hard-flagged validations (dropped from both learning + accuracy) now append to a new `validation_failure` observation type via the non-fatal `insertObs` helper, written inside the `if (isHardFlagged)` block after the claim-delete; GET `validation-failures` endpoint (`loadValidationFailures`, 50 newest, mirrors `audit-log`). Full protocol (plan→audit→test-first→re-audit); +8 tests incl. both non-fatal-guard halves + soft-flag/clean negatives (654→662). Append-only, no retention (hard flags rare; GET caps 50). Server-only, additive — no model/learning/accuracy/estimate change. See `analysis/validation-failure-logging-plan-2026-06-22.md`. |
 | 19 | **Service worker for offline** | done | ✅ **v37.10** — offline SW via `vite-plugin-pwa` (Workbox `generateSW`, `autoUpdate`): precaches the hashed app shell + geojson, runtime-caches (SWR) the `sync-learning` GETs (`pp-api`) + USGS/NWS data (`pp-data`), so a returning user opens offline with last-known state. `skipWaiting`+`clientsClaim`+`cleanupOutdatedCaches` busts the precache per deploy (no stale code); tiles excluded; `manifest:false`; no SW in dev; registered prod-only in `main.js`. New `#offlineBar` (`navigator.onLine`-driven, distinct from the fetch-failure banner the SW masks). CSP unchanged (origins already in `connect-src`). +2 tests (662→664); `dist/sw.js` emitted. 1 new build-time devDep (`vite-plugin-pwa`; 5 dev-only audit advisories, none shipped). ⚠️ in-browser verification pending (SW register/activate, offline reload, post-deploy cache-bust, no CSP errors). Plan→audit→implement→verify: `analysis/service-worker-offline-plan-2026-06-23.md`. |
-| 20 | **Mobile sidebar scrolling** | ~1h | Sticky tabs, remove double-scroll on mobile. |
+| 20 | **Mobile sidebar scrolling** | done | ✅ **v37.11** — fixed the mobile double-scroll (CSS-only): `#app` uses `100dvh` with a `100vh` fallback (fills the visual viewport, not the chrome-occluded 100vh), and on ≤768px the sidebar is the single scroll container (`.tab-content`'s inner `overflow` removed) with the tab bar pinned (`.tabs` `position: sticky; top: 0`, opaque). Mobile-scoped — desktop `.tab-content`-scrolls model untouched (`100dvh` == `100vh` on desktop). Build green, 664 tests. ⚠️ in-browser (mobile) verification pending. |
 
 ---
 

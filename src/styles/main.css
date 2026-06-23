@@ -1,7 +1,10 @@
 /* ==================== BASE & RESET ==================== */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg-base); color: var(--text-primary); }
-#app { display: flex; flex-direction: column; height: 100vh; }
+/* 100dvh (with 100vh fallback) so the app fills the *visual* viewport on mobile — 100vh alone
+   includes the area behind the browser chrome, which pushed content off-screen and produced a
+   document-level scroll on top of the in-panel scroll (#20). Equals 100vh on desktop. */
+#app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 
 /* Skip link for accessibility */
 .skip-link {
@@ -127,6 +130,12 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
         border-radius: 0;
         border-top: none;
     }
+    /* #20: make #sidebar the SINGLE scroll container on mobile — drop .tab-content's own
+       overflow so the nested sidebar↔tab-content double-scroll is gone, and pin the tab bar to
+       the top of the sheet (opaque bg so scrolled content doesn't bleed through). Desktop keeps
+       the .tab-content-scrolls model (this is scoped to ≤768px). */
+    .tabs { position: sticky; top: 0; z-index: 5; background: var(--bg-surface); }
+    .tab-content { overflow: visible; }
     header { padding: 8px 12px; }
     header h1 { font-size: 1rem; }
     .hdr-right { gap: 8px; font-size: 0.75rem; }

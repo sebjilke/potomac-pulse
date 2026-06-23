@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v37.10 (June 2026)
+**Current Version**: v37.11 (June 2026)
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ Frontend (PWA)                    Netlify Functions (Backend)
 ├── analysis/                         # Model calibration scripts, audit reports (CSVs gitignored — reproducible from scripts)
 ```
 
-## Current Model (v37.10)
+## Current Model (v37.11)
 
 Core estimation parameters (travel time, EF power-law, EF weight) validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits. The v36.1 confidence band was re-derived separately on **126,916 hourly observations** (the same period, with the four tributaries + LF stage added) — see the v36.1 changelog entry.
 
@@ -175,6 +175,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v37.11 | 2026-06-23 | **Mobile sidebar scrolling (Tier 4 #20) — MINOR, CSS-only.** Fixed the mobile double-scroll: `#app` now uses `100dvh` (with a `100vh` fallback) so it fills the *visual* viewport instead of overflowing behind the browser chrome, and on ≤768px the sidebar is the single scroll container (`.tab-content`'s inner `overflow` removed) with the tab bar pinned (`.tabs { position: sticky; top: 0 }`, opaque). Desktop layout unchanged (changes scoped to the mobile media query; `100dvh` equals `100vh` on desktop). Build green, 664 tests. ⚠️ in-browser (mobile) verification pending. |
 | v37.10 | 2026-06-23 | **Service worker / offline cache (Tier 4 #19) — MINOR, client, additive.** Added an offline service worker via `vite-plugin-pwa` (Workbox `generateSW`, `registerType: 'autoUpdate'`): precaches the hashed app-shell assets + geojson (10 entries) and runtime-caches (stale-while-revalidate) the same-origin `sync-learning` GETs (`pp-api`) and cross-origin USGS/NWS data (`pp-data`), so a returning user can open the app offline with last-known gauges + GF estimate + forecast. `skipWaiting` + `clientsClaim` + `cleanupOutdatedCaches` so each deploy fully busts the precache (no stale code); map tiles excluded (quota); existing `public/manifest.json` kept (`manifest: false`); no SW in `vite dev`. Registered prod-only in `main.js`. New `#offlineBar` indicator driven by `navigator.onLine` (distinct from the fetch-failure `#error-banner`, which the SW would otherwise mask). CSP unchanged (every cached origin already in `connect-src`). One new build-time devDependency (`vite-plugin-pwa`). +2 tests (662 → 664); build emits `dist/sw.js`. ⚠️ in-browser verification pending. Plan: `analysis/service-worker-offline-plan-2026-06-23.md`. |
 | v37.9 | 2026-06-22 | **Log validation failures (Tier 4 #18) — MINOR, server-only, additive (no model/learning/accuracy/estimate change).** When the cron hard-flags a validation (data corruption: ice / stage-discharge inconsistency / statistical outlier), the dropped point — previously excluded from both learning and accuracy with no per-failure record — is now written to an append-only `validation_failure` observation row (`gauge_id = `${Date.now()}_${pred.id}``, capturing predicted/raw/actual/error/stage/`flowBin`/`flowState`/`hardScore`/`anomalyFlags`) inside the existing `if (isHardFlagged)` block via `insertObs`, **non-fatal** so a logging failure can never abort validation or its accounting. New GET `validation-failures` endpoint (`loadValidationFailures`, 50 newest, mirrors `audit-log`). Full protocol (plan → independent audit → test-first → re-audit); +8 tests (654 → 662). Plan: `analysis/validation-failure-logging-plan-2026-06-22.md`. |
 | v37.8 | 2026-06-21 | **Admin audit logging (Tier 4 #17) — MINOR, additive.** The 3 PIN-gated admin reset actions (`resetGFLearning`, `resetLowFlowBins`, `resetForecastAccuracy`) now append an entry to a new `audit_log` observation type via a **non-fatal** `logAdminAction()` helper (a failed audit insert can never break or 500 the reset). A GET `audit-log` endpoint returns the 50 most-recent entries (newest-first), and a "🧾 Recent Admin Actions" list in the Learning tab renders them (`renderAuditLog()`, loaded at init + on `learning:reset`). Also fixed a stale hardcoded `resetReason` (`'flow_state_window_fix_v35.0'` → `'manual_admin_reset'`). Server in `sync-learning.js`; new `test/audit-logging.test.js` (9 tests incl. a characterization that the reset still succeeds when the audit insert fails) — 645 → 654. Plan + audit: `analysis/audit-logging-plan-2026-06-21.md`. In-browser verification pending. |
@@ -233,8 +234,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v37.10).
+See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v37.11).
 
 ---
 
-*Last updated: 2026-06-23 (v37.10 — service worker / offline cache, client additive)*
+*Last updated: 2026-06-23 (v37.11 — mobile sidebar scrolling, CSS-only)*
