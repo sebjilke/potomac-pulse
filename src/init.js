@@ -20,6 +20,7 @@ import { lockLearning } from './ui/auth.js';
 // the UI re-render functions below are subscribed once, here, at the top of init().
 import { on } from './state/event-bus.js';
 import { updateForecastAccuracyUI, updateGreatFallsUI, updateForecastPeriods } from './ui/great-falls-ui.js';
+import { initOfflineBanner } from './ui/offline-banner.js';
 
 /**
  * Attaches a click handler to the DOM element with the given id, if it exists.
@@ -52,6 +53,9 @@ export async function init() {
         on('learning:reset', renderAuditLog);
         on('por-history:healed', updateGreatFallsUI);
         on('gf-history:updated', updateForecastPeriods);
+
+        // v37.10 (#19): offline indicator (navigator.onLine-driven; see offline-banner.js).
+        initOfflineBanner();
 
         // Bind event listeners (replaces inline onclick handlers)
         bindButton('mapToggleBtn', toggleMap);

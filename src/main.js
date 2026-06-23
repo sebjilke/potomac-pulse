@@ -53,4 +53,12 @@ setInterval(fetchData, 900000);
 // Update staleness display every minute
 setInterval(updateStalenessDisplay, 60000);
 
+// v37.10 (#19): register the offline service worker — production builds only. Dynamic import so the
+// dev bundle never pulls the virtual module, and a registration failure can never break app boot.
+if (import.meta.env.PROD) {
+    import('virtual:pwa-register')
+        .then(({ registerSW }) => registerSW({ immediate: true }))
+        .catch(() => {});
+}
+
 console.log('Potomac Pulse main.js loaded');
