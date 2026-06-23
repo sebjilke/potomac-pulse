@@ -70,12 +70,14 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 
 ## Modeling — deferred with skepticism
 
-- **C45 Phase 2 — trend-state-axis correction smoothing.** 🚩 The v37 bin-edge diagnostic + the Phase-1
-  backtest gate both show the high-flow state flips (25–50k rising↔falling ≈ 3,088 cfs) are **real regime
-  signal**, and smoothing the 25k/50k *flow* boundaries already failed the gate for the same reason.
-  Smoothing the state axis will likely **degrade** accuracy. If attempted: reuse `analysis/c45_gate.mjs`
-  as the gate template and design a blend that provably preserves the high-flow signal, else expect a
-  REJECT. May well be a "not worth it" conclusion.
+- ⏸️ **C45 Phase 2 — trend-state-axis correction smoothing.** **NOT PURSUING** (decided 2026-06-23).
+  Rejected on the existing evidence, not a fresh gate: the v37 bin-edge diagnostic + the Phase-1
+  backtest gate both showed the high-flow state flips (25–50k rising↔falling ≈ 3,088 cfs) are **real
+  regime signal**, and smoothing the 25k/50k *flow* boundaries already **failed** the gate for the same
+  reason (→ v37.0 left those boundaries stepped). Smoothing the state axis is the same move on an
+  analogous regime boundary and would, on that evidence, **degrade** high-flow accuracy. Not worth a
+  new backtest to prove a negative we already expect. Re-open only with a concrete blend design that
+  provably preserves the high-flow signal; gate it with `analysis/c45_gate.mjs` before any implementation.
 
 ---
 
