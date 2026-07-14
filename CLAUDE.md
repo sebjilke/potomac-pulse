@@ -133,7 +133,7 @@ horizon (6/12/24/48h). Stored as `gf_forecast_pending` → validated when water 
 Client estimation: `src/estimation/great-falls.js`. Forecast UI: `src/ui/great-falls-ui.js`.
 NWS integration: `src/estimation/nws.js`. Learning UI: `src/ui/learning-ui.js`.
 
-## Current Model Parameters (v37.11)
+## Current Model Parameters (v37.12)
 
 - **EF Power-Law**: 126×EF^2.46 (default), 160×EF^2.36 (cold water ≤10°C)
 - **EF Weight (Logistic Ramp)**: `ef_weight = 0.40 / (1 + exp(-5.0 × (ln(flow) - ln(10000))))`. Near 0% at low flows, ~40% at high. EF has negative predictive skill below 6k cfs.

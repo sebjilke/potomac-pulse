@@ -9,6 +9,7 @@ import {
     shadowModelState, shadowResults, setShadowModelState, setShadowResults,
     shadowLeaderboard
 } from '../state/store.js';
+import { mergeValidationReadings, summarizeValidations } from './validation-merge.js';
 
 // ==================== UPDATE GF LEARNING UI ====================
 
@@ -497,10 +498,24 @@ async function renderValidationChart() {
     if (!_valChartData && !_valChartFetching) {
         _valChartFetching = true;
         try {
-            const resp = await fetch('/.netlify/functions/sync-learning?endpoint=validation-history');
-            if (resp.ok) {
-                const json = await resp.json();
-                _valChartData = json.readings || [];
+            // History is load-bearing: on failure nothing is cached, so the next render retries
+            // (pre-v37.12 behavior). The failures fetch degrades to [] — a flaky log may hide
+            // hollow points for the session but never blanks the chart (v37.12).
+            const [histResp, failResp] = await Promise.all([
+                fetch('/.netlify/functions/sync-learning?endpoint=validation-history'),
+                fetch('/.netlify/functions/sync-learning?endpoint=validation-failures').catch(() => null)
+            ]);
+            if (histResp.ok) {
+                const histJson = await histResp.json();
+                let failures = [];
+                if (failResp && failResp.ok) {
+                    try {
+                        failures = (await failResp.json()).entries || [];
+                    } catch (e) {
+                        console.error('Validation failures parse error:', e);
+                    }
+                }
+                _valChartData = mergeValidationReadings(histJson.readings || [], failures, Date.now());
             }
         } catch (e) {
             console.error('Validation history fetch error:', e);
@@ -515,10 +530,14 @@ async function renderValidationChart() {
         return;
     }
 
-    const avgErr = readings.reduce((s, r) => s + Math.abs(r.errorPercent), 0) / readings.length;
-    const oldest = new Date(readings[0].timestamp);
-    const span = Math.round((Date.now() - oldest.getTime()) / (3600000));
-    summary.textContent = `Avg error: ±${avgErr.toFixed(1)}% (${readings.length} validations over ${span}h)`;
+    const unflagged = readings.filter(r => !r.hardFlagged);
+    const { unflaggedCount, flaggedCount, avgAbsErrorPct, spanHours } = summarizeValidations(readings, Date.now());
+    if (avgAbsErrorPct === null) {
+        summary.textContent = `${flaggedCount} hard-flagged validation${flaggedCount === 1 ? '' : 's'} shown as hollow points — no clean validations yet`;
+    } else {
+        const flaggedNote = flaggedCount > 0 ? ` · ${flaggedCount} hard-flagged ○ excluded from avg` : '';
+        summary.textContent = `Avg error: ±${avgAbsErrorPct.toFixed(1)}% (${unflaggedCount} validations over ${spanHours}h)${flaggedNote}`;
+    }
 
     const container = document.getElementById('valChartContainer');
     const width = container.clientWidth - 16;
@@ -527,7 +546,10 @@ async function renderValidationChart() {
     const graphWidth = width - padding.left - padding.right;
     const graphHeight = height - padding.top - padding.bottom;
 
-    const allCFS = readings.flatMap(r => [r.predictedCFS, r.actualCFS]);
+    // y-domain from clean validations only — a corrupt hard-flagged actual must not squash
+    // the real series; out-of-range flagged markers are clamped to the plot edge instead.
+    const domainSource = unflagged.length > 0 ? unflagged : readings;
+    const allCFS = domainSource.flatMap(r => [r.predictedCFS, r.actualCFS]);
     const minCFS = Math.min(...allCFS) * 0.9;
     const maxCFS = Math.max(...allCFS) * 1.1;
     const cfsRange = maxCFS - minCFS || 1;
@@ -557,8 +579,12 @@ async function renderValidationChart() {
         }
     }
 
-    const predPath = readings.map((r, i) => `${i === 0 ? 'M' : 'L'} ${xScale(r.timestamp)},${yScale(r.predictedCFS)}`).join(' ');
-    const actualPath = readings.map((r, i) => `${i === 0 ? 'M' : 'L'} ${xScale(r.timestamp)},${yScale(r.actualCFS)}`).join(' ');
+    // Line paths connect clean validations only — a hard-flagged actual is by definition a
+    // suspect reading, and a line through it would draw a river trace that never happened.
+    const predPath = unflagged.map((r, i) => `${i === 0 ? 'M' : 'L'} ${xScale(r.timestamp)},${yScale(r.predictedCFS)}`).join(' ');
+    const actualPath = unflagged.map((r, i) => `${i === 0 ? 'M' : 'L'} ${xScale(r.timestamp)},${yScale(r.actualCFS)}`).join(' ');
+    const flagged = readings.filter(r => r.hardFlagged);
+    const yPlot = c => Math.max(padding.top, Math.min(bottom, yScale(c)));
 
     svg.setAttribute('width', width);
     svg.setAttribute('height', height);
@@ -567,8 +593,10 @@ async function renderValidationChart() {
         ${xLabels.map(l => `<line x1="${xScale(l.t)}" y1="${padding.top}" x2="${xScale(l.t)}" y2="${bottom}" stroke="#334155" stroke-width="1" stroke-dasharray="2,2"/>`).join('')}
         <path d="${predPath}" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round"/>
         <path d="${actualPath}" fill="none" stroke="#4ade80" stroke-width="2" stroke-linejoin="round"/>
-        ${readings.map(r => `<circle cx="${xScale(r.timestamp)}" cy="${yScale(r.predictedCFS)}" r="3" fill="#60a5fa" stroke="#0f172a" stroke-width="1"/>`).join('')}
-        ${readings.map(r => `<circle cx="${xScale(r.timestamp)}" cy="${yScale(r.actualCFS)}" r="3" fill="#4ade80" stroke="#0f172a" stroke-width="1"/>`).join('')}
+        ${unflagged.map(r => `<circle cx="${xScale(r.timestamp)}" cy="${yScale(r.predictedCFS)}" r="3" fill="#60a5fa" stroke="#0f172a" stroke-width="1"/>`).join('')}
+        ${unflagged.map(r => `<circle cx="${xScale(r.timestamp)}" cy="${yScale(r.actualCFS)}" r="3" fill="#4ade80" stroke="#0f172a" stroke-width="1"/>`).join('')}
+        ${flagged.map(r => `<circle cx="${xScale(r.timestamp)}" cy="${yPlot(r.predictedCFS)}" r="3.5" fill="none" stroke="#60a5fa" stroke-width="1.75"/>`).join('')}
+        ${flagged.map(r => `<circle cx="${xScale(r.timestamp)}" cy="${yPlot(r.actualCFS)}" r="3.5" fill="none" stroke="#4ade80" stroke-width="1.75"/>`).join('')}
         ${yTicks.map(c => `<text x="${padding.left - 4}" y="${yScale(c) + 3}" fill="#94a3b8" font-size="8" text-anchor="end">${(c / 1000).toFixed(1)}k</text>`).join('')}
         ${xLabels.map(l => `<text x="${xScale(l.t)}" y="${height - 4}" fill="#94a3b8" font-size="8" text-anchor="middle">${l.label}</text>`).join('')}
         <text x="8" y="${padding.top + graphHeight / 2}" fill="#94a3b8" font-size="8" text-anchor="middle" transform="rotate(-90, 8, ${padding.top + graphHeight / 2})">CFS</text>
@@ -597,10 +625,11 @@ async function renderValidationChart() {
         document.getElementById('valTooltipPred').textContent = closest.predictedCFS.toLocaleString() + ' cfs';
         document.getElementById('valTooltipActual').textContent = closest.actualCFS.toLocaleString() + ' cfs';
         const errSign = closest.errorPercent >= 0 ? '+' : '';
-        document.getElementById('valTooltipError').textContent = `${errSign}${closest.errorPercent.toFixed(1)}%`;
+        const flagNote = closest.hardFlagged ? ' · ⚠ hard-flagged (excluded from learning & avg)' : '';
+        document.getElementById('valTooltipError').textContent = `${errSign}${closest.errorPercent.toFixed(1)}%${flagNote}`;
 
         const tooltipX = Math.min(width - 120, Math.max(10, xScale(closest.timestamp) - 50));
-        const tooltipY = Math.max(5, Math.min(yScale(closest.predictedCFS), yScale(closest.actualCFS)) - 65);
+        const tooltipY = Math.min(height - 70, Math.max(5, Math.min(yScale(closest.predictedCFS), yScale(closest.actualCFS)) - 65));
         tooltip.style.left = tooltipX + 'px';
         tooltip.style.top = tooltipY + 'px';
         tooltip.style.display = 'block';

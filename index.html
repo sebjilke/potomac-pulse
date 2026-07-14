@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v37.11</title>
+    <title>Potomac Pulse v37.12</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -318,7 +318,7 @@
                             <!-- (c) Learning -->
                             <div style="margin-bottom:10px;padding:8px 10px;background:var(--bg-base);border-radius:6px;">
                                 <div style="font-size:0.65rem;color:var(--accent-amber);font-weight:600;margin-bottom:3px;">Self-correcting</div>
-                                Every hour, the server checks its earlier prediction against what Little Falls actually recorded when that water arrived. The error is stored by flow level and flow direction (rising, falling, or steady), and a correction factor is updated so the next prediction in similar conditions is closer. The model improves continuously, even when no one is looking at the site. The estimate is also capped at 120% of the downstream gauge reading to prevent runaway overestimates during fast rises.
+                                Every hour, the server checks its earlier prediction against what Little Falls actually recorded when that water arrived. The error is stored by flow level and flow direction (rising, falling, or steady), and a correction factor is updated so the next prediction in similar conditions is closer. The model improves continuously, even when no one is looking at the site. The estimate is also capped at 120% of the downstream gauge reading to prevent runaway overestimates during fast rises. Comparisons that look anomalous (a suspect gauge reading, or an error far outside the model's normal range &mdash; typical during sudden local storms) are quarantined: they don't update the correction factors or the accuracy average, but they still appear on the accuracy chart as hollow rings, so unusual events stay visible.
                             </div>
                         </div>
 
@@ -594,7 +594,7 @@
                                 </div>
                             </div>
                             <div style="font-size:0.45rem;color:var(--text-faint);margin-top:4px;text-align:center;">
-                                <span style="color:#60a5fa;">●</span> Predicted LF &nbsp; <span style="color:#4ade80;">●</span> Actual LF
+                                <span style="color:#60a5fa;">●</span> Predicted LF &nbsp; <span style="color:#4ade80;">●</span> Actual LF &nbsp; <span style="color:#94a3b8;">○</span> Hard-flagged (excluded from avg)
                             </div>
                         </div>
 
