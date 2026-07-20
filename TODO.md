@@ -4,7 +4,7 @@
 Session state is in `.claude/HANDOFF.md`; methodology provenance for shipped versions is the
 small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, prioritize, go.
 
-*Last updated: 2026-06-23 (current version: v37.11). Verified against live DB + git history, not memory.*
+*Last updated: 2026-07-20 (current version: v37.12). Verified against live DB + git history, not memory.*
 
 ---
 
@@ -14,7 +14,7 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 - Effort is a rough order-of-magnitude.
 - 🔒 = needs a decision from you before work starts · 📅 = date-gated · 🔍 = verify-only.
 - Anything touching the estimate must keep the characterization/golden tests green and the
-  client↔server parity tests green (`npm test` = **664**), or deliberately re-baseline + version-bump.
+  client↔server parity tests green (`npm test` = **679**), or deliberately re-baseline + version-bump.
 - **Pushing auto-deploys from `main`** through the Netlify gate (`npm install && npm test && npm run build`);
   a red suite blocks deploy. Pushing needs explicit approval each time.
 
@@ -66,10 +66,20 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 | 19 | **Service worker for offline** | done | ✅ **v37.10** — offline SW via `vite-plugin-pwa` (Workbox `generateSW`, `autoUpdate`): precaches the hashed app shell + geojson, runtime-caches (SWR) the `sync-learning` GETs (`pp-api`) + USGS/NWS data (`pp-data`), so a returning user opens offline with last-known state. `skipWaiting`+`clientsClaim`+`cleanupOutdatedCaches` busts the precache per deploy (no stale code); tiles excluded; `manifest:false`; no SW in dev; registered prod-only in `main.js`. New `#offlineBar` (`navigator.onLine`-driven, distinct from the fetch-failure banner the SW masks). CSP unchanged (origins already in `connect-src`). +2 tests (662→664); `dist/sw.js` emitted. 1 new build-time devDep (`vite-plugin-pwa`; 5 dev-only audit advisories, none shipped). ⚠️ in-browser verification pending (SW register/activate, offline reload, post-deploy cache-bust, no CSP errors). Plan→audit→implement→verify: `analysis/service-worker-offline-plan-2026-06-23.md`. |
 | 20 | **Mobile sidebar scrolling** | done | ✅ **v37.11** — fixed the mobile double-scroll (CSS-only): `#app` uses `100dvh` with a `100vh` fallback (fills the visual viewport, not the chrome-occluded 100vh), and on ≤768px the sidebar is the single scroll container (`.tab-content`'s inner `overflow` removed) with the tab bar pinned (`.tabs` `position: sticky; top: 0`, opaque). Mobile-scoped — desktop `.tab-content`-scrolls model untouched (`100dvh` == `100vh` on desktop). Build green, 664 tests. ⚠️ in-browser (mobile) verification pending. |
 | 21 | **Show hard-flagged validations in the accuracy chart** | done | ✅ **v37.12** (follow-on to #18) — the Prediction Accuracy (7d) chart merges the `validation_failure` log into its timeline as hollow rings (legend + "⚠ hard-flagged" tooltip note), so flagged validations stop appearing as unexplained gaps (the 2026-07-09/10 local-runoff event left a silent 44h hole; this chart is now also the recurrence monitor for that decision). Flagged points stay out of the line paths, y-domain, and headline avg (byte-identical over history; failures 7d-windowed client-side; summary discloses the count). New pure `src/ui/validation-merge.js` + 15 tests (664→679). Client display only — no learning/accuracy-metric change. Full protocol (plan → audit (15 findings) → implement → re-audit). ⚠️ in-browser verification pending. |
+| 22 | 🔒 **EF-divergence display-honesty patch (v38-gate fallback)** | 0.5–1d | **OPEN — the pre-registered FAIL fallback, user-approved 2026-07-20 to ship regardless of arm.** Server computes/persists D̄ (bare-EF/porEst 5h median, the gate's validated detector half), pending rows gain `efDivergence`, client downgrades displayed confidence during sustained divergence (both 2026 misses sat in D̄>1.1 hours, so the extra uncertainty is real). NO estimate change (MINOR). Copy must say the sensors *disagree*, not that EF is right (the gate proved the trust-shift wrong). Full protocol: plan → audit → implement → re-audit. Spec seed: `analysis/v38_gate_verdict_2026-07-20.md` §6. |
 
 ---
 
 ## Modeling — deferred with skepticism
+
+- ❌ **v38.0 EF divergence gate — FAILED its pre-registered gate (2026-07-20). Not implemented.**
+  Externally reviewed plan (v3), 85-config × 2-mode prequential replay over 14.6y: best cell +10%
+  event-window MAE improvement vs the required 25%; even T_LO=1.20 false-activates on 9.5% of
+  normal hours with CI-confirmed harm. Structural cause: in 4 of 6 historical below-PoR windows
+  EF read *below* the PoR estimate throughout (D̄ max 0.84–0.98) — water entering below Edwards
+  Ferry is invisible to both sensors; the 2026 episodes were a regime-biased (EF-visible) sample.
+  Full verdict: `analysis/v38_gate_verdict_2026-07-20.md`. Re-open only with a genuinely new
+  observable for the below-EF reach (none exists at USGS today), NOT with re-tuned thresholds.
 
 - ⏸️ **C45 Phase 2 — trend-state-axis correction smoothing.** **NOT PURSUING** (decided 2026-06-23).
   Rejected on the existing evidence, not a fresh gate: the v37 bin-edge diagnostic + the Phase-1
