@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v37.12 (July 2026)
+**Current Version**: v37.13 (July 2026)
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ Frontend (PWA)                    Netlify Functions (Backend)
 ├── analysis/                         # Model calibration scripts, audit reports (CSVs gitignored — reproducible from scripts)
 ```
 
-## Current Model (v37.12)
+## Current Model (v37.13)
 
 Core estimation parameters (travel time, EF power-law, EF weight) validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits. The v36.1 confidence band was re-derived separately on **126,916 hourly observations** (the same period, with the four tributaries + LF stage added) — see the v36.1 changelog entry.
 
@@ -175,6 +175,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v37.13 | 2026-07-20 | **EF divergence advisory — MINOR, display-only honesty signal.** The v38.0 estimator fix for below-PoR inflow blindness FAILED its pre-registered 15-year gate (`analysis/v38_gate_verdict_2026-07-20.md`), so only the honesty half ships: the cron maintains a 5h-median EF/PoR divergence state (fail-closed; cold-lockout; ON D̄≥1.20/OFF <1.15) in an upserted `ef_divergence/state` row, the learning GET ships it, and the client — when the state is active and ≤2h fresh — downgrades displayed confidence one notch and shows an amber advisory with the replay numbers (divergence-active hours ~2.4× less accurate; >25% misses ~3× likelier, mostly under-reads). No model/learning/weight/estimate change. Learning payload now refreshes on the 15-min cycle. 679 → 702 tests. ⚠️ in-browser + first-live-cron verification pending. |
 | v37.12 | 2026-07-13 | **Hard-flagged validations shown in the accuracy chart — MINOR, client display, additive.** The Prediction Accuracy (7d) chart merges the `validation_failure` log (v37.9) into its timeline as hollow rings with a "⚠ hard-flagged" tooltip note and legend entry — previously these validations (excluded from learning/accuracy) appeared as unexplained gaps (the 2026-07-09/10 local-runoff event left a silent 44h hole). Flagged entries stay out of the line paths, the y-domain, and the headline average (byte-identical over history; only failure entries are 7d-windowed client-side). New pure module `src/ui/validation-merge.js` + `test/validation-merge.test.mjs`. Build green, 664 → 679 tests. ⚠️ in-browser verification pending. |
 | v37.11 | 2026-06-23 | **Mobile sidebar scrolling (Tier 4 #20) — MINOR, CSS-only.** Fixed the mobile double-scroll: `#app` now uses `100dvh` (with a `100vh` fallback) so it fills the *visual* viewport instead of overflowing behind the browser chrome, and on ≤768px the sidebar is the single scroll container (`.tab-content`'s inner `overflow` removed) with the tab bar pinned (`.tabs { position: sticky; top: 0 }`, opaque). Desktop layout unchanged (changes scoped to the mobile media query; `100dvh` equals `100vh` on desktop). Build green, 664 tests. ⚠️ in-browser (mobile) verification pending. |
 | v37.10 | 2026-06-23 | **Service worker / offline cache (Tier 4 #19) — MINOR, client, additive.** Added an offline service worker via `vite-plugin-pwa` (Workbox `generateSW`, `registerType: 'autoUpdate'`): precaches the hashed app-shell assets + geojson (10 entries) and runtime-caches (stale-while-revalidate) the same-origin `sync-learning` GETs (`pp-api`) and cross-origin USGS/NWS data (`pp-data`), so a returning user can open the app offline with last-known gauges + GF estimate + forecast. `skipWaiting` + `clientsClaim` + `cleanupOutdatedCaches` so each deploy fully busts the precache (no stale code); map tiles excluded (quota); existing `public/manifest.json` kept (`manifest: false`); no SW in `vite dev`. Registered prod-only in `main.js`. New `#offlineBar` indicator driven by `navigator.onLine` (distinct from the fetch-failure `#error-banner`, which the SW would otherwise mask). CSP unchanged (every cached origin already in `connect-src`). One new build-time devDependency (`vite-plugin-pwa`). +2 tests (662 → 664); build emits `dist/sw.js`. ⚠️ in-browser verification pending. Plan: `analysis/service-worker-offline-plan-2026-06-23.md`. |
@@ -235,8 +236,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v37.12).
+See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v37.13).
 
 ---
 
-*Last updated: 2026-07-13 (v37.12 — hard-flagged validations shown in the accuracy chart)*
+*Last updated: 2026-07-20 (v37.13 — EF divergence advisory: display-only confidence downgrade + "why to trust it less" note during sustained cross-check disagreement)*

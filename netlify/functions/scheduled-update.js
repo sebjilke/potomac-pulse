@@ -9,6 +9,7 @@ const {
     POR_HISTORY_MAX_AGE,
     EF_MODEL,
     getEFWeight, getFlowMultiplier, getFlowState,
+    updateEfDivergenceState,
     getPoRtoGFTravelTime, getGFtoLFTravelTime, selectHistoricReading,
     GF_EMA_ALPHA,
     getPoRRiseRateFromHistory,
@@ -256,7 +257,13 @@ async function fetchUSGSData() {
 
                 if (val > 0 && val < 9999999) {
                     if (param === '00060') data[siteId].q = val;
-                    if (param === '00065') data[siteId].h = val;
+                    if (param === '00065') {
+                        data[siteId].h = val;
+                        // v37.13: stage-reading age feeds the EF divergence advisory's strict
+                        // validity — a gauge frozen inside the P2D fetch window is otherwise
+                        // present-but-stale with no way to know (plan §1/F7).
+                        data[siteId].hTime = new Date(latest.dateTime).getTime();
+                    }
                 }
 
                 // Full history for PoR (for time-shifting)
@@ -381,9 +388,10 @@ async function storeGFHistory(client, prediction) {
  * @param {number} errorPercent - Signed error percent (rounded to 0.1) for this pair.
  * @param {string} flowBin - Flow-range bin label for the prediction.
  * @param {string} flowState - Flow state ('rising'/'falling'/'steady') for the prediction.
+ * @param {{efDivergence?: (number|null), divergenceActive?: (boolean|null)}} [divergence={}] - Prediction-time EF divergence advisory state (v37.13; null-safe for legacy rows).
  * @returns {Promise<void>}
  */
-async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent, flowBin, flowState) {
+async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent, flowBin, flowState, divergence = {}) {
     const now = Date.now();
     const newEntry = {
         timestamp: now,
@@ -391,7 +399,10 @@ async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent
         actualCFS: Math.round(actualCFS),
         errorPercent: Math.round(errorPercent * 10) / 10,
         flowBin,
-        flowState
+        flowState,
+        // v37.13: prediction-time EF divergence advisory state (null for legacy pending rows)
+        efDivergence: divergence.efDivergence ?? null,
+        divergenceActive: divergence.divergenceActive ?? null
     };
 
     const existing = await getObs(client, 'gf_validation_history', 'system');
@@ -1159,6 +1170,10 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                             flowState,
                             hardScore,
                             anomalyFlags,                    // reason strings (e.g. LOW_FLOW_HIGH_STAGE:…)
+                            // v37.13: prediction-time advisory state — both 2026 divergence misses
+                            // were hard-flagged, so this row is where the correlation lives.
+                            efDivergence: pred.data.efDivergence ?? null,
+                            divergenceActive: pred.data.divergenceActive ?? null,
                         }
                     );
                     if (failErr) console.error(`❌ validation_failure log FAILED for ${pred.id}:`, failErr.message);
@@ -1416,7 +1431,8 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
 
             if (!isHardFlagged) {
                 // Validation pair records the CORRECTED (displayed) estimate vs actual.
-                await storeValidationPair(client, correctedCFS, actualCFS, errorPercentCorrected, flowBin, flowState);
+                await storeValidationPair(client, correctedCFS, actualCFS, errorPercentCorrected, flowBin, flowState,
+                    { efDivergence: pred.data.efDivergence ?? null, divergenceActive: pred.data.divergenceActive ?? null });
             }
 
             // Score shadow model predictions (non-blocking — failure must not break validation)
@@ -1810,7 +1826,37 @@ exports.handler = async (event, context) => {
             console.log('Making new prediction...');
             const correctionBins = await loadCorrectionBins(client);
             prediction = makeGFPrediction(usgsData, fullHistory, waterTempC, correctionBins);
+        }
+
+        // 5b. EF divergence advisory state — EVERY cycle, prediction or not (v37.13, plan §1/F10):
+        // with no prediction the window still trims and the state decays to inactive rather than
+        // freezing active. Display-only honesty signal (v38 gate FAIL fallback); never feeds the
+        // estimate or learning; non-fatal by construction.
+        let divergenceState = null;
+        try {
+            const prevDivergence = await getObs(client, 'ef_divergence', 'state');
+            divergenceState = updateEfDivergenceState(prevDivergence, {
+                nowMs: Date.now(),
+                efEstimateCFS: prediction?.efEstimateCFS ?? null,
+                porEstimateCFS: prediction?.porEstimateCFS ?? null,
+                efReadingMs: usgsData.data[usgsData.gauges.ef]?.hTime ?? null,
+                waterTempC
+            });
+            const { error: divErr } = await upsertObs(client, 'ef_divergence', 'state', divergenceState);
+            if (divErr) console.warn('⚠️ EF divergence state write failed (non-fatal):', divErr.message);
+            else if (divergenceState.active) console.log(`⚠️ EF divergence ADVISORY active: D̄=${divergenceState.dbar}`);
+        } catch (e) {
+            console.warn('⚠️ EF divergence state update threw (non-fatal):', e?.message || e);
+        }
+
+        if (!criticalIce) {
             if (prediction) {
+                // Stamp the advisory state onto the prediction (flows into the pending row and,
+                // at validation, into the validation-history / validation_failure entries).
+                if (divergenceState) {
+                    prediction.efDivergence = divergenceState.dbar;
+                    prediction.divergenceActive = divergenceState.active;
+                }
                 // Run server-side shadow models and attach before storing.
                 // Shadows are RAW-model variants — seed them off the raw final (rawFinalCFS), NOT the
                 // corrected predictedCFS, so their operating point is unchanged by the v36.0 cutover.

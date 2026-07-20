@@ -40,6 +40,7 @@ import './ui/about.js';
 // Application initialization
 import { init } from './init.js';
 import { fetchData, updateStalenessDisplay } from './data/fetch.js';
+import { loadGFLearningData } from './learning/gf-learning.js';
 
 // Boot the application
 init().catch(e => {
@@ -47,8 +48,14 @@ init().catch(e => {
     Sentry.captureException(e);
 });
 
-// Refresh every 15 minutes
-setInterval(fetchData, 900000);
+// Refresh every 15 minutes. v37.13: the learning payload refreshes first (it carries the
+// EF divergence advisory, whose 2h freshness guard would otherwise hide it for long-open
+// tabs and SW-cached revisits — plan F8; SWR converges to fresh within one cycle), then
+// fetchData re-renders. Learning-refresh failure must never block the data refresh.
+setInterval(async () => {
+    try { await loadGFLearningData(); } catch (e) { console.warn('Learning refresh failed:', e); }
+    fetchData();
+}, 900000);
 
 // Update staleness display every minute
 setInterval(updateStalenessDisplay, 60000);

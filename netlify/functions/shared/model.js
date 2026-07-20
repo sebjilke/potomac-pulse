@@ -122,6 +122,89 @@ function getEFWeight(estimatedFlow) {
     return W_MAX / (1 + Math.exp(-K * (Math.log(estimatedFlow) - MIDPOINT)));
 }
 
+// --- EF divergence advisory (v37.13) ---
+// Display-only honesty signal: sustained bare-EF-above-PoR-estimate divergence marks hours
+// that are historically ~2.4x less accurate (analysis/ef-divergence-advisory-plan-2026-07-20.md
+// §0). Detector thresholds reuse the v38-gate-reviewed rules; the v38 ESTIMATOR change failed
+// its gate and is NOT implemented (analysis/v38_gate_verdict_2026-07-20.md) — this state must
+// never feed the estimate, the weights, or learning. Server-only; the client renders the
+// persisted state (staleMs is mirrored as EF_DIVERGENCE_STALE_MS in src/model/constants.js).
+const EF_DIVERGENCE = {
+    on: 1.20,                            // D̄ >= on activates (most conservative gate-reviewed T_LO)
+    off: 1.15,                           // once active, D̄ < off deactivates (deadband)
+    windowMs: 5 * 60 * 60 * 1000,        // D̄ = median over trailing 5h
+    sampleRetentionMs: 6 * 60 * 60 * 1000,
+    minSamples: 3,                       // fail-closed below this
+    efMaxAgeMs: 2 * 60 * 60 * 1000,      // EF stage reading older than this is invalid (F7/F11)
+    staleMs: 2 * 60 * 60 * 1000,         // client hides state older than this (cron stall)
+    coldLockC: 10,                       // temp <= this locks eligibility out (ice/backwater regime)
+    coldUnlockC: 11,                     // re-eligible only above this (1°C hysteresis, F12)
+    coldMonths: [10, 11, 0, 1, 2],       // UTC Nov–Mar: month proxy when temp is unknown
+    minCFS: 500, maxCFS: 500000          // strict EF-estimate validity range
+};
+
+/**
+ * Advances the EF divergence advisory state by one cron cycle (pure; caller persists).
+ * Fail-closed: any missing/invalid input this cycle contributes no sample, and activation
+ * requires eligibility, a strictly valid current-cycle sample, and >=3 samples in the 5h window.
+ * @param {Object|null} prevState - Previously persisted state ({samples, active, activeSince, coldLockout, ...}) or null.
+ * @param {Object} cycle - Current-cycle inputs.
+ * @param {number} cycle.nowMs - Current epoch ms.
+ * @param {number|null} cycle.efEstimateCFS - Bare EF power-law estimate (null when no prediction/invalid stage).
+ * @param {number|null} cycle.porEstimateCFS - PoR-side estimate pre-ensemble (null when no prediction).
+ * @param {number|null} cycle.efReadingMs - Epoch ms of the EF stage reading (null if unknown -> invalid).
+ * @param {number|null} cycle.waterTempC - Water temp (°C) or null (month proxy applies).
+ * @returns {{samples: Array<{t: number, d: number}>, dbar: (number|null), active: boolean, activeSince: (string|null), coldLockout: boolean, updatedAt: string}}
+ */
+function updateEfDivergenceState(prevState, { nowMs, efEstimateCFS, porEstimateCFS, efReadingMs, waterTempC }) {
+    const prev = prevState || {};
+    const samples = (Array.isArray(prev.samples) ? prev.samples : [])
+        .filter(s => s && Number.isFinite(s.t) && Number.isFinite(s.d)
+            && s.t > nowMs - EF_DIVERGENCE.sampleRetentionMs && s.t <= nowMs);
+
+    const efValid = Number.isFinite(efEstimateCFS)
+        && efEstimateCFS > EF_DIVERGENCE.minCFS && efEstimateCFS < EF_DIVERGENCE.maxCFS
+        && Number.isFinite(porEstimateCFS) && porEstimateCFS > 0
+        && Number.isFinite(efReadingMs) && (nowMs - efReadingMs) <= EF_DIVERGENCE.efMaxAgeMs;
+    if (efValid) {
+        samples.push({ t: nowMs, d: Math.round((efEstimateCFS / porEstimateCFS) * 10000) / 10000 });
+    }
+
+    // Cold lockout with 1°C hysteresis; month proxy (lockout unchanged) when temp unknown.
+    let coldLockout = !!prev.coldLockout;
+    const tempKnown = Number.isFinite(waterTempC);
+    if (tempKnown) {
+        if (waterTempC <= EF_DIVERGENCE.coldLockC) coldLockout = true;
+        else if (waterTempC > EF_DIVERGENCE.coldUnlockC) coldLockout = false;
+    }
+    const eligible = tempKnown
+        ? !coldLockout
+        : !EF_DIVERGENCE.coldMonths.includes(new Date(nowMs).getUTCMonth());
+
+    const windowVals = samples.filter(s => s.t > nowMs - EF_DIVERGENCE.windowMs).map(s => s.d);
+    let dbar = null;
+    if (windowVals.length >= EF_DIVERGENCE.minSamples) {
+        const sorted = [...windowVals].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        dbar = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+        dbar = Math.round(dbar * 10000) / 10000;
+    }
+
+    let active = false;
+    if (eligible && efValid && dbar !== null) {
+        active = prev.active ? dbar >= EF_DIVERGENCE.off : dbar >= EF_DIVERGENCE.on;
+    }
+
+    return {
+        samples,
+        dbar,
+        active,
+        activeSince: active ? (prev.active && prev.activeSince ? prev.activeSince : new Date(nowMs).toISOString()) : null,
+        coldLockout,
+        updatedAt: new Date(nowMs).toISOString()
+    };
+}
+
 // --- Flow multiplier for travel time scaling ---
 // SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
 
@@ -604,6 +687,7 @@ module.exports = {
     POR_HISTORY_MAX_AGE,
     EF_MODEL,
     getEFWeight, getFlowMultiplier, getFlowState,
+    EF_DIVERGENCE, updateEfDivergenceState,
     getPoRtoGFTravelTime, getGFtoLFTravelTime,
     medianCfs, selectHistoricReading,
     GF_EMA_ALPHA,

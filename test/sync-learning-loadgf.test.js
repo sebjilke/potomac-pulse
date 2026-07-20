@@ -72,6 +72,39 @@ describe('loadGFLearningData — happy path', () => {
 
         // shadowLeaderboard: the row's .data
         assert.deepEqual(body.shadowLeaderboard, { totalRounds: 4 });
+
+        // efDivergence: absent row -> null (v37.13; tolerated like metadata)
+        assert.equal(body.efDivergence, null);
+    });
+});
+
+describe('loadGFLearningData — efDivergence advisory state (v37.13)', () => {
+    it('ships only the render-relevant fields from the state row', async () => {
+        const client = mockClient({
+            gf_correction_bin: { data: [], error: null },
+            gf_prediction: { data: [], error: null },
+            ef_divergence: { data: { data: {
+                active: true, dbar: 1.27, activeSince: '2026-07-20T02:00:00Z',
+                updatedAt: '2026-07-20T12:00:00Z', coldLockout: false,
+                samples: [{ t: 1, d: 1.3 }]   // server-internal — must NOT ship
+            } }, error: null }
+        });
+        const body = parse(await loadGFLearningData(client));
+        assert.deepEqual(body.efDivergence, {
+            active: true, dbar: 1.27,
+            activeSince: '2026-07-20T02:00:00Z', updatedAt: '2026-07-20T12:00:00Z'
+        });
+    });
+
+    it('a missing state row yields efDivergence: null (no error)', async () => {
+        const client = mockClient({
+            gf_correction_bin: { data: [], error: null },
+            gf_prediction: { data: [], error: null },
+            ef_divergence: { data: null, error: SINGLE_MISS }
+        });
+        const res = await loadGFLearningData(client);
+        assert.equal(res.statusCode, 200);
+        assert.equal(parse(res).efDivergence, null);
     });
 });
 

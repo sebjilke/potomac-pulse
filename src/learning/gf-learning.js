@@ -57,11 +57,15 @@ export async function loadGFLearningData() {
             }
         } else {
             console.warn('GF learning API returned:', response.status);
-            setGfLearningData(emptyData);
+            // v37.13: keep the last good payload on refresh failure — this loader now runs on
+            // the 15-min cycle, and wiping to emptyData would drop the live correction bins
+            // (and thus the displayed estimate's correction) for a whole cycle on one flaky
+            // response. emptyData is only the cold-start fallback.
+            if (!gfLearningData) setGfLearningData(emptyData);
         }
     } catch (e) {
         console.warn('Failed to load GF learning data:', e);
-        setGfLearningData(emptyData);
+        if (!gfLearningData) setGfLearningData(emptyData);
     }
 
     // Mark GF data as ready (UI will update when USGS data arrives)

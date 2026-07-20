@@ -135,6 +135,11 @@ export const DECAY_CAP = 0.50;           // PoR-delta staleness: max fraction of
 export const EF_DISCREPANCY_MAX = 0.50;  // skip EF ensemble above this relative PoR/EF gap
 export const CEILING_RATIO = 1.20;       // soft LF ceiling: GF estimate ≤ 120% of LF actual
 
+// v37.13: EF divergence advisory freshness — hide server advisory state older than this
+// (cron stall → fail-safe silence). Mirrors server shared/model.js EF_DIVERGENCE.staleMs —
+// keep in sync (the client never computes divergence; it only renders persisted state).
+export const EF_DIVERGENCE_STALE_MS = 2 * 60 * 60 * 1000;
+
 // GF prediction/learning intervals
 // (GF_PREDICTION_INTERVAL / GF_MIN_VALIDATION_TIME removed in v36.0 — the client no longer writes
 //  predictions, so the throttle and min-validation-window constants have no consumers.)
