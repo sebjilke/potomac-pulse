@@ -170,3 +170,15 @@ post-gate design choice · F13 copy softened for the blended high-flow case ·
 F14 concurrency wording corrected (last-writer-wins, benign) · F15 doc targets corrected ·
 F16 client staleness constant in `constants.js` with cross-ref · F17 downgrade stacking
 declared intended; ice path unaffected.
+
+## 9. Post-ship addendum (v37.14, 2026-07-20, user-directed)
+
+- **Episode logging:** the user requires durable documentation of firings with actual numbers
+  ("it fires a lot; issues are more pronounced in certain flow regimes"). Since the state row
+  overwrites and §1's validation stamps live in a 7-day window, v37.14 adds an append-only
+  `ef_divergence_episode` row emitted at each deactivation: startedAt/endedAt, cycles, peak D̄
+  (+ LF at peak), mean D̄, LF min–max, per-cycle {t, D̄, LF} trail (capped 336, overflow counted).
+  Aggregation is in the pure helper (new optional `lfCFS` input); emission is non-fatal in the
+  cron. Together with the (windowed) validation stamps this answers duty-by-regime queries.
+- **Copy trim:** the §3 copy's history-stats sentence removed from the DISPLAYED text at user
+  direction; the evidence remains in §0 here and tech-appendix §5.9.

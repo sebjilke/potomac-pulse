@@ -13,7 +13,7 @@ const H = 3600 * 1000;
 const T0 = Date.parse('2026-07-15T12:00:00Z');   // July → month proxy eligible
 
 // Advance the state through hourly cycles with the given D ratios (efEst = d × porEst).
-function runCycles(prev, ratios, { startMs = T0, tempC = 25, porEst = 3000, efAgeMs = 0 } = {}) {
+function runCycles(prev, ratios, { startMs = T0, tempC = 25, porEst = 3000, efAgeMs = 0, lfs = null } = {}) {
     let state = prev;
     ratios.forEach((d, i) => {
         const nowMs = startMs + i * H;
@@ -22,7 +22,8 @@ function runCycles(prev, ratios, { startMs = T0, tempC = 25, porEst = 3000, efAg
             efEstimateCFS: d === null ? null : Math.round(d * porEst),
             porEstimateCFS: porEst,
             efReadingMs: d === null ? null : nowMs - efAgeMs,
-            waterTempC: tempC
+            waterTempC: tempC,
+            lfCFS: Array.isArray(lfs) ? lfs[i] : lfs
         });
     });
     return state;
@@ -121,6 +122,49 @@ describe('updateEfDivergenceState — temperature eligibility (F12)', () => {
         assert.equal(sJan.active, false, 'Nov–Mar unknown-temp is cold-proxied');
         const sJul = runCycles(null, [1.3, 1.3, 1.3], { tempC: null });
         assert.equal(sJul.active, true, 'Apr–Oct unknown-temp is eligible');
+    });
+});
+
+describe('updateEfDivergenceState — episode documentation (v37.14)', () => {
+    it('episode is null while inactive and initializes on activation', () => {
+        let s = runCycles(null, [1.02, 1.03]);
+        assert.equal(s.episode, null);
+        s = runCycles(null, [1.25, 1.22, 1.30], { lfs: [3100, 3200, 3300] });
+        assert.ok(s.episode);
+        assert.equal(s.episode.cycles, 1, 'episode starts at the activating cycle');
+        assert.equal(s.episode.trail.length, 1);
+    });
+
+    it('accumulates actual numbers across active cycles: peak/sum D̄, LF range, lfAtPeak', () => {
+        // Activation happens at cycle 3 (>=3-sample rule): episode covers cycles 3-6.
+        // D̄ is the trailing-5h MEDIAN, so it reaches 1.40 only once high samples dominate
+        // the window (cycle 6) — lfAtPeak must be THAT cycle's LF.
+        let s = runCycles(null, [1.25, 1.25, 1.25], { lfs: [3000, 3000, 3000] });
+        s = runCycles(s, [1.40, 1.40, 1.40], { startMs: T0 + 3 * H, lfs: [5200, 5200, 5200] });
+        assert.equal(s.episode.cycles, 4);
+        assert.equal(s.episode.peakDbar, 1.40);
+        assert.equal(s.episode.lfAtPeak, 5200, 'LF recorded at the peak-D̄ cycle');
+        assert.equal(s.episode.minLF, 3000);
+        assert.equal(s.episode.maxLF, 5200);
+        assert.equal(s.episode.trail.length, 4);
+        assert.ok(Math.abs(s.episode.sumDbar / s.episode.cycles - 1.2875) < 0.001, 'mean D̄ derivable');
+    });
+
+    it('deactivation clears episode on the new state; the PREVIOUS state still carries it (caller emits the log row from prev)', () => {
+        let active = runCycles(null, [1.3, 1.3, 1.3], { lfs: 3500 });
+        assert.ok(active.episode);
+        const after = runCycles(active, [1.05, 1.05, 1.05], { startMs: T0 + 3 * H });
+        assert.equal(after.active, false);
+        assert.equal(after.episode, null);
+        assert.ok(active.episode.cycles >= 1, 'prev state retains the completed aggregates');
+    });
+
+    it('caps the per-cycle trail at 336 entries and counts the overflow', () => {
+        const ratios = Array(345).fill(1.3);        // activates at cycle 3 -> 343 active cycles
+        const s = runCycles(null, ratios, { lfs: 3000 });
+        assert.equal(s.episode.trail.length, 336);
+        assert.equal(s.episode.trailDropped, 7);
+        assert.equal(s.episode.cycles, 343, 'aggregates keep counting past the cap');
     });
 });
 

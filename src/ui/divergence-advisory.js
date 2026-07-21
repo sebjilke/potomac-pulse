@@ -35,9 +35,10 @@ export function downgradeConfidence(level) {
     return level === 'high' ? 'medium' : 'low';
 }
 
-// The user-facing "why to trust it less" copy. Numbers are from the v38 gate residuals
-// (122,976 replayed hours; see the advisory plan §0): divergence-active hours have ~2.4×
-// the median error and ~3× the >25%-miss rate, 76% of those big misses under-reads.
+// The user-facing "why to trust it less" copy. The replay evidence behind the downgrade
+// (divergence-active hours ~2.4× the median error, ~3× the >25%-miss rate, mostly
+// under-reads) is documented in the advisory plan §0 and tech-appendix §5.9; the stats
+// sentence was removed from the DISPLAYED copy at the user's direction (2026-07-20).
 // Wording constraint from the gate verdict: the sensors DISAGREE — never claim EF is right.
 export const DIVERGENCE_ADVISORY_TITLE =
     '⚠️ Cross-check gauge disagrees — treat this estimate with extra caution.';
@@ -45,7 +46,5 @@ export const DIVERGENCE_ADVISORY_BODY =
     'The Edwards Ferry gauge — an independent cross-check just upstream of Great Falls — ' +
     'has been reading well above what the upstream gauges suggest for several hours. ' +
     'Sometimes that’s just gauge noise at low water, but it can mean water is entering ' +
-    'the Potomac below those gauges — water this estimate may not fully see. In 15 years ' +
-    'of replayed history, hours like this were about 2–3× less accurate than ' +
-    'usual, and large misses (>25% off) were three times more likely — mostly ' +
-    'under-reads. If the river looks higher than the number, believe the river.';
+    'the Potomac below those gauges — water this estimate may not fully see. ' +
+    'If the river looks higher than the number, believe the river.';

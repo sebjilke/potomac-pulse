@@ -133,7 +133,7 @@ horizon (6/12/24/48h). Stored as `gf_forecast_pending` → validated when water 
 Client estimation: `src/estimation/great-falls.js`. Forecast UI: `src/ui/great-falls-ui.js`.
 NWS integration: `src/estimation/nws.js`. Learning UI: `src/ui/learning-ui.js`.
 
-## Current Model Parameters (v37.13)
+## Current Model Parameters (v37.14)
 
 - **EF Power-Law**: 126×EF^2.46 (default), 160×EF^2.36 (cold water ≤10°C)
 - **EF Weight (Logistic Ramp)**: `ef_weight = 0.40 / (1 + exp(-5.0 × (ln(flow) - ln(10000))))`. Near 0% at low flows, ~40% at high. EF has negative predictive skill below 6k cfs.
@@ -153,6 +153,10 @@ NWS integration: `src/estimation/nws.js`. Learning UI: `src/ui/learning-ui.js`.
   with 1 °C hysteresis, Nov–Mar month proxy when temp unknown; ON D̄≥1.20 / OFF <1.15 deadband),
   and stamps `efDivergence`/`divergenceActive` on pending + validation + validation_failure rows.
   The client (server-authoritative, 2h freshness guard `EF_DIVERGENCE_STALE_MS`) downgrades
-  displayed confidence one notch and shows the "why to trust it less" advisory; the learning
-  payload now refreshes on the 15-min cycle. **Never feeds the estimate, weights, or learning.**
+  displayed confidence one notch and shows the "why to trust it less" advisory (v37.14: stats
+  sentence removed from the displayed copy at user direction; evidence stays in the plan/appendix);
+  the learning payload refreshes on the 15-min cycle. v37.14 also logs each completed firing as an
+  append-only `ef_divergence_episode` row (start/end, cycles, peak/mean D̄, LF range + per-cycle
+  trail capped at 336) — durable duty/flow-regime documentation (validation-history stamps only
+  live 7 days). **Never feeds the estimate, weights, or learning.**
 - **System-1 retired (v37.1)**: the legacy client-side per-gauge travel-time learning ("System 1": `gauge-learning.js`, `cloud-sync.js`, the `/api/sync` default `load/saveLearningData` handlers) is **gone**. It had been a dead write path since the Feb-2026 modularization but still multiplied 15 frozen `correction` factors into the **displayed** per-gauge arrival times. The GF estimate never used them (it computes its own PoR→GF travel time), so removal is display-only/MINOR; displayed gauge arrivals now equal `baseHrs × Searcy-multiplier`. The only learning system is **System 2** (server-side GF EMA bins).

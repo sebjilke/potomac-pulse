@@ -154,9 +154,14 @@ const EF_DIVERGENCE = {
  * @param {number|null} cycle.porEstimateCFS - PoR-side estimate pre-ensemble (null when no prediction).
  * @param {number|null} cycle.efReadingMs - Epoch ms of the EF stage reading (null if unknown -> invalid).
  * @param {number|null} cycle.waterTempC - Water temp (°C) or null (month proxy applies).
- * @returns {{samples: Array<{t: number, d: number}>, dbar: (number|null), active: boolean, activeSince: (string|null), coldLockout: boolean, updatedAt: string}}
+ * @param {number|null} [cycle.lfCFS] - Observed LF discharge (cfs) this cycle, for episode flow-regime documentation.
+ * @returns {{samples: Array<{t: number, d: number}>, dbar: (number|null), active: boolean, activeSince: (string|null), coldLockout: boolean, updatedAt: string, episode: (Object|null)}}
+ *   While active, `episode` accumulates the firing's actual numbers (v37.14: start, per-cycle
+ *   {t, dbar, lf} trail capped at 336 entries, peak/sum D̄, LF range) so deactivation can emit an
+ *   append-only `ef_divergence_episode` row — duty-cycle and flow-regime documentation, since the
+ *   validation-history stamps only live in a 7-day window.
  */
-function updateEfDivergenceState(prevState, { nowMs, efEstimateCFS, porEstimateCFS, efReadingMs, waterTempC }) {
+function updateEfDivergenceState(prevState, { nowMs, efEstimateCFS, porEstimateCFS, efReadingMs, waterTempC, lfCFS = null }) {
     const prev = prevState || {};
     const samples = (Array.isArray(prev.samples) ? prev.samples : [])
         .filter(s => s && Number.isFinite(s.t) && Number.isFinite(s.d)
@@ -195,13 +200,42 @@ function updateEfDivergenceState(prevState, { nowMs, efEstimateCFS, porEstimateC
         active = prev.active ? dbar >= EF_DIVERGENCE.off : dbar >= EF_DIVERGENCE.on;
     }
 
+    // Episode documentation (v37.14): while active, accumulate the firing's actual numbers.
+    // The caller emits prev.episode as an append-only ef_divergence_episode row when it
+    // observes the active -> inactive transition (incl. decay-to-inactive on missing data).
+    let episode = null;
+    if (active) {
+        episode = (prev.active && prev.episode) ? prev.episode : {
+            startedAt: new Date(nowMs).toISOString(),
+            cycles: 0, peakDbar: 0, sumDbar: 0,
+            minLF: null, maxLF: null, lfAtPeak: null,
+            trail: [], trailDropped: 0
+        };
+        episode.cycles += 1;
+        episode.sumDbar = Math.round((episode.sumDbar + dbar) * 10000) / 10000;
+        if (dbar > episode.peakDbar) {
+            episode.peakDbar = dbar;
+            episode.lfAtPeak = Number.isFinite(lfCFS) ? Math.round(lfCFS) : episode.lfAtPeak;
+        }
+        if (Number.isFinite(lfCFS)) {
+            episode.minLF = episode.minLF === null ? Math.round(lfCFS) : Math.min(episode.minLF, Math.round(lfCFS));
+            episode.maxLF = episode.maxLF === null ? Math.round(lfCFS) : Math.max(episode.maxLF, Math.round(lfCFS));
+        }
+        if (episode.trail.length < 336) {   // ~2 weeks hourly; beyond that keep aggregates only
+            episode.trail.push({ t: nowMs, dbar, lf: Number.isFinite(lfCFS) ? Math.round(lfCFS) : null });
+        } else {
+            episode.trailDropped += 1;
+        }
+    }
+
     return {
         samples,
         dbar,
         active,
         activeSince: active ? (prev.active && prev.activeSince ? prev.activeSince : new Date(nowMs).toISOString()) : null,
         coldLockout,
-        updatedAt: new Date(nowMs).toISOString()
+        updatedAt: new Date(nowMs).toISOString(),
+        episode
     };
 }
 

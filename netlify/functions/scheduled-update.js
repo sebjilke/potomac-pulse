@@ -1840,11 +1840,25 @@ exports.handler = async (event, context) => {
                 efEstimateCFS: prediction?.efEstimateCFS ?? null,
                 porEstimateCFS: prediction?.porEstimateCFS ?? null,
                 efReadingMs: usgsData.data[usgsData.gauges.ef]?.hTime ?? null,
-                waterTempC
+                waterTempC,
+                lfCFS: usgsData.data[usgsData.gauges.lf]?.q ?? null
             });
             const { error: divErr } = await upsertObs(client, 'ef_divergence', 'state', divergenceState);
             if (divErr) console.warn('⚠️ EF divergence state write failed (non-fatal):', divErr.message);
             else if (divergenceState.active) console.log(`⚠️ EF divergence ADVISORY active: D̄=${divergenceState.dbar}`);
+
+            // v37.14: on deactivation, emit the completed firing as an append-only episode row —
+            // duty/flow-regime documentation (validation-history stamps only live 7 days).
+            if (prevDivergence?.active && !divergenceState.active && prevDivergence.episode) {
+                const ep = prevDivergence.episode;
+                const { error: epErr } = await insertObs(client, 'ef_divergence_episode', `${Date.now()}`, {
+                    ...ep,
+                    endedAt: divergenceState.updatedAt,
+                    meanDbar: ep.cycles > 0 ? Math.round((ep.sumDbar / ep.cycles) * 10000) / 10000 : null
+                });
+                if (epErr) console.warn('⚠️ EF divergence episode log failed (non-fatal):', epErr.message);
+                else console.log(`📒 EF divergence episode logged: ${ep.cycles} cycles, peak D̄=${ep.peakDbar}, LF ${ep.minLF}–${ep.maxLF}`);
+            }
         } catch (e) {
             console.warn('⚠️ EF divergence state update threw (non-fatal):', e?.message || e);
         }

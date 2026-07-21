@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v37.13 (July 2026)
+**Current Version**: v37.14 (July 2026)
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ Frontend (PWA)                    Netlify Functions (Backend)
 ├── analysis/                         # Model calibration scripts, audit reports (CSVs gitignored — reproducible from scripts)
 ```
 
-## Current Model (v37.13)
+## Current Model (v37.14)
 
 Core estimation parameters (travel time, EF power-law, EF weight) validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits. The v36.1 confidence band was re-derived separately on **126,916 hourly observations** (the same period, with the four tributaries + LF stage added) — see the v36.1 changelog entry.
 
@@ -236,8 +236,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v37.13).
+See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v37.14).
 
 ---
 
-*Last updated: 2026-07-20 (v37.13 — EF divergence advisory: display-only confidence downgrade + "why to trust it less" note during sustained cross-check disagreement)*
+*Last updated: 2026-07-20 (v37.14 — divergence-episode logging + shorter advisory copy; v37.13 same day introduced the EF divergence advisory itself)*
