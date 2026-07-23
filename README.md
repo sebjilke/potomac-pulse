@@ -3,7 +3,7 @@
 Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers.
 
 **Live Site**: Deployed on Netlify (auto-deploys from `main` branch)
-**Current Version**: v37.14 (July 2026)
+**Current Version**: v37.15 (July 2026)
 
 ## Quick Start
 
@@ -55,7 +55,7 @@ Frontend (PWA)                    Netlify Functions (Backend)
 ├── analysis/                         # Model calibration scripts, audit reports (CSVs gitignored — reproducible from scripts)
 ```
 
-## Current Model (v37.14)
+## Current Model (v37.15)
 
 Core estimation parameters (travel time, EF power-law, EF weight) validated on **117,704 hourly observations** (2011–2026) via simultaneous blind Python + R subagents with independent audits. The v36.1 confidence band was re-derived separately on **126,916 hourly observations** (the same period, with the four tributaries + LF stage added) — see the v36.1 changelog entry.
 
@@ -175,6 +175,7 @@ git push origin main  # Netlify deploys in ~1 minute
 
 | Version | Date | Change |
 |---------|------|--------|
+| v37.15 | 2026-07-23 | **LF-residual advisory — MINOR, second display-only honesty signal.** A 2026-07-22 storm sent ungauged water into the river below Edwards Ferry — a −21% hard-flagged under-read, invisible to the v37.13 EF advisory (D̄ peaked 1.15, then 0.84). New signal: the model's own validated LF residual (rule R2: pair ≤ −15% latches, > −7.5% clears, 12h signal staleness), decision-gated on the frozen v38 backtest (blind Python/R dual-verified) — banner-up predictions are ~6× worse on median error with ~21× the big-miss rate, so these are mostly TRUE alarms; duty 4.9%; inherently reactive (first miss of each episode always unflagged). Cron step 5c + `lf_residual/state` + append-only `lf_residual_episode` rows + validation stamps; learning GET ships `lfResidual`; client shows a second amber banner + one more confidence notch (stacks with the EF advisory). No model/learning/weight/estimate change. 706 → 744 tests. ⚠️ in-browser + first-live-cron verification pending. |
 | v37.13 | 2026-07-20 | **EF divergence advisory — MINOR, display-only honesty signal.** The v38.0 estimator fix for below-PoR inflow blindness FAILED its pre-registered 15-year gate (`analysis/v38_gate_verdict_2026-07-20.md`), so only the honesty half ships: the cron maintains a 5h-median EF/PoR divergence state (fail-closed; cold-lockout; ON D̄≥1.20/OFF <1.15) in an upserted `ef_divergence/state` row, the learning GET ships it, and the client — when the state is active and ≤2h fresh — downgrades displayed confidence one notch and shows an amber advisory with the replay numbers (divergence-active hours ~2.4× less accurate; >25% misses ~3× likelier, mostly under-reads). No model/learning/weight/estimate change. Learning payload now refreshes on the 15-min cycle. 679 → 702 tests. ⚠️ in-browser + first-live-cron verification pending. |
 | v37.12 | 2026-07-13 | **Hard-flagged validations shown in the accuracy chart — MINOR, client display, additive.** The Prediction Accuracy (7d) chart merges the `validation_failure` log (v37.9) into its timeline as hollow rings with a "⚠ hard-flagged" tooltip note and legend entry — previously these validations (excluded from learning/accuracy) appeared as unexplained gaps (the 2026-07-09/10 local-runoff event left a silent 44h hole). Flagged entries stay out of the line paths, the y-domain, and the headline average (byte-identical over history; only failure entries are 7d-windowed client-side). New pure module `src/ui/validation-merge.js` + `test/validation-merge.test.mjs`. Build green, 664 → 679 tests. ⚠️ in-browser verification pending. |
 | v37.11 | 2026-06-23 | **Mobile sidebar scrolling (Tier 4 #20) — MINOR, CSS-only.** Fixed the mobile double-scroll: `#app` now uses `100dvh` (with a `100vh` fallback) so it fills the *visual* viewport instead of overflowing behind the browser chrome, and on ≤768px the sidebar is the single scroll container (`.tab-content`'s inner `overflow` removed) with the tab bar pinned (`.tabs { position: sticky; top: 0 }`, opaque). Desktop layout unchanged (changes scoped to the mobile media query; `100dvh` equals `100vh` on desktop). Build green, 664 tests. ⚠️ in-browser (mobile) verification pending. |
@@ -236,8 +237,8 @@ git push origin main  # Netlify deploys in ~1 minute
 | v29.0 | 2026-02-19 | Flat 35% EF weight (hourly optimization). All params validated on 117k hourly obs. |
 | v28.0 | 2026-02-19 | Soft LF ceiling (120%) + decay cap (0.50). Grid search on daily + hourly. |
 
-See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v37.14).
+See [CHANGELOG.md](src/assets/CHANGELOG.md) for complete version history (v16–v37.15).
 
 ---
 
-*Last updated: 2026-07-20 (v37.14 — divergence-episode logging + shorter advisory copy; v37.13 same day introduced the EF divergence advisory itself)*
+*Last updated: 2026-07-23 (v37.15 — LF-residual advisory: a second display-only honesty banner driven by the model’s own validated LF residual, catching below-EF ungauged-inflow events the EF divergence advisory is structurally blind to)*

@@ -75,6 +75,9 @@ describe('loadGFLearningData — happy path', () => {
 
         // efDivergence: absent row -> null (v37.13; tolerated like metadata)
         assert.equal(body.efDivergence, null);
+
+        // lfResidual: absent row -> null (v37.15; tolerated like metadata)
+        assert.equal(body.lfResidual, null);
     });
 });
 
@@ -105,6 +108,37 @@ describe('loadGFLearningData — efDivergence advisory state (v37.13)', () => {
         const res = await loadGFLearningData(client);
         assert.equal(res.statusCode, 200);
         assert.equal(parse(res).efDivergence, null);
+    });
+});
+
+describe('loadGFLearningData — lfResidual advisory state (v37.15)', () => {
+    it('ships only the render-relevant fields from the state row', async () => {
+        const client = mockClient({
+            gf_correction_bin: { data: [], error: null },
+            gf_prediction: { data: [], error: null },
+            lf_residual: { data: { data: {
+                active: true, lastErrPct: -21, activeSince: '2026-07-23T07:13:00Z',
+                updatedAt: '2026-07-23T12:00:00Z',
+                latched: true, lastPairAt: 1784000000000,       // server-internal — must NOT ship
+                episode: { cycles: 3 }                          // server-internal — must NOT ship
+            } }, error: null }
+        });
+        const body = parse(await loadGFLearningData(client));
+        assert.deepEqual(body.lfResidual, {
+            active: true, lastErrPct: -21,
+            activeSince: '2026-07-23T07:13:00Z', updatedAt: '2026-07-23T12:00:00Z'
+        });
+    });
+
+    it('a missing state row yields lfResidual: null (no error)', async () => {
+        const client = mockClient({
+            gf_correction_bin: { data: [], error: null },
+            gf_prediction: { data: [], error: null },
+            lf_residual: { data: null, error: SINGLE_MISS }
+        });
+        const res = await loadGFLearningData(client);
+        assert.equal(res.statusCode, 200);
+        assert.equal(parse(res).lfResidual, null);
     });
 });
 

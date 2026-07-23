@@ -140,6 +140,11 @@ export const CEILING_RATIO = 1.20;       // soft LF ceiling: GF estimate ≤ 120
 // keep in sync (the client never computes divergence; it only renders persisted state).
 export const EF_DIVERGENCE_STALE_MS = 2 * 60 * 60 * 1000;
 
+// v37.15: client freshness guard for the LF-residual advisory — mirrors the server's
+// LF_RESIDUAL.clientStaleMs in netlify/functions/shared/model.js (equality is
+// parity-tested). A stalled cron must fail silent, not stale-loud.
+export const LF_RESIDUAL_STALE_MS = 2 * 60 * 60 * 1000;
+
 // GF prediction/learning intervals
 // (GF_PREDICTION_INTERVAL / GF_MIN_VALIDATION_TIME removed in v36.0 — the client no longer writes
 //  predictions, so the throttle and min-validation-window constants have no consumers.)

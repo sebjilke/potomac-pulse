@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v37.14</title>
+    <title>Potomac Pulse v37.15</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -127,6 +127,12 @@
                             <div id="gf-divergence-advisory" hidden role="status" style="margin-top:8px;padding:8px 10px;background:rgba(180,83,9,0.15);border:1px solid #b45309;border-radius:6px;font-size:0.6rem;line-height:1.5;text-align:left;color:var(--text-body);">
                                 <div id="gf-divergence-title" style="color:#f59e0b;margin-bottom:4px;"></div>
                                 <div id="gf-divergence-body" style="color:var(--text-tertiary);"></div>
+                            </div>
+                            <!-- v37.15: LF-residual advisory — second display-only honesty signal, server-authoritative
+                                 (see src/ui/residual-advisory.js). Hidden unless the server state is active AND fresh. -->
+                            <div id="gf-residual-advisory" hidden role="status" style="margin-top:8px;padding:8px 10px;background:rgba(180,83,9,0.15);border:1px solid #b45309;border-radius:6px;font-size:0.6rem;line-height:1.5;text-align:left;color:var(--text-body);">
+                                <div id="gf-residual-title" style="color:#f59e0b;margin-bottom:4px;"></div>
+                                <div id="gf-residual-body" style="color:var(--text-tertiary);"></div>
                             </div>
                             <div id="gf-accuracy" style="display:none;"></div>
                         </div>

@@ -10,6 +10,7 @@ const {
     EF_MODEL,
     getEFWeight, getFlowMultiplier, getFlowState,
     updateEfDivergenceState,
+    updateLfResidualState,
     getPoRtoGFTravelTime, getGFtoLFTravelTime, selectHistoricReading,
     GF_EMA_ALPHA,
     getPoRRiseRateFromHistory,
@@ -388,7 +389,7 @@ async function storeGFHistory(client, prediction) {
  * @param {number} errorPercent - Signed error percent (rounded to 0.1) for this pair.
  * @param {string} flowBin - Flow-range bin label for the prediction.
  * @param {string} flowState - Flow state ('rising'/'falling'/'steady') for the prediction.
- * @param {{efDivergence?: (number|null), divergenceActive?: (boolean|null)}} [divergence={}] - Prediction-time EF divergence advisory state (v37.13; null-safe for legacy rows).
+ * @param {{efDivergence?: (number|null), divergenceActive?: (boolean|null), lfResidualActive?: (boolean|null), lfResidualLastErrPct?: (number|null)}} [divergence={}] - Prediction-time advisory states (v37.13 EF divergence, v37.15 LF residual; null-safe for legacy rows).
  * @returns {Promise<void>}
  */
 async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent, flowBin, flowState, divergence = {}) {
@@ -402,7 +403,10 @@ async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent
         flowState,
         // v37.13: prediction-time EF divergence advisory state (null for legacy pending rows)
         efDivergence: divergence.efDivergence ?? null,
-        divergenceActive: divergence.divergenceActive ?? null
+        divergenceActive: divergence.divergenceActive ?? null,
+        // v37.15: prediction-time LF-residual advisory state (null for legacy pending rows)
+        lfResidualActive: divergence.lfResidualActive ?? null,
+        lfResidualLastErrPct: divergence.lfResidualLastErrPct ?? null
     };
 
     const existing = await getObs(client, 'gf_validation_history', 'system');
@@ -952,6 +956,9 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
     const staleThreshold = 48 * 60 * 60 * 1000; // 48 hours
     let validated = 0;
     let cleaned = 0;
+    // v37.15: validated pairs feed the LF-residual advisory (handler step 5c). BOTH paths
+    // report (regular + hard-flagged) — the advisory's motivating misses were hard-flagged.
+    const pairs = [];
 
     for (const pred of pending) {
         const validationDue = new Date(pred.data.validationDue);
@@ -1174,6 +1181,9 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                             // were hard-flagged, so this row is where the correlation lives.
                             efDivergence: pred.data.efDivergence ?? null,
                             divergenceActive: pred.data.divergenceActive ?? null,
+                            // v37.15: LF-residual advisory state at prediction time.
+                            lfResidualActive: pred.data.lfResidualActive ?? null,
+                            lfResidualLastErrPct: pred.data.lfResidualLastErrPct ?? null,
                         }
                     );
                     if (failErr) console.error(`❌ validation_failure log FAILED for ${pred.id}:`, failErr.message);
@@ -1432,7 +1442,12 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             if (!isHardFlagged) {
                 // Validation pair records the CORRECTED (displayed) estimate vs actual.
                 await storeValidationPair(client, correctedCFS, actualCFS, errorPercentCorrected, flowBin, flowState,
-                    { efDivergence: pred.data.efDivergence ?? null, divergenceActive: pred.data.divergenceActive ?? null });
+                    {
+                        efDivergence: pred.data.efDivergence ?? null,
+                        divergenceActive: pred.data.divergenceActive ?? null,
+                        lfResidualActive: pred.data.lfResidualActive ?? null,
+                        lfResidualLastErrPct: pred.data.lfResidualLastErrPct ?? null
+                    });
             }
 
             // Score shadow model predictions (non-blocking — failure must not break validation)
@@ -1486,6 +1501,7 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             }
 
             console.log(`✅ Validated prediction: corrected=${correctedCFS} (raw=${rawCFS}), actual=${Math.round(actualCFS)}, error=${errorPercentCorrected.toFixed(1)}% (raw ${errorPercentRaw.toFixed(1)}%)`);
+            pairs.push({ at: Date.now(), errPct: errorPercentCorrected, hardFlagged: isHardFlagged });
             validated++;
         }
     }
@@ -1494,7 +1510,7 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
         console.log(`🧹 Cleaned ${cleaned} stale predictions`);
     }
 
-    return { validated, cleaned };
+    return { validated, cleaned, pairs };
 }
 
 /**
@@ -1730,6 +1746,58 @@ async function validateForecastPredictions(client, usgsData) {
 }
 
 // Expose internals for testing
+/**
+ * Handler step 5c (v37.15): advances and persists the LF-residual advisory state — the
+ * model's own validated-scorecard honesty signal (plan: analysis/lf-residual-advisory-plan-
+ * 2026-07-23.md §1). Runs every cycle so the state decays; NEVER throws (display-only
+ * plumbing must not break the learning cron). On the active→inactive transition, emits the
+ * completed firing as an append-only `lf_residual_episode` row (gauge_id = episode.startedAt,
+ * F9: a concurrent duplicate insert collides with the unique key and self-dedups).
+ * @param {Object} client - Supabase client.
+ * @param {Object} cycle - Cycle inputs.
+ * @param {number} cycle.runStartMs - Handler start time, for the F2 concurrent-write skip-guard.
+ * @param {Array<{at: number, errPct: number, hardFlagged?: boolean}>} cycle.pairs - This cycle's validated pairs (empty when validation was skipped or matured nothing).
+ * @param {number|null} cycle.lfCFS - Observed LF discharge (cfs) for episode documentation.
+ * @returns {Promise<Object|null>} The persisted state, or null when skipped/failed (callers must tolerate null — the prediction stamp is simply omitted).
+ */
+async function updateLfResidualAdvisory(client, { runStartMs, pairs, lfCFS }) {
+    try {
+        const prevResidual = await getObs(client, 'lf_residual', 'state');
+        // F2 skip-guard: if we validated nothing this cycle and another (overlapping) run
+        // wrote the state after we started, our no-pair update adds nothing but a
+        // timestamp — writing it could clobber a just-latched state with a stale read.
+        const prevWriteMs = Date.parse(prevResidual?.updatedAt || '') || 0;
+        if (pairs.length === 0 && prevWriteMs > runStartMs) {
+            console.log('⏭️ LF-residual state skipped (fresher concurrent write, no pairs this cycle)');
+            return null;
+        }
+        const state = updateLfResidualState(prevResidual, { nowMs: Date.now(), pairs, lfCFS });
+        // Write failures — resolved {error} OR rejection — must not lose the computed state:
+        // the prediction stamp and episode emission still proceed (5b-parity: divergenceState
+        // is assigned before its upsert, so a 5b write failure keeps the stamp too).
+        const { error: resErr } = await upsertObs(client, 'lf_residual', 'state', state)
+            .catch(e => ({ error: e }));
+        if (resErr) console.warn('⚠️ LF-residual state write failed (non-fatal):', resErr.message);
+        else if (state.active) console.log(`⚠️ LF-residual ADVISORY active: last err ${state.lastErrPct}%`);
+
+        // Deactivation -> append-only episode row (duty/flow-regime documentation).
+        if (prevResidual?.active && !state.active && prevResidual.episode) {
+            const ep = prevResidual.episode;
+            const { error: epErr } = await insertObs(client, 'lf_residual_episode', `${ep.startedAt}`, {
+                ...ep,
+                endedAt: state.updatedAt,
+                meanErrPct: ep.pairCount > 0 ? Math.round((ep.sumErrPct / ep.pairCount) * 10) / 10 : null
+            }).catch(e => ({ error: e }));
+            if (epErr) console.warn('⚠️ LF-residual episode log failed (non-fatal):', epErr.message);
+            else console.log(`📒 LF-residual episode logged: ${ep.cycles} cycles, ${ep.pairCount} pairs, worst ${ep.worstErrPct}%, LF ${ep.minLF}–${ep.maxLF}`);
+        }
+        return state;
+    } catch (e) {
+        console.warn('⚠️ LF-residual state update threw (non-fatal):', e?.message || e);
+        return null;
+    }
+}
+
 exports._test = {
     validateUSGSResponse, fetchWithTimeout, fetchWaterTemp,
     fetchUSGSData, getPoRFromHistory, estimateLFStage, makeGFPrediction,
@@ -1737,6 +1805,7 @@ exports._test = {
     shadowLFFeedback, shadowOnlineRegression, shadowKalman,
     runServerShadowModels, loadShadowModelState, saveShadowModelState,
     computeRunHealth,
+    updateLfResidualAdvisory,
 };
 
 /**
@@ -1757,6 +1826,9 @@ exports.handler = async (event, context) => {
     }
 
     try {
+        // v37.15 (F2): run-start marker for the LF-residual concurrent-write skip-guard (5c).
+        const runStartMs = Date.now();
+
         // 1. Fetch USGS data and water temperature in parallel
         console.log('Fetching USGS data and water temperature...');
         const [usgsData, waterTempC] = await Promise.all([
@@ -1800,11 +1872,15 @@ exports.handler = async (event, context) => {
 
         // 4. Validate pending predictions (skip if critical gauges ice-affected)
         let validated = 0, cleaned = 0;
+        // v37.15: pairs feed the LF-residual advisory (step 5c). `|| []` also covers the
+        // function's bare-0 early returns (no LF / out-of-range / no pending) and the ice skip.
+        let lfPairs = [];
         if (!criticalIce) {
             console.log('Checking pending predictions...');
             const validationResult = await validatePendingPredictions(client, usgsData, waterTempC);
             validated = validationResult.validated || 0;
             cleaned = validationResult.cleaned || 0;
+            lfPairs = validationResult.pairs || [];
             console.log(`Validated ${validated} predictions, cleaned ${cleaned} stale`);
         }
 
@@ -1863,6 +1939,16 @@ exports.handler = async (event, context) => {
             console.warn('⚠️ EF divergence state update threw (non-fatal):', e?.message || e);
         }
 
+        // 5c. LF-residual advisory state — EVERY cycle, prediction or not (v37.15, plan §1):
+        // the model's own validated scorecard; catches below-EF ungauged inflow the EF
+        // detector is structurally blind to. Display-only honesty signal; never feeds the
+        // estimate or learning; non-fatal by construction (the helper never throws).
+        const lfResidualState = await updateLfResidualAdvisory(client, {
+            runStartMs,
+            pairs: lfPairs,
+            lfCFS: usgsData.data[usgsData.gauges.lf]?.q ?? null
+        });
+
         if (!criticalIce) {
             if (prediction) {
                 // Stamp the advisory state onto the prediction (flows into the pending row and,
@@ -1870,6 +1956,10 @@ exports.handler = async (event, context) => {
                 if (divergenceState) {
                     prediction.efDivergence = divergenceState.dbar;
                     prediction.divergenceActive = divergenceState.active;
+                }
+                if (lfResidualState) {
+                    prediction.lfResidualActive = lfResidualState.active;
+                    prediction.lfResidualLastErrPct = lfResidualState.lastErrPct;
                 }
                 // Run server-side shadow models and attach before storing.
                 // Shadows are RAW-model variants — seed them off the raw final (rawFinalCFS), NOT the

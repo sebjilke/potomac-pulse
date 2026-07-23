@@ -338,14 +338,15 @@ exports.handler = async (event, context) => {
  */
 async function loadGFLearningData(client) {
     try {
-        // v37.5: fire the independent reads concurrently (6 since v37.13). Bins, pending, metadata,
-        // EF correlation, shadow leaderboard, and divergence state have no inter-dependency, so
-        // Promise.all collapses the sequential round-trips into 1 on the cold-load critical path
-        // (this endpoint is awaited before the first GF estimate paints). Error semantics preserved
-        // EXACTLY: bins/pending throw -> caught -> 500; metadata/efCorrelation/shadowLeaderboard/
-        // efDivergence tolerate a missing row (errors ignored). Supabase query builders resolve to
-        // {data,error} (never reject), so Promise.all resolves with all of them.
-        const [binsRes, pendRes, metaRes, efRes, shadowRes, divRes] = await Promise.all([
+        // v37.5: fire the independent reads concurrently (7 since v37.15). Bins, pending, metadata,
+        // EF correlation, shadow leaderboard, divergence state, and LF-residual state have no
+        // inter-dependency, so Promise.all collapses the sequential round-trips into 1 on the
+        // cold-load critical path (this endpoint is awaited before the first GF estimate paints).
+        // Error semantics preserved EXACTLY: bins/pending throw -> caught -> 500; metadata/
+        // efCorrelation/shadowLeaderboard/efDivergence/lfResidual tolerate a missing row (errors
+        // ignored). Supabase query builders resolve to {data,error} (never reject), so Promise.all
+        // resolves with all of them.
+        const [binsRes, pendRes, metaRes, efRes, shadowRes, divRes, resRes] = await Promise.all([
             // Correction bins
             client
                 .from('potomac_observations')
@@ -386,6 +387,13 @@ async function loadGFLearningData(client) {
                 .select('data')
                 .eq('observation_type', 'ef_divergence')
                 .eq('gauge_id', 'state')
+                .single(),
+            // LF-residual advisory state (v37.15; missing row tolerated like metadata)
+            client
+                .from('potomac_observations')
+                .select('data')
+                .eq('observation_type', 'lf_residual')
+                .eq('gauge_id', 'state')
                 .single()
         ]);
 
@@ -401,6 +409,7 @@ async function loadGFLearningData(client) {
         const { data: efCorr } = efRes;
         const { data: shadowLB } = shadowRes;
         const { data: divState } = divRes;
+        const { data: resState } = resRes;
 
         // Build correction bins via the shared helper (single source of truth with the cron;
         // seeds all 18 cells and skips stage_* keys). v36.0 — replaces the inline duplicate.
@@ -442,6 +451,14 @@ async function loadGFLearningData(client) {
                     dbar: divState.data.dbar ?? null,
                     activeSince: divState.data.activeSince ?? null,
                     updatedAt: divState.data.updatedAt ?? null
+                } : null,
+                // v37.15: LF-residual advisory (display-only; client checks updatedAt freshness).
+                // Latch/episode internals are server-internal — only render-relevant fields ship.
+                lfResidual: resState?.data ? {
+                    active: !!resState.data.active,
+                    lastErrPct: resState.data.lastErrPct ?? null,
+                    activeSince: resState.data.activeSince ?? null,
+                    updatedAt: resState.data.updatedAt ?? null
                 } : null
             })
         };

@@ -1010,6 +1010,57 @@ describe('validatePendingPredictions', () => {
         assert.ok(binUpserts(captures).length >= 1, 'clean validation learns (sanity)');
     });
 
+    // ── v37.15: validated pairs feed the LF-residual advisory (plan §1) ──
+    const valHistUpsert = (caps) => caps.upserts.find(u => u.observation_type === 'gf_validation_history');
+
+    it('v37.15: a clean validation returns its pair (corrected errPct in PERCENT, hardFlagged=false)', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, flowBin: '6000-12000', flowState: 'steady' });
+        const result = await validatePendingPredictions(validateClient({ pending: [row], captures }), usgs);
+        assert.equal(result.pairs.length, 1);
+        const p = result.pairs[0];
+        // corrected: (10200 − 10000)/10000 × 100 = +2.0 (PERCENT — the units the detector expects)
+        assert.ok(Math.abs(p.errPct - 2.0) < 1e-9, `errPct=${p.errPct}`);
+        assert.equal(p.hardFlagged, false);
+        assert.ok(Number.isFinite(p.at));
+    });
+
+    it('v37.15: a hard-flagged validation ALSO returns its pair, with hardFlagged=true', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ predictedCFS: 5000, flowBin: '1000-3000', flowState: 'steady' });
+        const result = await validatePendingPredictions(validateClient({ pending: [row], captures }), hardUsgs);
+        assert.equal(result.pairs.length, 1);
+        assert.equal(result.pairs[0].hardFlagged, true);
+        // (5000 − 1200)/1200 × 100 ≈ +316.7 — corrupt-LOW LF yields a large POSITIVE errPct (plan F4)
+        assert.ok(result.pairs[0].errPct > 300, `errPct=${result.pairs[0].errPct}`);
+    });
+
+    it('v37.15: prediction-time lfResidual stamps flow into the validation-history entry (legacy rows null-safe)', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ lfResidualActive: true, lfResidualLastErrPct: -21 });
+        await validatePendingPredictions(validateClient({ pending: [row], captures }), usgs);
+        const hist = valHistUpsert(captures);
+        assert.ok(hist, 'validation history upserted');
+        const entry = hist.data.readings[hist.data.readings.length - 1];
+        assert.equal(entry.lfResidualActive, true);
+        assert.equal(entry.lfResidualLastErrPct, -21);
+
+        const captures2 = { upserts: [], inserts: [], deletes: [] };
+        await validatePendingPredictions(validateClient({ pending: [pendingRow()], captures: captures2 }), usgs);
+        const legacy = valHistUpsert(captures2).data.readings.slice(-1)[0];
+        assert.equal(legacy.lfResidualActive, null, 'legacy pending rows stamp null, not undefined');
+        assert.equal(legacy.lfResidualLastErrPct, null);
+    });
+
+    it('v37.15: validation_failure rows carry the lfResidual stamps too', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ predictedCFS: 5000, flowBin: '1000-3000', flowState: 'steady', lfResidualActive: false, lfResidualLastErrPct: -3 });
+        await validatePendingPredictions(validateClient({ pending: [row], captures }), hardUsgs);
+        const f = failRows(captures)[0];
+        assert.equal(f.data.lfResidualActive, false);
+        assert.equal(f.data.lfResidualLastErrPct, -3);
+    });
+
     it('#18: a SOFT-flagged validation learns but writes NO validation_failure row', async () => {
         // lf=3000/2.6 + EF stage 5.0 → Check 1 EF-disc +120% (soft+2), Check 2 −66% (no hard), Check 3 false.
         const captures = { upserts: [], inserts: [], deletes: [] };

@@ -239,6 +239,104 @@ function updateEfDivergenceState(prevState, { nowMs, efEstimateCFS, porEstimateC
     };
 }
 
+// --- LF-residual advisory (v37.15) ---
+// Second display-only honesty signal, sibling of EF_DIVERGENCE above: the model's own
+// validated LF residual. LF sits below ALL the ungauged PoR→LF inflow, so this is the one
+// observable that catches below-EF events the divergence detector is structurally blind to
+// (v38 gate central finding). Rule R2 was chosen by decision-gated backtest
+// (analysis/lf-residual-advisory-plan-2026-07-23.md §0; blind Python/R dual-verified):
+// banner-up predictions scored median |err| 10.6% vs 1.8% baseline, ~21x the big-miss rate.
+// Display-only — must never feed the estimate, the weights, or learning.
+// (clientStaleMs is mirrored as LF_RESIDUAL_STALE_MS in src/model/constants.js.)
+const LF_RESIDUAL = {
+    onPct: -15,                          // validated err <= this latches ON (PERCENT, not fraction)
+    offPct: -7.5,                        // validated err > this clears; between: hold (deadband)
+    signalStaleMs: 12 * 60 * 60 * 1000,  // no validated pair for this long -> effective inactive
+    clientStaleMs: 2 * 60 * 60 * 1000    // client hides state older than this (cron stall)
+};
+
+/**
+ * Advances the LF-residual advisory state by one cron cycle (pure; caller persists).
+ * Backtest-faithful semantics (plan §1): pairs latch/clear a persistent latch; the
+ * EFFECTIVE active state additionally requires the newest pair to be within signalStaleMs —
+ * the latch itself SURVIVES staleness suppression, so a mid-deadband pair after a gap
+ * resumes the advisory without re-crossing onPct.
+ * @param {Object|null} prevState - Previously persisted state or null.
+ * @param {Object} cycle - Current-cycle inputs.
+ * @param {number} cycle.nowMs - Current epoch ms.
+ * @param {Array<{at: number, errPct: number, hardFlagged?: boolean}>} [cycle.pairs] - Validations
+ *   completed this cycle (errPct = errorPercentCorrected, PERCENT units, negative = under-read).
+ *   Production is single-pending so length <= 1; sorted by `at` internally regardless.
+ * @param {number|null} [cycle.lfCFS] - Observed LF discharge (cfs), for episode documentation.
+ * @returns {{latched: boolean, active: boolean, lastPairAt: (number|null), lastErrPct: (number|null),
+ *   activeSince: (string|null), updatedAt: string, episode: (Object|null)}}
+ */
+function updateLfResidualState(prevState, { nowMs, pairs = [], lfCFS = null }) {
+    const prev = prevState || {};
+    let latched = !!prev.latched;
+    let lastPairAt = Number.isFinite(prev.lastPairAt) ? prev.lastPairAt : null;
+    let lastErrPct = Number.isFinite(prev.lastErrPct) ? prev.lastErrPct : null;
+
+    const applied = pairs
+        .filter(p => p && Number.isFinite(p.at) && Number.isFinite(p.errPct))
+        .sort((a, b) => a.at - b.at);
+    for (const p of applied) {
+        if (p.errPct <= LF_RESIDUAL.onPct) latched = true;
+        else if (p.errPct > LF_RESIDUAL.offPct) latched = false;
+        // between offPct and onPct: hold
+        lastPairAt = p.at;
+        lastErrPct = Math.round(p.errPct * 10) / 10;
+    }
+
+    const fresh = lastPairAt !== null && (nowMs - lastPairAt) <= LF_RESIDUAL.signalStaleMs;
+    const active = latched && fresh;
+
+    // Episode documentation (v37.14 pattern): while active, accumulate the firing's actual
+    // numbers; the caller emits prev.episode as an append-only lf_residual_episode row when
+    // it observes the active -> inactive transition. Trail entries are per validated PAIR
+    // (sparse, 3-6h apart), not per cycle; cycles counts cron cycles active (duty).
+    let episode = null;
+    if (active) {
+        episode = (prev.active && prev.episode) ? prev.episode : {
+            startedAt: new Date(nowMs).toISOString(),
+            cycles: 0, pairCount: 0, worstErrPct: null, sumErrPct: 0,
+            minLF: null, maxLF: null,
+            trail: [], trailDropped: 0
+        };
+        episode.cycles += 1;
+        for (const p of applied) {
+            episode.pairCount += 1;
+            episode.sumErrPct = Math.round((episode.sumErrPct + p.errPct) * 10) / 10;
+            if (episode.worstErrPct === null || p.errPct < episode.worstErrPct) {
+                episode.worstErrPct = Math.round(p.errPct * 10) / 10;
+            }
+            if (episode.trail.length < 336) {
+                episode.trail.push({
+                    t: p.at,
+                    errPct: Math.round(p.errPct * 10) / 10,
+                    lf: Number.isFinite(lfCFS) ? Math.round(lfCFS) : null
+                });
+            } else {
+                episode.trailDropped += 1;
+            }
+        }
+        if (Number.isFinite(lfCFS)) {
+            episode.minLF = episode.minLF === null ? Math.round(lfCFS) : Math.min(episode.minLF, Math.round(lfCFS));
+            episode.maxLF = episode.maxLF === null ? Math.round(lfCFS) : Math.max(episode.maxLF, Math.round(lfCFS));
+        }
+    }
+
+    return {
+        latched,
+        active,
+        lastPairAt,
+        lastErrPct,
+        activeSince: active ? (prev.active && prev.activeSince ? prev.activeSince : new Date(nowMs).toISOString()) : null,
+        updatedAt: new Date(nowMs).toISOString(),
+        episode
+    };
+}
+
 // --- Flow multiplier for travel time scaling ---
 // SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
 
@@ -722,6 +820,7 @@ module.exports = {
     EF_MODEL,
     getEFWeight, getFlowMultiplier, getFlowState,
     EF_DIVERGENCE, updateEfDivergenceState,
+    LF_RESIDUAL, updateLfResidualState,
     getPoRtoGFTravelTime, getGFtoLFTravelTime,
     medianCfs, selectHistoricReading,
     GF_EMA_ALPHA,

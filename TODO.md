@@ -72,6 +72,17 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 
 ## Modeling — deferred with skepticism
 
+- ✅ **v37.15 LF-residual advisory — SHIPPED 2026-07-23.** Second display-only honesty banner
+  driven by the model's own validated LF residual (rule R2: pair ≤ −15% latches, > −7.5% clears,
+  12h signal staleness) — catches below-EF ungauged-inflow events the v37.13 EF advisory is
+  structurally blind to (motivating case: 2026-07-22 storm, −21% hard-flagged miss at D̄ 1.15).
+  Decision-gated backtest on the frozen v38 dataset, blind Python/R dual-verified; full evidence +
+  10-finding plan audit in `analysis/lf-residual-advisory-plan-2026-07-23.md`. Known limits, on
+  the record: reactive (first miss of every episode unflagged), ~4.9% duty (exceeds the pre-stated
+  2–3% bound — user-accepted; banner-up hours ARE degraded ~6×), positive-err corrupt-LF hard flags
+  can false-CLEAR a true alarm (accepted, documented). NOT a model change; the v38 re-open
+  condition below is untouched.
+
 - ❌ **v38.0 EF divergence gate — FAILED its pre-registered gate (2026-07-20). Not implemented.**
   Externally reviewed plan (v3), 85-config × 2-mode prequential replay over 14.6y: best cell +10%
   event-window MAE improvement vs the required 25%; even T_LO=1.20 false-activates on 9.5% of

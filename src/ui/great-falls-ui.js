@@ -23,6 +23,10 @@ import {
     shouldShowDivergenceAdvisory, downgradeConfidence,
     DIVERGENCE_ADVISORY_TITLE, DIVERGENCE_ADVISORY_BODY
 } from './divergence-advisory.js';
+import {
+    shouldShowResidualAdvisory,
+    RESIDUAL_ADVISORY_TITLE, RESIDUAL_ADVISORY_BODY
+} from './residual-advisory.js';
 import { runShadowModels } from '../estimation/shadow-models.js';
 import { recordGFEstimate } from '../data/history.js';
 import { fmtArrival } from '../data/fetch.js';
@@ -180,11 +184,16 @@ export function updateGreatFallsUI() {
 
     // Confidence — v37.13: display-only one-notch downgrade while the server's EF divergence
     // advisory is active and fresh (server-authoritative; the estimate itself is untouched).
+    // v37.15: the LF-residual advisory downgrades a second notch when also active — stacking
+    // is intended (different observables; coincidence is genuinely stronger evidence).
     const confColors = { high: 'var(--accent-green)', medium: 'var(--accent-amber)', low: 'var(--accent-red-light)' };
     const confEl = document.getElementById("gf-confidence");
     const divergenceShown = shouldShowDivergenceAdvisory(gfLearningData?.efDivergence);
-    const shownConfidence = divergenceShown ? downgradeConfidence(gfEstimate.confidence) : gfEstimate.confidence;
-    confEl.textContent = "Confidence: " + shownConfidence.toUpperCase() + (divergenceShown ? " ⚠" : "");
+    const residualShown = shouldShowResidualAdvisory(gfLearningData?.lfResidual);
+    let shownConfidence = gfEstimate.confidence;
+    if (divergenceShown) shownConfidence = downgradeConfidence(shownConfidence);
+    if (residualShown) shownConfidence = downgradeConfidence(shownConfidence);
+    confEl.textContent = "Confidence: " + shownConfidence.toUpperCase() + ((divergenceShown || residualShown) ? " ⚠" : "");
     confEl.style.color = confColors[shownConfidence];
 
     const advisoryEl = document.getElementById("gf-divergence-advisory");
@@ -193,6 +202,15 @@ export function updateGreatFallsUI() {
         if (divergenceShown) {
             document.getElementById("gf-divergence-title").textContent = DIVERGENCE_ADVISORY_TITLE;
             document.getElementById("gf-divergence-body").textContent = DIVERGENCE_ADVISORY_BODY;
+        }
+    }
+
+    const residualEl = document.getElementById("gf-residual-advisory");
+    if (residualEl) {
+        residualEl.hidden = !residualShown;
+        if (residualShown) {
+            document.getElementById("gf-residual-title").textContent = RESIDUAL_ADVISORY_TITLE;
+            document.getElementById("gf-residual-body").textContent = RESIDUAL_ADVISORY_BODY;
         }
     }
 

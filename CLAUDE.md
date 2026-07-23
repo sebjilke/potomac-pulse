@@ -133,7 +133,7 @@ horizon (6/12/24/48h). Stored as `gf_forecast_pending` → validated when water 
 Client estimation: `src/estimation/great-falls.js`. Forecast UI: `src/ui/great-falls-ui.js`.
 NWS integration: `src/estimation/nws.js`. Learning UI: `src/ui/learning-ui.js`.
 
-## Current Model Parameters (v37.14)
+## Current Model Parameters (v37.15)
 
 - **EF Power-Law**: 126×EF^2.46 (default), 160×EF^2.36 (cold water ≤10°C)
 - **EF Weight (Logistic Ramp)**: `ef_weight = 0.40 / (1 + exp(-5.0 × (ln(flow) - ln(10000))))`. Near 0% at low flows, ~40% at high. EF has negative predictive skill below 6k cfs.
@@ -159,4 +159,22 @@ NWS integration: `src/estimation/nws.js`. Learning UI: `src/ui/learning-ui.js`.
   append-only `ef_divergence_episode` row (start/end, cycles, peak/mean D̄, LF range + per-cycle
   trail capped at 336) — durable duty/flow-regime documentation (validation-history stamps only
   live 7 days). **Never feeds the estimate, weights, or learning.**
+- **LF-Residual Advisory (v37.15)**: second display-only honesty signal, sibling of the EF
+  divergence advisory — driven by the model's OWN validated LF residual, the one observable
+  that catches below-EF ungauged-inflow events the EF detector is structurally blind to
+  (2026-07-22 miss: −21% at D̄ 1.15). Rule R2 chosen by decision-gated backtest
+  (`analysis/lf-residual-advisory-plan-2026-07-23.md`; blind Python/R dual-verified):
+  a validated pair errPct ≤ −15% latches, > −7.5% clears, between holds; effective active
+  additionally needs the newest pair ≤ 12h old (latch SURVIVES staleness suppression).
+  Backtest: banner-up predictions scored median |err| 10.6% vs 1.8% baseline (~21× big-miss
+  rate, mostly true alarms); duty 4.9%; covers ~44% of ≤−25% misses; ALWAYS late (reactive —
+  the first miss of every episode is unflagged). Feeds on BOTH validation paths incl.
+  hard-flagged (accepted risk: corrupt-LF flags are one-sided corrupt-LOW → a positive-err
+  flag can false-CLEAR a true alarm). Cron step 5c (`updateLfResidualAdvisory`, F2
+  concurrent-write skip-guard), state row `lf_residual/state`, episode rows
+  `lf_residual_episode` (gauge_id = startedAt, self-deduping), stamps
+  `lfResidualActive`/`lfResidualLastErrPct` on pending + validation + validation_failure
+  rows; client (2h guard `LF_RESIDUAL_STALE_MS`) shows a second amber banner + one more
+  confidence notch (stacking with the EF advisory intended). **Never feeds the estimate,
+  weights, or learning.**
 - **System-1 retired (v37.1)**: the legacy client-side per-gauge travel-time learning ("System 1": `gauge-learning.js`, `cloud-sync.js`, the `/api/sync` default `load/saveLearningData` handlers) is **gone**. It had been a dead write path since the Feb-2026 modularization but still multiplied 15 frozen `correction` factors into the **displayed** per-gauge arrival times. The GF estimate never used them (it computes its own PoR→GF travel time), so removal is display-only/MINOR; displayed gauge arrivals now equal `baseHrs × Searcy-multiplier`. The only learning system is **System 2** (server-side GF EMA bins).
