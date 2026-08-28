@@ -4,7 +4,7 @@
 Session state is in `.claude/HANDOFF.md`; methodology provenance for shipped versions is the
 small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, prioritize, go.
 
-*Last updated: 2026-07-20 (current version: v37.12). Verified against live DB + git history, not memory.*
+*Last updated: 2026-07-24 (current version: v37.16). Verified against live DB + git history, not memory.*
 
 ---
 
@@ -14,7 +14,7 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 - Effort is a rough order-of-magnitude.
 - 🔒 = needs a decision from you before work starts · 📅 = date-gated · 🔍 = verify-only.
 - Anything touching the estimate must keep the characterization/golden tests green and the
-  client↔server parity tests green (`npm test` = **679**), or deliberately re-baseline + version-bump.
+  client↔server parity tests green (`npm test` = **757**), or deliberately re-baseline + version-bump.
 - **Pushing auto-deploys from `main`** through the Netlify gate (`npm install && npm test && npm run build`);
   a red suite blocks deploy. Pushing needs explicit approval each time.
 
@@ -123,6 +123,14 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 ---
 
 ## Recently completed (reference)
+
+- **v37.16** (2026-07-24) — Forecast validation clock + NWS baselines retired (MINOR, metrics/display only).
+  Forecasts were scored against LF at `targetTime`, omitting the GF→LF travel time — the behavior CLAUDE.md
+  and tech-appendix §8.6 already specified. Now validated at `targetTime + travel`; stale sweep 72→90h;
+  fetch cap 100→300; `travelApplied` keeps the offset-free PoR fallback un-deferred. The two NWS baselines
+  were retired (on the model's own clock they are the model plus a constant) — persistence is now the sole
+  skill comparison. 744→757 tests. Plan + audit + re-audit:
+  `analysis/forecast-validation-timing-fix-plan-2026-07-24.md`. **Follow-ups: #23–#26 above.**
 
 - **v37.2** (2026-06-18) — Cron observability fix (MINOR, server-only): USGS-fetch-failure path now throws
   into the healthchecks `/fail` ping instead of silently early-returning. `analysis/cron-failping-fix-2026-06-18.md`.
