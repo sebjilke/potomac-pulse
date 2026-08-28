@@ -4,7 +4,7 @@
 Session state is in `.claude/HANDOFF.md`; methodology provenance for shipped versions is the
 small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, prioritize, go.
 
-*Last updated: 2026-07-24 (current version: v37.16). Verified against live DB + git history, not memory.*
+*Last updated: 2026-08-28 (current version: v37.16). Verified against live DB + git history, not memory.*
 
 ---
 
@@ -103,7 +103,7 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 
 ---
 
-## 🔴 Open — follow-ups created by v37.16 (2026-07-24)
+## 🔴 Open — follow-ups created by v37.16 (2026-08-28)
 
 | # | Item | Effort | Notes |
 |---|------|--------|-------|
@@ -118,19 +118,19 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 
 | Item | When | Notes |
 |------|------|-------|
-| **Reassess LF ground-truth bias** | after **2026-08-27** | EMA learning biases the GF estimate toward LF; revisit solutions then. |
+| 🔴 **Reassess LF ground-truth bias** | **DUE — gate passed 2026-08-27** | EMA learning biases the GF estimate toward LF; revisit solutions now. Not started. |
 
 ---
 
 ## Recently completed (reference)
 
-- **v37.16** (2026-07-24) — Forecast validation clock + NWS baselines retired (MINOR, metrics/display only).
+- **v37.16** (2026-08-28) — Forecast validation clock + NWS baselines retired (MINOR, metrics/display only).
   Forecasts were scored against LF at `targetTime`, omitting the GF→LF travel time — the behavior CLAUDE.md
   and tech-appendix §8.6 already specified. Now validated at `targetTime + travel`; stale sweep 72→90h;
   fetch cap 100→300; `travelApplied` keeps the offset-free PoR fallback un-deferred. The two NWS baselines
   were retired (on the model's own clock they are the model plus a constant) — persistence is now the sole
   skill comparison. 744→757 tests. Plan + audit + re-audit:
-  `analysis/forecast-validation-timing-fix-plan-2026-07-24.md`. **Follow-ups: #23–#26 above.**
+  `analysis/forecast-validation-timing-fix-plan-2026-08-28.md`. **Follow-ups: #23–#26 above.**
 
 - **v37.2** (2026-06-18) — Cron observability fix (MINOR, server-only): USGS-fetch-failure path now throws
   into the healthchecks `/fail` ping instead of silently early-returning. `analysis/cron-failping-fix-2026-06-18.md`.

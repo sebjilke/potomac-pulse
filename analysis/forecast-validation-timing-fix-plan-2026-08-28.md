@@ -1,7 +1,7 @@
-# Forecast Validation Timing — Fix Plan (2026-07-24)
+# Forecast Validation Timing — Fix Plan (2026-08-28)
 
 **Status:** PLAN — not implemented. Awaiting independent audit + user methodology confirmation.
-**Trigger:** CONFIRMED MISMATCH found 2026-07-24 (code trace + live-metric corroboration).
+**Trigger:** CONFIRMED MISMATCH found 2026-08-28 (code trace + live-metric corroboration).
 **Scope class:** display/metrics only. The GF estimate and EMA learning are NOT touched.
 
 ---
@@ -214,7 +214,7 @@ no UI button (TODO #17) — it is an out-of-band PIN-gated POST.
 
 ---
 
-# 7. AUDIT ENGAGEMENT (protocol step 3) — 2026-07-24
+# 7. AUDIT ENGAGEMENT (protocol step 3) — 2026-08-28
 
 Independent auditor (fresh agent, did not draft this plan). 3 BLOCKER / 6 MAJOR / 9 MINOR.
 Every blocker was re-verified by the orchestrator against the code before acceptance.
@@ -332,12 +332,12 @@ Cost: removes a shipped UI element; user-visible.
 Auditor recommends B. Orchestrator agrees on the merits but flags it as user-visible feature
 removal, which the global scope rules require explicit approval for.
 
-**USER DECISION 2026-07-24: B.** Retire the NWS baselines and the "vs NWS LF forecast" panel; keep
+**USER DECISION 2026-08-28: B.** Retire the NWS baselines and the "vs NWS LF forecast" panel; keep
 persistence as observed LF.
 
 ---
 
-# 9. IMPLEMENTATION RECORD (protocol step 4) — v37.16, 2026-07-24
+# 9. IMPLEMENTATION RECORD (protocol step 4) — v37.16, 2026-08-28
 
 Shipped as **MINOR v37.16**. No change to the GF estimate, the EMA correction bins, or the nowcast.
 `npm test` 744 → **757**, build green.
@@ -397,7 +397,7 @@ times not rise-adjusted, #26 forecast RMW concurrency).
 - **The accuracy reset** → TODO #23. Destructive and user-triggered, and per §4 it should follow the
   first observed post-deploy validation, not the deploy.
 
-## Re-audit (protocol step 5) — fresh auditor, 2026-07-24 — **SHIP**
+## Re-audit (protocol step 5) — fresh auditor, 2026-08-28 — **SHIP**
 
 Verdict SHIP, conditional on the fixes below. Plan conformance confirmed on every design decision;
 all travel figures quoted in the docs independently re-derived and exact; M5's `travelApplied`
