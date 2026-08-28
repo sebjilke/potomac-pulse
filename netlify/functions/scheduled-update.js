@@ -26,6 +26,14 @@ const {
     upsertObs, insertObs, deleteObs, deleteObsById
 } = require('./shared/observations');
 
+// v37.16: how long a pending FORECAST row may live before the stale sweep reclaims it.
+// Server-only (forecast validation has no client counterpart), so it is deliberately not in the
+// shared model pair. Was a flat 72h. A forecast is now scored one GF→LF travel time after its
+// target, and travel peaks at 16.95h at the 1,000-cfs discharge floor — a +48h forecast then
+// ripens at 64.95h, leaving the old threshold only ~7h of margin. A cron gap at low flow would
+// have deleted the row before it ripened, biasing the metric exactly where travel is longest.
+const FORECAST_STALE_MAX_AGE_HRS = 90;   // 72h base + 18h (> the 16.95h physical maximum)
+
 /**
  * Validates the shape of a parsed USGS IV-service JSON response before it is used.
  * @param {Object} json - Parsed USGS response; expected to have value.timeSeries[] each with sourceInfo.siteCode, variable.variableCode, and a values array.
@@ -1619,7 +1627,7 @@ async function updateRunHealth(client) {
 }
 
 /**
- * Validates due pending 48h forecast predictions against actual LF: skips not-yet-due rows, deletes stale (>72h) rows, and for each due row updates per-horizon forecast metadata scoring the model plus the NWS-raw, NWS-bias-corrected, and persistence baselines, then deletes the validated row.
+ * Validates due pending 48h forecast predictions against actual LF. A row is due at `targetTime + GF→LF travel` when it carries the travel offset (`travelApplied`, the NWS-LF path) and at `targetTime` when it does not (the PoR/extrapolation fallbacks) — v37.16; before that every row was scored at `targetTime`, ignoring the travel term. Rows are processed in ripeness order; a row with an unparseable `targetTime` is deleted rather than scored; rows older than `FORECAST_STALE_MAX_AGE_HRS` (90h) are swept. For each due row it updates per-horizon forecast metadata scoring the model plus the persistence baseline (the two NWS baselines were retired in v37.16 — on the model's own clock they are the model plus a constant; their existing counters remain untouched as an audit trail), then deletes the validated row.
  * @param {Object} client - Supabase client.
  * @param {{data: Object, gauges: Object}} usgsData - Parsed USGS data/gauge map; requires LF discharge within [500, 500000] cfs to validate a row.
  * @returns {Promise<{validated: number, cleaned: number}>} Counts of forecast predictions validated and stale rows cleaned.
@@ -1637,12 +1645,29 @@ async function validateForecastPredictions(client, usgsData) {
         return { validated: 0, cleaned: 0 };
     }
 
-    // Get pending forecast predictions
+    // v37.16: GF→LF travel for the validation clock. A forecast for wall-clock T predicts flow at
+    // GREAT FALLS at T; that water reaches Little Falls only at T + travel, so it must be scored
+    // against LF then — the behavior CLAUDE.md and tech-appendix §8.6 already document. Recomputed
+    // here from current LF flow rather than persisting the client's value: that keeps the public
+    // unauthenticated write path free of a numeric field an attacker could use to defer or deny
+    // validation, and needs no migration for rows already in flight. The tradeoff, stated honestly:
+    // the value was BUILT with the client's travel (from the GF estimate at creation) and is SCORED
+    // with the server's (from LF flow at validation). Under near-stationary flow those agree well
+    // inside the cron's own hourly quantization, but across a flood recession over a +48h row's
+    // life they can differ by hours. Validation-time flow is the more physical choice for the
+    // parcel actually arriving, so the direction is right — but it is an approximation, not an
+    // identity. NB the server's getFlowMultiplier returns a BARE SCALAR (no .mult) — see shared/model.js.
+    const forecastTravelHrs = getGFtoLFTravelTime(getFlowMultiplier(lf.q));
+
+    // Get pending forecast predictions. Cap raised 100 → 300: the 2h client-side posting throttle
+    // lives in memory only (src/state/store.js), so it resets on every page load and depth scales
+    // with visitor count rather than a fixed cadence — and deferring validation by one travel time
+    // lengthens every row's life.
     const { data: pending, error } = await getObsRows(client, 'gf_forecast_pending', {
         columns: 'id, gauge_id, data, created_at',
         orderBy: 'created_at',
         ascending: true,
-        limit: 100
+        limit: 300
     });
 
     if (error) {
@@ -1656,20 +1681,62 @@ async function validateForecastPredictions(client, usgsData) {
 
     console.log(`📈 Found ${pending.length} pending forecast predictions`);
 
-    for (const pred of pending) {
+    // Process in ripeness order rather than insertion order. Be precise about what this does and
+    // does not buy: the sort runs AFTER the fetch, so it cannot change WHICH rows arrive — the
+    // starvation guard is the cap raise above, not this. The loop below has no break and no
+    // per-tick budget, so every fetched row is examined regardless of order. What the sort buys is
+    // resilience if this function throws or times out part-way (it is wrapped non-fatally by the
+    // caller): the rows already processed are then the ones that were actually due, not an
+    // arbitrary prefix by age. Sorted here rather than in the query so it does not depend on
+    // JSON-path ordering in the DB layer, where a malformed clause would error the whole read and
+    // silently halt all forecast validation.
+    // Unparseable targetTime sorts last and is cleaned by the validity guard in the loop.
+    const byRipeness = [...pending].sort((a, b) => {
+        const ta = Date.parse(a.data?.targetTime);
+        const tb = Date.parse(b.data?.targetTime);
+        return (isNaN(ta) ? Infinity : ta) - (isNaN(tb) ? Infinity : tb);
+    });
+
+    for (const pred of byRipeness) {
         const targetTime = new Date(pred.data.targetTime);
         const horizonNum = pred.data.horizon;  // e.g., 6, 12, 24, 48
         const horizonKey = `+${horizonNum}h`;  // e.g., '+6h' for metadata lookup
         const createdAt = new Date(pred.created_at);
 
-        // Check if target time has passed (allow 15 min buffer for processing)
-        if (now < new Date(targetTime.getTime() + 15 * 60 * 1000)) {
+        // An unparseable targetTime makes every downstream comparison NaN — and `now < NaN` is
+        // false, so such a row would validate immediately against whatever LF happens to be.
+        // It can never validate meaningfully, so clean it now rather than let it score garbage,
+        // mirroring the nowcast's invalid-validationDue handling (C12). The write path already
+        // rejects these (C13a), so this only reaches corrupt or legacy rows.
+        if (isNaN(targetTime.getTime())) {
+            console.log(`🧹 Cleaning forecast prediction with invalid targetTime: ${pred.id}`);
+            const { error: badTimeDelErr } = await deleteObsById(client, pred.id);
+            if (badTimeDelErr) {
+                console.error('❌ Invalid-targetTime forecast delete FAILED:', badTimeDelErr.message, badTimeDelErr.code, badTimeDelErr.details);
+            } else {
+                cleaned++;
+            }
+            continue;
+        }
+
+        // Ripeness. Rows whose value carries the GF→LF offset (the NWS-LF path) are scored one
+        // travel time after targetTime; rows from the PoR/extrapolation fallbacks carry no offset
+        // and must NOT be deferred — deferring them would newly mis-score a path that was never
+        // wrong. Absent flag ⇒ false ⇒ pre-v37.16 behavior for legacy rows.
+        const travelOffsetHrs = pred.data.travelApplied === true ? forecastTravelHrs : 0;
+        const dueTime = new Date(targetTime.getTime() + travelOffsetHrs * 60 * 60 * 1000);
+
+        // Check if the water has arrived at LF (allow 15 min buffer for processing)
+        if (now < new Date(dueTime.getTime() + 15 * 60 * 1000)) {
             continue; // Not ready for validation yet
         }
 
-        // Check if prediction is stale (>72h old)
+        // Check if prediction is stale. Threshold covers the deferred window: a +48h forecast at
+        // the 1,000-cfs floor ripens at 48 + 16.95 = 64.95h, so the old flat 72h left ~7h of
+        // margin — a cron gap at low flow would have deleted low-flow rows before they ripened,
+        // biasing the metric exactly where travel is longest.
         const ageHours = (now - createdAt) / (1000 * 60 * 60);
-        if (ageHours > 72) {
+        if (ageHours > FORECAST_STALE_MAX_AGE_HRS) {
             const { error: staleDelErr } = await deleteObsById(client, pred.id);
             if (staleDelErr) {
                 console.error('❌ Stale forecast delete FAILED:', staleDelErr.message, staleDelErr.code, staleDelErr.details);
@@ -1702,24 +1769,15 @@ async function validateForecastPredictions(client, usgsData) {
         metaData.lastValidation = now.toISOString();
         metaData.lastErrorPercent = errorPercent;
 
-        // Score NWS LF baseline — raw NWS forecast for Little Falls
-        if (pred.data.nwsLfRawCFS) {
-            const nwsRawError = Math.abs((pred.data.nwsLfRawCFS - actualCFS) / actualCFS) * 100;
-            metaData.nwsRawValidations = (metaData.nwsRawValidations || 0) + 1;
-            metaData.nwsRawSumAbsErrorPercent = (metaData.nwsRawSumAbsErrorPercent || 0) + nwsRawError;
-            metaData.nwsRawAvgErrorPercent = metaData.nwsRawSumAbsErrorPercent / metaData.nwsRawValidations;
-            console.log(`📈 NWS raw baseline ${horizonKey}: ${pred.data.nwsLfRawCFS} cfs, error=${nwsRawError.toFixed(1)}%`);
-        }
+        // v37.16: the two NWS baselines are no longer scored. Once the model is validated on the GF
+        // clock, a same-clock NWS baseline is the model by construction — nwsLfBiasCorrected is the
+        // identical integer, nwsLfRaw is the model minus the batch-constant lfBiasOffset — so the
+        // "vs NWS" delta could not be made informative by any clock alignment. Existing
+        // nwsRaw*/nwsCorrected* counters are left untouched in the metadata rows as an audit trail;
+        // they simply stop accruing and are no longer rendered.
 
-        // Score NWS LF bias-corrected baseline
-        if (pred.data.nwsLfBiasCorrectedCFS) {
-            const nwsCorrError = Math.abs((pred.data.nwsLfBiasCorrectedCFS - actualCFS) / actualCFS) * 100;
-            metaData.nwsCorrectedValidations = (metaData.nwsCorrectedValidations || 0) + 1;
-            metaData.nwsCorrectedSumAbsErrorPercent = (metaData.nwsCorrectedSumAbsErrorPercent || 0) + nwsCorrError;
-            metaData.nwsCorrectedAvgErrorPercent = metaData.nwsCorrectedSumAbsErrorPercent / metaData.nwsCorrectedValidations;
-        }
-
-        // Score persistence baseline (assume flow stays the same)
+        // Score persistence baseline (assume flow stays the same). This is the only baseline that
+        // survives clock alignment: observed LF is an external reference, not a model output.
         if (pred.data.persistenceCFS) {
             const persistError = Math.abs((pred.data.persistenceCFS - actualCFS) / actualCFS) * 100;
             metaData.persistenceValidations = (metaData.persistenceValidations || 0) + 1;
@@ -1806,6 +1864,7 @@ exports._test = {
     runServerShadowModels, loadShadowModelState, saveShadowModelState,
     computeRunHealth,
     updateLfResidualAdvisory,
+    validateForecastPredictions, FORECAST_STALE_MAX_AGE_HRS,
 };
 
 /**

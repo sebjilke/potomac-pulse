@@ -96,9 +96,11 @@ function buildForecastRows(forecasts, timestamp) {
                 predictedStage: f.predictedStage,
                 source: f.source,
                 createdAt: f.createdAt,
-                // Baselines for accuracy comparison (scored in scheduled-update.js)
-                nwsLfRawCFS: f.nwsLfRawCFS ?? null,
-                nwsLfBiasCorrectedCFS: f.nwsLfBiasCorrectedCFS ?? null,
+                // v37.16: gates the validation clock in scheduled-update.js. Absent on rows written
+                // before v37.16 — the validator treats absent as false (the pre-v37.16 behavior).
+                travelApplied: f.travelApplied === true,
+                // Persistence baseline (observed LF), scored in scheduled-update.js. The two NWS
+                // baselines were retired in v37.16 (same-clock ⇒ model plus a constant).
                 persistenceCFS: f.persistenceCFS ?? null
             }
         }));
@@ -191,8 +193,16 @@ function validateGFWritePayload(data, nowMs) {
                 return 'forecast.targetTime out of range';
             }
             if (f.predictedStage != null && !finiteInRange(f.predictedStage, 0, WRITE_STAGE_MAX)) return 'forecast.predictedStage out of range';
-            for (const b of ['nwsLfRawCFS', 'nwsLfBiasCorrectedCFS', 'persistenceCFS']) {
-                if (f[b] != null && !finiteInRange(f[b], 0, WRITE_CFS_MAX)) return `forecast.${b} out of range`;
+            // v37.16: the two NWS baselines are no longer persisted; only persistence remains.
+            // Legacy senders may still include them — they are ignored by buildForecastRows, so
+            // they need no bound here.
+            if (f.persistenceCFS != null && !finiteInRange(f.persistenceCFS, 0, WRITE_CFS_MAX)) {
+                return 'forecast.persistenceCFS out of range';
+            }
+            // travelApplied is coerced to a strict boolean by buildForecastRows, so an attacker
+            // cannot inject a non-boolean; reject an explicitly wrong type for a clean 400.
+            if (f.travelApplied != null && typeof f.travelApplied !== 'boolean') {
+                return 'forecast.travelApplied invalid';
             }
             // source/createdAt are stored verbatim by buildForecastRows — bound them so junk
             // (non-string source, oversized strings, bogus dates) can't be persisted and served back.

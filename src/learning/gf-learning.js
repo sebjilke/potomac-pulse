@@ -128,9 +128,11 @@ export async function storeForecastPredictions(periods) {
                     predictedStage: p.stage,
                     source: p.source,
                     createdAt: new Date().toISOString(),
-                    // Baselines for accuracy comparison
-                    nwsLfRawCFS: p.nwsLfRawCFS || null,
-                    nwsLfBiasCorrectedCFS: p.nwsLfBiasCorrectedCFS || null,
+                    // v37.16: tells the server whether this value carries the GF→LF travel offset.
+                    // true → validate at targetTime + travel; false (PoR fallback) → at targetTime.
+                    travelApplied: p.travelApplied === true,
+                    // Persistence baseline (observed LF). The two NWS baselines were retired in
+                    // v37.16 — on the model's own clock they are the model plus a constant.
                     persistenceCFS: p.persistenceCFS || null
                 }))
             })

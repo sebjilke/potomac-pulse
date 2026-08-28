@@ -411,7 +411,10 @@ export function updateForecastPeriods(gfEst) {
          * (targetGFHrs + GF→LF travel time), applying the additive LF bias offset; falls back to the PoR
          * forecast (then current PoR) when no LF forecast is available.
          * @param {number} targetGFHrs - Hours ahead at Great Falls to estimate.
-         * @returns {number} The bias-corrected forecast cfs (floored at 0).
+         * @returns {{cfs: number, travelApplied: boolean}} The bias-corrected forecast cfs (floored at 0),
+         *   and whether the GF→LF travel offset was applied in producing it. `travelApplied` is true only on
+         *   the NWS-LF path; the PoR fallbacks read their series at the target hour with no offset. The server
+         *   uses this to pick the validation clock (v37.16), so it must travel with the stored prediction.
          */
         const getGFAtTime = (targetGFHrs) => {
             const lfTimeForThisWater = targetGFHrs + gfToLfTravel;
@@ -431,26 +434,31 @@ export function updateForecastPeriods(gfEst) {
             }
 
             if (rawForecastCFS !== null) {
-                return Math.max(0, rawForecastCFS + lfBiasOffset);
+                return { cfs: Math.max(0, rawForecastCFS + lfBiasOffset), travelApplied: true };
             }
 
-            // Fallback to PoR forecast
+            // Fallback to PoR forecast. This branch reads the PoR series at targetGFHrs with NO
+            // travel offset, so `travelApplied` stays false and the server must NOT defer its
+            // validation. Strictly, the result is PoR-at-T rather than GF-at-T — Point of Rocks is
+            // ~19h upstream of Great Falls — so this path is approximate in its own right; not
+            // deferring it preserves the pre-v37.16 behavior rather than newly mis-scoring it.
             const porBefore = porPoints.filter(p => p.hoursAhead <= targetGFHrs).pop();
             const porAfter = porPoints.find(p => p.hoursAhead >= targetGFHrs);
             if (porBefore && porAfter && porBefore !== porAfter) {
                 const t = (targetGFHrs - porBefore.hoursAhead) / (porAfter.hoursAhead - porBefore.hoursAhead);
-                return porBefore.cfs + t * (porAfter.cfs - porBefore.cfs);
+                return { cfs: porBefore.cfs + t * (porAfter.cfs - porBefore.cfs), travelApplied: false };
             }
-            if (porAfter) return porAfter.cfs;
-            if (porBefore) return porBefore.cfs;
-            return currentPorCFS;
+            if (porAfter) return { cfs: porAfter.cfs, travelApplied: false };
+            if (porBefore) return { cfs: porBefore.cfs, travelApplied: false };
+            return { cfs: currentPorCFS, travelApplied: false };
         };
 
         console.log(`GF forecast: LF-constrained (GF→LF ~${gfToLfTravel.toFixed(1)}h) with additive bias correction`);
 
         for (const targetHrs of calculateHours) {
             const futureTime = new Date(now.getTime() + targetHrs * 60 * 60 * 1000);
-            let porCFS = getGFAtTime(targetHrs);
+            const gfAtTime = getGFAtTime(targetHrs);
+            let porCFS = gfAtTime.cfs;
 
             let efEstimate = null;
             if (hasEFForecast) {
@@ -476,16 +484,17 @@ export function updateForecastPeriods(gfEst) {
             const sourceLabel = 'NWS' + (efEstimate !== null ? '+EF' : '');
             const isDisplayPeriod = displayHours.includes(targetHrs);
 
-            let nwsLfRawCFS = null;
-            let nwsLfBiasCorrectedCFS = null;
-            if (hasLFForecast && lfPoints.length > 0) {
-                const rawLf = interpolateForecast(lfPoints, targetHrs);
-                if (rawLf && rawLf > 0) {
-                    nwsLfRawCFS = Math.round(rawLf);
-                    nwsLfBiasCorrectedCFS = Math.round(rawLf + lfBiasOffset);
-                }
-            }
-            const persistenceCFS = Math.round(observedLfCFS);
+            // v37.16: the two NWS baselines were retired. Once the model is scored on the GF clock
+            // (validated at targetTime + GF→LF travel), a same-clock NWS baseline is algebraically
+            // the model itself: nwsLfBiasCorrected == predictedCFS, and nwsLfRaw == predictedCFS
+            // minus the batch-constant lfBiasOffset. Persistence stays: observed LF is the only
+            // external reference that survives clock alignment.
+            // Persistence must come from the OBSERVED gauge, never the fallback. `observedLfCFS`
+            // degrades to `currentCFS` (the GF estimate) when LF is missing — harmless when it was
+            // one of three baselines, but persistence is now the ONLY baseline and the only rendered
+            // skill delta, so an LF outage would silently score the model against itself and read
+            // flatteringly. Null instead: the scorer skips a falsy baseline.
+            const persistenceCFS = lfData?.q != null ? Math.round(lfData.q) : null;
 
             periods.push({
                 label: `+${targetHrs}h`,
@@ -495,8 +504,7 @@ export function updateForecastPeriods(gfEst) {
                 isCurrent: false,
                 source: sourceLabel,
                 isDisplayPeriod: isDisplayPeriod,
-                nwsLfRawCFS: nwsLfRawCFS,
-                nwsLfBiasCorrectedCFS: nwsLfBiasCorrectedCFS,
+                travelApplied: gfAtTime.travelApplied,
                 persistenceCFS: persistenceCFS
             });
         }
@@ -664,8 +672,10 @@ export function showGraphMarker(hrs) {
 
 /**
  * Renders the forecast-accuracy summary into #forecast-accuracy: per-horizon model accuracy and,
- * when enough NWS validations exist, the model-vs-NWS-LF accuracy delta per horizon. Hides the
- * container when data is missing or there are fewer than 10 total validations.
+ * when enough persistence validations exist, the model-vs-persistence accuracy delta per horizon.
+ * The model-vs-NWS-LF delta was retired in v37.16 (on the model's own validation clock the NWS
+ * baselines are the model plus a constant, so the delta could not carry skill information).
+ * Hides the container when data is missing or there are fewer than 10 total validations.
  */
 export function updateForecastAccuracyUI() {
     const container = document.getElementById('forecast-accuracy');
@@ -696,28 +706,31 @@ export function updateForecastAccuracyUI() {
 
     let html = `<span style="color:var(--text-muted);">Forecast accuracy:</span> ${horizonStats} <span style="color:var(--text-faint);">(${totalValidations} validations)</span>`;
 
-    const totalNwsValidations = Object.values(forecastAccuracyData.horizons)
-        .reduce((sum, h) => sum + (h.nwsRawValidations || 0), 0);
+    // v37.16: the "vs NWS LF forecast" delta was retired — see the note in updateForecastPeriods.
+    // Persistence (observed LF, unchanged) is the one external reference left, so it is the only
+    // baseline we render a skill delta against.
+    const totalPersistenceValidations = Object.values(forecastAccuracyData.horizons)
+        .reduce((sum, h) => sum + (h.persistenceValidations || 0), 0);
 
-    if (totalNwsValidations >= 10) {
-        const nwsDeltaStats = FORECAST_HORIZONS.map(h => {
+    if (totalPersistenceValidations >= 10) {
+        const persistenceDeltaStats = FORECAST_HORIZONS.map(h => {
             const stats = forecastAccuracyData.horizons[h] || {};
             const ourAccuracy = stats.validations >= 3 && stats.avgErrorPercent !== null
                 ? 100 - stats.avgErrorPercent : null;
-            const nwsAccuracy = stats.nwsRawValidations >= 3 && stats.nwsRawAvgErrorPercent !== null
-                ? 100 - stats.nwsRawAvgErrorPercent : null;
+            const persistenceAccuracy = stats.persistenceValidations >= 3 && stats.persistenceAvgErrorPercent != null
+                ? 100 - stats.persistenceAvgErrorPercent : null;
 
-            if (ourAccuracy === null || nwsAccuracy === null) {
+            if (ourAccuracy === null || persistenceAccuracy === null) {
                 return `<span style="color:var(--text-muted);">+${h}h: --</span>`;
             }
-            const delta = ourAccuracy - nwsAccuracy;
+            const delta = ourAccuracy - persistenceAccuracy;
             const sign = delta >= 0 ? '+' : '';
             const color = delta > 0 ? 'var(--accent-green)' : (delta < -1 ? 'var(--accent-red-light)' : 'var(--accent-amber)');
-            const title = `Our model: ${ourAccuracy.toFixed(0)}% vs NWS: ${nwsAccuracy.toFixed(0)}%`;
+            const title = `Our model: ${ourAccuracy.toFixed(0)}% vs persistence: ${persistenceAccuracy.toFixed(0)}%`;
             return `<span style="color:${color};" title="${title}">+${h}h: ${sign}${delta.toFixed(0)}%</span>`;
         }).join(' • ');
 
-        html += `<br><span style="color:var(--text-muted);" title="Our model predicts Great Falls; NWS predicts Little Falls directly">vs NWS LF forecast:</span> ${nwsDeltaStats}`;
+        html += `<br><span style="color:var(--text-muted);" title="Persistence = Little Falls holds its current flow. The NWS baselines were retired in v37.16: on the same clock as the model they are the model plus a constant.">vs persistence:</span> ${persistenceDeltaStats}`;
     }
 
     container.innerHTML = html;

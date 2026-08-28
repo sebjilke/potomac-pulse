@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v37.15</title>
+    <title>Potomac Pulse v37.16</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -351,7 +351,15 @@
                         </div>
 
                         <p style="font-size:0.75rem;color:var(--text-tertiary);line-height:1.7;margin-bottom:10px;">
-                        The forecast uses a different method from the nowcast. The National Weather Service predicts what will arrive at Little Falls, the downstream gauge. Since water passes Great Falls before it reaches Little Falls, we shift the NWS prediction earlier in time by the travel time between the two gauges (roughly 6 hours at typical flows). If NWS says Little Falls will rise at 6 PM, Great Falls should rise around noon.
+                        The forecast uses a different method from the nowcast. The National Weather Service predicts what will arrive at Little Falls, the downstream gauge. Since water passes Great Falls before it reaches Little Falls, we shift the NWS prediction earlier in time by the travel time between the two gauges (roughly 6 hours at typical flows, but under 2 hours in a flood and up to 17 hours in very low water). If NWS says Little Falls will rise at 6 PM, Great Falls should rise around noon.
+                        </p>
+
+                        <p style="font-size:0.75rem;color:var(--text-tertiary);line-height:1.7;margin-bottom:10px;">
+                        <b>Be honest about what this is.</b> Because the forecast is a time-shift of the NWS Little Falls prediction, it is not an independent forecast — it is the NWS forecast re-expressed for Great Falls, nudged by the gap between what NWS currently predicts for Little Falls and what Little Falls actually reads. So we no longer show a "vs NWS" score: on the same clock, that comparison is the forecast against itself. We compare it instead against <i>persistence</i> — simply assuming the river holds its current flow. Beating persistence is the real test of whether the forecast is telling you anything.
+                        </p>
+
+                        <p style="font-size:0.75rem;color:var(--text-tertiary);line-height:1.7;margin-bottom:10px;">
+                        Each forecast is scored when the water it describes actually reaches Little Falls — one travel time after the hour it was predicting for. Before v37.16 we scored it at the predicted hour itself, which compared the forecast against the river before that water had arrived. Errors under steady flow were small, but the mistake bit hardest on rising and falling rivers, which is exactly when a forecast matters.
                         </p>
 
                         <p style="font-size:0.7rem;color:var(--text-tertiary);line-height:1.6;margin-bottom:10px;">

@@ -103,6 +103,17 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 
 ---
 
+## 🔴 Open — follow-ups created by v37.16 (2026-07-24)
+
+| # | Item | Effort | Notes |
+|---|------|--------|-------|
+| 23 | 🔒 **Reset forecast accuracy after v37.16 deploys** | 5 min | **Required for the metric to mean anything.** Every `gf_forecast_metadata` counter accrued while forecasts were scored one GF→LF travel time too early; the counters are cumulative sums with no per-era split, so pre- and post-fix validations cannot be un-mixed later. Do it **after** confirming the new gate fired in production (not at deploy — if the deploy is broken you want the old numbers to compare against). No UI button exists (see #17): out-of-band PIN-gated POST `resetForecastAccuracy`, which also deletes pending forecast rows. Expect the accuracy panel to go dark for a while afterwards (`updateForecastAccuracyUI` hides below 10 validations; the +48h horizon needs ~2 days per validation). |
+| 24 | **Split-out: forecast `:407` GF→LF travel bypass** | small | `src/ui/great-falls-ui.js:407` computes its own `TRAVEL_GF_LF_BASELINE * getFlowMultiplier(currentCFS).mult`, bypassing `getGFtoLFTravelTime` — so the forecast misses the rising-river celerity reduction (up to −30%) **and** disagrees with the GF→LF travel time already displayed at `:239` (`gfEstimate.inputs.travelGFtoLF`, from the iterated historic-PoR mult). Two different GF→LF numbers on one card. Also passes `currentCFS` (a GF estimate) into a parameter documented as `lfFlow`. **Minimal fix:** reuse `gfEst.inputs.travelGFtoLF` (already parity-tested, already displayed) with a null guard for the EF-only ice path (`great-falls.js:367`). Split from v37.16 deliberately — it changes displayed forecast values, so it wants its own version + attribution. Still MINOR. |
+| 25 | **Displayed travel times aren't rise-adjusted (header / All Gauges / Learning tile)** | small | `calcTravelTimes()` (`src/data/fetch.js:139-160`) is `baseHrs × mult` with **no** rise-rate term, while the GF card's PoR→GF and GF→LF rows apply up to a −30% wave-celerity reduction. Steady flow: agree within ~0.2h. Rising 5%/hr: header 29h vs GF-card 26.2h. Rising 15%/hr: 29h vs 20.4h. Also `waveCelerity.reductionPct` is computed at `great-falls.js:589` and **rendered nowhere**, so nothing explains why the card's numbers moved. Decide: adjust the displayed arrivals too, or surface the reduction. |
+| 26 | ⚪ **Forecast validation is read-modify-write with no claim** | medium | `validateForecastPredictions` does `getObs` → mutate → `upsertObs` → `deleteObsById` with no claim-before-score, so two overlapping cron runs can double-count. Pre-existing; v37.16 widens the window slightly (rows live one travel time longer). The nowcast solved this in C12 (claim-before-learn) and `updateLfResidualAdvisory` has an F2 skip-guard — this is the last unguarded write path. Deliberately NOT bundled into v37.16 to keep attribution clean if the metric moves. |
+
+---
+
 ## 📅 Date-gated / watch
 
 | Item | When | Notes |

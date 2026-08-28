@@ -125,15 +125,27 @@ current NWS LF forecast and actual observed LF), blends NWS EF forecast when ava
 weight as nowcast). Falls back to NWS PoR forecast if LF unavailable, or linear extrapolation if no
 NWS data at all.
 
-**Validation**: Scores model forecast against two NWS baselines (raw and bias-corrected) at each
-horizon (6/12/24/48h). Stored as `gf_forecast_pending` → validated when water arrives at LF.
+**Validation**: Stored as `gf_forecast_pending` → validated when water arrives at LF, i.e. at
+`targetTime + GF→LF travel`, NOT at `targetTime` (v37.16 — through v37.15 the validator omitted the
+travel term and scored against LF at the target hour; the gap is ~9h at 2,800 cfs and up to 16.95h at
+the 1,000-cfs floor, larger than the +6h horizon itself at summer flows). The travel offset is
+recomputed server-side from current LF flow each cycle; the PoR-fallback path carries no offset by
+construction and is flagged `travelApplied:false` so it is NOT deferred. Stale sweep is
+`FORECAST_STALE_MAX_AGE_HRS` = 90h (was a flat 72h — too tight once +48h rows ripen at ~65h at the
+floor); fetch cap raised 100→300 (depth is visitor-driven — the client's 2h posting throttle is in-memory only — and rows now live one travel time longer). Rows are also processed in ripeness order, but note that sort runs AFTER the fetch, so the cap is the actual starvation guard; the sort only ensures a tick that dies part-way did the work that was due.
+The only skill baseline is **persistence** (observed LF). The two NWS baselines were retired in
+v37.16: on the model's own clock the bias-corrected one IS the model and the raw one is the model
+minus a batch constant, so the "vs NWS" delta could never be informative. Their counters are frozen
+as an audit trail. **The 48h forecast has no independent content beyond a time-shift of the
+bias-corrected NWS LF forecast + a sub-1% EF blend below ~6k cfs** — say so rather than implying skill.
+**Nothing in the forecast path feeds the estimate, the EMA bins, or the correction.**
 
 ### Key files
 `src/estimation/great-falls.js` + `src/model/shared-model.js` (client) and `netlify/functions/scheduled-update.js` + `netlify/functions/shared/model.js` (server) — keep in sync for any model logic change.
 Client estimation: `src/estimation/great-falls.js`. Forecast UI: `src/ui/great-falls-ui.js`.
 NWS integration: `src/estimation/nws.js`. Learning UI: `src/ui/learning-ui.js`.
 
-## Current Model Parameters (v37.15)
+## Current Model Parameters (v37.16)
 
 - **EF Power-Law**: 126×EF^2.46 (default), 160×EF^2.36 (cold water ≤10°C)
 - **EF Weight (Logistic Ramp)**: `ef_weight = 0.40 / (1 + exp(-5.0 × (ln(flow) - ln(10000))))`. Near 0% at low flows, ~40% at high. EF has negative predictive skill below 6k cfs.

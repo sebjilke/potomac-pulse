@@ -3,10 +3,14 @@ const assert = require('node:assert/strict');
 
 const { buildForecastRows, validateGFWritePayload } = require('../netlify/functions/sync-learning')._test;
 
-// C24: the storeForecastPredictions insert used to drop the three NWS/persistence
-// baseline fields, so scheduled-update.js could never score forecast skill against
-// them. These tests pin that the baselines survive into the stored row.
-describe('buildForecastRows (C24 baseline passthrough)', () => {
+// C24 pinned that the three NWS/persistence baselines survive into the stored row.
+// v37.16 RE-BASELINED this deliberately: the two NWS baselines were retired. Once the
+// model is validated on the GF clock (targetTime + GF→LF travel), a same-clock NWS
+// baseline is the model by construction — nwsLfBiasCorrected is the identical integer and
+// nwsLfRaw is the model minus the batch-constant lfBiasOffset — so neither can carry skill
+// information. Persistence (observed LF) is the one external reference that survives, and
+// `travelApplied` is new: it tells the validator which clock the row belongs on.
+describe('buildForecastRows (baseline passthrough + v37.16 travel clock)', () => {
     const TS = 1700000000000;
     const fullForecast = {
         horizon: 24,
@@ -15,27 +19,49 @@ describe('buildForecastRows (C24 baseline passthrough)', () => {
         predictedStage: 4.2,
         source: 'nws-lf',
         createdAt: '2026-06-16T00:00:00.000Z',
-        nwsLfRawCFS: 7800,
-        nwsLfBiasCorrectedCFS: 7950,
+        travelApplied: true,
         persistenceCFS: 8100,
     };
 
-    it('preserves the three baseline fields when the client provides them', () => {
+    it('preserves the persistence baseline when the client provides it', () => {
         const [row] = buildForecastRows([fullForecast], TS);
-        assert.equal(row.data.nwsLfRawCFS, 7800);
-        assert.equal(row.data.nwsLfBiasCorrectedCFS, 7950);
         assert.equal(row.data.persistenceCFS, 8100);
     });
 
-    it('stores the baseline keys as null (not absent) when missing, so the scorer skips cleanly', () => {
-        const { nwsLfRawCFS, nwsLfBiasCorrectedCFS, persistenceCFS, ...bare } = fullForecast;
+    it('no longer persists the two retired NWS baselines, even if a legacy client sends them', () => {
+        const [row] = buildForecastRows(
+            [{ ...fullForecast, nwsLfRawCFS: 7800, nwsLfBiasCorrectedCFS: 7950 }],
+            TS
+        );
+        assert.ok(!('nwsLfRawCFS' in row.data));
+        assert.ok(!('nwsLfBiasCorrectedCFS' in row.data));
+        // the surviving baseline is unaffected by the legacy extras
+        assert.equal(row.data.persistenceCFS, 8100);
+    });
+
+    it('stores persistenceCFS as null (not absent) when missing, so the scorer skips cleanly', () => {
+        const { persistenceCFS, ...bare } = fullForecast;
         const [row] = buildForecastRows([bare], TS);
-        assert.equal(row.data.nwsLfRawCFS, null);
-        assert.equal(row.data.nwsLfBiasCorrectedCFS, null);
         assert.equal(row.data.persistenceCFS, null);
-        // keys must exist so the row shape is stable
-        assert.ok('nwsLfRawCFS' in row.data);
+        // key must exist so the row shape is stable
         assert.ok('persistenceCFS' in row.data);
+    });
+
+    it('coerces travelApplied to a strict boolean so the validator cannot be fooled by a truthy value', () => {
+        const [t] = buildForecastRows([fullForecast], TS);
+        assert.equal(t.data.travelApplied, true);
+
+        const [f] = buildForecastRows([{ ...fullForecast, travelApplied: false }], TS);
+        assert.equal(f.data.travelApplied, false);
+
+        // absent ⇒ false ⇒ validator uses the pre-v37.16 clock (no travel deferral)
+        const { travelApplied, ...noFlag } = fullForecast;
+        const [n] = buildForecastRows([noFlag], TS);
+        assert.equal(n.data.travelApplied, false);
+
+        // a truthy non-boolean must not become `true`
+        const [s] = buildForecastRows([{ ...fullForecast, travelApplied: 'yes' }], TS);
+        assert.equal(s.data.travelApplied, false);
     });
 
     it('keeps the core fields and gauge_id/observation_type shape intact', () => {
