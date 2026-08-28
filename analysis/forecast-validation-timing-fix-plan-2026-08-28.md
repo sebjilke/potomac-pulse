@@ -188,9 +188,19 @@ stale before it ever validated — a **silent low-flow sampling bias** in the me
 2. Fresh independent auditor reviews this plan (step 2 of the protocol) — findings marked
    RESOLVED / PARTIAL / NOT RESOLVED.
 3. Fresh re-auditor after implementation verifies each finding and plan-conformance.
-4. **Live, cannot be confirmed pre-deploy:** the first post-deploy forecast validation must be
-   observed writing `gf_forecast_metadata` at `T + travel`, not `T`. Until a real cron cycle runs
-   this is an **unverified gap**, not a verified pass.
+4. ✅ **PARTIALLY CLOSED 2026-08-28 16:02Z — the new scorer is confirmed running in production.**
+   At the 16:00Z cron on the `+24h` horizon, `validations` 3044→3045 and `persistenceValidations`
+   1124→1125 incremented while `nwsRawValidations`/`nwsCorrectedValidations` stayed frozen at 1124.
+   Those four counters had been identical for their entire history; only the v37.16 scorer can
+   split them. Client side confirmed too: 16 `travelApplied:true` / 8 `false` rows in
+   `gf_forecast_pending`, and the deployed bundle carries `vs persistence` with zero
+   `vs NWS LF forecast`. This also closes MINOR-9's first no-op risk empirically.
+   ⏳ **The deferral itself remains unobserved.** It needs a `travelApplied=true` row to pass its
+   `targetTime` and NOT validate; at 16:03Z none had (earliest true-flagged target
+   2026-08-28T21:43:47Z, expected to validate ~04:45Z on 08-29). Until then the timing gate is
+   inferred from the code path being live, not directly observed.
+   **Incidental:** 102 pending rows were found against the old `limit: 100` — the starvation bug
+   B3 identified was live in production, not hypothetical.
 5. Empirical confirmation (optional, strong): re-score archived predictions against LF at
    `T + travel` and check the +6 h anomaly vs persistence disappears. **Blocked** — no per-row
    forecast validation endpoint exists; would need direct Supabase access.
