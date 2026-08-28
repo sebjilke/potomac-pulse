@@ -118,7 +118,7 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 
 | Item | When | Notes |
 |------|------|-------|
-| 🔴 **Reassess LF ground-truth bias** | **DUE — gate passed 2026-08-27** | EMA learning biases the GF estimate toward LF; revisit solutions now. Not started. |
+| 🔴🔒 **Reassess LF ground-truth bias (C32 estimand)** | **DUE — gate passed 2026-08-27; SCOPED 2026-08-28, needs your call** | Scoping plan: `analysis/lf-ground-truth-bias-scoping-2026-08-28.md`. Every calibrated component (EMA residual, EF power-law fit, CI table, 120% ceiling) is anchored to **Little Falls**, so the displayed "GF flow" is structurally *LF discharge one travel time ahead*. There is no GF ground truth. **New this session:** the GF→LF municipal withdrawal wedge is quantified at **≈243 cfs** (WSSC ~200 + Washington Aqueduct Little Falls ~43) — **24% of flow at the 1,000-cfs floor, 12% at 2,000**, versus the model's 6.94% mean error. So at low flow the wedge exceeds the entire error budget, and the EMA absorbs it as if it were model bias. ICPRB CO-OP publishes withdrawals daily, so the wedge may be **identifiable** after all (previously assumed not). ✅ Done: appendix §6.1 corrected — it had falsely claimed validation "calculate[s] what GF actually was". **Recommended next: Option B (read-only diagnostic — does the learned correction track withdrawals?), not a model change.** Three decisions listed in §6 of the plan; the first is a product question (is LF actually the wrong target for paddlers?). |
 
 ---
 

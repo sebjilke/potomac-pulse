@@ -386,9 +386,29 @@ The app displays a calibrated, **asymmetric** 90% confidence interval based on e
 Each Great Falls estimate is validated ~6-7 hours later when water reaches Little Falls:
 
 1. Store prediction with timestamp, flow bin, and flow state
-2. When water arrives at LF, calculate what GF actually was
-3. Compute error: (predicted - actual) / actual
+2. When the water arrives, read the **observed Little Falls discharge** (`lf.q`)
+3. Compute error: (predicted − actual) / actual, where *actual* is that raw LF reading
 4. Update correction factor using EMA (§6.4)
+
+**What "actual" means here — read this before interpreting any accuracy figure.** Step 2 previously
+read "calculate what GF actually was." That was false, and the distinction matters. **No Great Falls
+ground truth exists** — there is no USGS gauge, NPS station or adjusted-flow series at the falls — so
+nothing in this system ever observes GF discharge. The validation target is the raw Little Falls
+reading, and the model is scored on how well it predicts *that*.
+
+The consequence is an **estimand mismatch**: every calibrated component points at Little Falls, not
+Great Falls. The EMA correction learns on (prediction − LF); the Edwards Ferry power law was fit to
+LF discharge; the §5.7 confidence band is quantiles of (prediction − LF); and the displayed estimate
+is capped at 120% of LF. The number the app calls "Great Falls flow" is therefore structurally
+**"Little Falls discharge, one GF→LF travel time ahead."** For a paddler that is a defensible and
+arguably preferable target — Great Falls conditions are in practice read off the Little Falls gauge —
+but it is not the same quantity as discharge at the falls, and the difference is not merely
+semantic: the **water-supply withdrawals between the two points** (Washington Aqueduct and WSSC draw
+from this reach) sit inside the residual the EMA learns, so the correction silently absorbs them
+rather than modelling them. That wedge is **unidentifiable** without a GF observable: any attempt to
+separate "true GF flow" from "LF flow plus withdrawals" is unconstrained by data the system can see.
+
+This is a known open item, not a defect being hidden — see TODO "Reassess LF ground-truth bias".
 
 ### 6.2 Correction Bins
 
