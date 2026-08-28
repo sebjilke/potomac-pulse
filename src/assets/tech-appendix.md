@@ -402,13 +402,37 @@ LF discharge; the §5.7 confidence band is quantiles of (prediction − LF); and
 is capped at 120% of LF. The number the app calls "Great Falls flow" is therefore structurally
 **"Little Falls discharge, one GF→LF travel time ahead."** For a paddler that is a defensible and
 arguably preferable target — Great Falls conditions are in practice read off the Little Falls gauge —
-but it is not the same quantity as discharge at the falls, and the difference is not merely
-semantic: the **water-supply withdrawals between the two points** (Washington Aqueduct and WSSC draw
-from this reach) sit inside the residual the EMA learns, so the correction silently absorbs them
-rather than modelling them. That wedge is **unidentifiable** without a GF observable: any attempt to
-separate "true GF flow" from "LF flow plus withdrawals" is unconstrained by data the system can see.
+but it is not, in principle, the same quantity as discharge at the falls.
 
-This is a known open item, not a defect being hidden — see TODO "Reassess LF ground-truth bias".
+**How large is the difference? Small, and smallest exactly when you might fear it is largest.** Only
+withdrawals *between* Great Falls and the Little Falls gauge separate the two, and there is just one:
+the Washington Aqueduct's Little Falls intake, which draws from the Little Falls Dam gage pool
+(~28 MGD ≈ 43 cfs on a typical shoulder-season day). The other diversions are **above** the falls —
+Washington Aqueduct's Great Falls intake, WSSC at Swains Lock, Fairfax Water at Seneca (see §9's
+water-withdrawal row) — so they lower Great Falls and Little Falls alike and are not part of this
+difference at all. Against that, in-reach tributaries add flow back: Difficult Run (01646000) and
+Cabin John Creek (01645704) together contribute roughly 7–11 cfs.
+
+Net, the Great Falls → Little Falls wedge is on the order of **−10 to +70 cfs**. And during drought —
+when the fraction would matter most — operator records show the Washington Aqueduct shifting its
+entire load to the *above-falls* Great Falls intake, with the Little Falls intake reported at
+**0 MGD** through the September 2025 low-flow period. At those flows the wedge is approximately zero
+or slightly negative (Little Falls running marginally *higher* than Great Falls).
+
+So the estimand mismatch is real but is a **matter of precision in description, not of accuracy**:
+it does not put a meaningful systematic error into the displayed number, and it is in any case
+absorbed by the learned correction. A 2026-02 three-agent investigation reached the same conclusion
+independently (v31.2): systematic errors are 2–7× larger than total withdrawals and are driven by
+ungauged drainage area, not by diversions.
+
+What genuinely *is* unidentifiable from the error signal is Great Falls discharge itself: no term in
+the residual observes it, so no amount of learning can recover it. USGS does publish an adjusted
+companion series — **01646502, "Potomac River, adjusted, near Wash, DC"** — which adds diversions
+back above the Little Falls gauge, but it is daily-mean only and is a basin total rather than a
+decomposition by intake.
+
+This is a documented limitation, not a defect being hidden — see TODO "Reassess LF ground-truth bias"
+and `analysis/lf-ground-truth-bias-scoping-2026-08-28.md`.
 
 ### 6.2 Correction Bins
 

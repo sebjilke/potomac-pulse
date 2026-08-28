@@ -1,7 +1,7 @@
 # LF Ground-Truth Bias / Estimand Mismatch (C32) — Scoping Plan
 
-**Status:** SCOPING — no analysis code written, no model change proposed. Awaiting independent audit
-+ user direction. This is step 1 of CLAUDE.md's Empirical Analysis Planning Protocol.
+**Status:** SCOPED, AUDITED, and **substantially RETRACTED** — see §2. No analysis code written, no
+model change proposed. Conclusion: this is a documentation matter and Option A closes it. This is step 1 of CLAUDE.md's Empirical Analysis Planning Protocol.
 **Trigger:** TODO date-gate "Reassess LF ground-truth bias after 2026-08-27" — now due (2026-08-28).
 The science review (`analysis/science-review-2026-06-10.md:211`) names this item as the home for the
 C32 estimand discussion.
@@ -29,50 +29,64 @@ travel time ahead."** CLAUDE.md and the appendix are now explicit about this (§
 at the falls (confirmed with the user, `analysis/travel-time-refit-plan-2026-06-17.md` D2). Nothing
 in the system has ever observed GF discharge.
 
-**Why this is not merely semantic.** Municipal water withdrawals occur in the GF→LF reach, so LF
-discharge is *structurally lower* than GF discharge by that wedge. The EMA correction absorbs the
-wedge silently instead of modelling it — it is learned as if it were model bias.
+**Is it merely semantic?** Largely, yes — see the retraction in §2. Only ONE withdrawal sits between
+Great Falls and the Little Falls gauge (the Washington Aqueduct's Little Falls intake, drawing from
+the gage pool), it is partly offset by in-reach tributary inflow, and it drops to 0 MGD during
+drought. The big diversions (WSSC at Swains Lock, Fairfax Water at Seneca, and the Aqueduct's own
+Great Falls intake) are ABOVE the falls and so lower both points equally — they are PoR→GF model
+bias, not an estimand wedge. What remains is a naming problem, not an accuracy problem.
 
 ---
 
-## 2. NEW this session: the wedge is quantified, and it is not small
+## 2. ~~NEW this session: the wedge is quantified~~ — **RETRACTED 2026-08-28**
 
-Withdrawal operators and intake locations (ICPRB CO-OP daily reports; example day 2024-11-17):
+> **This section was WRONG and is retracted in full.** An independent audit refuted its central
+> claim. The original text put the GF→LF wedge at ~243 cfs and argued it reaches 24% of flow at the
+> discharge floor, "larger than the model's entire error budget". Both the magnitude and the
+> direction were wrong. It is preserved only as a record of the error; **do not cite any number
+> from the original version.**
 
-| Withdrawal | Location | Rate (example) | In the GF→LF reach? |
-|---|---|---|---|
-| Washington Aqueduct — Great Falls intake | at Great Falls | 88 MGD ≈ **136 cfs** | No — at/above the GF reference point |
-| Washington Aqueduct — Little Falls intake | at Little Falls | 28 MGD ≈ **43 cfs** | **Yes** (pending gauge-vs-intake ordering) |
-| WSSC Potomac WFP | near Potomac, MD (below GF) | 129 MGD ≈ **200 cfs** | **Yes** |
+**What was wrong, and why it should have been caught before writing:**
 
-**GF→LF wedge ≈ 243 cfs** on that example day. As a fraction of LF flow:
+1. **WSSC is UPSTREAM of Great Falls, not in the reach.** Its intake is at Swains Lock (C&O canal
+   mile ~16.6) — about 2.3 miles *above* the falls. That single misplacement accounted for ~82% of
+   the claimed wedge. **This repository already said so**: `src/assets/tech-appendix.md` §9's
+   water-withdrawal row states "Washington Aqueduct (at GF), WSSC (Swain's Lock), and Fairfax Water
+   (Seneca) divert ~400-700 cfs **above the falls**." The fact was in the same document being
+   edited, and the plan asserted the opposite without checking. Worse, the 2026-08-28 §6.1 edit
+   shipped that contradiction live before it was caught.
+2. **The in-reach term collapses to ZERO at drought flow — the argument was inverted.** ICPRB
+   operator records through the September 2025 low-flow period show the Washington Aqueduct's
+   Little Falls intake at **0 MGD** on every sampled day, with its entire load shifted to the
+   above-falls Great Falls intake. The wedge is smallest exactly when the plan claimed it was
+   largest.
+3. **The offsetting in-reach inflow was omitted.** Difficult Run (01646000) and Cabin John Creek
+   (01645704) add roughly 7–11 cfs back. `analysis/ema_nowcast_fix_audit.md` already had the
+   correct balance: `LF = GF + DifficultRun + CabinJohn + seeps − WashAqueduct_diversion`.
+4. **The 6.94% comparison was apples-to-oranges.** `avgErrorPercent` is a lifetime MAPE of the
+   **corrected** estimate against LF — a constant offset is already absorbed by the correction, so
+   it is not an unbudgeted error at all. Comparing a signed offset against a different target to a
+   mean absolute error implies an additive error that does not exist.
+5. **It was not new.** A 2026-02 three-agent investigation (v31.2, `src/assets/CHANGELOG.md`)
+   already concluded withdrawals are absorbed by the LF-calibrated model and that systematic errors
+   are 2–7× larger than total withdrawals, driven by ungauged area. The plan reopened a settled
+   question with worse inputs.
+6. **"ICPRB posts daily updates" was misleading.** Reporting is *episodic* — it runs only while
+   drought monitoring is active (Point of Rocks below 2,000 cfs), roughly 11% of days, and is
+   currently suspended. There is no JSON API; the numbers require scraping each report page.
 
-| LF flow (cfs) | wedge |
-|---|---|
-| 1,000 (drought / discharge floor) | **24.3%** |
-| 2,000 (CO-OP monitoring threshold) | **12.1%** |
-| 2,800 | 8.7% |
-| 4,110 (today) | 5.9% |
-| 10,000 | 2.4% |
+**Corrected figures.** Net GF→LF wedge ≈ **−10 to +70 cfs**; approximately zero or slightly negative
+during drought (Little Falls marginally *higher* than Great Falls). Against LF flows of 1,000–4,000
+cfs that is low single-digit percent at worst, and nil when it would matter most.
 
-For comparison the model's current live mean |error| is **6.94%**. **At low flow the withdrawal
-wedge is larger than the model's entire error budget** — and low flow is exactly where the
-travel-time model is least constrained (§3.2 of the appendix) and where paddlers care most about
-whether the falls are runnable.
+**Better data source, missed entirely by the original plan:** USGS **01646502 "POTOMAC RIVER,
+ADJUSTED, NEAR WASH, DC"** — same coordinates as 01646500, daily mean discharge back to 1930
+(~34,940 values, ending 2025-10-31). `01646502 − 01646500` is the total diversion above the Little
+Falls gauge. Daily-only and a basin total rather than per-intake, but it needs no scraping and no
+third-party dependency. The science review had already used it.
 
-**Crucially, this data is published.** ICPRB CO-OP posts daily flow-and-demand updates, and
-monitoring becomes daily-reported once Point of Rocks drops below 2,000 cfs. So the wedge is
-**potentially identifiable** — which contradicts the earlier assumption (baked into the C32 write-up)
-that it is unidentifiable in principle. It is unidentifiable *from USGS gauges alone*; it may not be
-unidentifiable *full stop*.
-
-⚠ **Unverified and load-bearing:** (a) whether the WA Little Falls intake sits upstream or downstream
-of the 01646500 gauge — if downstream, it does NOT belong in the wedge and the figure drops to
-~200 cfs; (b) whether ICPRB exposes a machine-readable feed or only human-readable daily posts;
-(c) historical coverage and resolution (daily vs hourly) for a backtest. **All three must be
-resolved before any modelling decision.**
-
----
+**Consequence for this document:** the estimand mismatch is a **documentation** matter, not an
+accuracy matter. §4–§6 below are revised accordingly.
 
 ## 3. What is and is not achievable
 
@@ -92,15 +106,17 @@ number less useful while being more "correct."
 
 ## 4. Candidate options (NOT a recommendation to implement)
 
-### Option A — Documentation only. **Already partly done; the conservative default.**
-Keep the LF estimand; state it precisely everywhere. §6.1 is fixed; the appendix now names the
-withdrawal wedge. Cost: none. Risk: none. Leaves the low-flow bias in place but *disclosed*.
+### Option A — Documentation only. **DONE. This is the answer.**
+Keep the LF estimand; state it precisely. §6.1 is corrected and now carries the true wedge
+magnitude and the drought behaviour. Cost: none. Risk: none.
 
-### Option B — Diagnostic study, no model change. **RECOMMENDED NEXT STEP.**
-Ask one bounded empirical question: *does the learned EMA correction correlate with withdrawal
-rate?* If the corrections in the low-flow bins track ICPRB withdrawals, that confirms the EMA is
-absorbing the wedge and quantifies how much. Read-only; no estimate change; produces the evidence any
-later decision needs. Blocked only on §2's data-availability questions.
+### Option B — ~~Diagnostic study~~ **WITHDRAWN (see §5).** Cannot separate the estimand wedge from
+PoR→GF model bias, and is underpowered by construction.
+
+### Option E — Offline replay against USGS 01646502 (**new, from the audit**).
+Re-score the existing backtest using the published adjusted series as the target. Read-only, no
+third-party dependency, ~95 years of daily data. The only empirical option worth running, and only
+if someone wants the question closed empirically rather than arithmetically.
 
 ### Option C — Withdrawal-aware target (MAJOR model change).
 Validate against `lf.q + withdrawals_in_reach` instead of raw `lf.q`. Would re-point the estimand at
@@ -117,18 +133,31 @@ v37.13/v37.15 advisory pattern. Cheaper than C, keeps the estimand, makes the bi
 
 ---
 
-## 5. Recommendation
+## 5. Recommendation — REVISED after audit
 
-**Option A is already banked. Do Option B next, and nothing else yet.** The wedge arithmetic in §2 is
-suggestive enough to justify a diagnostic but nowhere near enough to justify touching the live
-learning loop. Option C is the kind of change that failed at the v38 gate for good reasons — a
-third-party feed inside the learning loop is a bigger reliability liability than the bias it fixes.
-Option D is attractive but should follow B, not precede it, so the displayed number is grounded in
-measured duty rather than an example day.
+**Option A is complete, and the item can close.** With the wedge bounded at roughly −10 to +70 cfs
+and ~0 at drought flow, the arithmetic answers the question: the LF estimand introduces no
+meaningful systematic error into the displayed number, and what little there is the EMA already
+absorbs. This reproduces the v31.2 conclusion from an independent direction.
 
-**Explicitly not proposed:** any change to the estimate, the EMA bins, the CI table, or the ceiling.
+**Option B is withdrawn — it cannot answer its own question.** Correlating learned corrections
+against ICPRB or 01646502 totals would be uninformative, because ~90–100% of the diversion above the
+Little Falls gauge is *above Great Falls* and is model bias the EMA should absorb. The test cannot
+separate "absorbs the GF→LF estimand wedge" from "absorbs PoR→GF model bias". It is also
+underpowered by construction: a 0–70 cfs signal against per-bin residuals in the hundreds to
+thousands of cfs, with withdrawals anti-correlated with flow while corrections are binned *by* flow.
 
----
+**Option D (display the wedge) is withdrawn** — built on the true figure it would display ≈0.
+
+**If any empirical work is wanted, do Option E instead (new, from the audit):** an offline replay
+scoring the existing backtest against 01646502 as the target. Zero live-loop risk, ~95 years of daily
+data, no third-party dependency. Strictly better than Option B on both cost and information.
+
+**Option C (change the validation target) stays rejected**, now with two stronger reasons than the
+original: ICPRB's ~11% episodic coverage cannot support a live loop, and the 120% LF ceiling would
+clip a withdrawal-corrected target, making the ceiling incoherent with the new estimand.
+
+**Still not proposed:** any change to the estimate, the EMA bins, the CI table, or the ceiling.
 
 ## 6. Decisions needed from the user
 
