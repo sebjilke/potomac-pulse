@@ -583,85 +583,6 @@ async function saveGFLearningData(client, data) {
         // validation + EMA bin learning is server-only (scheduled-update.js
         // validatePendingPredictions). No client code calls these actions.
 
-        // Action: Reset low-flow bins only (ice-affected, v24)
-        // Keeps higher flow bins which are less likely to be contaminated
-        if (action === 'resetLowFlowBins') {
-            const { pin } = data;
-            if (!ADMIN_PIN || pin !== ADMIN_PIN) {
-                return { statusCode: !ADMIN_PIN ? 503 : 403, headers, body: JSON.stringify({ error: !ADMIN_PIN ? 'Admin PIN not configured' : 'Invalid PIN' }) };
-            }
-
-            // Only delete low-flow bins (0-3000 and 3000-6000) - most affected by ice
-            const lowFlowBins = ['0-3000', '3000-6000'];
-            const flowStates = ['rising', 'falling', 'steady'];
-            let deletedCount = 0;
-
-            for (const bin of lowFlowBins) {
-                for (const state of flowStates) {
-                    const binKey = `${bin}_${state}`;
-                    const { error } = await client.from('potomac_observations')
-                        .delete()
-                        .eq('observation_type', 'gf_correction_bin')
-                        .eq('gauge_id', binKey);
-                    if (!error) deletedCount++;
-
-                    // Also delete stage bins
-                    const stageBinKey = `stage_${bin}_${state}`;
-                    await client.from('potomac_observations')
-                        .delete()
-                        .eq('observation_type', 'gf_correction_bin')
-                        .eq('gauge_id', stageBinKey);
-                }
-            }
-
-            // Delete shadow leaderboard (accuracy starts fresh)
-            await client.from('potomac_observations')
-                .delete()
-                .eq('observation_type', 'shadow_leaderboard')
-                .eq('gauge_id', 'system');
-
-            // Reset metadata - accuracy metrics are no longer valid after partial bin reset
-            // Keep health tracking stats, reset learning stats
-            const { data: meta } = await client
-                .from('potomac_observations')
-                .select('data')
-                .eq('observation_type', 'gf_metadata')
-                .eq('gauge_id', 'system')
-                .single();
-
-            const oldMeta = meta?.data || {};
-            const newMeta = {
-                // Reset learning stats
-                totalValidations: 0,
-                validValidations: 0,
-                totalPredictions: 0,
-                avgErrorPercent: null,
-                sumAbsErrorPercent: 0,
-                lastValidation: null,
-                flaggedValidations: 0,
-                hardFlaggedValidations: 0,
-                softFlaggedValidations: 0,
-                // Keep health tracking
-                lastPrediction: oldMeta.lastPrediction,
-                consecutiveRuns: oldMeta.consecutiveRuns,
-                missedRuns: oldMeta.missedRuns,
-                // Record reset details
-                lastPartialReset: new Date().toISOString(),
-                partialResetReason: 'v24_ice_contamination_cleanup',
-                binsReset: lowFlowBins
-            };
-
-            await client.from('potomac_observations').upsert({
-                observation_type: 'gf_metadata',
-                gauge_id: 'system',
-                data: newMeta
-            }, { onConflict: 'observation_type,gauge_id' });
-
-            console.log(`🧊 Low-flow bins reset (ice cleanup): ${deletedCount} bins deleted, metadata reset`);
-            result = { success: true, action: 'resetLowFlowBins', deletedCount, binsReset: lowFlowBins, metadataReset: true };
-            await logAdminAction(client, 'resetLowFlowBins', { deletedCount, binsReset: lowFlowBins });
-        }
-
         // Action: Reset all GF learning data (admin only, requires PIN)
         if (action === 'resetGFLearning') {
             const { pin } = data;
@@ -694,6 +615,12 @@ async function saveGFLearningData(client, data) {
                 .eq('gauge_id', 'system')
                 .single();
 
+            // v37.18 (TODO #28): this upsert REPLACES the whole jsonb, so any field omitted here is
+            // destroyed — not preserved. The "keep health stats" comment was only half true: it
+            // carried lastPrediction/consecutiveRuns/missedRuns and silently dropped the bin-write
+            // health counters (the entire point of the v37.7 diagnostics panel) plus the stage-error
+            // series. Those are OPERATIONAL telemetry about whether writes are landing, not learning
+            // state, so a learning reset must not zero them. Learning stats below stay explicitly 0.
             const oldMeta = meta?.data || {};
             const newMeta = {
                 totalValidations: 0,
@@ -708,6 +635,10 @@ async function saveGFLearningData(client, data) {
                 lastPrediction: oldMeta.lastPrediction,  // Keep for health tracking
                 consecutiveRuns: oldMeta.consecutiveRuns,
                 missedRuns: oldMeta.missedRuns,
+                // v37.18: bin-write health — operational, survives a learning reset
+                binWriteSuccesses: oldMeta.binWriteSuccesses,
+                binWriteFailures: oldMeta.binWriteFailures,
+                lastBinError: oldMeta.lastBinError,
                 resetAt: new Date().toISOString(),
                 resetReason: 'manual_admin_reset'
             };

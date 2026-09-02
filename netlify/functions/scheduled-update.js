@@ -1036,7 +1036,14 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             // Stage error for rating-curve learning — on the RAW stage (same raw basis as errorCFS)
             const predictedStage = pred.data.rawFinalStage ?? pred.data.predictedStage;
             const actualStage = lf.h;  // LF gauge stage at validation time
-            const errorStage = (predictedStage && actualStage)
+            // v37.18 (TODO #29): finiteness checks, not truthiness — a legitimate 0.00 ft reading is a
+            // real measurement, not a missing one. Unreachable at Little Falls (stage never approaches
+            // 0) but it was the wrong predicate, and the v37.17 stageSkipped counter would have
+            // silently absorbed it as "no stage pair". Number.isFinite (not `!= null`) is deliberate:
+            // `actualStage = lf.h` comes from parsed USGS text, so NaN is reachable, and the old
+            // truthiness test at least rejected it — `!= null` would not, and NaN would poison
+            // sumAbsStageError irrecoverably.
+            const errorStage = (Number.isFinite(predictedStage) && Number.isFinite(actualStage))
                 ? Math.round((predictedStage - actualStage) * 100) / 100
                 : null;
 

@@ -4,7 +4,7 @@
 import { loadPoRHistory, loadGFHistory } from './data/history.js';
 import { loadShadowModelState } from './estimation/shadow-models.js';
 import { loadEFHysteresis } from './estimation/edwards-ferry.js';
-import { loadGFLearningData, loadForecastAccuracy, resetGFLearning, resetLowFlowBins } from './learning/gf-learning.js';
+import { loadGFLearningData, loadForecastAccuracy, resetGFLearning } from './learning/gf-learning.js';
 import { fetchData, dismissErrorBanner } from './data/fetch.js';
 import { initMap, toggleMap } from './ui/map.js';
 import { buildBranches, updateUI } from './ui/gauges-ui.js';
@@ -63,7 +63,6 @@ export async function init() {
         bindButton('dismissErrorBtn', dismissErrorBanner);
         bindButton('techAppendixBtn', downloadTechAppendix);
         bindButton('resetGFLearningBtn', resetGFLearning);
-        bindButton('resetLowFlowBinsBtn', resetLowFlowBins);
         bindButton('resetShadowModelsBtn', resetShadowModels);
         bindButton('downloadBackupBtn', downloadLearningBackup);
         bindButton('lockLearningBtn', lockLearning);

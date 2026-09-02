@@ -989,6 +989,32 @@ describe('validatePendingPredictions', () => {
         gauges: { lf: '01646500', seneca: '01645000', ef: '01644148' }
     };
 
+    it('v37.18: a legitimate 0.00 ft stage is a measurement, not a missing pair (TODO #29)', async () => {
+        // The old predicate was `predictedStage && actualStage` — truthiness, so 0.00 read as absent.
+        // usgs fixture below supplies actualStage (lf.h) = 0; predictedStage 0.00 is likewise real.
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const zeroUsgs = { data: { '01646500': { q: 10000, h: 0 }, '01645000': {}, '01644148': {} },
+                           gauges: { lf: '01646500', seneca: '01645000', ef: '01644148' } };
+        const row = pendingRow({ rawFinalCFS: 10000, predictedCFS: 10000, rawFinalStage: 0, predictedStage: 0, flowBin: '6000-12000', flowState: 'steady' });
+        await validatePendingPredictions(validateClient({ pending: [row], captures }), zeroUsgs);
+        const meta = metaUpsert(captures);
+        assert.equal(meta.data.stageValidations, 1, '0.00 ft must count as a stage observation');
+        assert.equal(meta.data.stageSkipped, undefined, 'and must NOT be recorded as a skip');
+        assert.ok(flowBinUpsert(captures, 'stage_6000-12000_steady'), 'stage bin written for a 0.00 ft pair');
+    });
+
+    it('v37.18: a NaN stage is still rejected (the Number.isFinite guard, not `!= null`)', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const nanUsgs = { data: { '01646500': { q: 10000, h: NaN }, '01645000': {}, '01644148': {} },
+                          gauges: { lf: '01646500', seneca: '01645000', ef: '01644148' } };
+        const row = pendingRow({ rawFinalCFS: 10000, predictedCFS: 10000, rawFinalStage: 4.0, predictedStage: 4.0, flowBin: '6000-12000', flowState: 'steady' });
+        await validatePendingPredictions(validateClient({ pending: [row], captures }), nanUsgs);
+        const meta = metaUpsert(captures);
+        assert.equal(meta.data.stageValidations, undefined, 'NaN must never enter sumAbsStageError');
+        assert.equal(meta.data.stageSkipped, 1, 'NaN counts as a skip, not an observation');
+        assert.ok(!flowBinUpsert(captures, 'stage_6000-12000_steady'), 'no stage bin for a NaN pair');
+    });
+
     it('v37.17: a HARD-FLAGGED validation with no stage pair does NOT increment stageSkipped', async () => {
         // The stage bin write lives inside `if (!isHardFlagged)`, so a hard-flagged row writes neither
         // the CFS bin nor the stage bin. Counting it as a "skip" would break the counter's meaning

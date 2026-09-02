@@ -203,36 +203,3 @@ export async function resetGFLearning() {
     }
 }
 
-// Reset only low-flow bins (ice cleanup, v24)
-/**
- * Prompts for confirmation and an admin PIN, then resets only the low-flow correction bins
- * (0-3k and 3k-6k cfs) plus accuracy stats via the sync-learning endpoint, reloading
- * learning data and emitting 'learning:reset' on success.
- * @returns {Promise<void>}
- */
-export async function resetLowFlowBins() {
-    if (!confirm("Reset low-flow bins AND accuracy stats?\n\nThis clears:\n• 0-3k and 3k-6k cfs correction bins\n• Validation count and accuracy %\n\nHigher flow bins (6k+) preserved.\nAccuracy will rebuild from fresh validations.\n\nUse this after winter ice conditions.")) return;
-    const pin = prompt("Enter admin PIN to confirm reset:");
-    if (!pin) return;
-
-    try {
-        const response = await fetch('/.netlify/functions/sync-learning?endpoint=gf', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'resetLowFlowBins', pin })
-        });
-
-        const result = await response.json();
-        if (result.success) {
-            alert(`Ice cleanup complete!\n\nCleared:\n• ${result.deletedCount} low-flow bins (0-3k, 3k-6k cfs)\n• Validation count and accuracy metrics\n\nHigher flow bins preserved.\nAccuracy will rebuild from fresh validations.\n\nv24 anomaly detection will prevent future contamination.`);
-            // Reload GF learning data
-            await loadGFLearningData();
-            emit('learning:reset');
-        } else {
-            alert("Reset failed: " + (result.error || 'Unknown error'));
-        }
-    } catch (e) {
-        console.error('Reset error:', e);
-        alert("Reset failed: " + e.message);
-    }
-}
