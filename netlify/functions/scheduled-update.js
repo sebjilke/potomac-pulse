@@ -1039,10 +1039,13 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             // v37.18 (TODO #29): finiteness checks, not truthiness — a legitimate 0.00 ft reading is a
             // real measurement, not a missing one. Unreachable at Little Falls (stage never approaches
             // 0) but it was the wrong predicate, and the v37.17 stageSkipped counter would have
-            // silently absorbed it as "no stage pair". Number.isFinite (not `!= null`) is deliberate:
-            // `actualStage = lf.h` comes from parsed USGS text, so NaN is reachable, and the old
-            // truthiness test at least rejected it — `!= null` would not, and NaN would poison
-            // sumAbsStageError irrecoverably.
+            // silently absorbed it as "no stage pair". Number.isFinite (not `!= null`) is deliberate,
+            // but NOT because of `actualStage`: `lf.h` is only ever assigned inside `if (val > 0 &&
+            // val < 9999999)` in the USGS parse, so from the gauge NaN and 0.00 are both unreachable.
+            // The exposed operand is `predictedStage` (`rawFinalStage`, a server-side
+            // `estimateLFStage()` result at :899) — computed, not gated, so NaN is reachable there.
+            // The old truthiness test at least rejected it; `!= null` would not have, and a NaN would
+            // poison sumAbsStageErrorClean irrecoverably.
             const errorStage = (Number.isFinite(predictedStage) && Number.isFinite(actualStage))
                 ? Math.round((predictedStage - actualStage) * 100) / 100
                 : null;
@@ -1212,6 +1215,13 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
 
             // Track bin write outcome for health counters (set inside learning block)
             let binWriteFailed = false;
+            // v37.19 (review fix): a failed stage_* upsert used to be console.error'd and nothing else —
+            // it incremented no counter, so the "stageObsClean == sum of stage bins" invariant could
+            // silently break and the diagnostics panel would never show it. Holding the failing key
+            // here does two jobs: it suppresses the clean-series increment (keeping the equality true
+            // BY CONSTRUCTION rather than by assertion) and it routes the fault into the same
+            // binWriteFailures/lastBinError the CFS bin uses.
+            let stageBinWriteFailedKey = null;
 
             // Update learning: hard flags skip entirely, soft flags use EMA clamping
             if (!isHardFlagged) {
@@ -1284,6 +1294,7 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                     }, { onConflict: 'observation_type,gauge_id' });
                     if (stageBinErr) {
                         console.error(`❌ Stage bin upsert FAILED for ${stageBinKey}:`, stageBinErr.message, stageBinErr.code, stageBinErr.details);
+                        stageBinWriteFailedKey = stageBinKey;
                     }
 
                     console.log(`📈 Stage bin ${stageBinKey}: n=${stageBinData.count}, mean=${stageBinData.meanError.toFixed(3)}ft, stdDev=${stageBinData.stdDev}ft`);
@@ -1427,21 +1438,43 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             // v32.3 fixed for `avgErrorPercent`; it was simply never applied to the stage series.
             //
             // The legacy fields are FROZEN, not reset and not deleted — `sumAbsStageError` is a
-            // cumulative sum, not an EMA, so the contamination never washes out and the old average
-            // cannot be repaired in place (the bins store signed `sumError`, not sum|error|, so the
-            // clean history is not recoverable). Freezing rather than zeroing follows the v37.16
-            // precedent for the retired NWS counters: the number stays available as an audit trail
-            // and nothing silently rewrites history. A clean series starts alongside at n=0.
+            // cumulative sum, not an EMA, so the contamination never washes out in place. Freezing
+            // rather than zeroing follows the v37.16 precedent for the retired NWS counters: the
+            // number stays available as an audit trail and nothing silently rewrites history.
+            //
+            // CORRECTION (adversarial review, 2026-09-02): the first draft of this comment claimed the
+            // clean history was UNRECOVERABLE because the bins store signed `sumError`, not sum|error|.
+            // That was false. `validation_failure` rows are append-only with no retention and each
+            // carries `errorStage` (v37.9), so the contaminated history CAN be repaired exactly:
+            //   clean_n   = stageValidations - hardFlaggedValidations = 313 - 18 = 295
+            //   clean_sum = sumAbsStageError - SUM|errorStage over those rows| = 26.21 - 2.18 = 24.03
+            //   clean_avg = 0.0815 ft   (vs the published 0.0837 — a 2.8% overstatement)
+            // 295 independently equals the measured sum of the stage_* bins, which corroborates it.
+            // The clean series still starts at n=0 here: backfilling means WRITING to production
+            // metadata, which is the user's call and is deliberately not done silently in a cron path.
+            // One-shot latch, BEFORE stageValidations is incremented. The legacy average is frozen at
+            // sum/N for the N observations it actually averaged; `stageValidations` keeps incrementing
+            // (correctly — it is a count, and v37.17's live diagnostics derive from it), so pairing the
+            // frozen average with the live counter in the UI would advertise a denominator that never
+            // produced it. Capture both halves once, together.
+            if (metaData.legacyStageObs === undefined && metaData.avgStageError != null) {
+                metaData.legacyStageAvg = metaData.avgStageError;
+                metaData.legacyStageObs = metaData.stageValidations || 0;
+                metaData.legacyStageFrozenAt = new Date().toISOString();
+            }
+
             if (errorStage !== null) {
                 // Unchanged semantics: every validation that HAD a usable stage pair, hard-flagged or
                 // not. Still written because it is correct as a count (only the average was polluted)
                 // and because the v37.17 diagnostics derive the null-stage total from it.
                 metaData.stageValidations = (metaData.stageValidations || 0) + 1;
 
-                if (!isHardFlagged) {
-                    // Clean series — gated identically to the stage_* bin write above, so
-                    // `stageObsClean` equals the sum of the stage bins by construction. That
-                    // equality is the cross-check: if the two ever diverge, a bin write is failing.
+                if (!isHardFlagged && !stageBinWriteFailedKey) {
+                    // Clean series — gated identically to the stage_* bin write above, and additionally
+                    // suppressed when that write failed, so `stageObsClean` equals the sum of the stage
+                    // bins BY CONSTRUCTION rather than by assertion. If the two ever do diverge the
+                    // cause is upstream of both (this metadata upsert failing, or a throw between the
+                    // two writes) — NOT a failing bin write, which is now accounted for here.
                     metaData.stageObsClean = (metaData.stageObsClean || 0) + 1;
                     metaData.sumAbsStageErrorClean = (metaData.sumAbsStageErrorClean || 0) + Math.abs(errorStage);
                     metaData.avgStageErrorClean = metaData.sumAbsStageErrorClean / metaData.stageObsClean;
@@ -1473,6 +1506,10 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             if (!isHardFlagged) {
                 metaData.binWriteSuccesses = (metaData.binWriteSuccesses || 0) + (binWriteFailed ? 0 : 1);
                 metaData.binWriteFailures = (metaData.binWriteFailures || 0) + (binWriteFailed ? 1 : 0);
+                if (stageBinWriteFailedKey) {
+                    metaData.binWriteFailures = (metaData.binWriteFailures || 0) + 1;
+                    metaData.lastBinError = `${stageBinWriteFailedKey}: upsert failed`;
+                }
                 if (binWriteFailed) {
                     metaData.lastBinError = `${binKey}: upsert failed`;
                 }

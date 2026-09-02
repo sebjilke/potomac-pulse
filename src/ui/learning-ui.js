@@ -273,14 +273,21 @@ export function updateAdminDashboard() {
         };
         document.getElementById("dash-throughput").textContent =
             `${meta.totalPredictions || 0} pred / ${meta.totalValidations || 0} val`;
-        // v37.19 (TODO #27): the headline now reads the CLEAN series, which excludes the hard-flagged
+        // v37.19 (TODO #27): the headline reads the CLEAN series, which excludes the hard-flagged
         // observations the learner itself rejects (the old `avgStageError` averaged over them — 313
-        // vs the bins' 295 at the time of the fix). The legacy value is frozen, not deleted, so it is
-        // shown after a slash as an audit trail while the clean series builds up from n=0.
+        // vs the bins' 295 at the time of the fix). The legacy value is frozen, not deleted, and is
+        // shown after a dot as an audit trail while the clean series builds up from n=0.
+        //
+        // The denominator MUST come from the latched `legacyStageObs`, never from `stageValidations`:
+        // the latter keeps incrementing every hour, so pairing it with a frozen average would show a
+        // frozen numerator against a live denominator — a number that never existed. Fall back to
+        // omitting `n=` entirely rather than borrowing the live counter.
         const stEl = document.getElementById("dash-stage-err");
         const cleanN = meta.stageObsClean || 0;
-        const legacy = (meta.avgStageError != null)
-            ? ` · was ±${meta.avgStageError.toFixed(2)} (n=${meta.stageValidations || 0}, frozen)` : "";
+        const frozenAvg = meta.legacyStageAvg ?? meta.avgStageError;
+        const frozenN = meta.legacyStageObs;
+        const legacy = (frozenAvg != null)
+            ? ` · was ±${frozenAvg.toFixed(2)}${frozenN != null ? ` (n=${frozenN}` : " ("}, frozen)` : "";
         stEl.textContent = (meta.avgStageErrorClean != null)
             ? `±${meta.avgStageErrorClean.toFixed(2)} ft (n=${cleanN})${legacy}`
             : (legacy ? `-- (clean series building)${legacy}` : "--");
@@ -295,7 +302,7 @@ export function updateAdminDashboard() {
         //   noStagePair  = totalValidations - stageValidations  — every validation with a null stage
         //                  pair, hard-flagged or not. Derived, so it covers history the counter cannot,
         //                  but scoped to the last metadata reset (both fields are dropped together by
-        //                  resetGFLearning/resetLowFlowBins, which replace the whole metadata object).
+        //                  resetGFLearning, which replaces the whole metadata object).
         //   stageSkipped = the NON-hard-flagged subset, i.e. the ones that actually learned the CFS
         //                  bin without a stage counterpart. Forward-only, starts at 0 in v37.17.
         // They differ by the hard-flagged-and-null-stage count (0 live today). Informational, not a

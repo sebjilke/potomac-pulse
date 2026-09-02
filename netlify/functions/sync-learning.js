@@ -635,8 +635,16 @@ async function saveGFLearningData(client, data) {
                 lastPrediction: oldMeta.lastPrediction,  // Keep for health tracking
                 consecutiveRuns: oldMeta.consecutiveRuns,
                 missedRuns: oldMeta.missedRuns,
-                // v37.18: bin-write health — operational, survives a learning reset
-                binWriteSuccesses: oldMeta.binWriteSuccesses,
+                // v37.18 (revised after review): bin-write health is split, not preserved wholesale.
+                // `binWriteSuccesses` counts writes into bins this action DELETES, and v37.17's
+                // reconciliation evidence is `sum(bin counts) == validValidations == binWriteSuccesses`
+                // — preserving it wholesale would leave "307 ok" standing against zero bins forever and
+                // break that identity permanently. It resets with the bins. Failures are a fault log,
+                // not a tally of surviving rows: they stay, so a real write fault cannot be cleared by
+                // pressing reset (with the v24 low-flow ice-cleanup action deleted in v37.18 this is
+                // the only remaining reset path, and silently erasing a fault is exactly the failure
+                // mode the v37.7 diagnostics panel exists to prevent).
+                binWriteSuccesses: 0,
                 binWriteFailures: oldMeta.binWriteFailures,
                 lastBinError: oldMeta.lastBinError,
                 resetAt: new Date().toISOString(),
