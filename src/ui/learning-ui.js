@@ -280,6 +280,21 @@ export function updateAdminDashboard() {
         bwEl.textContent = `${meta.binWriteSuccesses || 0} ok / ${bwFail} fail`;
         bwEl.style.color = bwFail > 0 ? "var(--accent-red-light)" : "var(--text-tertiary)";
         document.getElementById("dash-binwrite-err").textContent = (bwFail > 0 && meta.lastBinError) ? meta.lastBinError : "";
+        // v37.17: the stage_* bins only receive a validation when a predicted AND actual gauge height
+        // both exist; otherwise the CFS bin learns alone and nothing counted the difference.
+        // Two DIFFERENT well-defined quantities are shown, not one number twice:
+        //   noStagePair  = totalValidations - stageValidations  — every validation with a null stage
+        //                  pair, hard-flagged or not. Derived, so it covers history the counter cannot,
+        //                  but scoped to the last metadata reset (both fields are dropped together by
+        //                  resetGFLearning/resetLowFlowBins, which replace the whole metadata object).
+        //   stageSkipped = the NON-hard-flagged subset, i.e. the ones that actually learned the CFS
+        //                  bin without a stage counterpart. Forward-only, starts at 0 in v37.17.
+        // They differ by the hard-flagged-and-null-stage count (0 live today). Informational, not a
+        // fault: rendered neutral rather than amber so it cannot read as a standing alarm.
+        const noStagePair = Math.max(0, (meta.totalValidations || 0) - (meta.stageValidations || 0));
+        const stageSkipped = meta.stageSkipped || 0;
+        const skEl = document.getElementById("dash-stage-skips");
+        if (skEl) skEl.textContent = `${noStagePair} no stage pair / ${stageSkipped} skipped learning`;
         const flagAgo = meta.lastFlagged ? agoStr(meta.lastFlagged) : null;
         document.getElementById("dash-lastflag").textContent = flagAgo || "none";
         document.getElementById("dash-lastflag-reason").textContent = (flagAgo && meta.lastFlaggedReason) ? meta.lastFlaggedReason : "";

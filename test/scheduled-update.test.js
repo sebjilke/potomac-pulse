@@ -936,6 +936,35 @@ describe('validatePendingPredictions', () => {
         assert.ok(Math.abs(stageBin.data.sumError - 0.15) < 1e-9, `stage sumError=${stageBin.data.sumError}`);
     });
 
+    // ── v37.17: stage-skip counter ──
+    // The stage_* bin write is gated on `errorStage !== null`, which needs BOTH a predicted and an
+    // actual gauge height. When either is missing the CFS bin still learns but the stage bin does
+    // not, and nothing counted the difference (`binWriteFailures` stays 0 — a null stage is not a
+    // write failure). These lock the counter and its non-firing case.
+    it('v37.17: a validation with no usable stage pair skips the stage bin and increments stageSkipped', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        // predictedStage null → errorStage null → stage bin never written.
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, predictedStage: null, rawFinalStage: null, flowBin: '6000-12000', flowState: 'steady' });
+        const client = validateClient({ pending: [row], captures });
+        const result = await validatePendingPredictions(client, usgs);
+        assert.equal(result.validated, 1);
+        assert.ok(flowBinUpsert(captures, '6000-12000_steady'), 'CFS bin still learns');
+        assert.ok(!flowBinUpsert(captures, 'stage_6000-12000_steady'), 'stage bin NOT written');
+        const meta = metaUpsert(captures);
+        assert.equal(meta.data.stageSkipped, 1, 'stageSkipped incremented');
+        assert.ok(!meta.data.stageValidations, 'stageValidations NOT incremented');
+    });
+
+    it('v37.17: a validation WITH a stage pair does not increment stageSkipped', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, rawFinalStage: 4.10, predictedStage: 4.00, flowBin: '6000-12000', flowState: 'steady' });
+        const client = validateClient({ pending: [row], captures });
+        await validatePendingPredictions(client, usgs);
+        const meta = metaUpsert(captures);
+        assert.equal(meta.data.stageSkipped, undefined, 'stageSkipped never created when a stage pair exists');
+        assert.equal(meta.data.stageValidations, 1);
+    });
+
     it('v36.0: legacy pending row (no rawFinalCFS/rawFinalStage) validates with no NaN (?? fallback)', async () => {
         const captures = { upserts: [], inserts: [], deletes: [] };
         const row = pendingRow({ predictedCFS: 10300, predictedStage: 4.00, flowBin: '6000-12000', flowState: 'steady' }); // pre-v36.0 shape
@@ -959,6 +988,19 @@ describe('validatePendingPredictions', () => {
         data: { '01646500': { q: 1200, h: 2.5 }, '01645000': {}, '01644148': {} },
         gauges: { lf: '01646500', seneca: '01645000', ef: '01644148' }
     };
+
+    it('v37.17: a HARD-FLAGGED validation with no stage pair does NOT increment stageSkipped', async () => {
+        // The stage bin write lives inside `if (!isHardFlagged)`, so a hard-flagged row writes neither
+        // the CFS bin nor the stage bin. Counting it as a "skip" would break the counter's meaning
+        // ("learned CFS but not stage"). Without the `!isHardFlagged` guard this test fails.
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 4800, predictedCFS: 5000, predictedStage: null, rawFinalStage: null, flowBin: '3000-6000', flowState: 'steady' });
+        await validatePendingPredictions(validateClient({ pending: [row], captures }), hardUsgs);
+        const meta = metaUpsert(captures);
+        assert.ok(meta.data.hardFlaggedValidations >= 1, 'precondition: row really was hard-flagged');
+        assert.equal(meta.data.stageSkipped, undefined, 'hard-flagged rows are not stage skips');
+        assert.equal(binUpserts(captures).length, 0, 'precondition: hard flag wrote no bin at all');
+    });
 
     it('#18: a hard-flagged validation writes ONE validation_failure row (predicted/actual/flags) and does NOT learn', async () => {
         const captures = { upserts: [], inserts: [], deletes: [] };

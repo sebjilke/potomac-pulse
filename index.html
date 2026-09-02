@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potomac Pulse v37.16</title>
+    <title>Potomac Pulse v37.17</title>
     <meta name="description" content="Real-time Potomac River flow tracking and Great Falls water level predictions for paddlers. Travel times, basin-wide gauge data, and adaptive forecasting.">
 
     <!-- Open Graph / Social Sharing -->
@@ -571,6 +571,10 @@
                             <span class="value" id="dash-binwrite" style="font-size:0.55rem;">--</span>
                         </div>
                         <p id="dash-binwrite-err" style="font-size:0.5rem;color:var(--accent-red-light);margin:2px 0 0;"></p>
+                        <div class="learn-stat">
+                            <span class="label" title="Stage-bin coverage gaps. LEFT = validations with no usable predicted/actual gauge-height pair (derived as totalValidations - stageValidations; covers history but resets with the metadata). RIGHT = the non-hard-flagged subset that therefore learned the CFS bin without a stage counterpart (counter added v37.17, starts at 0). The GF estimate never reads stage bins, so this is diagnostics only.">Stage Skips</span>
+                            <span class="value" id="dash-stage-skips" style="font-size:0.55rem;">--</span>
+                        </div>
                         <div class="learn-stat">
                             <span class="label" title="When the most recent validation was anomaly-flagged, and why.">Last Flag</span>
                             <span class="value" id="dash-lastflag" style="font-size:0.55rem;">--</span>

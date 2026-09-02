@@ -1415,6 +1415,27 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 metaData.stageValidations = (metaData.stageValidations || 0) + 1;
                 metaData.sumAbsStageError = (metaData.sumAbsStageError || 0) + Math.abs(errorStage);
                 metaData.avgStageError = metaData.sumAbsStageError / metaData.stageValidations;
+            } else if (!isHardFlagged) {
+                // v37.17: a NON-hard-flagged validation with no usable stage pair still updates the CFS
+                // correction bin but never reaches the stage_* bin write, which is gated on
+                // `errorStage !== null` INSIDE the `!isHardFlagged` block above. That gap was silent:
+                // `binWriteFailures` stays 0 because a missing stage is not a write failure, so the
+                // stage_* series drifts behind the CFS series with nothing counting the difference.
+                //
+                // The `!isHardFlagged` guard here is load-bearing. Validations partition four ways:
+                //   c1  clean + stage      -> CFS bin AND stage bin written   (stage bins sum to this)
+                //   c2  clean + no stage   -> CFS bin only                    <- THIS counter
+                //   c3  hard-flag + stage  -> neither bin written, but stageValidations++ (pre-existing)
+                //   c4  hard-flag+no stage -> neither bin written
+                // Without the guard this would count c2+c4 and no longer mean "learned CFS but not
+                // stage". c4 is 0 live today, but a degraded LF gauge (actualStage = lf.h) is exactly
+                // the condition that also trips the outlier hard flags, so it is not impossible.
+                //
+                // NOT backfilled: `totalValidations - stageValidations` = c2+c4, a different (also
+                // well-defined) quantity that the UI shows alongside. Both counters live in the same
+                // metadata object and are dropped together by the reset actions, so the derived figure
+                // is scoped to "since the last metadata reset", not all-time.
+                metaData.stageSkipped = (metaData.stageSkipped || 0) + 1;
             }
 
             // Bin write health counters (visible via API without checking logs)
