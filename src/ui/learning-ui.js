@@ -273,8 +273,17 @@ export function updateAdminDashboard() {
         };
         document.getElementById("dash-throughput").textContent =
             `${meta.totalPredictions || 0} pred / ${meta.totalValidations || 0} val`;
-        document.getElementById("dash-stage-err").textContent =
-            (meta.avgStageError != null) ? `±${meta.avgStageError.toFixed(2)} ft (n=${meta.stageValidations || 0})` : "--";
+        // v37.19 (TODO #27): the headline now reads the CLEAN series, which excludes the hard-flagged
+        // observations the learner itself rejects (the old `avgStageError` averaged over them — 313
+        // vs the bins' 295 at the time of the fix). The legacy value is frozen, not deleted, so it is
+        // shown after a slash as an audit trail while the clean series builds up from n=0.
+        const stEl = document.getElementById("dash-stage-err");
+        const cleanN = meta.stageObsClean || 0;
+        const legacy = (meta.avgStageError != null)
+            ? ` · was ±${meta.avgStageError.toFixed(2)} (n=${meta.stageValidations || 0}, frozen)` : "";
+        stEl.textContent = (meta.avgStageErrorClean != null)
+            ? `±${meta.avgStageErrorClean.toFixed(2)} ft (n=${cleanN})${legacy}`
+            : (legacy ? `-- (clean series building)${legacy}` : "--");
         const bwFail = meta.binWriteFailures || 0;
         const bwEl = document.getElementById("dash-binwrite");
         bwEl.textContent = `${meta.binWriteSuccesses || 0} ok / ${bwFail} fail`;

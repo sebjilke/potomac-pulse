@@ -989,6 +989,32 @@ describe('validatePendingPredictions', () => {
         gauges: { lf: '01646500', seneca: '01645000', ef: '01644148' }
     };
 
+    it('v37.19: a HARD-FLAGGED stage observation is excluded from the clean stage average (TODO #27)', async () => {
+        // Pre-v37.19 `sumAbsStageError`/`avgStageError` accumulated outside the !isHardFlagged gate,
+        // so the headline stage error averaged over observations the learner rejected.
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 4800, predictedCFS: 5000, rawFinalStage: 9.0, predictedStage: 9.0, flowBin: '3000-6000', flowState: 'steady' });
+        await validatePendingPredictions(validateClient({ pending: [row], captures }), hardUsgs);
+        const meta = metaUpsert(captures);
+        assert.ok(meta.data.hardFlaggedValidations >= 1, 'precondition: hard-flagged');
+        assert.equal(meta.data.stageValidations, 1, 'legacy count still tracks every stage pair');
+        assert.equal(meta.data.stageObsClean, undefined, 'clean series must exclude hard flags');
+        assert.equal(meta.data.avgStageErrorClean, undefined, 'no clean average from a hard-flagged obs');
+    });
+
+    it('v37.19: the legacy stage fields are frozen — never written again', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, rawFinalStage: 4.10, predictedStage: 4.00, flowBin: '6000-12000', flowState: 'steady' });
+        await validatePendingPredictions(validateClient({ pending: [row], captures }), usgs);
+        const meta = metaUpsert(captures);
+        assert.equal(meta.data.sumAbsStageError, undefined, 'legacy sum must stay frozen');
+        assert.equal(meta.data.avgStageError, undefined, 'legacy average must stay frozen');
+        // ...while the clean series accumulates the same observation.
+        assert.equal(meta.data.stageObsClean, 1);
+        assert.ok(Math.abs(meta.data.sumAbsStageErrorClean - 0.15) < 1e-9, `clean sum=${meta.data.sumAbsStageErrorClean}`);
+        assert.ok(Math.abs(meta.data.avgStageErrorClean - 0.15) < 1e-9, `clean avg=${meta.data.avgStageErrorClean}`);
+    });
+
     it('v37.18: a legitimate 0.00 ft stage is a measurement, not a missing pair (TODO #29)', async () => {
         // The old predicate was `predictedStage && actualStage` — truthiness, so 0.00 read as absent.
         // usgs fixture below supplies actualStage (lf.h) = 0; predictedStage 0.00 is likewise real.

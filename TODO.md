@@ -4,7 +4,7 @@
 Session state is in `.claude/HANDOFF.md`; methodology provenance for shipped versions is the
 small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, prioritize, go.
 
-*Last updated: 2026-09-02 (current version: v37.18). Verified against live DB + git history, not memory.*
+*Last updated: 2026-09-02 (current version: v37.19). Verified against live DB + git history, not memory.*
 
 ---
 
@@ -120,7 +120,7 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 
 | # | Item | Effort | Notes |
 |---|------|--------|-------|
-| 27 | **`avgStageError` averages over hard-flagged observations the learner rejects** | small | The stage metadata block (`scheduled-update.js:1414-1418`) sits **outside** `if (!isHardFlagged)`, but the `stage_*` bin write (`:1230`) sits **inside** it. So all 18 hard-flagged (physically implausible) validations feed `sumAbsStageError`/`stageValidations` while being correctly excluded from the bins. Live: the dashboard "Stage Err" row reads `n=313`; the stage bins hold **295**. This is the same class of defect v32.3 fixed for `avgErrorPercent` (flagged observations inflating the headline) — it was simply never applied to the stage series. **Fix:** move the stage metadata block inside the `!isHardFlagged` gate. **Changes a published metric**, so it wants its own version + a before/after note; `avgStageError` will move. |
+| 27 | ✅ **DONE v37.19 — clean series added under the `!isHardFlagged` gate; legacy fields frozen as an audit trail (option (c), user's call 2026-09-02).** | done | The stage metadata block (`scheduled-update.js:1414-1418`) sits **outside** `if (!isHardFlagged)`, but the `stage_*` bin write (`:1230`) sits **inside** it. So all 18 hard-flagged (physically implausible) validations feed `sumAbsStageError`/`stageValidations` while being correctly excluded from the bins. Live: the dashboard "Stage Err" row reads `n=313`; the stage bins hold **295**. This is the same class of defect v32.3 fixed for `avgErrorPercent` (flagged observations inflating the headline) — it was simply never applied to the stage series. **Fix:** move the stage metadata block inside the `!isHardFlagged` gate. **Changes a published metric**, so it wants its own version + a before/after note; `avgStageError` will move. |
 | 28 | ✅ **DONE v37.18 — `resetLowFlowBins` DELETED; `resetGFLearning` keeps bin-write health.** ~~`resetLowFlowBins` wipes the bin-write health counters and desynchronises the derived diagnostics** | small | The action deletes only the 12 low-flow bins (`sync-learning.js:598-615`) but upserts a `newMeta` literal that **replaces the whole jsonb**, so `binWriteSuccesses`/`binWriteFailures`/`stageValidations`/`stageSkipped` are dropped — despite the `// Keep health tracking` comment at `:645`, which only carries over `lastPrediction`/`consecutiveRuns`/`missedRuns`. Two consequences: bin-write health silently restarts at 0 (the v37.7 diagnostics panel's whole point), and the surviving high-flow bins keep pre-reset counts while the counters restart, so the v37.17 derived figure and the bin-level deficit diverge permanently. **Fix:** carry the health + stage counters across both reset literals, or spread `...oldMeta` and null only the learning stats. |
 | 29 | ✅ **DONE v37.18 — now `Number.isFinite` on both operands** (stricter than the `!= null` first drafted: `lf.h` is parsed text so NaN is reachable and must stay rejected). | done | `const errorStage = (predictedStage && actualStage) ? … : null` (`scheduled-update.js:1039-1041`) is a truthiness test, so a real 0.00 ft reading is discarded as absent. Not reachable at Little Falls in practice (stage never approaches 0), but it is the wrong predicate and the new `stageSkipped` counter would silently absorb it. **Fix:** `predictedStage != null && actualStage != null`. |
 
@@ -136,6 +136,7 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 
 ## Recently completed (reference)
 
+- **v37.19** (2026-09-02) — Stage error stops averaging over hard-flagged observations; legacy fields frozen as an audit trail (TODO #27 closed).
 - **v37.18** (2026-09-02) — Removed dead `resetLowFlowBins`; `resetGFLearning` keeps bin-write health; `errorStage` uses `Number.isFinite` (TODO #28, #29 closed).
 - **v37.17** (2026-09-02) — Stage-skip counter: `stage_*` bins silently lag the CFS bins by 12 obs when a gauge-height pair is missing (MINOR, diagnostics only).
 - **v37.16** (2026-08-28) — Forecast validation clock + NWS baselines retired (MINOR, metrics/display only).

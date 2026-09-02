@@ -1418,10 +1418,34 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             metaData.avgErrorPercent = validCount > 0 ? metaData.sumAbsErrorPercent / validCount : null;
 
             // Track stage error in metadata
+            //
+            // v37.19 (TODO #27): `sumAbsStageError`/`avgStageError` used to accumulate HERE, outside
+            // the `!isHardFlagged` gate — while the stage_* bin write sits inside it. So the headline
+            // stage error averaged over the hard-flagged (physically implausible) observations that
+            // the learner itself rejects: live at the time of the fix, n=313 in the metadata vs 295
+            // in the bins, i.e. 18 outliers inflating a published number. This is the same defect
+            // v32.3 fixed for `avgErrorPercent`; it was simply never applied to the stage series.
+            //
+            // The legacy fields are FROZEN, not reset and not deleted — `sumAbsStageError` is a
+            // cumulative sum, not an EMA, so the contamination never washes out and the old average
+            // cannot be repaired in place (the bins store signed `sumError`, not sum|error|, so the
+            // clean history is not recoverable). Freezing rather than zeroing follows the v37.16
+            // precedent for the retired NWS counters: the number stays available as an audit trail
+            // and nothing silently rewrites history. A clean series starts alongside at n=0.
             if (errorStage !== null) {
+                // Unchanged semantics: every validation that HAD a usable stage pair, hard-flagged or
+                // not. Still written because it is correct as a count (only the average was polluted)
+                // and because the v37.17 diagnostics derive the null-stage total from it.
                 metaData.stageValidations = (metaData.stageValidations || 0) + 1;
-                metaData.sumAbsStageError = (metaData.sumAbsStageError || 0) + Math.abs(errorStage);
-                metaData.avgStageError = metaData.sumAbsStageError / metaData.stageValidations;
+
+                if (!isHardFlagged) {
+                    // Clean series — gated identically to the stage_* bin write above, so
+                    // `stageObsClean` equals the sum of the stage bins by construction. That
+                    // equality is the cross-check: if the two ever diverge, a bin write is failing.
+                    metaData.stageObsClean = (metaData.stageObsClean || 0) + 1;
+                    metaData.sumAbsStageErrorClean = (metaData.sumAbsStageErrorClean || 0) + Math.abs(errorStage);
+                    metaData.avgStageErrorClean = metaData.sumAbsStageErrorClean / metaData.stageObsClean;
+                }
             } else if (!isHardFlagged) {
                 // v37.17: a NON-hard-flagged validation with no usable stage pair still updates the CFS
                 // correction bin but never reaches the stage_* bin write, which is gated on
@@ -1461,8 +1485,8 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 console.log('📅 === MONTHLY/MILESTONE SUMMARY ===');
                 console.log(`   Total validations: ${metaData.totalValidations}`);
                 console.log(`   Avg CFS error: ${metaData.avgErrorPercent?.toFixed(1)}%`);
-                console.log(`   Stage validations: ${metaData.stageValidations || 0}`);
-                console.log(`   Avg stage error: ${metaData.avgStageError?.toFixed(3) || 'N/A'}ft`);
+                console.log(`   Stage validations: ${metaData.stageValidations || 0} (clean ${metaData.stageObsClean || 0})`);
+                console.log(`   Avg stage error: ${metaData.avgStageErrorClean?.toFixed(3) || 'N/A'}ft (clean series, v37.19)`);
                 console.log('=====================================');
             }
 
