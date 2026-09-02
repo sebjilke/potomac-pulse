@@ -28,12 +28,12 @@ describe('v37.18: resetLowFlowBins is fully removed', () => {
     it('no source file anywhere still names it (the 4-file list above missed a comment)', () => {
         // The first cut of this guard checked a hand-picked four files and missed a stale comment in
         // src/ui/learning-ui.js, which then shipped into the published source map. Sweep instead.
-        const root = new URL('../', import.meta.url);
-        const skip = new Set(['node_modules', 'dist', '.git', 'analysis', 'test']);
+        // Allow-list the shipped source roots rather than skip-listing: a skip list makes the
+        // guard's verdict depend on whatever untracked/gitignored directories happen to exist
+        // locally (.netlify, .claude, coverage, …), which is not a property of the codebase.
         const hits = [];
         const walk = dir => {
             for (const e of readdirSync(dir, { withFileTypes: true })) {
-                if (skip.has(e.name)) continue;
                 const p = new URL(e.name + (e.isDirectory() ? '/' : ''), dir);
                 if (e.isDirectory()) walk(p);
                 else if (/\.(js|mjs|html)$/.test(e.name) && readFileSync(p, 'utf8').includes('resetLowFlowBins')) {
@@ -41,7 +41,10 @@ describe('v37.18: resetLowFlowBins is fully removed', () => {
                 }
             }
         };
-        walk(root);
+        for (const d of ['../src/', '../netlify/']) walk(new URL(d, import.meta.url));
+        for (const f of ['../index.html']) {
+            if (readFileSync(new URL(f, import.meta.url), 'utf8').includes('resetLowFlowBins')) hits.push(f);
+        }
         assert.deepEqual(hits, [], `resetLowFlowBins still referenced in: ${hits.join(', ')}`);
     });
 
@@ -54,12 +57,15 @@ describe('v37.18: resetLowFlowBins is fully removed', () => {
     it('resetGFLearning preserves bin-write health across the metadata replace (TODO #28)', () => {
         const s = files['netlify/functions/sync-learning.js'];
         // The upsert replaces the whole jsonb, so anything not named here is destroyed.
-        // Failures are a fault log and must survive; successes count writes into the bins this
-        // action deletes, so they reset with them (keeps v37.17's reconciliation identity intact).
-        for (const f of ['binWriteFailures: oldMeta.binWriteFailures', 'lastBinError: oldMeta.lastBinError']) {
-            assert.ok(s.includes(f), `resetGFLearning drops ${f.split(':')[0]} — a fault log is not learning state`);
+        // Tallies count writes into the bins this action deletes, so BOTH reset with them (keeps
+        // v37.17's reconciliation identity, and avoids a permanent "0 ok / N fail" with no clearing
+        // path). The fault RECORD must survive, so the evidence of a failure is never erasable.
+        for (const f of ['binWriteSuccesses: 0', 'binWriteFailures: 0']) {
+            assert.ok(s.includes(f), `resetGFLearning must zero ${f.split(':')[0]} along with the bins`);
         }
-        assert.ok(s.includes('binWriteSuccesses: 0'), 'binWriteSuccesses must reset with the bins it counts');
+        for (const f of ['lastBinError: oldMeta.lastBinError', 'lastBinErrorAt: oldMeta.lastBinErrorAt']) {
+            assert.ok(s.includes(f), `resetGFLearning drops ${f.split(':')[0]} — the fault record must not be erasable`);
+        }
         // Learning stats must still be explicitly zeroed, not carried over.
         assert.ok(/totalValidations: 0/.test(s) && /validValidations: 0/.test(s), 'learning stats must reset');
     });

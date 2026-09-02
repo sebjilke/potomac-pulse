@@ -563,7 +563,7 @@
                             <span class="value" id="dash-throughput" style="font-size:0.55rem;">--</span>
                         </div>
                         <div class="learn-stat">
-                            <span class="label" title="Mean absolute stage error (ft) from delayed LF validation. Matters for paddler difficulty class. From v37.19 this is the CLEAN series: it excludes hard-flagged (physically implausible) observations, which the correction bins already excluded but the old average did not. The pre-v37.19 value is shown after the dot, frozen as an audit trail — it cannot be repaired in place because it is a cumulative sum, not an EMA.">Stage Error</span>
+                            <span class="label" title="Mean absolute stage error (ft) from delayed LF validation. Matters for paddler difficulty class. From v37.19 this is the CLEAN series: it excludes hard-flagged (physically implausible) observations, which the correction bins already excluded but the old average did not. The pre-v37.19 value is shown after the dot, frozen as an audit trail: it is a cumulative sum rather than an EMA, so the contamination never washes out in place. It IS reconstructable from the append-only validation_failure rows (repaired: 0.0815 ft vs 0.0837), but backfilling production metadata is a deliberate operator action and has not been done.">Stage Error</span>
                             <span class="value" id="dash-stage-err" style="font-size:0.55rem;">--</span>
                         </div>
                         <div class="learn-stat">

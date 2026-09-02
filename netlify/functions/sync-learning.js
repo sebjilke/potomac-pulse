@@ -635,18 +635,20 @@ async function saveGFLearningData(client, data) {
                 lastPrediction: oldMeta.lastPrediction,  // Keep for health tracking
                 consecutiveRuns: oldMeta.consecutiveRuns,
                 missedRuns: oldMeta.missedRuns,
-                // v37.18 (revised after review): bin-write health is split, not preserved wholesale.
-                // `binWriteSuccesses` counts writes into bins this action DELETES, and v37.17's
-                // reconciliation evidence is `sum(bin counts) == validValidations == binWriteSuccesses`
-                // — preserving it wholesale would leave "307 ok" standing against zero bins forever and
-                // break that identity permanently. It resets with the bins. Failures are a fault log,
-                // not a tally of surviving rows: they stay, so a real write fault cannot be cleared by
-                // pressing reset (with the v24 low-flow ice-cleanup action deleted in v37.18 this is
-                // the only remaining reset path, and silently erasing a fault is exactly the failure
-                // mode the v37.7 diagnostics panel exists to prevent).
+                // v37.18 (revised twice after review): bin-write health separates the TALLIES from the
+                // FAULT RECORD. Both counters tally writes into bins this action deletes, so both reset
+                // with them — v37.17's reconciliation evidence is
+                // `sum(bin counts) == validValidations == binWriteSuccesses`, which preserving the
+                // successes would break permanently ("307 ok" against zero bins), and preserving the
+                // failures alone would render "0 ok / N fail" — a 100% failure rate — with no code path
+                // anywhere able to clear it, since these counters are increment-only and this is now the
+                // only reset. What must NOT be erasable is the evidence a fault happened: the message
+                // and its timestamp ride through, so the panel can still show "last error: X (date)"
+                // beside clean counters. That keeps the v37.7 panel honest without a stuck red alarm.
                 binWriteSuccesses: 0,
-                binWriteFailures: oldMeta.binWriteFailures,
+                binWriteFailures: 0,
                 lastBinError: oldMeta.lastBinError,
+                lastBinErrorAt: oldMeta.lastBinErrorAt,
                 resetAt: new Date().toISOString(),
                 resetReason: 'manual_admin_reset'
             };

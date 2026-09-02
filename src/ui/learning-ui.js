@@ -286,8 +286,12 @@ export function updateAdminDashboard() {
         const cleanN = meta.stageObsClean || 0;
         const frozenAvg = meta.legacyStageAvg ?? meta.avgStageError;
         const frozenN = meta.legacyStageObs;
-        const legacy = (frozenAvg != null)
-            ? ` · was ±${frozenAvg.toFixed(2)}${frozenN != null ? ` (n=${frozenN}` : " ("}, frozen)` : "";
+        // Build the parenthesised part whole, in one branch each. The first cut split the opening
+        // paren across a nested ternary and rendered `was ±0.08 (, frozen)` whenever the average was
+        // present but the latch had not yet fired — which is exactly the state production is in
+        // between a deploy and the next cron validation.
+        const frozenTail = (frozenN != null) ? ` (n=${frozenN}, frozen)` : " (frozen)";
+        const legacy = (frozenAvg != null) ? ` · was ±${frozenAvg.toFixed(2)}${frozenTail}` : "";
         stEl.textContent = (meta.avgStageErrorClean != null)
             ? `±${meta.avgStageErrorClean.toFixed(2)} ft (n=${cleanN})${legacy}`
             : (legacy ? `-- (clean series building)${legacy}` : "--");
@@ -295,7 +299,17 @@ export function updateAdminDashboard() {
         const bwEl = document.getElementById("dash-binwrite");
         bwEl.textContent = `${meta.binWriteSuccesses || 0} ok / ${bwFail} fail`;
         bwEl.style.color = bwFail > 0 ? "var(--accent-red-light)" : "var(--text-tertiary)";
-        document.getElementById("dash-binwrite-err").textContent = (bwFail > 0 && meta.lastBinError) ? meta.lastBinError : "";
+        // v37.19 (review fix): a reset zeroes the tallies but keeps the fault record, so show a
+        // retained error even at 0 failures — muted rather than red, since it is history, not an
+        // active fault. Without this the evidence would be retained in the DB and invisible.
+        const errEl = document.getElementById("dash-binwrite-err");
+        if (meta.lastBinError) {
+            const when = meta.lastBinErrorAt ? ` (${new Date(meta.lastBinErrorAt).toLocaleDateString()})` : "";
+            errEl.textContent = bwFail > 0 ? meta.lastBinError : `last: ${meta.lastBinError}${when}`;
+            errEl.style.color = bwFail > 0 ? "var(--accent-red-light)" : "var(--text-muted)";
+        } else {
+            errEl.textContent = "";
+        }
         // v37.17: the stage_* bins only receive a validation when a predicted AND actual gauge height
         // both exist; otherwise the CFS bin learns alone and nothing counted the difference.
         // Two DIFFERENT well-defined quantities are shown, not one number twice:

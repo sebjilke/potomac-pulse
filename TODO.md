@@ -126,6 +126,14 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 
 ---
 
+## 🔴 Open — found during the v37.19 verification rounds (2026-09-02)
+
+| # | Item | Effort | Notes |
+|---|------|--------|-------|
+| 30 | 🔴 **The CFS correction-bin read discards its error — a transient failure silently destroys a learned bin** | small | `scheduled-update.js:1133` does `const { data: existingBin } = await client…single()` with **no error binding**, then `existingBin?.data || { count: 0, … }` at `:1140`. Because `.single()` also errors with `PGRST116` when the row does not exist yet, an ignored error makes a transient read failure indistinguishable from "new bin" — and the fallback then **upserts `count: 1` over a bin holding n=71**, wiping the learned correction for that (flowBin × flowState) with no counter firing and nothing in the panel. `binWriteSuccesses` even increments, because the *write* succeeded. **This one feeds the estimate**, unlike the stage bin: the next estimate in that bin applies a correction derived from a single observation, and `getGFCorrection` blends at weight 1/5 toward the hierarchical fallback, so the visible jump can be hundreds of cfs. Fixed for the `stage_*` bin in v37.19; **deliberately NOT bundled** because the CFS path changes displayed estimates and wants its own version + attribution. **Minimal fix:** bind the error, treat only `PGRST116` as "no row", otherwise skip the write and set `binWriteFailed = true`. Same two-line shape as the v37.19 stage fix, plus the existing `binWriteFailed` plumbing. |
+
+---
+
 ## 📅 Date-gated / watch
 
 | Item | When | Notes |
@@ -136,7 +144,7 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 
 ## Recently completed (reference)
 
-- **v37.19** (2026-09-02) — Stage error stops averaging over hard-flagged observations; legacy fields frozen as an audit trail (TODO #27 closed).
+- **v37.19** (2026-09-02) — Stage error stops averaging over hard-flagged observations; legacy frozen against a latched denominator; stage-bin read/write failures now suppress the clean series and register as faults (TODO #27 closed, #30 opened).
 - **v37.18** (2026-09-02) — Removed dead `resetLowFlowBins`; `resetGFLearning` keeps bin-write health; `errorStage` uses `Number.isFinite` (TODO #28, #29 closed).
 - **v37.17** (2026-09-02) — Stage-skip counter: `stage_*` bins silently lag the CFS bins by 12 obs when a gauge-height pair is missing (MINOR, diagnostics only).
 - **v37.16** (2026-08-28) — Forecast validation clock + NWS baselines retired (MINOR, metrics/display only).

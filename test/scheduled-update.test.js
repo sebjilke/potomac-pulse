@@ -804,10 +804,13 @@ describe('validatePendingPredictions', () => {
     // invalid cleanup) while `.delete().eq().select()` returns the claimed rows.
     // `failInsertType` (default null) makes an insert of that observation_type REJECT — used to
     // characterize the non-fatal validation_failure logging (#18). Defaulted → existing callers unaffected.
-    function validateClient({ pending, claimRows = [{ id: 'p1' }], captures, failInsertType = null, errorInsertType = null }) {
+    // `seed` maps '<observation_type>:<gauge_id>' -> the row's `data` payload, so a test can start
+    // from an existing gf_metadata / correction-bin row. `upsertErrorFor` makes one gauge_id's upsert
+    // return an error, and `readErrorFor` makes its `.single()` read fail with a non-PGRST116 code.
+    function validateClient({ pending, claimRows = [{ id: 'p1' }], captures, failInsertType = null, errorInsertType = null, seed = null, upsertErrorFor = null, readErrorFor = null }) {
         return {
             from() {
-                const q = { op: 'select' };
+                const q = { op: 'select', eqs: {} };
                 const builder = {
                     select() {
                         if (q.op === 'delete') {
@@ -816,10 +819,21 @@ describe('validatePendingPredictions', () => {
                         }
                         return builder;
                     },
-                    eq() { return builder; },
+                    eq(col, val) { q.eqs[col] = val; return builder; },
                     order() { return Promise.resolve({ data: pending, error: null }); },
-                    single() { return Promise.resolve({ data: null, error: null }); },
-                    upsert(row) { captures.upserts.push(row); return Promise.resolve({ error: null }); },
+                    single() {
+                        const key = `${q.eqs.observation_type}:${q.eqs.gauge_id}`;
+                        if (readErrorFor && q.eqs.gauge_id === readErrorFor) {
+                            return Promise.resolve({ data: null, error: { code: '08006', message: 'connection failure' } });
+                        }
+                        if (seed && key in seed) return Promise.resolve({ data: { data: seed[key] }, error: null });
+                        return Promise.resolve({ data: null, error: null });
+                    },
+                    upsert(row) {
+                        captures.upserts.push(row);
+                        if (upsertErrorFor && row.gauge_id === upsertErrorFor) return Promise.resolve({ error: { message: 'upsert boom' } });
+                        return Promise.resolve({ error: null });
+                    },
                     insert(row) {
                         captures.inserts.push(row);
                         if (failInsertType && row.observation_type === failInsertType) return Promise.reject(new Error('insert boom'));
@@ -988,6 +1002,64 @@ describe('validatePendingPredictions', () => {
         data: { '01646500': { q: 1200, h: 2.5 }, '01645000': {}, '01644148': {} },
         gauges: { lf: '01646500', seneca: '01645000', ef: '01644148' }
     };
+
+    // ── v37.19 review round 3: the two guards the fix-up commit exists to add ──
+    // Both survived mutation testing before these were written: the latch condition and the
+    // stage-write suppression had zero coverage, and no test ever populated `avgStageError`.
+    const LEGACY_META = { totalValidations: 325, validValidations: 307, hardFlaggedValidations: 18,
+                          softFlaggedValidations: 95, sumAbsErrorPercent: 2134.86,
+                          stageValidations: 313, sumAbsStageError: 26.21, avgStageError: 0.0837380191693291 };
+
+    it('v37.19: the legacy stage average is latched against its OWN denominator, pre-increment', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, rawFinalStage: 4.10, predictedStage: 4.00, flowBin: '6000-12000', flowState: 'steady' });
+        const client = validateClient({ pending: [row], captures, seed: { 'gf_metadata:system': { ...LEGACY_META } } });
+        await validatePendingPredictions(client, usgs);
+        const meta = metaUpsert(captures);
+        assert.equal(meta.data.legacyStageObs, 313, 'must latch the PRE-increment count that produced the average');
+        assert.equal(meta.data.stageValidations, 314, 'and the live counter must still advance past it');
+        assert.equal(meta.data.legacyStageAvg, 0.0837380191693291);
+        assert.ok(meta.data.legacyStageFrozenAt, 'freeze timestamp recorded');
+    });
+
+    it('v37.19: the latch is one-shot — it never re-fires against a drifting counter', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, rawFinalStage: 4.10, predictedStage: 4.00, flowBin: '6000-12000', flowState: 'steady' });
+        // Already latched at 313; the live counter has since run on to 400.
+        const seeded = { ...LEGACY_META, stageValidations: 400, legacyStageObs: 313, legacyStageAvg: 0.0837380191693291 };
+        const client = validateClient({ pending: [row], captures, seed: { 'gf_metadata:system': seeded } });
+        await validatePendingPredictions(client, usgs);
+        const meta = metaUpsert(captures);
+        assert.equal(meta.data.legacyStageObs, 313, 're-latching would have written 400 — a frozen average against a live denominator');
+        assert.equal(meta.data.legacyStageAvg, 0.0837380191693291);
+    });
+
+    it('v37.19: a failed stage-bin UPSERT suppresses the clean-series increment and registers as a fault', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, rawFinalStage: 4.10, predictedStage: 4.00, flowBin: '6000-12000', flowState: 'steady' });
+        const client = validateClient({ pending: [row], captures, upsertErrorFor: 'stage_6000-12000_steady' });
+        await validatePendingPredictions(client, usgs);
+        const meta = metaUpsert(captures);
+        // Counting it would break `stageObsClean == sum(stage_* bins)` — the invariant the fix claims.
+        assert.equal(meta.data.stageObsClean, undefined, 'clean series must not count an observation the bin never received');
+        assert.equal(meta.data.binWriteFailures, 1, 'and the failure must be visible, not log-only');
+        assert.match(meta.data.lastBinError, /^stage_6000-12000_steady:/);
+        assert.ok(meta.data.lastBinErrorAt, 'fault timestamp recorded');
+        assert.equal(meta.data.stageValidations, 1, 'the stage pair still existed, so this counter still moves');
+    });
+
+    it('v37.19: a failed stage-bin READ aborts the write instead of overwriting the bin with count:1', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, rawFinalStage: 4.10, predictedStage: 4.00, flowBin: '6000-12000', flowState: 'steady' });
+        // A non-PGRST116 read error is indistinguishable from "no row" if ignored — and the
+        // {count: 0} fallback would then replace a bin of n=69 with n=1.
+        const client = validateClient({ pending: [row], captures, readErrorFor: 'stage_6000-12000_steady' });
+        await validatePendingPredictions(client, usgs);
+        assert.ok(!flowBinUpsert(captures, 'stage_6000-12000_steady'), 'must NOT write a fresh bin over an unread one');
+        const meta = metaUpsert(captures);
+        assert.equal(meta.data.stageObsClean, undefined, 'and must not count it');
+        assert.equal(meta.data.binWriteFailures, 1);
+    });
 
     it('v37.19: a HARD-FLAGGED stage observation is excluded from the clean stage average (TODO #27)', async () => {
         // Pre-v37.19 `sumAbsStageError`/`avgStageError` accumulated outside the !isHardFlagged gate,

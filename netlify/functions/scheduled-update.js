@@ -1039,13 +1039,13 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             // v37.18 (TODO #29): finiteness checks, not truthiness — a legitimate 0.00 ft reading is a
             // real measurement, not a missing one. Unreachable at Little Falls (stage never approaches
             // 0) but it was the wrong predicate, and the v37.17 stageSkipped counter would have
-            // silently absorbed it as "no stage pair". Number.isFinite (not `!= null`) is deliberate,
-            // but NOT because of `actualStage`: `lf.h` is only ever assigned inside `if (val > 0 &&
-            // val < 9999999)` in the USGS parse, so from the gauge NaN and 0.00 are both unreachable.
-            // The exposed operand is `predictedStage` (`rawFinalStage`, a server-side
-            // `estimateLFStage()` result at :899) — computed, not gated, so NaN is reachable there.
-            // The old truthiness test at least rejected it; `!= null` would not have, and a NaN would
-            // poison sumAbsStageErrorClean irrecoverably.
+            // silently absorbed it as "no stage pair". `Number.isFinite` rather than `!= null` is
+            // DEFENCE IN DEPTH, not a claim about a live NaN path — two successive reviews found the
+            // reachability argument wrong in both directions, so it is retired rather than restated:
+            // `lf.h` is assigned only inside `if (val > 0 && val < 9999999)`, and `rawFinalStage`
+            // round-trips through Supabase jsonb where NaN serialises to null. Neither operand can
+            // deliver NaN here today. The stricter predicate costs nothing and keeps a NaN out of
+            // `sumAbsStageErrorClean`, which is a cumulative sum and could not be repaired in place.
             const errorStage = (Number.isFinite(predictedStage) && Number.isFinite(actualStage))
                 ? Math.round((predictedStage - actualStage) * 100) / 100
                 : null;
@@ -1247,12 +1247,21 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 // Also update stage error statistics for rating curve analysis
                 if (errorStage !== null) {
                     const stageBinKey = `stage_${flowBin}_${flowState}`;
-                    const { data: existingStageBin } = await client
+                    // A discarded read error here is not harmless: `.single()` also errors with
+                    // PGRST116 when the row simply doesn't exist yet, so ignoring the error makes a
+                    // transient read failure indistinguishable from "new bin" — and the `|| {count: 0}`
+                    // fallback below would then overwrite a bin of n=69 with n=1, destroying it
+                    // silently. Only PGRST116 means "no row"; anything else aborts the write.
+                    const { data: existingStageBin, error: stageReadErr } = await client
                         .from('potomac_observations')
                         .select('data')
                         .eq('observation_type', 'gf_correction_bin')
                         .eq('gauge_id', stageBinKey)
                         .single();
+                    if (stageReadErr && stageReadErr.code !== 'PGRST116') {
+                        console.error(`❌ Stage bin READ failed for ${stageBinKey}:`, stageReadErr.message, stageReadErr.code);
+                        stageBinWriteFailedKey = stageBinKey;
+                    }
 
                     const stageBinData = existingStageBin?.data || {
                         count: 0, sumError: 0, sumErrorSq: 0, meanError: 0, emaMeanError: 0
@@ -1287,7 +1296,7 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                     const stageVariance = (stageBinData.sumErrorSq / stageBinData.count) - (stageBinData.meanError * stageBinData.meanError);
                     stageBinData.stdDev = Math.round(Math.sqrt(Math.max(0, stageVariance)) * 1000) / 1000;
 
-                    const { error: stageBinErr } = await client.from('potomac_observations').upsert({
+                    const { error: stageBinErr } = stageBinWriteFailedKey ? { error: null } : await client.from('potomac_observations').upsert({
                         observation_type: 'gf_correction_bin',
                         gauge_id: stageBinKey,
                         data: stageBinData
@@ -1506,12 +1515,18 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             if (!isHardFlagged) {
                 metaData.binWriteSuccesses = (metaData.binWriteSuccesses || 0) + (binWriteFailed ? 0 : 1);
                 metaData.binWriteFailures = (metaData.binWriteFailures || 0) + (binWriteFailed ? 1 : 0);
-                if (stageBinWriteFailedKey) {
-                    metaData.binWriteFailures = (metaData.binWriteFailures || 0) + 1;
-                    metaData.lastBinError = `${stageBinWriteFailedKey}: upsert failed`;
-                }
+                // NB `binWriteSuccesses + binWriteFailures` is a count of BIN WRITES, not validations:
+                // one validation writes a CFS bin and a stage bin, so a run where the CFS write lands
+                // and the stage write fails increments both. `lastBinError` is written CFS-first then
+                // stage, so the chronologically later write wins the field named "last".
                 if (binWriteFailed) {
                     metaData.lastBinError = `${binKey}: upsert failed`;
+                    metaData.lastBinErrorAt = new Date().toISOString();
+                }
+                if (stageBinWriteFailedKey) {
+                    metaData.binWriteFailures = (metaData.binWriteFailures || 0) + 1;
+                    metaData.lastBinError = `${stageBinWriteFailedKey}: write failed`;
+                    metaData.lastBinErrorAt = new Date().toISOString();
                 }
             }
 
