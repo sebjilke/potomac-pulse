@@ -1130,12 +1130,34 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
 
             // Update correction bin
             const binKey = `${flowBin}_${flowState}`;
-            const { data: existingBin } = await client
+            // v37.20 (TODO #30): the error was discarded here, and `.single()` also errors with
+            // PGRST116 when the row simply does not exist yet — so a transient read failure was
+            // indistinguishable from "new bin". That was not one bug but three, compounding:
+            //   1. `binData.count` falls back to 0, so **Check 5 below is skipped entirely**
+            //      (it needs count >= 10) — the statistical-outlier HARD flag cannot fire.
+            //   2. `updateCorrectionBin`'s +/-2 sigma soft clamp also needs count >= 10, so the
+            //      unvetted observation enters learning unclamped.
+            //   3. The upsert then writes `count: 1` over a bin holding n=71, destroying the
+            //      learned correction — while `binWriteSuccesses` INCREMENTS, because the write
+            //      itself succeeded. Nothing anywhere recorded it.
+            // Unlike the stage bins this one feeds the ESTIMATE: the next estimate in that bin
+            // applies a correction derived from one observation, blended at weight 1/5 toward the
+            // hierarchical fallback, so the visible jump is hundreds of cfs.
+            // A read failure therefore means the observation could not be VETTED, not merely that a
+            // write is unavailable — so it is excluded from learning AND from accuracy, the same
+            // principle v32.3 and v37.19 applied to observations that fail screening. Losing one
+            // observation is strictly cheaper than corrupting a bin or publishing an unscreened one.
+            const { data: existingBin, error: binReadErr } = await client
                 .from('potomac_observations')
                 .select('data')
                 .eq('observation_type', 'gf_correction_bin')
                 .eq('gauge_id', binKey)
                 .single();
+            const binReadFailed = !!(binReadErr && binReadErr.code !== 'PGRST116');
+            if (binReadFailed) {
+                console.error(`❌ Bin READ failed for ${binKey}:`, binReadErr.message, binReadErr.code,
+                    '— skipping learning AND accuracy for this validation (observation could not be vetted)');
+            }
 
             const binData = existingBin?.data || {
                 count: 0, sumError: 0, sumErrorSq: 0, meanError: 0, emaMeanError: 0
@@ -1223,8 +1245,11 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             // binWriteFailures/lastBinError the CFS bin uses.
             let stageBinWriteFailedKey = null;
 
-            // Update learning: hard flags skip entirely, soft flags use EMA clamping
-            if (!isHardFlagged) {
+            // Update learning: hard flags skip entirely, soft flags use EMA clamping.
+            // v37.20: a failed bin read also skips — see the read-error note above. This suppresses
+            // the stage bin and the v37.19 clean series too, which is the coherent outcome: an
+            // observation that could not be screened does not belong in any learned series.
+            if (!isHardFlagged && !binReadFailed) {
                 // v36.1: EMA bin update extracted to shared/model.js `updateCorrectionBin` so the
                 // cron and the offline CI backtest harness (analysis/) learn through identical code
                 // (no drift). Behavior-preserving — same accumulation, ±2σ soft-clamp, and EMA
@@ -1423,6 +1448,14 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 metaData.flaggedValidations = (metaData.flaggedValidations || 0) + 1;  // backward compat
                 metaData.lastFlagged = new Date().toISOString();
                 metaData.lastFlaggedReason = anomalyFlags.join(', ');
+            } else if (binReadFailed) {
+                // v37.20: NOT an anomaly — the model may well have been right. Check 5 simply could
+                // not run, so admitting it to a published average would repeat the v32.3 / v37.19
+                // defect of averaging over observations that were never screened. Counted separately
+                // so a read-outage is never mistaken for a run of model failures.
+                metaData.binReadFailures = (metaData.binReadFailures || 0) + 1;
+                metaData.lastBinError = `${binKey}: read failed (learning + accuracy skipped)`;
+                metaData.lastBinErrorAt = new Date().toISOString();
             } else {
                 // Both validated AND soft-flagged contribute to accuracy
                 if (isSoftFlagged) {
@@ -1478,10 +1511,14 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 // and because the v37.17 diagnostics derive the null-stage total from it.
                 metaData.stageValidations = (metaData.stageValidations || 0) + 1;
 
-                if (!isHardFlagged && !stageBinWriteFailedKey) {
+                if (!isHardFlagged && !binReadFailed && !stageBinWriteFailedKey) {
                     // Clean series — gated identically to the stage_* bin write above, and additionally
                     // suppressed when that write failed, so `stageObsClean` equals the sum of the stage
-                    // bins BY CONSTRUCTION rather than by assertion. If the two ever do diverge the
+                    // bins BY CONSTRUCTION rather than by assertion. `!binReadFailed` is part of that:
+                    // the stage bin write is nested inside the learning block, which v37.20 skips on a
+                    // CFS bin read failure, but this counter lives out here in the metadata block — so
+                    // without it the counter would advance for a bin write that never happened. Caught
+                    // by the v37.20 tests, which is precisely what the invariant is for. If the two ever do diverge the
                     // cause is upstream of both (this metadata upsert failing, or a throw between the
                     // two writes) — NOT a failing bin write, which is now accounted for here.
                     metaData.stageObsClean = (metaData.stageObsClean || 0) + 1;
@@ -1511,8 +1548,10 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 metaData.stageSkipped = (metaData.stageSkipped || 0) + 1;
             }
 
-            // Bin write health counters (visible via API without checking logs)
-            if (!isHardFlagged) {
+            // Bin write health counters (visible via API without checking logs).
+            // v37.20: `!binReadFailed` keeps the v37.17 reconciliation identity
+            // `sum(bin counts) == binWriteSuccesses` exact — a skipped write must not be credited.
+            if (!isHardFlagged && !binReadFailed) {
                 metaData.binWriteSuccesses = (metaData.binWriteSuccesses || 0) + (binWriteFailed ? 0 : 1);
                 metaData.binWriteFailures = (metaData.binWriteFailures || 0) + (binWriteFailed ? 1 : 0);
                 // NB `binWriteSuccesses + binWriteFailures` is a count of BIN WRITES, not validations:

@@ -1003,6 +1003,74 @@ describe('validatePendingPredictions', () => {
         gauges: { lf: '01646500', seneca: '01645000', ef: '01644148' }
     };
 
+    // ── v37.20 (TODO #30): a failed CFS bin READ must not corrupt the bin or the metrics ──
+    // Pre-v37.20 the read error was discarded. Because `.single()` also errors with PGRST116 when the
+    // row does not exist, a transient failure looked exactly like "new bin" and did three things at
+    // once: disabled Check 5 (needs count>=10), disabled the +/-2σ clamp (same threshold), and then
+    // upserted count:1 over the real bin — while binWriteSuccesses incremented, because the WRITE
+    // succeeded. This bin feeds the estimate, unlike the stage bins.
+    const RICH_BIN = { count: 71, sumError: 19633, sumErrorSq: 12000000, meanError: 276.52, emaMeanError: 419.59 };
+
+    it('v37.20: a failed bin READ never overwrites the existing bin', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, rawFinalStage: 4.10, predictedStage: 4.00, flowBin: '6000-12000', flowState: 'steady' });
+        const client = validateClient({ pending: [row], captures, readErrorFor: '6000-12000_steady' });
+        await validatePendingPredictions(client, usgs);
+        assert.ok(!flowBinUpsert(captures, '6000-12000_steady'), 'must NOT write count:1 over an unread bin');
+    });
+
+    it('v37.20: a failed bin READ excludes the unvetted observation from accuracy, as its own counter', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, rawFinalStage: 4.10, predictedStage: 4.00, flowBin: '6000-12000', flowState: 'steady' });
+        const client = validateClient({ pending: [row], captures, readErrorFor: '6000-12000_steady' });
+        await validatePendingPredictions(client, usgs);
+        const meta = metaUpsert(captures);
+        // Check 5 could not run, so the observation was never screened — it must not reach a
+        // published average, and must not be logged as a model anomaly either.
+        // NB the v33.0 migration block seeds these to 0 on a metadata row that has never been
+        // written, so "untouched" is 0 here rather than undefined.
+        assert.equal(meta.data.validValidations, 0, 'unvetted observation must not enter accuracy');
+        assert.equal(meta.data.hardFlaggedValidations, 0, 'and must NOT be recorded as an anomaly');
+        assert.equal(meta.data.binReadFailures, 1, 'counted under its own name');
+        assert.match(meta.data.lastBinError, /^6000-12000_steady: read failed/);
+        assert.ok(meta.data.lastBinErrorAt);
+        // The reconciliation identity sum(bins) == binWriteSuccesses must stay exact.
+        assert.equal(meta.data.binWriteSuccesses, undefined, 'a skipped write must not be credited as a success');
+    });
+
+    it('v37.20: a failed bin READ also suppresses the stage bin and the clean series', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, rawFinalStage: 4.10, predictedStage: 4.00, flowBin: '6000-12000', flowState: 'steady' });
+        const client = validateClient({ pending: [row], captures, readErrorFor: '6000-12000_steady' });
+        await validatePendingPredictions(client, usgs);
+        assert.ok(!flowBinUpsert(captures, 'stage_6000-12000_steady'), 'unscreened obs belongs in no learned series');
+        assert.equal(metaUpsert(captures).data.stageObsClean, undefined);
+    });
+
+    it('v37.20: PGRST116 still means "no row yet" — a genuinely new bin is created normally', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, rawFinalStage: 4.10, predictedStage: 4.00, flowBin: '6000-12000', flowState: 'steady' });
+        // Default fixture single() returns {data: null, error: null}; assert the happy path is intact
+        // and that the guard did not turn "missing row" into a failure.
+        await validatePendingPredictions(validateClient({ pending: [row], captures }), usgs);
+        const bin = flowBinUpsert(captures, '6000-12000_steady');
+        assert.ok(bin, 'new bin still created');
+        assert.equal(bin.data.count, 1);
+        const meta = metaUpsert(captures);
+        assert.equal(meta.data.binReadFailures, undefined, 'no false read failure');
+        assert.equal(meta.data.binWriteSuccesses, 1);
+        assert.equal(meta.data.validValidations, 1);
+    });
+
+    it('v37.20: an existing bin is READ and extended, not reset (the corruption this prevents)', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 11000, predictedCFS: 10200, rawFinalStage: 4.10, predictedStage: 4.00, flowBin: '6000-12000', flowState: 'steady' });
+        const client = validateClient({ pending: [row], captures, seed: { 'gf_correction_bin:6000-12000_steady': { ...RICH_BIN } } });
+        await validatePendingPredictions(client, usgs);
+        const bin = flowBinUpsert(captures, '6000-12000_steady');
+        assert.equal(bin.data.count, 72, 'must extend n=71 to 72, never reset to 1');
+    });
+
     // ── v37.19 review round 3: the two guards the fix-up commit exists to add ──
     // Both survived mutation testing before these were written: the latch condition and the
     // stage-write suppression had zero coverage, and no test ever populated `avgStageError`.

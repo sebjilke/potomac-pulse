@@ -295,10 +295,16 @@ export function updateAdminDashboard() {
         stEl.textContent = (meta.avgStageErrorClean != null)
             ? `±${meta.avgStageErrorClean.toFixed(2)} ft (n=${cleanN})${legacy}`
             : (legacy ? `-- (clean series building)${legacy}` : "--");
+        // v37.20: read failures are shown separately from write failures. They are a different
+        // event with a different meaning — the observation could not be VETTED (Check 5 needs the
+        // bin), so it was dropped from learning and accuracy rather than mis-scored. Folding them
+        // into "fail" would read as the learner breaking when it is actually refusing to guess.
         const bwFail = meta.binWriteFailures || 0;
+        const bwRead = meta.binReadFailures || 0;
         const bwEl = document.getElementById("dash-binwrite");
-        bwEl.textContent = `${meta.binWriteSuccesses || 0} ok / ${bwFail} fail`;
-        bwEl.style.color = bwFail > 0 ? "var(--accent-red-light)" : "var(--text-tertiary)";
+        bwEl.textContent = `${meta.binWriteSuccesses || 0} ok / ${bwFail} fail`
+            + (bwRead > 0 ? ` / ${bwRead} read-skip` : "");
+        bwEl.style.color = (bwFail > 0 || bwRead > 0) ? "var(--accent-red-light)" : "var(--text-tertiary)";
         // v37.19 (review fix): a reset zeroes the tallies but keeps the fault record, so show a
         // retained error even at 0 failures — muted rather than red, since it is history, not an
         // active fault. Without this the evidence would be retained in the DB and invisible.
