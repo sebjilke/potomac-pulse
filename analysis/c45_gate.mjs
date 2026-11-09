@@ -1,3 +1,6 @@
+// NOTE (v37.21): this file's local copy of the anomaly checks replays the PRE-v37.21 gate (Check 3 has
+// no temperature gate here). Rewire to the shared isIcePlausible helper (netlify/functions/shared/model.js)
+// before the next backtest.
 // v36.1 — Corrected-residual CI backtest harness (analysis only; NOT shipped).
 //
 // Runs the REAL production GF model (makeGFPrediction, imported via the existing _test

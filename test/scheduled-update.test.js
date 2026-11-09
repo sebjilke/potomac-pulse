@@ -998,6 +998,8 @@ describe('validatePendingPredictions', () => {
     // claim-delete (the verdict isn't final until the bin read for Check 5), and is NON-FATAL.
     const failRows = (caps) => caps.inserts.filter(i => i.observation_type === 'validation_failure');
     // LF=1200cfs/2.5ft fires Check 3 (low-flow + high-stage) → hardScore≥2 → hard-flagged.
+    // v37.21: Check 3 needs ice plausibility, so every call passes waterTempC = 1 explicitly
+    // (otherwise the result would depend on the calendar month).
     const hardUsgs = {
         data: { '01646500': { q: 1200, h: 2.5 }, '01645000': {}, '01644148': {} },
         gauges: { lf: '01646500', seneca: '01645000', ef: '01644148' }
@@ -1134,7 +1136,7 @@ describe('validatePendingPredictions', () => {
         // so the headline stage error averaged over observations the learner rejected.
         const captures = { upserts: [], inserts: [], deletes: [] };
         const row = pendingRow({ rawFinalCFS: 4800, predictedCFS: 5000, rawFinalStage: 9.0, predictedStage: 9.0, flowBin: '3000-6000', flowState: 'steady' });
-        await validatePendingPredictions(validateClient({ pending: [row], captures }), hardUsgs);
+        await validatePendingPredictions(validateClient({ pending: [row], captures }), hardUsgs, 1);
         const meta = metaUpsert(captures);
         assert.ok(meta.data.hardFlaggedValidations >= 1, 'precondition: hard-flagged');
         assert.equal(meta.data.stageValidations, 1, 'legacy count still tracks every stage pair');
@@ -1187,7 +1189,7 @@ describe('validatePendingPredictions', () => {
         // ("learned CFS but not stage"). Without the `!isHardFlagged` guard this test fails.
         const captures = { upserts: [], inserts: [], deletes: [] };
         const row = pendingRow({ rawFinalCFS: 4800, predictedCFS: 5000, predictedStage: null, rawFinalStage: null, flowBin: '3000-6000', flowState: 'steady' });
-        await validatePendingPredictions(validateClient({ pending: [row], captures }), hardUsgs);
+        await validatePendingPredictions(validateClient({ pending: [row], captures }), hardUsgs, 1);
         const meta = metaUpsert(captures);
         assert.ok(meta.data.hardFlaggedValidations >= 1, 'precondition: row really was hard-flagged');
         assert.equal(meta.data.stageSkipped, undefined, 'hard-flagged rows are not stage skips');
@@ -1197,7 +1199,7 @@ describe('validatePendingPredictions', () => {
     it('#18: a hard-flagged validation writes ONE validation_failure row (predicted/actual/flags) and does NOT learn', async () => {
         const captures = { upserts: [], inserts: [], deletes: [] };
         const row = pendingRow({ rawFinalCFS: 4800, predictedCFS: 5000, rawFinalStage: 4.0, predictedStage: 4.0, flowBin: '1000-3000', flowState: 'steady' });
-        const result = await validatePendingPredictions(validateClient({ pending: [row], captures }), hardUsgs);
+        const result = await validatePendingPredictions(validateClient({ pending: [row], captures }), hardUsgs, 1);
         assert.equal(result.validated, 1);                       // hard rows still fall through to validated++
         const rows = failRows(captures);
         assert.equal(rows.length, 1, 'exactly one validation_failure row');
@@ -1217,11 +1219,60 @@ describe('validatePendingPredictions', () => {
         assert.equal(binUpserts(captures).length, 0, 'hard flag must skip learning');
     });
 
+    // ── v37.21: Check 3 (LOW_FLOW_HIGH_STAGE) fires only when ice is plausible ──
+    const warmLowUsgs = {
+        data: { '01646500': { q: 1330, h: 2.66 }, '01645000': {}, '01644148': {} },
+        gauges: { lf: '01646500', seneca: '01645000', ef: '01644148' }
+    };
+    const lowFlowRow = () => pendingRow({ rawFinalCFS: 1400, predictedCFS: 1400, rawFinalStage: 2.7, predictedStage: 2.7, flowBin: '0-3000', flowState: 'steady' });
+
+    it('v37.21: 1330 cfs / 2.66 ft in 22 C water is NOT hard-flagged — bin written, no failure row', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        await validatePendingPredictions(validateClient({ pending: [lowFlowRow()], captures }), warmLowUsgs, 22);
+        assert.equal(failRows(captures).length, 0, 'no validation_failure row');
+        assert.ok(binUpserts(captures).length >= 1, 'correction bin written');
+    });
+
+    it('v37.21: same reading in 1 C water IS hard-flagged; failure row carries temp, basis, gate version', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        await validatePendingPredictions(validateClient({ pending: [lowFlowRow()], captures }), warmLowUsgs, 1);
+        const rows = failRows(captures);
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].data.waterTempC, 1);
+        assert.equal(rows[0].data.iceBasis, 'temp');
+        assert.equal(rows[0].data.gateVersion, 'v37.21');
+        assert.ok(rows[0].data.anomalyFlags.some(x => x.startsWith('LOW_FLOW_HIGH_STAGE') && x.includes('T=1.0C')), rows[0].data.anomalyFlags.join('|'));
+        assert.equal(binUpserts(captures).length, 0, 'hard flag skips learning');
+    });
+
+    it('v37.21: unknown temperature in July (pinned clock) is NOT hard-flagged', async (t) => {
+        t.mock.timers.enable({ apis: ['Date'] });
+        t.mock.timers.setTime(Date.UTC(2026, 6, 15, 12, 0, 0));
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        await validatePendingPredictions(validateClient({ pending: [lowFlowRow()], captures }), warmLowUsgs, null);
+        assert.equal(failRows(captures).length, 0);
+        assert.ok(binUpserts(captures).length >= 1);
+        t.mock.timers.reset();
+    });
+
+    it('v37.21: unknown temperature in January (pinned clock) IS hard-flagged with iceBasis month', async (t) => {
+        t.mock.timers.enable({ apis: ['Date'] });
+        t.mock.timers.setTime(Date.UTC(2027, 0, 15, 12, 0, 0));
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        await validatePendingPredictions(validateClient({ pending: [lowFlowRow()], captures }), warmLowUsgs, null);
+        const rows = failRows(captures);
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].data.iceBasis, 'month');
+        assert.equal(rows[0].data.waterTempC, null);
+        assert.ok(rows[0].data.anomalyFlags.some(x => x.includes('T=unknown(month)')));
+        t.mock.timers.reset();
+    });
+
     it('#18: a failing validation_failure insert is NON-FATAL — validation still completes + accounts', async () => {
         const captures = { upserts: [], inserts: [], deletes: [] };
         const row = pendingRow({ predictedCFS: 5000, flowBin: '1000-3000', flowState: 'steady' });
         const client = validateClient({ pending: [row], captures, failInsertType: 'validation_failure' });
-        const result = await validatePendingPredictions(client, hardUsgs);   // must NOT throw
+        const result = await validatePendingPredictions(client, hardUsgs, 1);   // must NOT throw
         assert.equal(result.validated, 1);
         assert.equal(failRows(captures).length, 1, 'the (failing) insert was still attempted');
         assert.ok(metaUpsert(captures), 'metadata upsert still runs after a logging failure');
@@ -1231,7 +1282,7 @@ describe('validatePendingPredictions', () => {
         const captures = { upserts: [], inserts: [], deletes: [] };
         const row = pendingRow({ predictedCFS: 5000, flowBin: '1000-3000', flowState: 'steady' });
         const client = validateClient({ pending: [row], captures, errorInsertType: 'validation_failure' });
-        const result = await validatePendingPredictions(client, hardUsgs);   // {error} return → logged, not thrown
+        const result = await validatePendingPredictions(client, hardUsgs, 1);   // {error} return → logged, not thrown
         assert.equal(result.validated, 1);
         assert.ok(metaUpsert(captures), 'metadata upsert still runs when the insert returns {error}');
     });
@@ -1262,7 +1313,7 @@ describe('validatePendingPredictions', () => {
     it('v37.15: a hard-flagged validation ALSO returns its pair, with hardFlagged=true', async () => {
         const captures = { upserts: [], inserts: [], deletes: [] };
         const row = pendingRow({ predictedCFS: 5000, flowBin: '1000-3000', flowState: 'steady' });
-        const result = await validatePendingPredictions(validateClient({ pending: [row], captures }), hardUsgs);
+        const result = await validatePendingPredictions(validateClient({ pending: [row], captures }), hardUsgs, 1);
         assert.equal(result.pairs.length, 1);
         assert.equal(result.pairs[0].hardFlagged, true);
         // (5000 − 1200)/1200 × 100 ≈ +316.7 — corrupt-LOW LF yields a large POSITIVE errPct (plan F4)
@@ -1289,7 +1340,7 @@ describe('validatePendingPredictions', () => {
     it('v37.15: validation_failure rows carry the lfResidual stamps too', async () => {
         const captures = { upserts: [], inserts: [], deletes: [] };
         const row = pendingRow({ predictedCFS: 5000, flowBin: '1000-3000', flowState: 'steady', lfResidualActive: false, lfResidualLastErrPct: -3 });
-        await validatePendingPredictions(validateClient({ pending: [row], captures }), hardUsgs);
+        await validatePendingPredictions(validateClient({ pending: [row], captures }), hardUsgs, 1);
         const f = failRows(captures)[0];
         assert.equal(f.data.lfResidualActive, false);
         assert.equal(f.data.lfResidualLastErrPct, -3);

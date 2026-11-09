@@ -1,3 +1,6 @@
+// NOTE (v37.21): this file's local copy of the anomaly checks replays the PRE-v37.21 gate (Check 3 has
+// no temperature gate here). Rewire to the shared isIcePlausible helper (netlify/functions/shared/model.js)
+// before the next backtest.
 // Flow-state floor A/B gate (analysis only; NOT shipped; NO production source edited).
 //
 // PURPOSE

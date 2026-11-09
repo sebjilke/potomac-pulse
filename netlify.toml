@@ -12,7 +12,7 @@
   command = "npm install && npm test && npm run build"
 
 [functions]
-  # Use Node.js 18 for serverless functions
+  # Node runtime for serverless functions (deployed: nodejs22.x)
   node_bundler = "esbuild"
 
 # Headers for security

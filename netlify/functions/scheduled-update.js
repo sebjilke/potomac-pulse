@@ -18,7 +18,8 @@ const {
     TRIB_FALLBACK,
     estimateLFStage,
     applyGFCorrection, buildCorrectionBins, updateCorrectionBin,
-    VALIDATION_MAX_DELAY_MS, isExistingPredictionReplaceable
+    VALIDATION_MAX_DELAY_MS, isExistingPredictionReplaceable,
+    isIcePlausible
 } = require('./shared/model');
 
 const {
@@ -1097,10 +1098,13 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 }
             }
 
-            // Check 3: Low flow + high stage → HARD (classic ice signature)
-            if (actualCFS < 1500 && actualStage > 2.45) {
+            // Check 3: Low flow + high stage → HARD (classic ice signature — only when ice is
+            // physically plausible (v37.21)). Thresholds unchanged; see isIcePlausible.
+            const ice = isIcePlausible(waterTempC, now.getTime());
+            if (actualCFS < 1500 && actualStage > 2.45 && ice.plausible) {
                 hardScore += 2;
-                anomalyFlags.push(`LOW_FLOW_HIGH_STAGE:${Math.round(actualCFS)}cfs@${actualStage}ft`);
+                const tempTag = ice.basis === 'temp' ? `T=${waterTempC.toFixed(1)}C` : 'T=unknown(month)';
+                anomalyFlags.push(`LOW_FLOW_HIGH_STAGE:${Math.round(actualCFS)}cfs@${actualStage}ft,${tempTag}`);
             }
 
             // Check 4: Large prediction error → SOFT (model error, not data corruption)
@@ -1224,6 +1228,12 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                             // v37.15: LF-residual advisory state at prediction time.
                             lfResidualActive: pred.data.lfResidualActive ?? null,
                             lfResidualLastErrPct: pred.data.lfResidualLastErrPct ?? null,
+                            // v37.21: Check 3 gate provenance (rows before/after are not comparable).
+                            waterTempC: Number.isFinite(waterTempC) ? waterTempC : null,
+                            // Provenance on EVERY hard-flag row (also Check 2 / Check 5 rows) — iceBasis
+                            // does NOT mean Check 3 fired; read anomalyFlags for that.
+                            iceBasis: ice.basis,
+                            gateVersion: 'v37.21',
                         }
                     );
                     if (failErr) console.error(`❌ validation_failure log FAILED for ${pred.id}:`, failErr.message);

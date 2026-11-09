@@ -4,7 +4,7 @@
 Session state is in `.claude/HANDOFF.md`; methodology provenance for shipped versions is the
 small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, prioritize, go.
 
-*Last updated: 2026-09-02 (current version: v37.20). Verified against live DB + git history, not memory.*
+*Last updated: 2026-11-09 (current version: v37.21). Verified against live DB + git history, not memory.*
 
 ---
 
@@ -14,7 +14,7 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 - Effort is a rough order-of-magnitude.
 - 🔒 = needs a decision from you before work starts · 📅 = date-gated · 🔍 = verify-only.
 - Anything touching the estimate must keep the characterization/golden tests green and the
-  client↔server parity tests green (`npm test` = **757**), or deliberately re-baseline + version-bump.
+  client↔server parity tests green (`npm test` = **798**), or deliberately re-baseline + version-bump.
 - **Pushing auto-deploys from `main`** through the Netlify gate (`npm install && npm test && npm run build`);
   a red suite blocks deploy. Pushing needs explicit approval each time.
 
@@ -153,9 +153,22 @@ Recorded so a future session does not re-litigate it: the 3k/6k/12k smoothing pr
 
 ---
 
+## 🔴 Open — anomaly-gate follow-ups (2026-11-09)
+
+*From `analysis/anomaly-gate-rework-plan-2026-11-09.md` and its plan audit. v37.21 shipped the Check 3 ice gate only.*
+
+1. 🔒 **Check 5 (`STATISTICAL_OUTLIER`) rework ON HOLD pending your decision** — see "Open decision for v37.22" in `analysis/anomaly-gate-rework-plan-2026-11-09.md` (options A always-soft, B hard only on surprise relative to flow, C leave as is with EMA centre). Not implemented.
+2. Recalibrate Check 3's 2.45 ft threshold against the rating relation using winter data (2.45 ft is ~500 cfs; in cold water every sub-1,500 cfs validation still flags).
+3. The water-temperature reading has no age check (it is the latest value in P1D), so a stale temperature can decide Check 3.
+4. Rewire `analysis/ci_backtest_harness.mjs`, `c45_gate.mjs` and `flow_state_floor_gate.mjs` to the shared `isIcePlausible` helper before the next backtest (they replay the pre-v37.21 gate; header notes added).
+5. Dead client copy of Check 5: `isGFOutlier` in `src/estimation/great-falls.js` and `GF_OUTLIER_THRESHOLD` in `src/model/constants.js`.
+6. The validation-failures GET endpoint caps at 50 rows and the table now holds 54.
+
+---
+
 ## 📅 Date-gated / watch
 
-- 🔴 **`scheduled-update` HAS NOT RUN SINCE 2026-09-02T13:00:32Z — open, undiagnosed.** Schedule is hourly (`netlify.toml:36`). By 2026-09-03T02:52Z that was **~14 hours / 13 missed ticks**; `consecutiveRuns` fell 4 → 1. **The app is not learning** — no validations, no bin updates, no advisory refresh — and this is invisible from the front end, which is why it went unnoticed until a routine DB query. **Ruled out (evidence, 2026-09-02/03):** *not the deploys* — it stopped at 14:00Z and the day's first deploy was 14:59Z; *not USGS* — both exact URLs the cron calls return HTTP 200 in ~1.2s and ~0.09s and parse clean (13 timeSeries); *not env* — `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `ADMIN_PIN` all set in Netlify; *not registration* — the Netlify API lists `scheduled-update` with schedule `0 */1 * * *`; *not a bad build* — the last three deploys are all `state=ready`; *not the handler's opening path* — read end-to-end, nothing throws before the first write. **Leading hypothesis (NOT established): runtime failure inside the function.** `POST /api/v1/sites/{site}/functions/scheduled-update/invoke` returns **202 "triggered successfully"** and no DB write follows — but that only implicates the runtime IF the invoke endpoint truly executes the function, which is unconfirmed; it may accept and drop. **Next step: read the `scheduled-update` function logs in the Netlify dashboard** (Functions → scheduled-update → Logs). API v1 has no logs endpoint — `functions/<name>/logs`, `functions/<name>` and `logs` all 404 — and the Netlify CLI is not installed locally. Alternative: run the handler locally against the real backend with `node --env-file=.env /private/tmp/.../runcron.js` (needs a local `.env` with `SUPABASE_URL` + `SUPABASE_SERVICE_KEY`; `.env` is gitignored, and **delete it afterwards**). **Blocks production verification of v37.19/v37.20** — `legacyStageObs`, `stageObsClean` and `binReadFailures` were all still null, so those code paths have never executed in production despite being deployed and mutation-proven locally.
+- ✅ **`scheduled-update` outage — RESOLVED:** the cron resumed on its own by 2026-09-03T21:00Z (first post-outage write `legacyStageFrozenAt`). Root cause was never diagnosed. As of 2026-11-09: 454 consecutive runs and 656 lifetime missed ticks. There is still no stall alerting because `HEALTHCHECKS_PING_URL` is unset.
 
 | Item | When | Notes |
 |------|------|-------|
@@ -165,6 +178,7 @@ Recorded so a future session does not re-litigate it: the 3k/6k/12k smoothing pr
 
 ## Recently completed (reference)
 
+- **v37.21** (2026-11-09) — Check 3 (`LOW_FLOW_HIGH_STAGE`) fires only when ice is plausible: water temp ≤ 5 °C, or Nov–Mar UTC when temp is unknown (MINOR, server-only). 15 warm-water validations had been hard-flagged 2026-09-16 → 10-10. Thresholds unchanged; production behaviour UNVERIFIED until LF < 1,500 cfs. 780→798 tests. Check 5 part on hold (above).
 - **v37.20** (2026-09-02) — CFS bin read stops discarding its error; unvetted observations are refused, not guessed (TODO #30 closed).
 - **v37.19** (2026-09-02) — Stage error stops averaging over hard-flagged observations; legacy frozen against a latched denominator; stage-bin read/write failures now suppress the clean series and register as faults (TODO #27 closed, #30 opened).
 - **v37.18** (2026-09-02) — Removed dead `resetLowFlowBins`; `resetGFLearning` keeps bin-write health; `errorStage` uses `Number.isFinite` (TODO #28, #29 closed).

@@ -143,6 +143,26 @@ const EF_DIVERGENCE = {
     minCFS: 500, maxCFS: 500000          // strict EF-estimate validity range
 };
 
+// --- Ice plausibility gate for anomaly Check 3 (v37.21) ---
+// UTC Nov–Mar proxy, same months as EF_DIVERGENCE.coldMonths. 5 °C: ice needs water near 0 °C,
+// and the temperature is measured at Point of Rocks, not Little Falls. Deliberately not
+// EF_MODEL.coldMaxTemp (10 °C, selects an EF rating) or EF_DIVERGENCE.coldLockC (10 °C, a different question).
+const ICE_CHECK = { maxTempC: 5, coldMonths: [10, 11, 0, 1, 2] };
+
+/**
+ * Whether ice is physically plausible at the gauge (gates anomaly Check 3, LOW_FLOW_HIGH_STAGE). Pure.
+ * Finite temperature decides on its own; otherwise falls back to the UTC month proxy.
+ * @param {number|null|undefined} waterTempC - Water temperature in Celsius, or a non-finite value if unknown.
+ * @param {number} nowMs - Current time in epoch ms (used for the month proxy only).
+ * @returns {{plausible: boolean, basis: 'temp'|'month'}} Plausibility and which input decided it.
+ */
+function isIcePlausible(waterTempC, nowMs) {
+    if (Number.isFinite(waterTempC)) {
+        return { plausible: waterTempC <= ICE_CHECK.maxTempC, basis: 'temp' };
+    }
+    return { plausible: ICE_CHECK.coldMonths.includes(new Date(nowMs).getUTCMonth()), basis: 'month' };
+}
+
 /**
  * Advances the EF divergence advisory state by one cron cycle (pure; caller persists).
  * Fail-closed: any missing/invalid input this cycle contributes no sample, and activation
@@ -820,6 +840,7 @@ module.exports = {
     EF_MODEL,
     getEFWeight, getFlowMultiplier, getFlowState,
     EF_DIVERGENCE, updateEfDivergenceState,
+    ICE_CHECK, isIcePlausible,
     LF_RESIDUAL, updateLfResidualState,
     getPoRtoGFTravelTime, getGFtoLFTravelTime,
     medianCfs, selectHistoricReading,
