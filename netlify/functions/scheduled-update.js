@@ -23,7 +23,7 @@ const {
 } = require('./shared/model');
 
 const {
-    getObs, getObsRows,
+    getObs, getObsRaw, getObsRows,
     upsertObs, insertObs, deleteObs, deleteObsById
 } = require('./shared/observations');
 
@@ -175,10 +175,11 @@ async function fetchWithTimeout(url, timeoutMs = 5000) {
 
 /**
  * Fetches the latest Point of Rocks water temperature (USGS param 00010) for cold-water EF model selection.
+ * @param {{t?: number}|null} [out=null] - v39.2 (A3): optional out-parameter; `out.t` is set to the reading's time (epoch ms) when a valid reading is returned. The return value is unchanged.
  * @returns {Promise<number|null>} Latest water temperature in Celsius when within the sane range [-5, 40]; otherwise null (also null on fetch/parse failure or missing data).
  */
 // Fetch water temperature from Point of Rocks for EF model cold adjustment
-async function fetchWaterTemp() {
+async function fetchWaterTemp(out = null) {
     const url = 'https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00010&period=P1D&format=json';
     try {
         const response = await fetchWithTimeout(url, 5000);
@@ -192,6 +193,12 @@ async function fetchWaterTemp() {
         const tempC = parseFloat(latest.value);
 
         if (tempC >= -5 && tempC <= 40) {
+            // v39.2 (A3): optional out-parameter carries the reading time for the audit log. The
+            // return value is unchanged; with out = null nothing here runs.
+            if (out) {
+                const tMs = new Date(latest.dateTime).getTime();
+                if (Number.isFinite(tMs)) out.t = tMs;
+            }
             console.log(`🌡️ Water temp: ${tempC.toFixed(1)}°C — using ${tempC <= EF_MODEL.coldMaxTemp ? 'COLD' : 'default'} EF model`);
             return tempC;
         }
@@ -266,7 +273,13 @@ async function fetchUSGSData() {
                 }
 
                 if (val > 0 && val < 9999999) {
-                    if (param === '00060') data[siteId].q = val;
+                    if (param === '00060') {
+                        data[siteId].q = val;
+                        // v39.2 (A3): discharge-reading time (epoch ms), the twin of hTime, so the
+                        // audit log can state how old every input was. Additive; nothing reads it
+                        // except the log builders.
+                        data[siteId].qTime = new Date(latest.dateTime).getTime();
+                    }
                     if (param === '00065') {
                         data[siteId].h = val;
                         // v37.13: stage-reading age feeds the EF divergence advisory's strict
@@ -400,7 +413,7 @@ async function storeGFHistory(client, prediction) {
  * @param {string} flowState - Flow state ('rising'/'falling'/'steady') for the prediction.
  * @param {{efDivergence?: (number|null), divergenceActive?: (boolean|null), lfResidualActive?: (boolean|null), lfResidualLastErrPct?: (number|null)}} [divergence={}] - Prediction-time advisory states (v37.13 EF divergence, v37.15 LF residual; null-safe for legacy rows).
  * @param {number|null} [outlierZ=null] - v39.0: z-score of a soft statistical outlier; stamped as `outlierZ` (one decimal) only when finite.
- * @returns {Promise<void>}
+ * @returns {Promise<'written'|'deduped'|'error'>} v39.2 (A3): what happened, for the audit log only (`deduped` = the 30-min guard skipped it, `error` = the upsert failed). Callers outside the log ignore it.
  */
 async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent, flowBin, flowState, divergence = {}, outlierZ = null) {
     const now = Date.now();
@@ -429,7 +442,7 @@ async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent
         const lastEntry = existingReadings[existingReadings.length - 1];
         if (now - lastEntry.timestamp < 30 * 60 * 1000) {
             console.log(`📊 Validation history: skipped — last entry is ${((now - lastEntry.timestamp) / 60000).toFixed(0)}min old`);
-            return;
+            return 'deduped';
         }
     }
 
@@ -444,10 +457,11 @@ async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent
 
     if (valHistErr) {
         console.error('❌ Validation history upsert FAILED:', valHistErr.message, valHistErr.code, valHistErr.details);
-        return;
+        return 'error';
     }
 
     console.log(`📊 Validation history: stored ${Math.round(predictedCFS)} vs ${Math.round(actualCFS)} cfs (${errorPercent.toFixed(1)}%), ${trimmedReadings.length} entries in 7d window`);
+    return 'written';
 }
 
 /**
@@ -761,12 +775,13 @@ async function loadCorrectionBins(client) {
  * @param {Array<{timestamp: number, cfs: number}>} porHistory - PoR reading history for time-shifting and rise-rate.
  * @param {number|null} [waterTempC=null] - Water temperature in Celsius for cold-water EF model selection (<= coldMaxTemp uses the cold coefficients).
  * @param {Object} [correctionBins={}] - The 18 EMA correction bins; the learned correction is END-APPLIED (v36.0) via applyGFCorrection.
+ * @param {Object|null} [trace=null] - v39.2 (A3): optional WRITE-ONLY out-parameter for the audit log. Filled with primitives copied from locals that already exist; never read by this function, and the return value is identical with or without it. Fields: monoFlow gooseFlow brFlow senFlow fbMono fbGoose fbBr fbSen rate rst t0 t it stop mult nohist gf2lf histTs histCfs histAgo preCfs preShifted pct decay ratio deltaOn porEst efDisc efSkip rawUnc corr unc ceilLim ceilBound.
  * @returns {Object|null} Prediction record with predictedCFS/predictedStage (corrected, displayed), rawFinalCFS/rawFinalStage (uncorrected learning target), correctionApplied, flowBin, flowState, travelTimeGFtoLF, validationDue, EF fields (efStage/efEstimateCFS/efModelType/efWeight), waterTempC, useTimeShifted, useEfEnsemble, ceilingApplied, and lfCFS. Returns null when LF or PoR data is missing.
  */
 // Make GF prediction
 // waterTempC: water temperature in Celsius for cold-water EF model adjustment
 // correctionBins: the 18 EMA bins; the learned correction is END-APPLIED (v36.0) — see applyGFCorrection
-function makeGFPrediction(usgsData, porHistory, waterTempC = null, correctionBins = {}) {
+function makeGFPrediction(usgsData, porHistory, waterTempC = null, correctionBins = {}, trace = null) {
     const { data, gauges } = usgsData;
 
     const lf = data[gauges.lf];
@@ -790,23 +805,51 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null, correctionBin
     let mult = getFlowMultiplier(lf.q);   // scalar (server returns a number); lf.q guaranteed by the !lf?.q guard above
     let travelPoRtoGF = getPoRtoGFTravelTime(mult, porRiseRate);
     let historicPoR = null;
+    // v39.2 (A3): audit-only locals. `stop` says which exit ended the loop, `passes` how many bodies
+    // ran, `travelPoRtoGF0` the first travel time. None is read by model code.
+    const travelPoRtoGF0 = travelPoRtoGF;
+    let stop = 'max_iter';
+    let passes = 0;
     for (let iteration = 0; iteration < 3; iteration++) {
+        passes = iteration + 1;
         const tryHistoric = getPoRFromHistory(porHistory, travelPoRtoGF);
-        if (!tryHistoric) break;
+        if (!tryHistoric) { stop = historicPoR ? 'hist_lost' : 'no_hist'; break; }
         historicPoR = tryHistoric;
         const historicMult = getFlowMultiplier(historicPoR.cfs);   // bare scalar — NO .mult (server getFlowMultiplier returns a number)
         const newTravelTime = getPoRtoGFTravelTime(historicMult, porRiseRate);
-        if (Math.abs(newTravelTime - travelPoRtoGF) < 1.0) break;  // converged: keep current historicPoR / travel / mult
+        if (Math.abs(newTravelTime - travelPoRtoGF) < 1.0) { stop = 'converged'; break; }  // converged: keep current historicPoR / travel / mult
         travelPoRtoGF = newTravelTime;
         mult = historicMult;
     }
     const travelGFtoLF = getGFtoLFTravelTime(mult, porRiseRate);
+    if (trace) {
+        trace.rate = porRiseRate ? porRiseRate.ratePerHour : null;
+        trace.rst = porRiseRate ? porRiseRate.flowState : null;
+        trace.t0 = travelPoRtoGF0;
+        trace.t = travelPoRtoGF;
+        trace.it = passes;
+        trace.stop = stop;
+        trace.mult = mult;
+        trace.nohist = historicPoR === null;
+        trace.gf2lf = travelGFtoLF;
+        // The selected reading's time. getPoRFromHistory returns age, not the timestamp; reading
+        // times are minute-aligned, so rounding to the minute recovers it exactly.
+        trace.histTs = historicPoR ? Math.round((Date.now() - historicPoR.actualHoursAgo * 3600000) / 60000) * 60000 : null;
+        trace.histCfs = historicPoR ? historicPoR.cfs : null;
+        trace.histAgo = historicPoR ? historicPoR.actualHoursAgo : null;
+    }
 
     // Tributary contributions (real-time gauge data, with drainage-area fallbacks)
     const monocacyFlow = monocacy?.q || (lf.q * TRIB_FALLBACK.monocacy);
     const gooseFlow = goose?.q || (lf.q * TRIB_FALLBACK.goose);
     const broadRunFlow = broadRun?.q || (lf.q * TRIB_FALLBACK.broadRun);
     const senecaFlow = seneca?.q || (lf.q * TRIB_FALLBACK.seneca);
+    if (trace) {
+        trace.monoFlow = monocacyFlow; trace.gooseFlow = gooseFlow;
+        trace.brFlow = broadRunFlow; trace.senFlow = senecaFlow;
+        trace.fbMono = !monocacy?.q; trace.fbGoose = !goose?.q;
+        trace.fbBr = !broadRun?.q; trace.fbSen = !seneca?.q;
+    }
 
     let porEstimateCFS;
     let useTimeShifted = false;
@@ -814,25 +857,30 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null, correctionBin
     if (historicPoR) {
         porEstimateCFS = historicPoR.cfs + monocacyFlow + gooseFlow + broadRunFlow + senecaFlow;
         useTimeShifted = true;
+        if (trace) { trace.preCfs = porEstimateCFS; trace.preShifted = true; }
 
         // PoR-delta staleness correction: if PoR has changed significantly
         // since the time-shifted reading, scale the estimate proportionally.
         // Uses decay factor to account for wave travel (not all change has reached GF yet).
         const porChangeRatio = por.q / historicPoR.cfs;
         const porChangePct = (porChangeRatio - 1) * 100;
+        if (trace) { trace.pct = porChangePct; trace.deltaOn = Math.abs(porChangePct) > 5; }
 
         if (Math.abs(porChangePct) > 5) {
             const fractionElapsed = Math.min(1.0, (historicPoR.actualHoursAgo || 0) / Math.max(1, travelPoRtoGF));
             const decayFactor = Math.min(DECAY_CAP, Math.sqrt(fractionElapsed));  // v28.0: lowered from 0.75
             const appliedRatio = 1 + (porChangeRatio - 1) * decayFactor;
             const rawEstimate = porEstimateCFS;
+            if (trace) { trace.decay = decayFactor; trace.ratio = appliedRatio; }
             porEstimateCFS = Math.round(porEstimateCFS * appliedRatio);
             console.log(`📊 PoR-delta correction: ${porChangePct > 0 ? '+' : ''}${porChangePct.toFixed(1)}%. ` +
                 `Decay: ${(decayFactor*100).toFixed(0)}%. Estimate: ${rawEstimate} → ${porEstimateCFS} cfs`);
         }
     } else {
         porEstimateCFS = por.q + monocacyFlow + gooseFlow + broadRunFlow + senecaFlow;
+        if (trace) { trace.preCfs = porEstimateCFS; trace.preShifted = false; }
     }
+    if (trace) trace.porEst = porEstimateCFS;
 
     // Edwards Ferry power-law estimate with cold-water adjustment
     // Cold water (≤10°C): 160 × EF^2.36
@@ -867,6 +915,7 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null, correctionBin
 
         // Discrepancy guard: >50% difference likely means ice/backwater/malfunction
         const discrepancy = Math.abs(efEstimateCFS - porEstimateCFS) / porEstimateCFS;
+        if (trace) { trace.efDisc = discrepancy; trace.efSkip = discrepancy > 0.50; }
         if (discrepancy > 0.50) {
             console.log(`⚠️ Skipping EF: ${Math.round(discrepancy*100)}% discrepancy`);
             estimatedCFS = porEstimateCFS;
@@ -886,9 +935,16 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null, correctionBin
     // (the ceiling never censors it), and the correction bin is taken off it, so the bin the
     // correction is APPLIED from is the same bin the EMA LEARNS into.
     const rawFinalUnclipped = estimatedCFS;
-    const { flowBin, correction, correctedFinal, ceilingApplied } = applyGFCorrection({
+    const { flowBin, correction, correctedFinalUnclipped, correctedFinal, ceilingApplied } = applyGFCorrection({
         rawFinalUnclipped, lfCFS: lf.q, correctionBins, flowState
     });
+    if (trace) {
+        trace.rawUnc = rawFinalUnclipped;
+        trace.corr = correction;
+        trace.unc = correctedFinalUnclipped;
+        trace.ceilLim = lf.q * CEILING_RATIO;
+        trace.ceilBound = ceilingApplied;
+    }
     if (correction !== 0) {
         console.log(`🎯 EMA correction (${flowBin}/${flowState}): raw ${Math.round(rawFinalUnclipped)} − ${Math.round(correction)} = ${Math.round(correctedFinal)} cfs${ceilingApplied ? ' (ceiling)' : ''}`);
     } else if (ceilingApplied) {
@@ -928,11 +984,12 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null, correctionBin
  * @param {Object} client - Supabase client.
  * @param {{data: Object, gauges: Object}} usgsData - Parsed USGS data/gauge map; requires LF discharge within [500, 500000] cfs or validation is skipped.
  * @param {number|null|undefined} waterTempC - Current water temperature (Celsius) for cold-water EF model selection in the EF cross-check.
+ * @param {{budget: LogBudget, defer?: boolean, queue?: Array}|null} [logCtx=null] - v39.2 (A3): when set, one `validation_log` row is recorded per terminal fate of a pending row (non-fatal, time-bounded, never read by learning); with `defer` the rows are queued and written after the success ping. Null (the default) records nothing.
  * @returns {Promise<{validated: number, cleaned: number}>} Counts of predictions validated and stale/invalid rows cleaned (returns 0 when there is no LF data, LF is out of range, or there are no pending rows).
  */
 // Check and validate pending predictions
 // waterTempC: current water temperature (°C) for cold-water EF model selection in anomaly check
-async function validatePendingPredictions(client, usgsData, waterTempC) {
+async function validatePendingPredictions(client, usgsData, waterTempC, logCtx = null) {
     const { data, gauges } = usgsData;
     const lf = data[gauges.lf];
     const seneca = data[gauges.seneca];
@@ -991,6 +1048,9 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             if (staleErr) {
                 console.error(`❌ Stale cleanup FAILED for ${pred.id}:`, staleErr.message, staleErr.code, staleErr.details);
             }
+            await logValidationFate(client, logCtx, 'stale_deleted', pred, Date.now(), () => ({
+                ageH: isNaN(ageMs) ? null : ageMs / 3600000, delFailed: !!staleErr
+            }));
             cleaned++;
             continue;
         }
@@ -1005,6 +1065,9 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             if (badDueErr) {
                 console.error(`❌ Invalid-date cleanup FAILED for ${pred.id}:`, badDueErr.message, badDueErr.code, badDueErr.details);
             }
+            await logValidationFate(client, logCtx, 'bad_due_deleted', pred, Date.now(), () => ({
+                ageH: ageMs / 3600000, delFailed: !!badDueErr
+            }));
             cleaned++;
             continue;
         }
@@ -1129,12 +1192,20 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 .select('id');
             if (claimErr) {
                 console.error(`❌ Prediction CLAIM failed for ${pred.id}:`, claimErr.message, claimErr.code, claimErr.details);
+                await logValidationFate(client, logCtx, 'claim_failed', pred, Date.now(), () => ({
+                    delayMin: delayMinutes, claimErr: logMsg(claimErr.message || claimErr.code || '', 120)
+                }));
                 continue;
             }
             if (!claimed || claimed.length === 0) {
                 console.log(`↩️ Prediction ${pred.id} already claimed by another run — skipping`);
+                await logValidationFate(client, logCtx, 'claim_lost', pred, Date.now(), () => ({ delayMin: delayMinutes }));
                 continue;
             }
+
+            // v39.2 (A3, FM-1): write-only marker. If anything below throws, the handler's catch queues a
+            // 'claimed_then_threw' fate for this row. Never read by learning.
+            if (logCtx) logCtx.inflight = { pred, delayMin: delayMinutes };
 
             // Update correction bin
             const binKey = `${flowBin}_${flowState}`;
@@ -1254,6 +1325,13 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
 
             // Track bin write outcome for health counters (set inside learning block)
             let binWriteFailed = false;
+            // v39.2 (A3): audit-log captures. Written by the learning block below, read only by the
+            // validation_log row at the end of the iteration. They copy plain numbers and never feed
+            // back into learning.
+            const binCap = { before: null, after: null };
+            const stageCap = { key: null, before: null, after: null };
+            let lbCap = null;
+            let pairStatus = null;
             // v37.19 (review fix): a failed stage_* upsert used to be console.error'd and nothing else —
             // it incremented no counter, so the "stageObsClean == sum of stage bins" invariant could
             // silently break and the diagnostics panel would never show it. Holding the failing key
@@ -1272,6 +1350,7 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 // (no drift). v39.0: the soft clamp and the EMA recurrence now use PRE-observation
                 // statistics (see updateCorrectionBin); accumulation is unchanged. Hard-flagged obs
                 // are filtered above and never reach here.
+                binCap.before = binStatsOf(binData);   // A3: copied BEFORE the in-place mutation
                 const binUpdate = updateCorrectionBin(binData, errorCFS, isSoftFlagged);
                 const { learningError, clamped, maxDelta } = binUpdate;
                 if (isSoftOutlier) softOutlierUpdate = binUpdate;
@@ -1288,6 +1367,7 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                     console.error(`❌ Bin upsert FAILED for ${binKey}:`, binErr.message, binErr.code, binErr.details);
                     binWriteFailed = true;
                 }
+                binCap.after = binWriteFailed ? null : { ...binData };   // A3: the bin as written
 
                 // Also update stage error statistics for rating curve analysis
                 if (errorStage !== null) {
@@ -1320,6 +1400,9 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                             ? Math.sqrt(Math.max(0, (stageBinData.sumErrorSq / stageBinData.count) - (stageBinData.meanError * stageBinData.meanError)))
                             : null
                     };
+
+                    stageCap.key = stageBinKey;                     // A3
+                    stageCap.before = binStatsOf(stageBinData);     // A3: before the increment below
 
                     stageBinData.count += 1;
                     stageBinData.sumError += errorStage;
@@ -1362,6 +1445,7 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                         console.error(`❌ Stage bin upsert FAILED for ${stageBinKey}:`, stageBinErr.message, stageBinErr.code, stageBinErr.details);
                         stageBinWriteFailedKey = stageBinKey;
                     }
+                    stageCap.after = stageBinWriteFailedKey ? null : { ...stageBinData };   // A3: the stage bin as written
 
                     console.log(`📈 Stage bin ${stageBinKey}: n=${stageBinData.count}, mean=${stageBinData.meanError.toFixed(3)}ft, stdDev=${stageBinData.stdDev}ft`);
                 }
@@ -1672,7 +1756,7 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
 
             if (!isHardFlagged) {
                 // Validation pair records the CORRECTED (displayed) estimate vs actual.
-                await storeValidationPair(client, correctedCFS, actualCFS, errorPercentCorrected, flowBin, flowState,
+                pairStatus = await storeValidationPair(client, correctedCFS, actualCFS, errorPercentCorrected, flowBin, flowState,
                     {
                         efDivergence: pred.data.efDivergence ?? null,
                         divergenceActive: pred.data.divergenceActive ?? null,
@@ -1723,6 +1807,8 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                         }, { onConflict: 'observation_type,gauge_id' });
                         if (lbErr) {
                             console.error(`❌ Shadow leaderboard upsert FAILED:`, lbErr.message, lbErr.code, lbErr.details);
+                        } else if (logCtx) {
+                            try { lbCap = JSON.parse(JSON.stringify(updatedLB)); } catch (_) { lbCap = null; }   // A3: copy; scoreShadowPredictions mutates in place
                         }
                         console.log(`🏇 Shadow leaderboard updated: round ${updatedLB.totalRounds}, winner=${updatedLB.lastWinner}`);
                     }
@@ -1732,6 +1818,30 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             }
 
             console.log(`✅ Validated prediction: corrected=${correctedCFS} (raw=${rawCFS}), actual=${Math.round(actualCFS)}, error=${errorPercentCorrected.toFixed(1)}% (raw ${errorPercentRaw.toFixed(1)}%)`);
+            // v39.2 (A3): the validation_log row for this claimed fate. After every learning write, so
+            // binAfter / pairStored / lb are known; non-fatal and time-bounded; learning is already done.
+            await logValidationFate(client, logCtx,
+                isHardFlagged ? 'hard_flagged' : (binReadFailed ? 'bin_read_failed' : 'validated'),
+                pred, Date.now(), () => ({
+                    delayMin: delayMinutes, actualCFS, lfAtPred: pred.data.lfCFS, corrApplied: pred.data.correctionApplied,
+                    errRawCFS: errorCFS, errPctRaw: errorPercentRaw, errPctCorr: errorPercentCorrected,
+                    actualT: lf.qTime, actualStageT: lf.hTime,
+                    rawStage: predictedStage, predStage: pred.data.predictedStage, actualStage, errStage: errorStage,
+                    bin: flowBin, st: flowState,
+                    hard: isHardFlagged, soft: isSoftFlagged, hardScore, softScore, flags: anomalyFlags,
+                    z: isOutlier ? zScore : null,
+                    learned: !isHardFlagged && !binReadFailed, binReadFailed, binWriteFailed, stageBinWriteFailedKey,
+                    accuracyCounted: !isHardFlagged && !binReadFailed,
+                    binBefore: binCap.before, binAfter: binCap.after,
+                    stage: { key: stageCap.key, before: stageCap.before, after: stageCap.after },
+                    lb: lbCap,
+                    ceilBound: pred.data.ceilingApplied ?? null,
+                    efDiv: pred.data.efDivergence ?? null, divActive: pred.data.divergenceActive ?? null,
+                    lfResActive: pred.data.lfResidualActive ?? null, lfResErr: pred.data.lfResidualLastErrPct ?? null,
+                    tC: waterTempC,
+                    pairStored: isHardFlagged ? null : pairStatus
+                }));
+            if (logCtx) logCtx.inflight = null;   // A3: the fate row above covers this pending row
             pairs.push({ at: Date.now(), errPct: errorPercentCorrected, hardFlagged: isHardFlagged });
             validated++;
         }
@@ -1748,10 +1858,11 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
  * Stores a new pending GF prediction, but only if no existing pending row is still within its validation window (replaces a missed-window/invalid-date row first, per isExistingPredictionReplaceable). Increments totalPredictions on success.
  * @param {Object} client - Supabase client.
  * @param {Object} prediction - Prediction record (as returned by makeGFPrediction) to insert under gauge_id 'pending'.
- * @returns {Promise<void>}
+ * @param {{budget: LogBudget}|null} [logCtx=null] - v39.2 (A3): when set, replacing a missed-window row writes a `validation_log` row (`replaced_missed_window`). Null writes nothing.
+ * @returns {Promise<'stored'|'skipped_in_window'|'replaced'|'insert_failed'>} v39.2 (A3): the slot outcome, for the audit log only. Existing callers ignore it.
  */
 // Store new prediction
-async function storePrediction(client, prediction) {
+async function storePrediction(client, prediction, logCtx = null) {
     // Check if there's an existing pending prediction still within its validation window.
     // If so, skip storing a new one — overwriting it would prevent it from ever being validated.
     // NOTE: this read is intentionally NOT swapped to getObs(). The original branches on
@@ -1764,6 +1875,7 @@ async function storePrediction(client, prediction) {
         .eq('observation_type', 'gf_prediction')
         .eq('gauge_id', 'pending')
         .single();
+    let replacedExisting = false;
 
     if (existing) {
         // Replace the existing pending row only if it has missed its validation window,
@@ -1771,18 +1883,26 @@ async function storePrediction(client, prediction) {
         // Invalid Date is truthy, so the old guard left bad-date rows un-replaceable).
         if (!isExistingPredictionReplaceable(existing.data, Date.now())) {
             console.log(`⏳ Skipping new prediction — existing pending still in window (due: ${existing.data?.validationDue})`);
-            return;
+            return 'skipped_in_window';
         }
 
         console.log(`🗑️ Removing missed-window/invalid prediction (due: ${existing.data?.validationDue})`);
         await deleteObs(client, 'gf_prediction', { gaugeId: 'pending' });
+        replacedExisting = true;
     }
 
     const { error: insertErr } = await insertObs(client, 'gf_prediction', 'pending', prediction);
 
+    // v39.2 (A3): the replaced row left the slot without ever being scored. Record it AFTER the new
+    // insert attempt so the log write cannot widen the window in which the slot is empty.
+    if (replacedExisting) {
+        await logValidationFate(client, logCtx, 'replaced_missed_window',
+            { id: null, created_at: null, data: existing.data || {} }, Date.now(), () => ({}));
+    }
+
     if (insertErr) {
         console.error(`❌ Prediction INSERT FAILED:`, insertErr.message, insertErr.code, insertErr.details);
-        return; // Don't increment metadata for a prediction that wasn't stored
+        return 'insert_failed'; // Don't increment metadata for a prediction that wasn't stored
     }
 
     // Increment prediction count (health tracking moved to updateRunHealth)
@@ -1795,6 +1915,7 @@ async function storePrediction(client, prediction) {
     }
 
     console.log(`Stored prediction: ${prediction.predictedCFS} cfs, validation due: ${prediction.validationDue}`);
+    return replacedExisting ? 'replaced' : 'stored';
 }
 
 /**
@@ -2079,6 +2200,478 @@ async function updateLfResidualAdvisory(client, { runStartMs, pairs, lfCFS }) {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// v39.2 (A3): AUDIT LOGGING. Four append-only observation types in the existing table:
+//   tick_log        one row per cron run (including no-prediction and thrown runs)
+//   validation_log  one row per terminal fate of a pending prediction row
+//   bin_snapshot    a daily snapshot of every correction bin plus the shadow leaderboard
+//   log_health      one upserted counter row, written only when a log write fails
+// Everything here is OBSERVATION ONLY. It reads values the estimate and the learning already
+// computed, it runs after the writes it describes, every write is wrapped and time-bounded, and
+// nothing it returns is read by estimation or learning. See analysis/prediction-logging-plan-2026-11-10.md.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+
+// Hand-maintained. The `commit` field on every row is the safety net if this goes stale.
+const SERVER_VERSION = 'v39.2';
+const LOG_SCHEMA = 1;
+const OBS_TABLE = 'potomac_observations';
+// Retention in days, by type. Only these three types are ever pruned. log_health is never pruned.
+const LOG_RETENTION_DAYS = Object.freeze({ tick_log: 180, validation_log: 730, bin_snapshot: 730 });
+const LOG_POOL_MS = 3000;          // time budget per pool (general, tick)
+const LOG_WRITE_CAP_MS = 2000;     // longest one log call may hold the run
+const PRUNE_BATCH = 100;           // ids per delete (about 4 KB of URL)
+const PRUNE_FLOOR_DAYS = 30;       // a prune can never reach back less than this
+const SNAPSHOT_HOURS_UTC = [3, 4, 5];
+const LOG_FAIL_LIST_MAX = 10;
+
+// Rounds to `d` decimals; null for anything that is not a finite number.
+function logNum(x, d = 1) {
+    if (typeof x !== 'number' || !Number.isFinite(x)) return null;
+    const f = Math.pow(10, d);
+    return Math.round(x * f) / f;
+}
+// Epoch ms (integer) or null.
+function logEpoch(x) {
+    return (typeof x === 'number' && Number.isFinite(x)) ? Math.round(x) : null;
+}
+function logStr(x, max = 200) {
+    return x == null ? null : String(x).slice(0, max);
+}
+function logCommit() {
+    return process.env.COMMIT_REF || null;
+}
+// FM-6: error text with any URL (which may carry a key in its query string) replaced before storing.
+function logMsg(x, max = 100) {
+    return x == null ? null : logStr(String(x).replace(/https?:\/\/\S+/g, '<url>'), max);
+}
+function logClone(x) {
+    return x == null ? null : JSON.parse(JSON.stringify(x));
+}
+// {n, ema, sd} from a bin's stored stats; plain numbers only. Safe on a mutable bin (copies out).
+function binStatsOf(b) {
+    if (!b || typeof b !== 'object') return null;
+    const n = b.count;
+    let sd = null;
+    if (n > 0) {
+        const v = (b.sumErrorSq / n) - (b.meanError * b.meanError);
+        sd = Number.isFinite(v) ? Math.sqrt(Math.max(0, v)) : null;
+    }
+    return { n: logNum(n, 0), ema: logNum(b.emaMeanError ?? null, 3), sd: logNum(sd, 3) };
+}
+
+/**
+ * Time actually SPENT inside log calls, in two pools. `general` serves validation_log, bin_snapshot,
+ * prune and log_health. `tick` is reserved for the tick_log insert, so a hung validation write
+ * cannot stop the tick row from being attempted. Also collects this run's failures.
+ */
+class LogBudget {
+    constructor(generalMs = LOG_POOL_MS, tickMs = LOG_POOL_MS) {
+        this.left = { general: generalMs, tick: tickMs };
+        this.fails = [];           // {type, reason, predTs?} for every log call that did not land this run
+        this.pending = { errors: 0, timeouts: 0, skipped: 0, byType: {}, lastError: null };
+    }
+    remaining(pool) { return this.left[pool] ?? 0; }
+    spend(pool, ms) { if (pool in this.left) this.left[pool] -= Math.max(0, ms || 0); }
+    noteFailure(type, reason, extra = {}) {
+        if (extra && extra.msg != null) extra = { ...extra, msg: logMsg(extra.msg, 100) };
+        if (this.fails.length < 50) this.fails.push({ type, reason, ...extra });
+        if (reason === 'timeout') this.pending.timeouts++;
+        else if (reason === 'budget') this.pending.skipped++;
+        else this.pending.errors++;
+        this.pending.byType[type] = (this.pending.byType[type] || 0) + 1;
+        if (reason !== 'budget') this.pending.lastError = `${type}:${reason}${extra.msg ? ' ' + extra.msg : ''}`.slice(0, 200);
+    }
+    hasPending() { return this.pending.errors + this.pending.timeouts + this.pending.skipped > 0; }
+}
+
+// Runs fn() under a pool: refuses when the pool is spent, abandons the call after min(2000, left) ms,
+// charges the elapsed time to the pool. Never throws. {ok, value} or {ok:false, reason, error?}.
+async function timedLogCall(budget, pool, fn) {
+    const rem = budget.remaining(pool);
+    if (!(rem > 0)) return { ok: false, reason: 'budget' };
+    const cap = Math.min(LOG_WRITE_CAP_MS, rem);
+    const started = Date.now();
+    let timer;
+    try {
+        const work = (async () => fn())().then(v => ['ok', v], e => ['err', e]);
+        const timeout = new Promise(resolve => { timer = setTimeout(() => resolve(['timeout']), cap); });
+        const r = await Promise.race([work, timeout]);
+        if (r[0] === 'timeout') return { ok: false, reason: 'timeout' };
+        if (r[0] === 'err') return { ok: false, reason: 'error', error: r[1] };
+        return { ok: true, value: r[1] };
+    } catch (e) {
+        return { ok: false, reason: 'error', error: e };
+    } finally {
+        clearTimeout(timer);
+        budget.spend(pool, Date.now() - started);
+    }
+}
+
+/**
+ * Inserts one log row. NEVER throws and is time-bounded. Failures are recorded on the budget.
+ * @returns {Promise<{ok: boolean, reason: 'ok'|'dup'|'timeout'|'error'|'budget'|'no_client_method'}>}
+ */
+async function writeLogRow(client, type, gaugeId, data, budget, pool, meta = {}) {
+    try {
+        if (!client || typeof client.from !== 'function') {
+            budget.noteFailure(type, 'no_client_method', meta);
+            return { ok: false, reason: 'no_client_method' };
+        }
+        const r = await timedLogCall(budget, pool, () => insertObs(client, type, gaugeId, data));
+        if (!r.ok) {
+            budget.noteFailure(type, r.reason, { ...meta, msg: logStr(r.error?.message, 100) });
+            if (r.reason !== 'budget') console.warn(`⚠️ ${type} log write ${r.reason} (non-fatal)`, r.error?.message || '');
+            return { ok: false, reason: r.reason };
+        }
+        const err = r.value && r.value.error;
+        if (!err) return { ok: true, reason: 'ok' };
+        if (err.code === '23505') return { ok: true, reason: 'dup' };   // unique violation: the row is already there
+        budget.noteFailure(type, 'error', { ...meta, msg: logStr(err.message, 100) });
+        console.warn(`⚠️ ${type} log write error (non-fatal):`, err.message);
+        return { ok: false, reason: 'error' };
+    } catch (e) {
+        try { budget.noteFailure(type, 'error', { ...meta, msg: logStr(e?.message, 100) }); } catch (_) { /* never throws */ }
+        return { ok: false, reason: 'error' };
+    }
+}
+
+/**
+ * Adds this run's failure counts to the single `log_health/system` row. Draws from the general pool and
+ * is skipped (counters kept for a later try) when the pool is spent. Never throws.
+ */
+async function flushLogHealth(client, budget) {
+    try {
+        if (!budget.hasPending()) return { status: 'none' };
+        const read = await timedLogCall(budget, 'general', () => getObsRaw(client, 'log_health', 'system'));
+        if (!read.ok) return { status: 'skipped', reason: read.reason };
+        const { data: row, error: readErr } = read.value || {};
+        if (readErr && readErr.code !== 'PGRST116') return { status: 'skipped', reason: 'read_error' };
+        const prev = row?.data || {};
+        const p = budget.pending;
+        const byType = { ...(prev.byType || {}) };
+        for (const [k, v] of Object.entries(p.byType)) byType[k] = (byType[k] || 0) + v;
+        const next = {
+            errors: (prev.errors || 0) + p.errors,
+            timeouts: (prev.timeouts || 0) + p.timeouts,
+            skipped: (prev.skipped || 0) + p.skipped,
+            byType,
+            lastError: p.lastError ?? prev.lastError ?? null,
+            lastAt: new Date().toISOString()
+        };
+        const write = await timedLogCall(budget, 'general', () => upsertObs(client, 'log_health', 'system', next));
+        if (!write.ok) return { status: 'skipped', reason: write.reason };
+        if (write.value && write.value.error) return { status: 'skipped', reason: 'write_error' };
+        budget.pending = { errors: 0, timeouts: 0, skipped: 0, byType: {}, lastError: null };
+        return { status: 'written' };
+    } catch (e) {
+        return { status: 'skipped', reason: 'threw' };
+    }
+}
+
+/**
+ * Pure. Builds the tick_log record from the per-run context. Reads only; never writes to its inputs
+ * (usgsData, prediction, trace and fullHistory may be frozen). Model fields are null when no
+ * prediction was made.
+ * @param {Object} ctx - tickCtx (stage, usgsData, waterTempC, tempT, fullHistory, trace, prediction, slot, val, adv, ice, aux).
+ * @param {number} tickStartMs - Run start (epoch ms).
+ * @param {{out: string, why?: string|null, err?: any, ms?: number}} o
+ */
+function buildTickRecord(ctx, tickStartMs, o = {}) {
+    const c = ctx || {};
+    const usgs = c.usgsData && c.usgsData.data && c.usgsData.gauges ? c.usgsData : null;
+    const g = (name) => (usgs ? (usgs.data[usgs.gauges[name]] || null) : null);
+    const lf = g('lf'), por = g('por'), ef = g('ef');
+    const pred = c.prediction || null;
+    const m = pred && c.trace ? c.trace : null;
+    const fbOf = (flag, gd) => (typeof flag === 'boolean' ? flag : (usgs ? !gd?.q : null));
+    const trib = (gd, eff, flag) => ({ q: logNum(gd?.q), qT: logEpoch(gd?.qTime), eff: logNum(eff), fb: fbOf(flag, gd) });
+    const hist = Array.isArray(c.fullHistory) ? c.fullHistory : null;
+    const adv = c.adv || null;
+    const ice = c.ice || null;
+    const at = new Date(tickStartMs).toISOString();
+
+    return {
+        v: LOG_SCHEMA,
+        ver: SERVER_VERSION,
+        commit: logCommit(),
+        at,
+        out: o.out,
+        why: o.why ?? null,
+        err: o.err == null ? null : logMsg(o.err?.message ?? o.err, 200),
+        ms: logEpoch(o.ms),
+        in: {
+            lf: { q: logNum(lf?.q), qT: logEpoch(lf?.qTime), h: logNum(lf?.h, 2), hT: logEpoch(lf?.hTime) },
+            por: { q: logNum(por?.q), qT: logEpoch(por?.qTime), h: logNum(por?.h, 2), hT: logEpoch(por?.hTime) },
+            mono: trib(g('monocacy'), m?.monoFlow, m?.fbMono),
+            goose: trib(g('goose'), m?.gooseFlow, m?.fbGoose),
+            br: trib(g('broadRun'), m?.brFlow, m?.fbBr),
+            sen: trib(g('seneca'), m?.senFlow, m?.fbSen),
+            ef: { h: logNum(ef?.h, 2), hT: logEpoch(ef?.hTime) },
+            tC: logNum(c.waterTempC),
+            tT: logEpoch(c.tempT),
+            ice: ice ? { lf: !!ice.lf, por: !!ice.por, efMiss: !!ice.efMiss } : null,
+            porHist: hist ? {
+                n: hist.length,
+                firstT: logEpoch(hist[0]?.timestamp),
+                lastT: logEpoch(hist[hist.length - 1]?.timestamp)
+            } : null
+        },
+        rise: m ? { r: logNum(m.rate, 3), rst: m.rst ?? null } : null,
+        trv: m ? {
+            t0: logNum(m.t0, 2), t: logNum(m.t, 2), it: logEpoch(m.it), stop: m.stop ?? null,
+            mult: logNum(m.mult, 3), nohist: !!m.nohist, gf2lf: logNum(m.gf2lf, 2)
+        } : null,
+        hist: m && !m.nohist ? { cfs: logNum(m.histCfs), ago: logNum(m.histAgo, 2), ts: logEpoch(m.histTs) } : null,
+        pre: m ? { cfs: logNum(m.preCfs), shifted: m.preShifted ?? null } : null,
+        delta: m ? { pct: logNum(m.pct, 2), decay: logNum(m.decay, 3), ratio: logNum(m.ratio, 4), on: !!m.deltaOn } : null,
+        por: m ? { est: logNum(m.porEst) } : null,
+        ef: m ? {
+            est: logNum(pred.efEstimateCFS), type: pred.efModelType ?? null, w: logNum(pred.efWeight, 3),
+            used: !!pred.useEfEnsemble, disc: logNum(m.efDisc, 3), skip: !!m.efSkip
+        } : null,
+        raw: m ? { cfs: logNum(m.rawUnc), stage: logNum(pred.rawFinalStage, 2) } : null,
+        corr: m ? { bin: pred.flowBin ?? null, st: pred.flowState ?? null, c: logNum(m.corr), unc: logNum(m.unc) } : null,
+        ceil: m ? { lim: logNum(m.ceilLim), bound: !!m.ceilBound } : null,
+        final: pred ? { cfs: logNum(pred.predictedCFS, 0), stage: logNum(pred.predictedStage, 2), ts: pred.timestamp ?? null } : null,
+        due: pred ? (pred.validationDue ?? null) : null,
+        adv: adv ? { dbar: logNum(adv.dbar, 3), ef: adv.ef ?? null, lfr: adv.lfr ?? null, lfe: logNum(adv.lfe) } : null,
+        slot: c.slot ?? 'none',
+        val: c.val ? { n: logEpoch(c.val.n), cleaned: logEpoch(c.val.cleaned) } : null,
+        aux: c.aux ? logClone(c.aux) : null
+    };
+}
+
+/**
+ * Pure. Builds one validation_log record. `pred` is the pending row ({id, created_at, data}); for a
+ * replaced row only `data` is known. `x` holds the per-fate extras (the claimed fate carries the
+ * full set). Reads only.
+ */
+function buildValidationRecord(outcome, pred, valAtMs, x = {}) {
+    const d = (pred && pred.data) || {};
+    const bin = (b) => (b ? { n: logNum(b.n, 0), ema: logNum(b.ema, 3), sd: logNum(b.sd, 3) } : null);
+    const stage = x.stage || null;
+    const rec = {
+        v: LOG_SCHEMA,
+        ver: SERVER_VERSION,
+        commit: logCommit(),
+        gateVersion: 'v39.0',
+        outcome,
+        predId: pred?.id ?? null,
+        predTs: d.timestamp ?? null,
+        predAt: pred?.created_at ?? null,
+        dueAt: d.validationDue ?? null,
+        valAt: new Date(valAtMs).toISOString(),
+        rawCFS: logNum(d.rawFinalCFS ?? d.predictedCFS, 0),
+        corrCFS: logNum(d.predictedCFS, 0),
+        bin: x.bin ?? d.flowBin ?? null,
+        st: x.st ?? d.flowState ?? null
+    };
+    if (x.delayMin !== undefined) rec.delayMin = logNum(x.delayMin, 0);
+    if (x.ageH !== undefined) rec.ageH = logNum(x.ageH, 1);
+    if (x.delFailed !== undefined) rec.delFailed = !!x.delFailed;
+    if (x.claimErr !== undefined) rec.claimErr = logStr(x.claimErr, 120);
+    if (x.actualCFS === undefined) return rec;   // non-claimed fates stop here (about 0.4 KB)
+
+    Object.assign(rec, {
+        corrApplied: logNum(x.corrApplied, 0),
+        actualCFS: logNum(x.actualCFS, 0),
+        lfAtPred: logNum(x.lfAtPred, 0),
+        errRawCFS: logNum(x.errRawCFS, 1),
+        errPctRaw: logNum(x.errPctRaw, 2),
+        errPctCorr: logNum(x.errPctCorr, 2),
+        actualT: logEpoch(x.actualT),
+        actualStageT: logEpoch(x.actualStageT),
+        rawStage: logNum(x.rawStage, 2),
+        predStage: logNum(x.predStage, 2),
+        actualStage: logNum(x.actualStage, 2),
+        errStage: logNum(x.errStage, 2),
+        hard: !!x.hard, soft: !!x.soft,
+        hardScore: logNum(x.hardScore, 0), softScore: logNum(x.softScore, 0),
+        flags: Array.isArray(x.flags) ? x.flags.map(f => logStr(f, 200)) : [],
+        z: logNum(x.z, 2),
+        learned: !!x.learned,
+        binReadFailed: !!x.binReadFailed,
+        binWriteFailed: !!x.binWriteFailed,
+        stageBinWriteFailedKey: x.stageBinWriteFailedKey ?? null,
+        accuracyCounted: !!x.accuracyCounted,
+        binBefore: bin(x.binBefore),
+        binAfter: x.binAfter ? logClone(x.binAfter) : null,
+        stage: stage ? { key: stage.key ?? null, before: bin(stage.before), after: stage.after ? logClone(stage.after) : null } : null,
+        ceilBound: x.ceilBound ?? null,
+        efDiv: logNum(x.efDiv, 4), divActive: x.divActive ?? null,
+        lfResActive: x.lfResActive ?? null, lfResErr: logNum(x.lfResErr, 1),
+        tC: logNum(x.tC, 1),
+        pairStored: x.pairStored ?? null
+    });
+    if (x.lb) rec.lb = logClone(x.lb);
+    return rec;
+}
+
+// Records the validation_log row for one terminal fate. No-op when logCtx is null. Never throws and
+// never alters the caller's control flow. `getExtras` is a thunk so even building the extras is
+// inside the try. The ROW is built here, at the moment of the fate, from values already computed.
+// With `logCtx.defer` (the handler sets it) the row is only queued, and written by
+// flushDeferredLogs after the success ping: a hung log write then cannot delay the estimate, the
+// learning writes or the ping. No log I/O happens before the ping; stored values are identical up
+// to normal CPU jitter in wall-clock fields (building a record costs microseconds).
+// Without `defer` (unit tests) it is written at once.
+async function logValidationFate(client, logCtx, outcome, pred, valAtMs, getExtras) {
+    if (!logCtx) return;
+    try {
+        const rec = buildValidationRecord(outcome, pred, valAtMs, getExtras ? getExtras() : {});
+        const idPart = pred && pred.id != null ? pred.id : 'replaced';
+        const item = { gaugeId: `${rec.valAt}_${idPart}`, rec, meta: { predTs: rec.predTs, outcome } };
+        if (logCtx.defer) {
+            (logCtx.queue = logCtx.queue || []).push(item);
+            return;
+        }
+        await writeLogRow(client, 'validation_log', item.gaugeId, rec, logCtx.budget, 'general', item.meta);
+    } catch (e) {
+        try { logCtx.budget.noteFailure('validation_log', 'error', { predTs: pred?.data?.timestamp ?? null, msg: logStr(e?.message, 100) }); } catch (_) { /* never throws */ }
+    }
+}
+
+// Writes the queued validation_log rows (general pool). Never throws. Rows that cannot be written
+// (pool spent, timeout, error) are recorded on the budget and so appear in tick_log.aux.logFail.
+async function flushDeferredLogs(client, logCtx) {
+    try {
+        const queue = (logCtx && logCtx.queue) || [];
+        logCtx.queue = [];
+        for (const item of queue) {
+            await writeLogRow(client, 'validation_log', item.gaugeId, item.rec, logCtx.budget, 'general', item.meta);
+        }
+    } catch (e) { /* never throws */ }
+}
+
+/**
+ * Pure. Builds the daily bin_snapshot record from the gf_correction_bin rows and the leaderboard.
+ * @param {Array<{gauge_id: string, data: Object}>} binRows
+ */
+function buildBinSnapshot(binRows, leaderboard, key) {
+    const bins = {};
+    for (const r of binRows || []) {
+        const b = r.data || {};
+        const st = binStatsOf(b);
+        bins[r.gauge_id] = {
+            n: st ? st.n : null,
+            ema: logNum(b.emaMeanError ?? null, 3),
+            mean: logNum(b.meanError, 3),
+            sum: logNum(b.sumError, 3),
+            sumSq: logNum(b.sumErrorSq, 1),
+            sd: st ? st.sd : null
+        };
+    }
+    return { v: LOG_SCHEMA, ver: SERVER_VERSION, commit: logCommit(), key, bins, lb: logClone(leaderboard) };
+}
+
+// Daily snapshot. Hour 3 UTC attempts it; hours 4 and 5 check the day's row first and write only if
+// missing. Returns a status string for tick_log.aux. Never throws.
+async function runBinSnapshot(client, budget, nowMs) {
+    try {
+        const d = new Date(nowMs);
+        const hour = d.getUTCHours();
+        if (!SNAPSHOT_HOURS_UTC.includes(hour)) return 'not_due';
+        const key = `${d.toISOString().slice(0, 10)}T03:00:00.000Z`;
+        if (hour !== SNAPSHOT_HOURS_UTC[0]) {
+            const chk = await timedLogCall(budget, 'general', () => client.from(OBS_TABLE).select('id')
+                .eq('observation_type', 'bin_snapshot').eq('gauge_id', key).limit(1));
+            if (!chk.ok) { budget.noteFailure('bin_snapshot', chk.reason); return `check_${chk.reason}`; }
+            if (chk.value?.error) { budget.noteFailure('bin_snapshot', 'error', { msg: logStr(chk.value.error.message, 100) }); return 'check_error'; }
+            if (Array.isArray(chk.value?.data) && chk.value.data.length > 0) return 'exists';
+        }
+        const binsRead = await timedLogCall(budget, 'general', () => getObsRows(client, 'gf_correction_bin', { columns: 'gauge_id, data' }));
+        if (!binsRead.ok) { budget.noteFailure('bin_snapshot', binsRead.reason); return `read_${binsRead.reason}`; }
+        if (binsRead.value?.error) { budget.noteFailure('bin_snapshot', 'error', { msg: logStr(binsRead.value.error.message, 100) }); return 'read_error'; }
+        const rows = binsRead.value?.data || [];
+        if (rows.length === 0) return 'no_bins';
+        const lbRead = await timedLogCall(budget, 'general', () => getObs(client, 'shadow_leaderboard', 'system'));
+        if (!lbRead.ok) { budget.noteFailure('bin_snapshot', lbRead.reason); return `read_${lbRead.reason}`; }
+        const rec = buildBinSnapshot(rows, lbRead.value, key);
+        const w = await writeLogRow(client, 'bin_snapshot', key, rec, budget, 'general');
+        return w.ok ? (w.reason === 'dup' ? 'dup' : 'written') : w.reason;
+    } catch (e) {
+        return 'threw';
+    }
+}
+
+/**
+ * Bounded retention prune for ONE of the three append-only log types. Selects at most 100 ids older
+ * than the cutoff, then deletes exactly those ids with the type predicate repeated. Never touches any
+ * other observation_type. Never throws.
+ * @param {Object} client
+ * @param {string} type - must be a key of LOG_RETENTION_DAYS.
+ * @param {{nowMs?: number, days?: number, budget?: LogBudget}} [opts]
+ * @returns {Promise<{cand: number, deleted: number, error?: string}>}
+ */
+async function pruneLogType(client, type, opts = {}) {
+    try {
+        if (!Object.hasOwn(LOG_RETENTION_DAYS, type)) return { cand: 0, deleted: 0, error: 'type_not_allowed' };
+        const nowMs = opts.nowMs ?? Date.now();
+        const days = opts.days ?? LOG_RETENTION_DAYS[type];
+        const budget = opts.budget || new LogBudget();
+        const cutoffMs = nowMs - days * 86400000;
+        if (!Number.isFinite(cutoffMs) || cutoffMs > nowMs - PRUNE_FLOOR_DAYS * 86400000) {
+            return { cand: 0, deleted: 0, error: 'cutoff_refused' };
+        }
+        const cutoff = new Date(cutoffMs).toISOString();
+        const sel = await timedLogCall(budget, 'general', () => client.from(OBS_TABLE).select('id')
+            .eq('observation_type', type).lt('gauge_id', cutoff).order('gauge_id').limit(PRUNE_BATCH));
+        if (!sel.ok) { budget.noteFailure(`prune_${type}`, sel.reason); return { cand: 0, deleted: 0, error: `select_${sel.reason}` }; }
+        if (sel.value?.error) { budget.noteFailure(`prune_${type}`, 'error', { msg: logStr(sel.value.error.message, 100) }); return { cand: 0, deleted: 0, error: 'select_error' }; }
+        const ids = (sel.value?.data || []).map(r => r.id).filter(id => id != null).slice(0, PRUNE_BATCH);
+        if (ids.length === 0) return { cand: 0, deleted: 0 };
+        const del = await timedLogCall(budget, 'general', () => client.from(OBS_TABLE).delete()
+            .eq('observation_type', type).in('id', ids).select('id'));
+        if (!del.ok) { budget.noteFailure(`prune_${type}`, del.reason); return { cand: ids.length, deleted: 0, error: `delete_${del.reason}` }; }
+        if (del.value?.error) { budget.noteFailure(`prune_${type}`, 'error', { msg: logStr(del.value.error.message, 100) }); return { cand: ids.length, deleted: 0, error: 'delete_error' }; }
+        // FM-2: report what the server says it removed, not what was requested.
+        const deletedN = Array.isArray(del.value?.data) ? del.value.data.length : 0;
+        return { cand: ids.length, deleted: deletedN };
+    } catch (e) {
+        return { cand: 0, deleted: 0, error: 'threw' };
+    }
+}
+
+// Housekeeping after the success ping: snapshot (hours 3-5), prune (hour 3 only). Never throws.
+async function runLogHousekeeping(client, budget, nowMs) {
+    const aux = {};
+    try {
+        aux.snapshot = await runBinSnapshot(client, budget, nowMs);
+        if (new Date(nowMs).getUTCHours() === SNAPSHOT_HOURS_UTC[0]) {
+            aux.prune = {};
+            for (const type of ['tick_log', 'validation_log', 'bin_snapshot']) {
+                aux.prune[type] = await pruneLogType(client, type, { nowMs, budget });
+            }
+        }
+    } catch (e) {
+        aux.error = logMsg(e?.message, 100);
+    }
+    return aux;
+}
+
+// Why a tick made no prediction, from the same inputs makeGFPrediction tests.
+function noPredictionWhy(criticalIce, usgsData) {
+    if (criticalIce) return 'ice_skip';
+    const d = usgsData && usgsData.data, gg = usgsData && usgsData.gauges;
+    if (d && gg && (!d[gg.lf]?.q || !d[gg.por]?.q)) return 'null_lf_or_por';
+    return 'no_prediction_unknown';
+}
+
+// Builds and writes the tick row (tick pool), then flushes log_health. Never throws.
+async function finalizeTick(client, budget, ctx, tickStartMs, o) {
+    try {
+        ctx.aux = { ...(ctx.aux || {}), logFail: budget.fails.slice(0, LOG_FAIL_LIST_MAX), logFailTotal: budget.fails.length };
+        await flushLogHealth(client, budget);
+        const rec = buildTickRecord(ctx, tickStartMs, { ...o, ms: Date.now() - tickStartMs });
+        const w = await writeLogRow(client, 'tick_log', rec.at, rec, budget, 'tick');
+        if (!w.ok) await flushLogHealth(client, budget);
+        return w;
+    } catch (e) {
+        console.warn('⚠️ tick log failed (non-fatal):', e?.message || e);
+        return { ok: false, reason: 'error' };
+    }
+}
+
 exports._test = {
     validateUSGSResponse, fetchWithTimeout, fetchWaterTemp,
     fetchUSGSData, getPoRFromHistory, estimateLFStage, makeGFPrediction,
@@ -2088,6 +2681,12 @@ exports._test = {
     computeRunHealth,
     updateLfResidualAdvisory,
     validateForecastPredictions, FORECAST_STALE_MAX_AGE_HRS,
+    // v39.2 (A3) audit logging
+    SERVER_VERSION, LOG_SCHEMA, LOG_RETENTION_DAYS,
+    LogBudget, writeLogRow, flushLogHealth, timedLogCall,
+    buildTickRecord, buildValidationRecord, buildBinSnapshot,
+    runBinSnapshot, pruneLogType, runLogHousekeeping, finalizeTick, noPredictionWhy, flushDeferredLogs,
+    storeValidationPair, binStatsOf,
 };
 
 /**
@@ -2107,16 +2706,28 @@ exports.handler = async (event, context) => {
         return { statusCode: 500, body: 'Supabase not configured' };
     }
 
+    // v39.2 (A3): audit-log context, declared BEFORE the try so the catch block can use it. This is
+    // observation only: filled as the run progresses, read only by the log builders.
+    // (The pre-try 'Supabase not configured' return above cannot be logged: there is no client.)
+    const tickStartMs = Date.now();
+    const tickCtx = { stage: 'fetch' };
+    const logBudget = new LogBudget();
+    const logCtx = { budget: logBudget, defer: true, queue: [] };
+
     try {
         // v37.15 (F2): run-start marker for the LF-residual concurrent-write skip-guard (5c).
         const runStartMs = Date.now();
 
         // 1. Fetch USGS data and water temperature in parallel
         console.log('Fetching USGS data and water temperature...');
+        const tempOut = {};   // A3: receives the water-temperature reading time
         const [usgsData, waterTempC] = await Promise.all([
             fetchUSGSData(),
-            fetchWaterTemp()
+            fetchWaterTemp(tempOut)
         ]);
+        tickCtx.usgsData = usgsData;
+        tickCtx.waterTempC = waterTempC;
+        tickCtx.tempT = tempOut.t ?? null;
         if (!usgsData) {
             // Throw (don't early-return) so the failure flows into the catch block's healthchecks
             // /fail ping — an early return here pinged neither success nor /fail, making a USGS-fetch
@@ -2127,6 +2738,7 @@ exports.handler = async (event, context) => {
 
         // 2. Store PoR history
         console.log('Storing PoR history...');
+        tickCtx.stage = 'store_history';
         const porHistory = usgsData.data[usgsData.gauges.por]?.history || [];
         const porStored = await storePoRHistory(client, porHistory);
         if (!porStored) console.warn('⚠️ PoR history write failed — predictions may use incomplete history');
@@ -2135,6 +2747,7 @@ exports.handler = async (event, context) => {
         const storedHistory = await getObs(client, 'por_history', 'system');
 
         const fullHistory = storedHistory?.readings || porHistory;
+        tickCtx.fullHistory = fullHistory;
 
         // Check if critical gauges are ice-affected (PoR, LF, or EF missing)
         const porIce = usgsData.data[usgsData.gauges.por]?.iceAffected;
@@ -2147,6 +2760,7 @@ exports.handler = async (event, context) => {
 
         // Only PoR/LF ice suspends learning; EF absence is non-blocking
         const criticalIce = porIce || lfIce;
+        tickCtx.ice = { lf: !!lfIce, por: !!porIce, efMiss: efMissing };
 
         if (criticalIce) {
             console.log(`🧊 Critical gauge ice — skipping learning & validation (PoR ice: ${!!porIce}, LF ice: ${!!lfIce})`);
@@ -2157,14 +2771,16 @@ exports.handler = async (event, context) => {
         // v37.15: pairs feed the LF-residual advisory (step 5c). `|| []` also covers the
         // function's bare-0 early returns (no LF / out-of-range / no pending) and the ice skip.
         let lfPairs = [];
+        tickCtx.stage = 'validate';
         if (!criticalIce) {
             console.log('Checking pending predictions...');
-            const validationResult = await validatePendingPredictions(client, usgsData, waterTempC);
+            const validationResult = await validatePendingPredictions(client, usgsData, waterTempC, logCtx);
             validated = validationResult.validated || 0;
             cleaned = validationResult.cleaned || 0;
             lfPairs = validationResult.pairs || [];
             console.log(`Validated ${validated} predictions, cleaned ${cleaned} stale`);
         }
+        tickCtx.val = { n: validated, cleaned };
 
         // 4b. Validate pending 48h forecast predictions (skip if critical gauges ice-affected)
         let forecastValidation = { validated: 0, cleaned: 0 };
@@ -2180,10 +2796,14 @@ exports.handler = async (event, context) => {
 
         // 5. Make new prediction (skip if critical gauges ice-affected)
         let prediction = null;
+        tickCtx.stage = 'predict';
         if (!criticalIce) {
             console.log('Making new prediction...');
             const correctionBins = await loadCorrectionBins(client);
-            prediction = makeGFPrediction(usgsData, fullHistory, waterTempC, correctionBins);
+            const trace = {};   // A3: write-only audit out-parameter; never read by the model
+            tickCtx.trace = trace;
+            prediction = makeGFPrediction(usgsData, fullHistory, waterTempC, correctionBins, trace);
+            tickCtx.prediction = prediction;
         }
 
         // 5b. EF divergence advisory state — EVERY cycle, prediction or not (v37.13, plan §1/F10):
@@ -2230,6 +2850,14 @@ exports.handler = async (event, context) => {
             pairs: lfPairs,
             lfCFS: usgsData.data[usgsData.gauges.lf]?.q ?? null
         });
+        // A3: banner state in force this tick (present on no-prediction ticks too).
+        tickCtx.adv = {
+            dbar: divergenceState ? divergenceState.dbar : null,
+            ef: divergenceState ? divergenceState.active : null,
+            lfr: lfResidualState ? lfResidualState.active : null,
+            lfe: lfResidualState ? lfResidualState.lastErrPct : null
+        };
+        tickCtx.stage = 'store';
 
         if (!criticalIce) {
             if (prediction) {
@@ -2259,7 +2887,7 @@ exports.handler = async (event, context) => {
                     console.warn('Shadow model execution failed (non-fatal):', e.message);
                 }
 
-                await storePrediction(client, prediction);
+                tickCtx.slot = await storePrediction(client, prediction, logCtx);
                 console.log(`📊 New prediction: ${prediction.predictedCFS} cfs (${prediction.flowBin}, ${prediction.flowState})`);
 
                 // Store GF estimate in rolling 24h history for graph display
@@ -2308,6 +2936,18 @@ exports.handler = async (event, context) => {
             }
         }
 
+        // v39.2 (A3): housekeeping and the tick row run AFTER the success ping, so logging can never
+        // delay monitoring. Every call is wrapped and time-bounded (3 s general + 3 s tick at most).
+        // If the function limit hits in here, the ping has gone and the tick row is lost; the gap in
+        // tick_log.at is the record.
+        tickCtx.stage = 'housekeeping';
+        await flushDeferredLogs(client, logCtx);   // validation_log rows queued during step 4
+        tickCtx.aux = await runLogHousekeeping(client, logBudget, tickStartMs);
+        await finalizeTick(client, logBudget, tickCtx, tickStartMs, {
+            out: prediction ? 'predicted' : 'no_prediction',
+            why: prediction ? null : noPredictionWhy(criticalIce, usgsData)
+        });
+
         return {
             statusCode: 200,
             body: JSON.stringify(summary)
@@ -2326,6 +2966,24 @@ exports.handler = async (event, context) => {
                 console.warn('Healthchecks fail-ping failed (non-fatal):', pingErr.message);
             }
         }
+
+        // v39.2 (A3): the error row is written after the /fail ping. Never throws. Validation rows for
+        // predictions already claimed before the throw are flushed first, so a late failure does not lose them.
+        // A pending row that was claimed (deleted) when the throw happened would otherwise leave no fate row.
+        if (logCtx.inflight) {
+            const inf = logCtx.inflight;
+            logCtx.inflight = null;
+            await logValidationFate(client, logCtx, 'claimed_then_threw', inf.pred, Date.now(), () => ({
+                delayMin: inf.delayMin, claimErr: logMsg(e?.message, 120)
+            }));
+        }
+        await flushDeferredLogs(client, logCtx);
+        await finalizeTick(client, logBudget, tickCtx, tickStartMs, {
+            out: 'error',
+            why: (tickCtx.stage === 'fetch' && e && e.message === 'Failed to fetch USGS data')
+                ? 'usgs_fetch_failed' : (tickCtx.stage || 'unknown'),
+            err: e
+        });
 
         return {
             statusCode: 500,

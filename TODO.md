@@ -4,7 +4,7 @@
 Session state is in `.claude/HANDOFF.md`; methodology provenance for shipped versions is the
 small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, prioritize, go.
 
-*Last updated: 2026-11-10 (current version: v39.1). Verified against live DB + git history, not memory.*
+*Last updated: 2026-11-10 (current version: v39.2). Verified against live DB + git history, not memory.*
 
 ---
 
@@ -14,7 +14,7 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 - Effort is a rough order-of-magnitude.
 - 🔒 = needs a decision from you before work starts · 📅 = date-gated · 🔍 = verify-only.
 - Anything touching the estimate must keep the characterization/golden tests green and the
-  client↔server parity tests green (`npm test` = **913**), or deliberately re-baseline + version-bump.
+  client↔server parity tests green (`npm test` = **1032**), or deliberately re-baseline + version-bump.
 - **Pushing auto-deploys from `main`** through the Netlify gate (`npm install && npm test && npm run build`);
   a red suite blocks deploy. Pushing needs explicit approval each time.
 
@@ -185,7 +185,7 @@ plan → audit → dual-language protocol; A6 and A7 must not be judged on this 
 |---|------|--------|------|
 | A1 | **Stale cache.** Fetch river data network-first; drive "Updated" from reading time, not fetch time. | ✅ done 2026-11-10 (v39.1); plan and audit response in `analysis/stale-cache-fix-plan-2026-11-10.md`. In-browser checks still pending (see plan section 6). | small |
 | A2 | **+9,743 bin** (12,000–25,000 steady, one mislabelled observation). | ✅ done 2026-11-10: flow bin + paired stage bin deleted; record and undo in `analysis/bin-reset-2026-11-10-12000-25000-steady.json` | decision |
-| A3 | **Logging.** Per prediction: inputs seen, raw value, flags, whether the cap bound; keep clean rows longer. | open | small |
+| A3 | **Logging.** Per prediction: inputs seen, raw value, flags, whether the cap bound; keep clean rows longer. | ✅ implemented 2026-11-10 (v39.2); plan and audit response in `analysis/prediction-logging-plan-2026-11-10.md`. **Production behaviour UNVERIFIED** until the follow-ups below are checked. | small |
 | A4 | **120% cap.** Show when it is active; stop capped rows training bins. | open | small–medium |
 | A5 | **Difficult Run.** Subtract from the validation truth, or flag validations when it is high. | open 🔒 | medium, needs a backtest |
 | A6 | **Multi-pending validation.** Reopen for responsiveness (learning was 23 h late at onset). | open 🔒 | large, rejected once in June |
@@ -193,6 +193,20 @@ plan → audit → dual-language protocol; A6 and A7 must not be judged on this 
 | A8 | **Confidence band and labels.** Rebuild from live residuals. | open 🔒 | medium |
 | A9 | **Creeks tab high-water state; How It Works corrections.** | open | small |
 | A10 | **Orphan `rise_event` writer.** Find what is writing every 15 minutes. | open | investigation |
+
+**Follow-ups from A3 (v39.2, 2026-11-10; plan `analysis/prediction-logging-plan-2026-11-10.md`):**
+
+| # | Item | Status | Size |
+|---|------|--------|------|
+| A3a | **Verify the first live rows.** After the first deployed tick read one `tick_log` row: `commit` non-null (if null, `COMMIT_REF` is not available in the scheduled-function runtime and `ver` alone is the record), `ms` plausible, `in.lf.qT` and `in.tT` match the USGS page. | open 🔍 | tiny |
+| A3b | **Verify the 03:00 UTC run.** Check a `bin_snapshot` row exists for the day and `tick_log.aux.prune` shows candidate counts. Check `pg_column_size` of each type after a day and a week; move retention if the size estimate was off by more than 2x. | open 🔍 | tiny |
+| A3c | **First real prune is an unverified gap.** `tick_log` has its first candidates at day 180; until then the delete path is proven only by mocks. Option: with approval, insert one synthetic `tick_log` row with `gauge_id = '2020-01-01T00:00:00.000Z'` and confirm the next 03:00 UTC run deletes exactly that row. That is a production write, so it needs a go-ahead. | open 🔒 | tiny |
+| A3d | **First `validation_log` row.** Appears at the next validation (13 to 19 h at current flow, longer in calm weather). The non-claimed fates (`stale_deleted`, `replaced_missed_window`, `claim_lost`) may not occur for weeks and are proven by mocks only. | open 🔍 | tiny |
+| A3e | **Ran but made no prediction.** The tick row records it (`out`, `why`); the healthchecks ping is unchanged. Measure how often `null_lf_or_por` and `insert_failed` occur from `tick_log`, then choose a `/fail` threshold (for example 3 in a row). Ice must stay green in winter. The healthchecks.io period and grace are still unconfirmed. | open | small |
+| A3f | **Scored 48 h forecast rows.** Deferred: they need the client-posted NWS inputs stored with them. Flood audit item 4 stays open. | open | medium |
+| A3g | **RLS "Allow public access".** The logs (and every other row) can be read, deleted or forged with the anon key. Separate migration; can break the cron if done wrong. | open 🔒 | medium |
+| A3h | **Platform limits.** Netlify's 30 s scheduled-function limit and the 500 MB vs 2 GB plan limit are from memory; check both. Added time is capped at about 6 s after the ping. | open 🔍 | tiny |
+| A3i | **Three test gaps left by the last independent check (code is correct today).** The handler test's event recorder sees only inserts and upserts, so a prune delete or a log select moved before the success ping is not caught; and the five handler-stamped fields on a stored prediction (`shadowModels`, `efDivergence` and three more) are checked for presence, not value. Record delete and select events in the recorder; pin the stamp values. | open | small |
 
 **Follow-ups from A1 (v39.1, 2026-11-10; plan `analysis/stale-cache-fix-plan-2026-11-10.md`):**
 
@@ -219,6 +233,7 @@ plan → audit → dual-language protocol; A6 and A7 must not be judged on this 
 
 ## Recently completed (reference)
 
+- **v39.2** (2026-11-10): Audit logging for the hourly cron (A3, flood audit finding 3; MINOR, server-only, estimation unchanged). `tick_log`, `validation_log`, `bin_snapshot`, `log_health` rows; non-fatal, time-bounded, written after the success ping; bounded prune of the three log types only. 913→1032 tests. Production behaviour UNVERIFIED (see A3 follow-ups).
 - **v39.1** (2026-11-10): River data is network-first in the service worker; the "last update" label shows the age of the readings, not of the fetch; an old direct USGS payload now still tries the CORS proxies (A1, flood audit finding 5; MINOR, client only). 842→913 tests. Amendment: the page reads the USGS response time (requestDT), so a live body with old readings costs no extra downloads when the clock is right (plan section 11). In-browser checks still pending. Plan: `analysis/stale-cache-fix-plan-2026-11-10.md`.
 - **v39.0** (2026-11-10) — Statistical outliers (Check 5) are soft: learned through a ±2σ clamp computed from PRE-observation bin stats (≤ 0.6·σ_pre per observation; stage bins likewise; `EF_DISCREPANCY` soft path changes with it) and counted in accuracy, so the headline reads worse for the same model (MAJOR, server-only; v38 skipped). New `soft_outlier_event` rows / `softOutlierValidations` / `outlierZ`. 798→842 tests. Production behaviour UNVERIFIED until a z > 3 validation occurs. Plan: `analysis/outlier-always-soft-plan-2026-11-09.md`.
 - **v37.21** (2026-11-09) — Check 3 (`LOW_FLOW_HIGH_STAGE`) fires only when ice is plausible: water temp ≤ 5 °C, or Nov–Mar UTC when temp is unknown (MINOR, server-only). 15 warm-water validations had been hard-flagged 2026-09-16 → 10-10. Thresholds unchanged; production behaviour UNVERIFIED until LF < 1,500 cfs. 780→798 tests. Check 5 part then on hold; done in v39.0.
