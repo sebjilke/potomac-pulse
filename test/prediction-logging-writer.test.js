@@ -74,7 +74,7 @@ describe('T4: record builders', () => {
         deepFreeze(ctx.usgsData); deepFreeze(ctx.prediction); deepFreeze(ctx.trace); deepFreeze(ctx.fullHistory);
         deepFreeze(ctx.adv); deepFreeze(ctx.ice); deepFreeze(ctx.val); deepFreeze(ctx.aux);
         const rec = buildTickRecord(ctx, NOW, { out: 'predicted', why: null, ms: 1234 });
-        assert.equal(rec.v, 1);
+        assert.equal(rec.v, 2);
         assert.equal(rec.ver, SERVER_VERSION);
         assert.equal(rec.at, new Date(NOW).toISOString());
         assert.equal(rec.out, 'predicted');

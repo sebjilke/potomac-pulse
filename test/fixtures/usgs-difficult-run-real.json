@@ -1,0 +1,200 @@
+{
+ "_comment": "Real USGS instantaneous-values response for Difficult Run (site 01646000, parameter 00060, period PT6H), fetched read-only from waterservices.usgs.gov on 2026-11-10 at about 22:04Z, trimmed to the last 6 values. Per-value qualifiers are plain strings (['P']), not {qualifierCode} objects.",
+ "name": "ns1:timeSeriesResponseType",
+ "declaredType": "org.cuahsi.waterml.TimeSeriesResponseType",
+ "scope": "javax.xml.bind.JAXBElement$GlobalScope",
+ "value": {
+  "queryInfo": {
+   "queryURL": "http://waterservices.usgs.gov/nwis/iv/sites=01646000&parameterCd=00060&period=PT6H&format=json",
+   "criteria": {
+    "locationParam": "[ALL:01646000]",
+    "variableParam": "[00060]",
+    "parameter": []
+   },
+   "note": [
+    {
+     "value": "[ALL:01646000]",
+     "title": "filter:sites"
+    },
+    {
+     "value": "[mode=PERIOD, period=PT6H, modifiedSince=null]",
+     "title": "filter:timeRange"
+    },
+    {
+     "value": "methodIds=[ALL]",
+     "title": "filter:methodId"
+    },
+    {
+     "value": "2026-11-10T22:04:02.450Z",
+     "title": "requestDT"
+    },
+    {
+     "value": "a3733810-dd52-11f1-89f7-2cea7f58f5ca",
+     "title": "requestId"
+    },
+    {
+     "value": "Provisional data are subject to revision. Go to http://waterdata.usgs.gov/nwis/help/?provisional for more information.",
+     "title": "disclaimer"
+    },
+    {
+     "value": "vaas01",
+     "title": "server"
+    }
+   ]
+  },
+  "timeSeries": [
+   {
+    "sourceInfo": {
+     "siteName": "DIFFICULT RUN NEAR GREAT FALLS, VA",
+     "siteCode": [
+      {
+       "value": "01646000",
+       "network": "NWIS",
+       "agencyCode": "USGS"
+      }
+     ],
+     "timeZoneInfo": {
+      "defaultTimeZone": {
+       "zoneOffset": "-05:00",
+       "zoneAbbreviation": "EST"
+      },
+      "daylightSavingsTimeZone": {
+       "zoneOffset": "-04:00",
+       "zoneAbbreviation": "EDT"
+      },
+      "siteUsesDaylightSavingsTime": true
+     },
+     "geoLocation": {
+      "geogLocation": {
+       "srs": "EPSG:4326",
+       "latitude": 38.97594346,
+       "longitude": -77.24581439
+      },
+      "localSiteXY": []
+     },
+     "note": [],
+     "siteType": [],
+     "siteProperty": [
+      {
+       "value": "ST",
+       "name": "siteTypeCd"
+      },
+      {
+       "value": "02070008",
+       "name": "hucCd"
+      },
+      {
+       "value": "51",
+       "name": "stateCd"
+      },
+      {
+       "value": "51059",
+       "name": "countyCd"
+      }
+     ]
+    },
+    "variable": {
+     "variableCode": [
+      {
+       "value": "00060",
+       "network": "NWIS",
+       "vocabulary": "NWIS:UnitValues",
+       "variableID": 45807197,
+       "default": true
+      }
+     ],
+     "variableName": "Streamflow, ft&#179;/s",
+     "variableDescription": "Discharge, cubic feet per second",
+     "valueType": "Derived Value",
+     "unit": {
+      "unitCode": "ft3/s"
+     },
+     "options": {
+      "option": [
+       {
+        "name": "Statistic",
+        "optionCode": "00000"
+       }
+      ]
+     },
+     "note": [],
+     "noDataValue": -999999.0,
+     "variableProperty": [],
+     "oid": "45807197"
+    },
+    "values": [
+     {
+      "value": [
+       {
+        "value": "13.1",
+        "qualifiers": [
+         "P"
+        ],
+        "dateTime": "2026-11-10T15:00:00.000-05:00"
+       },
+       {
+        "value": "13.1",
+        "qualifiers": [
+         "P"
+        ],
+        "dateTime": "2026-11-10T15:15:00.000-05:00"
+       },
+       {
+        "value": "13.5",
+        "qualifiers": [
+         "P"
+        ],
+        "dateTime": "2026-11-10T15:30:00.000-05:00"
+       },
+       {
+        "value": "13.5",
+        "qualifiers": [
+         "P"
+        ],
+        "dateTime": "2026-11-10T15:45:00.000-05:00"
+       },
+       {
+        "value": "13.5",
+        "qualifiers": [
+         "P"
+        ],
+        "dateTime": "2026-11-10T16:00:00.000-05:00"
+       },
+       {
+        "value": "13.5",
+        "qualifiers": [
+         "P"
+        ],
+        "dateTime": "2026-11-10T16:15:00.000-05:00"
+       }
+      ],
+      "qualifier": [
+       {
+        "qualifierCode": "P",
+        "qualifierDescription": "Provisional data subject to revision.",
+        "qualifierID": 0,
+        "network": "NWIS",
+        "vocabulary": "uv_rmk_cd"
+       }
+      ],
+      "qualityControlLevel": [],
+      "method": [
+       {
+        "methodDescription": "",
+        "methodID": 146595
+       }
+      ],
+      "source": [],
+      "offset": [],
+      "sample": [],
+      "censorCode": []
+     }
+    ],
+    "name": "USGS:01646000:00060:00000"
+   }
+  ]
+ },
+ "nil": false,
+ "globalScope": true,
+ "typeSubstituted": false
+}

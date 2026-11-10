@@ -27,6 +27,9 @@ const {
     upsertObs, insertObs, deleteObs, deleteObsById
 } = require('./shared/observations');
 
+// v39.6 (A8): server copy of the 90% band table, used only by the audit log (tick_log.ci).
+const { bandFor } = require('./shared/ci-table');
+
 // v37.16: how long a pending FORECAST row may live before the stale sweep reclaims it.
 // Server-only (forecast validation has no client counterpart), so it is deliberately not in the
 // shared model pair. Was a flat 72h. A forecast is now scored one GF→LF travel time after its
@@ -287,6 +290,16 @@ async function fetchUSGSData() {
                         // present-but-stale with no way to know (plan §1/F7).
                         data[siteId].hTime = new Date(latest.dateTime).getTime();
                     }
+                }
+
+                // v39.6 (A5/A8): raw copy of the last 16 Edwards Ferry stage readings for the audit log
+                // ONLY. Plain numbers, in its OWN try/catch, assigned last, so a failure leaves the
+                // field absent and can never reach the estimate. Nothing derived is computed here
+                // (the 1 h trend is computed in buildTickRecord). makeGFPrediction never reads it.
+                if (siteId === gauges.ef && param === '00065') {
+                    try {
+                        data[siteId].hTail = values.slice(-16).map(v => ({ t: new Date(v.dateTime).getTime(), v: parseFloat(v.value) }));
+                    } catch (_) { /* log-only copy; never affects the estimate */ }
                 }
 
                 // Full history for PoR (for time-shifting)
@@ -2212,8 +2225,8 @@ async function updateLfResidualAdvisory(client, { runStartMs, pairs, lfCFS }) {
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 // Hand-maintained. The `commit` field on every row is the safety net if this goes stale.
-const SERVER_VERSION = 'v39.2';
-const LOG_SCHEMA = 1;
+const SERVER_VERSION = 'v39.6';
+const LOG_SCHEMA = 2;
 const OBS_TABLE = 'potomac_observations';
 // Retention in days, by type. Only these three types are ever pruned. log_health is never pruned.
 const LOG_RETENTION_DAYS = Object.freeze({ tick_log: 180, validation_log: 730, bin_snapshot: 730 });
@@ -2368,6 +2381,233 @@ async function flushLogHealth(client, budget) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// v39.6 (A5, A8): two additions to the audit log. OBSERVATION ONLY.
+//   A5  the Difficult Run (USGS 01646000) reading, so "Little Falls minus Difficult Run" can be
+//       analysed later. The truth used for learning stays Little Falls alone.
+//   A8  the confidence label a FRESH page load would show for the cron's readings, and the 90%
+//       band limits, so their usefulness can be measured. The label is NOT "what visitors saw":
+//       a visitor with a long-open tab (Edwards Ferry trend known) can see a label one notch
+//       different. The raw Edwards Ferry stage tail is logged so that variant can be rebuilt.
+// Plan: analysis/truth-and-confidence-logging-plan-2026-11-10.md
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+const DR_URL = 'https://waterservices.usgs.gov/nwis/iv/?sites=01646000&parameterCd=00060&period=PT6H&format=json';
+const DR_SITE = '01646000';
+const DR_CAP_MS = 2000;          // one timer over the request AND the body read
+const DR_LATE_SKIP_MS = 20000;   // skip the fetch when the tick has already run this long
+const DR_TAIL_MAX = 32;
+const DR_OLD_MIN = 180;
+
+// Runs fn and returns its value, or null when it throws. Used so a new log field can never cost the tick row.
+function logTry(fn) {
+    try { return fn(); } catch (_) { return null; }
+}
+
+// Compact series for the log. points: [{t (epoch ms), v (number|null)}]. Regular 15-minute (or `stepMin`)
+// spacing is stored as {t0, step, v}; anything irregular as {ts, v}. Null when there is nothing to store.
+function compactSeries(points, stepMin, decimals = 2) {
+    if (!Array.isArray(points)) return null;
+    const p = points.filter(x => x && typeof x.t === 'number' && Number.isFinite(x.t)).sort((a, b) => a.t - b.t);
+    if (!p.length) return null;
+    const step = stepMin * 60000;
+    const v = p.map(x => logNum(x.v, decimals));
+    const regular = p.every((x, i) => x.t - p[0].t === i * step);
+    return regular ? { t0: Math.round(p[0].t), step: stepMin, v } : { ts: p.map(x => Math.round(x.t)), v };
+}
+
+// Edwards Ferry stage trend from the raw tail, mirroring getEdwardsFerryTrend (src/estimation/edwards-ferry.js):
+// needs at least 4 readings, compares the latest with history[max(0, len - 5)], plus or minus 2 percent.
+// Readings outside 0 < stage < 100 are dropped (the client never appends them). A server variant that no
+// visitor sees: it is built from the 15-minute series, the client from its own poll history.
+function efTrendOfTail(tail) {
+    if (!Array.isArray(tail)) return null;
+    const h = tail.filter(x => x && Number.isFinite(x.v) && x.v > 0 && x.v < 100);
+    if (h.length < 4) return null;
+    const current = h[h.length - 1].v;
+    const ago = h[Math.max(0, h.length - 5)].v;
+    const pct = ((current - ago) / ago) * 100;
+    if (pct > 2) return 'rising';
+    if (pct < -2) return 'falling';
+    return 'steady';
+}
+
+// Copy of the label rule in src/estimation/great-falls.js (between the "Confidence" and "Forecast" markers).
+// test/confidence-parity.test.mjs EXECUTES the browser's source text against this over all 96 inputs.
+function confidenceLabel({ hasTribs, shifted, efUsed, efTrend, flowState }) {
+    let confidence = 'medium';
+    if (hasTribs && shifted) confidence = 'high';
+    if (hasTribs && !shifted) confidence = 'medium';
+    if (!hasTribs && !shifted) confidence = 'low';
+
+    if (efUsed && confidence === 'medium') {
+        confidence = 'high';
+    }
+
+    if (efTrend) {
+        const efAgreement = (efTrend === flowState) || (efTrend === 'steady' && flowState === 'steady');
+        if (!efAgreement && confidence === 'high') {
+            confidence = 'medium';
+        } else if (efAgreement && confidence === 'medium' && hasTribs) {
+            confidence = 'high';
+        }
+    }
+    return confidence;
+}
+
+// Copy of downgradeConfidence in src/ui/divergence-advisory.js.
+function downgradeLabel(level) {
+    return level === 'high' ? 'medium' : 'low';
+}
+
+// The displayed label after the advisory notches (src/ui/great-falls-ui.js): one step per active advisory.
+// Null when either advisory state is unknown: unknown is never treated as inactive.
+function shownLabel(base, advEf, advLfr) {
+    if (typeof advEf !== 'boolean' || typeof advLfr !== 'boolean') return null;
+    let shown = base;
+    if (advEf) shown = downgradeLabel(shown);
+    if (advLfr) shown = downgradeLabel(shown);
+    return shown;
+}
+
+// The tick_log `conf` object. Names say what it is: `freshLoad` is the label a fresh page load would show
+// for the cron's readings (Edwards Ferry trend null). Null without a prediction.
+function buildConf(pred, g, adv) {
+    if (!pred) return null;
+    const hasTribs = !!(g('monocacy')?.q && g('goose')?.q);
+    const shifted = !!pred.useTimeShifted;
+    const efUsed = !!pred.useEfEnsemble;
+    const freshLoad = confidenceLabel({ hasTribs, shifted, efUsed, efTrend: null, flowState: pred.flowState });
+    const advEf = adv && typeof adv.ef === 'boolean' ? adv.ef : null;
+    const advLfr = adv && typeof adv.lfr === 'boolean' ? adv.lfr : null;
+    return {
+        freshLoad,
+        freshLoadShown: shownLabel(freshLoad, advEf, advLfr),
+        tribs: hasTribs, shift: shifted, ef: efUsed, st: pred.flowState ?? null,
+        advEf, advLfr
+    };
+}
+
+// Plain-number copy of a Difficult Run result for storage. The tail only goes on the tick row.
+function cleanDr(dr, withTail) {
+    if (!dr || typeof dr !== 'object') return null;
+    const out = {
+        q: logNum(dr.q, 2), t: logEpoch(dr.t), at: logEpoch(dr.at), ms: logEpoch(dr.ms),
+        qual: Array.isArray(dr.qual) ? dr.qual.slice(0, 6).map(x => logStr(x, 12)) : [],
+        why: logStr(dr.why, 40), ageMin: logNum(dr.ageMin, 1)
+    };
+    if (dr.http !== undefined) out.http = logEpoch(dr.http);
+    if (withTail) out.tail = dr.tail ? logClone(dr.tail) : null;
+    return out;
+}
+
+// Pure. Parses a USGS IV response for Difficult Run. Never writes outside its own result.
+function parseDifficultRun(json, atMs) {
+    const out = { q: null, t: null, qual: [], why: null, ageMin: null, tail: null };
+    const all = (json && json.value && json.value.timeSeries) || [];
+    const series = Array.isArray(all) ? all.find(ts =>
+        ts && ts.sourceInfo && ts.sourceInfo.siteCode && ts.sourceInfo.siteCode[0] && ts.sourceInfo.siteCode[0].value === DR_SITE &&
+        ts.variable && ts.variable.variableCode && ts.variable.variableCode[0] && ts.variable.variableCode[0].value === '00060') : null;
+    if (!series || !Array.isArray(series.values)) { out.why = 'no_series'; return out; }
+    // Several `values` blocks (method ids) can exist: take the block whose newest reading is latest.
+    let best = null;
+    for (const block of series.values) {
+        const arr = block && Array.isArray(block.value) ? block.value : [];
+        const pts = arr.map(p => ({
+            t: Date.parse(p && p.dateTime),
+            n: parseFloat(p && p.value),
+            // The real USGS feed gives qualifiers as plain strings (["P"]); the object form {qualifierCode}
+            // is accepted too. Empty or missing codes are dropped.
+            quals: Array.isArray(p && p.qualifiers)
+                ? p.qualifiers.map(q => (typeof q === 'string' ? q : (q && q.qualifierCode))).filter(c => typeof c === 'string' && c !== '')
+                : []
+        })).filter(p => Number.isFinite(p.t)).sort((a, b) => a.t - b.t);
+        if (pts.length && (!best || pts[pts.length - 1].t > best[best.length - 1].t)) best = pts;
+    }
+    if (!best) { out.why = 'no_series'; return out; }
+    const last = best[best.length - 1];
+    const sentinel = (p) => !(p.n > -999999);                 // also true for NaN
+    const bad = (p) => sentinel(p) || p.n < 0 || p.quals.includes('Ice');
+    out.t = last.t;
+    out.qual = last.quals;
+    out.ageMin = (atMs - last.t) / 60000;
+    out.tail = compactSeries(best.slice(-DR_TAIL_MAX).map(p => ({ t: p.t, v: bad(p) ? null : p.n })), 15, 2);
+    if (Number.isNaN(last.n) || last.n <= -999999) out.why = 'sentinel';
+    else if (last.quals.includes('Ice')) out.why = 'ice';
+    else if (last.n < 0) out.why = 'invalid';
+    if (out.why === null) {
+        out.q = last.n;
+        if (out.ageMin < 0) out.why = 'future';
+        else if (out.ageMin > DR_OLD_MIN) out.why = 'old';
+    }
+    return out;
+}
+
+/**
+ * Fetches the latest Difficult Run (USGS 01646000) discharge for the audit log. NEVER throws.
+ * One GET, bounded by ONE real timer over the request and the body read; skipped (`late_skip`) when
+ * the tick has already run more than 20 s. Called only after the success ping.
+ * @param {number} tickStartMs - Run start (epoch ms).
+ * @returns {Promise<Object>} {q, t, at, ms, qual, why, ageMin, tail}; `why` is null on a clean reading.
+ */
+async function fetchDifficultRun(tickStartMs) {
+    const at = Date.now();
+    const res = { q: null, t: null, at, ms: null, qual: [], why: null, ageMin: null, tail: null };
+    if (typeof tickStartMs === 'number' && at - tickStartMs > DR_LATE_SKIP_MS) {
+        res.ms = 0; res.why = 'late_skip';
+        return res;
+    }
+    let timer;
+    try {
+        const controller = new AbortController();
+        const work = (async () => {
+            const response = await fetch(DR_URL, { signal: controller.signal });
+            if (!response.ok) return { why: 'http_error', http: response.status };
+            let json;
+            try { json = await response.json(); } catch (_) { return { why: 'parse_error' }; }
+            return { json };
+        })().then(v => ['ok', v], e => ['err', e]);
+        const timeout = new Promise(resolve => { timer = setTimeout(() => resolve(['timeout']), DR_CAP_MS); });
+        const r = await Promise.race([work, timeout]);
+        if (r[0] === 'timeout') {
+            res.why = 'timeout';
+            try { controller.abort(); } catch (_) { /* nothing to abort */ }
+        } else if (r[0] === 'err') {
+            res.why = 'fetch_error';
+        } else if (r[1].why) {
+            res.why = r[1].why;
+            if (r[1].http !== undefined) res.http = r[1].http;
+        } else {
+            Object.assign(res, parseDifficultRun(r[1].json, at));
+        }
+    } catch (_) {
+        res.q = null; res.why = 'internal_error';
+    } finally {
+        clearTimeout(timer);
+        res.ms = Date.now() - at;
+    }
+    return res;
+}
+
+// Queues `dr` (without the tail) and the join key to the tick row onto every queued validation row that
+// carries the truth (claimed fates with actualCFS). Row ids, other fields and order are untouched. Never throws.
+function attachDr(queue, dr, tickStartMs) {
+    let n = 0;
+    try {
+        if (!Array.isArray(queue) || !dr) return 0;
+        const tickAt = new Date(tickStartMs).toISOString();
+        for (const item of queue) {
+            const rec = item && item.rec;
+            if (rec && rec.actualCFS !== undefined) {
+                rec.dr = cleanDr(dr, false);
+                rec.tickAt = tickAt;
+                n++;
+            }
+        }
+    } catch (_) { /* log-only */ }
+    return n;
+}
+
 /**
  * Pure. Builds the tick_log record from the per-run context. Reads only; never writes to its inputs
  * (usgsData, prediction, trace and fullHistory may be frozen). Model fields are null when no
@@ -2407,6 +2647,13 @@ function buildTickRecord(ctx, tickStartMs, o = {}) {
             br: trib(g('broadRun'), m?.brFlow, m?.fbBr),
             sen: trib(g('seneca'), m?.senFlow, m?.fbSen),
             ef: { h: logNum(ef?.h, 2), hT: logEpoch(ef?.hTime) },
+            // v39.6: raw Edwards Ferry stage tail (ft) so any long-open-tab label can be rebuilt offline, plus the
+            // 1 h trend. Kept beside `ef` (not inside it) so the v39.2 shape of `in.ef` is unchanged.
+            efx: logTry(() => ({
+                tail: compactSeries((ef?.hTail || []).filter(x => x && Number.isFinite(x.v) && x.v > 0 && x.v < 100).map(x => ({ t: x.t, v: x.v })), 15, 2),
+                tr1h: efTrendOfTail(ef?.hTail)
+            })),
+            dr: logTry(() => cleanDr(c.dr, true)),
             tC: logNum(c.waterTempC),
             tT: logEpoch(c.tempT),
             ice: ice ? { lf: !!ice.lf, por: !!ice.por, efMiss: !!ice.efMiss } : null,
@@ -2434,6 +2681,8 @@ function buildTickRecord(ctx, tickStartMs, o = {}) {
         ceil: m ? { lim: logNum(m.ceilLim), bound: !!m.ceilBound } : null,
         final: pred ? { cfs: logNum(pred.predictedCFS, 0), stage: logNum(pred.predictedStage, 2), ts: pred.timestamp ?? null } : null,
         due: pred ? (pred.validationDue ?? null) : null,
+        conf: usgs ? logTry(() => buildConf(pred, g, adv)) : null,
+        ci: pred ? logTry(() => bandFor(pred.predictedCFS, pred.flowBin, pred.flowState)) : null,
         adv: adv ? { dbar: logNum(adv.dbar, 3), ef: adv.ef ?? null, lfr: adv.lfr ?? null, lfe: logNum(adv.lfe) } : null,
         slot: c.slot ?? 'none',
         val: c.val ? { n: logEpoch(c.val.n), cleaned: logEpoch(c.val.cleaned) } : null,
@@ -2687,6 +2936,9 @@ exports._test = {
     buildTickRecord, buildValidationRecord, buildBinSnapshot,
     runBinSnapshot, pruneLogType, runLogHousekeeping, finalizeTick, noPredictionWhy, flushDeferredLogs,
     storeValidationPair, binStatsOf,
+    // v39.6 (A5, A8)
+    fetchDifficultRun, parseDifficultRun, attachDr, compactSeries, efTrendOfTail,
+    confidenceLabel, downgradeLabel, shownLabel, buildConf, cleanDr, DR_URL, DR_CAP_MS, DR_LATE_SKIP_MS,
 };
 
 /**
@@ -2934,6 +3186,17 @@ exports.handler = async (event, context) => {
             } catch (pingErr) {
                 console.warn('Healthchecks ping failed (non-fatal):', pingErr.message);
             }
+        }
+
+        // v39.6 (A5): the Difficult Run reading for the audit log. After the ping, in its OWN try/catch
+        // (fetch and attach), so nothing here can reach the catch below, send a /fail ping or change the
+        // status. Time-bounded (2 s) and skipped on a late tick. Never read by estimation or learning.
+        try {
+            const dr = await fetchDifficultRun(tickStartMs);
+            tickCtx.dr = dr;
+            attachDr(logCtx.queue, dr, tickStartMs);
+        } catch (_) {
+            try { if (!tickCtx.dr) tickCtx.dr = { q: null, t: null, at: null, ms: null, qual: [], why: 'internal_error', ageMin: null, tail: null }; } catch (__) { /* log-only */ }
         }
 
         // v39.2 (A3): housekeeping and the tick row run AFTER the success ping, so logging can never
