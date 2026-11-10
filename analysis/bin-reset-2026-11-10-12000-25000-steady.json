@@ -24,5 +24,11 @@
       "data": { "count": 1, "stdDev": 0, "sumError": 0.83, "meanError": 0.83, "sumErrorSq": 0.6889, "emaMeanError": 0.83 }
     }
   ],
-  "undo": "Re-insert the two rows above (observation_type, gauge_id, data). A missing row is read as an empty bin, which is the state that held before 2026-10-13."
+  "undo": "Re-insert the two rows above (observation_type, gauge_id, data). A missing row is read as an empty bin, which is the state that held before 2026-10-13.",
+  "verified": "Independent verifier, 2026-11-10 17:30Z: 28 rows remain, hash of the other 28 rows identical to the before-hash, live API shows the bin empty, real getGFCorrection for 12000-25000 steady returns 911.93 (was 2678.14 with the bin in place).",
+  "known_side_effects": [
+    "The documented identity sum(flow bin counts) == validValidations == binWriteSuccesses is now off by one on purpose: flow bins sum to 439, both counters read 440. The counters were NOT decremented (that would be a second production write and they also feed avgErrorPercent). Anyone using the identity to look for lost bin writes (diagnostics panel, scripts/recover-bins.js) must subtract this one deliberate deletion.",
+    "The 2026-10-13 observation still counts in avgErrorPercent, stageValidations and sumAbsStageError. The delete did not touch those, and re-inserting the rows would not change them.",
+    "The next validation in this band and state creates a fresh one-observation bin seeded at its raw error, blended at weight 1/5. The reset removes the bad observation; it does not change how thin bins behave (see report problem 9)."
+  ]
 }
