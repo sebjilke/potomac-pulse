@@ -27,6 +27,7 @@ import {
     shouldShowResidualAdvisory,
     RESIDUAL_ADVISORY_TITLE, RESIDUAL_ADVISORY_BODY
 } from './residual-advisory.js';
+import { capView, applyCapView, ciRowText } from './cap-indicator.js';
 import { runShadowModels } from '../estimation/shadow-models.js';
 import { recordGFEstimate } from '../data/history.js';
 import { fmtArrival } from '../data/fetch.js';
@@ -35,6 +36,20 @@ import { renderForecastGraph, getForecastGraphData, getGraphScales } from '../ui
 import { updateShadowModelUI } from '../ui/learning-ui.js';
 import { dropLocalSpikes } from '../estimation/rise-rate-robust.mjs';
 import { emit } from '../state/event-bus.js';
+
+// v39.3 (A4a): write the cap note and the inputs row for the given estimate (null, EF-only, bound or not).
+// Pure view logic lives in cap-indicator.js; this only hands it the page elements. Display only.
+// Returns the view so the 90% CI row can build its own text with ciRowText (order-independent).
+function renderCapIndicator(estimate) {
+    const view = capView(estimate, Date.now());
+    applyCapView(view, {
+        note: document.getElementById("gf-cap-note"),
+        headline: document.getElementById("gf-cap-headline"),
+        detail: document.getElementById("gf-cap-detail"),
+        row: document.getElementById("gf-input-ceiling")
+    });
+    return view;
+}
 
 // ==================== GF ESTIMATE (compute, separated from render) ====================
 
@@ -73,6 +88,7 @@ export function updateGreatFallsUI() {
         document.getElementById("gf-forecast-cfs").textContent = "--";
         document.getElementById("gf-forecast-stage").textContent = "--";
         document.getElementById("gf-forecast-hrs").textContent = "--";
+        renderCapIndicator(null);
         return;
     }
 
@@ -104,6 +120,7 @@ export function updateGreatFallsUI() {
         document.getElementById("gf-forecast-cfs").textContent = "--";
         document.getElementById("gf-forecast-stage").textContent = "--";
         document.getElementById("gf-forecast-hrs").textContent = "--";
+        renderCapIndicator(null);
         return;
     }
 
@@ -116,6 +133,9 @@ export function updateGreatFallsUI() {
 
     // Main display - "ESTIMATED NOW" section
     document.getElementById("gf-cfs").textContent = gfEstimate.cfs.toLocaleString();
+    // v39.3 (A4a): the cap note is written right after the number it describes, so a later throw
+    // cannot leave the previous note next to a new number.
+    const capV = renderCapIndicator(gfEstimate);
 
     // Show stage (clean number only)
     const stageEl = document.getElementById("gf-stage");
@@ -249,8 +269,8 @@ export function updateGreatFallsUI() {
 
     // Display 90% CI range
     if (gfEstimate.uncertaintyRange) {
-        document.getElementById("gf-input-uncertainty").textContent =
-            `${gfEstimate.uncertaintyRange.lowCFS.toLocaleString()} – ${gfEstimate.uncertaintyRange.highCFS.toLocaleString()} cfs`;
+        document.getElementById("gf-input-uncertainty").textContent = ciRowText(
+            `${gfEstimate.uncertaintyRange.lowCFS.toLocaleString()} – ${gfEstimate.uncertaintyRange.highCFS.toLocaleString()} cfs`, capV);
     } else {
         document.getElementById("gf-input-uncertainty").textContent = "--";
     }

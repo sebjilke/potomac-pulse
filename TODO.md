@@ -4,7 +4,7 @@
 Session state is in `.claude/HANDOFF.md`; methodology provenance for shipped versions is the
 small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, prioritize, go.
 
-*Last updated: 2026-11-10 (current version: v39.2). Verified against live DB + git history, not memory.*
+*Last updated: 2026-11-10 (current version: v39.3). Verified against live DB + git history, not memory.*
 
 ---
 
@@ -14,7 +14,7 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 - Effort is a rough order-of-magnitude.
 - 🔒 = needs a decision from you before work starts · 📅 = date-gated · 🔍 = verify-only.
 - Anything touching the estimate must keep the characterization/golden tests green and the
-  client↔server parity tests green (`npm test` = **1033**), or deliberately re-baseline + version-bump.
+  client↔server parity tests green (`npm test` = **1075**), or deliberately re-baseline + version-bump.
 - **Pushing auto-deploys from `main`** through the Netlify gate (`npm install && npm test && npm run build`);
   a red suite blocks deploy. Pushing needs explicit approval each time.
 
@@ -186,7 +186,9 @@ plan → audit → dual-language protocol; A6 and A7 must not be judged on this 
 | A1 | **Stale cache.** Fetch river data network-first; drive "Updated" from reading time, not fetch time. | ✅ done 2026-11-10 (v39.1); plan and audit response in `analysis/stale-cache-fix-plan-2026-11-10.md`. In-browser checks still pending (see plan section 6). | small |
 | A2 | **+9,743 bin** (12,000–25,000 steady, one mislabelled observation). | ✅ done 2026-11-10: flow bin + paired stage bin deleted; record and undo in `analysis/bin-reset-2026-11-10-12000-25000-steady.json` | decision |
 | A3 | **Logging.** Per prediction: inputs seen, raw value, flags, whether the cap bound; keep clean rows longer. | ✅ implemented 2026-11-10 (v39.2); plan and audit response in `analysis/prediction-logging-plan-2026-11-10.md`. **Production behaviour UNVERIFIED** until the follow-ups below are checked. | small |
-| A4 | **120% cap.** Show when it is active; stop capped rows training bins. | open | small–medium |
+| A4a | **120% cap indicator.** Show when the cap is active. | ✅ done 2026-11-10 (v39.3); plan and audit response in `analysis/cap-indicator-plan-2026-11-10.md`. Browser checks pending (phone layout, light and dark, screen reader, live bound example). | small |
+| A4b | **Keep capped rows out of learning.** | NOT done, 🔒 owner decision. A4 was split. The October finding was aimed at the wrong cause: the capped rows did train the 12,000 to 25,000 rising bin, but the cap did not cause the value. Bins learn the raw residual (rawCFS minus actual), the learning code never reads `ceilingApplied`, and the same residuals would have been learned with no cap (`analysis/cap-mechanism-map-2026-11-10.md`). Recommendation: do not filter by `ceilingApplied`. After two or three real rises, replay "exclude" and "down-weight" on the raw values that v39.2 now logs, then decide. The real fix is upstream in A7. | small |
+| A4c | **Cap indicator follow-ups (from the v39.3 re-audit; none changes the estimate).** (1) The map popup (`src/ui/great-falls-ui.js` near line 312) and the dashboard (`src/ui/learning-ui.js` near lines 220 and 401) show the capped value with no mark. (2) The note's "over 3 h old" clause is computed only on the 15 minute render, so it can lag. (3) The note sits inside the card's atomic live region and is re-read on each change. (4) The note type is small (0.6rem). Added by the last independent check: the loading and no-estimate paths never rewrite the 90% range row, so after a capped render it can keep "(around the capped value)" while the note is hidden; and the page wiring of that suffix is guarded only by a source pattern, so add a test that renders the card update against a fake page. | NOT done, can wait. | small |
 | A5 | **Difficult Run.** Subtract from the validation truth, or flag validations when it is high. | open 🔒 | medium, needs a backtest |
 | A6 | **Multi-pending validation.** Reopen for responsiveness (learning was 23 h late at onset). | open 🔒 | large, rejected once in June |
 | A7 | **Rising-limb travel lookup + PoR-delta correction.** | open 🔒 | large, needs A3 data first |
@@ -233,6 +235,7 @@ plan → audit → dual-language protocol; A6 and A7 must not be judged on this 
 
 ## Recently completed (reference)
 
+- **v39.3** (2026-11-10): Cap indicator (A4a, flood audit problem 4; MINOR, display only, estimation unchanged). The Great Falls card says when the 120% cap holds the number down, with the model's own value; inputs row "120% ceiling"; 90% CI row marked when capped. Additive `inputs` fields only. 42 new tests (1075 total). `SERVER_VERSION` stays v39.2. A4b split off and left open. Plan: `analysis/cap-indicator-plan-2026-11-10.md`.
 - **v39.2** (2026-11-10): Audit logging for the hourly cron (A3, flood audit finding 3; MINOR, server-only, estimation unchanged). `tick_log`, `validation_log`, `bin_snapshot`, `log_health` rows; non-fatal, time-bounded, written after the success ping; bounded prune of the three log types only. 913→1032 tests. Production behaviour UNVERIFIED (see A3 follow-ups).
 - **v39.1** (2026-11-10): River data is network-first in the service worker; the "last update" label shows the age of the readings, not of the fetch; an old direct USGS payload now still tries the CORS proxies (A1, flood audit finding 5; MINOR, client only). 842→913 tests. Amendment: the page reads the USGS response time (requestDT), so a live body with old readings costs no extra downloads when the clock is right (plan section 11). In-browser checks still pending. Plan: `analysis/stale-cache-fix-plan-2026-11-10.md`.
 - **v39.0** (2026-11-10) — Statistical outliers (Check 5) are soft: learned through a ±2σ clamp computed from PRE-observation bin stats (≤ 0.6·σ_pre per observation; stage bins likewise; `EF_DISCREPANCY` soft path changes with it) and counted in accuracy, so the headline reads worse for the same model (MAJOR, server-only; v38 skipped). New `soft_outlier_event` rows / `softOutlierValidations` / `outlierZ`. 798→842 tests. Production behaviour UNVERIFIED until a z > 3 validation occurs. Plan: `analysis/outlier-always-soft-plan-2026-11-09.md`.

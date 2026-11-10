@@ -4,7 +4,7 @@
 import {
     LF, TRAVEL_POR_GF_BASELINE,
     TRIB_FALLBACK, DECAY_CAP, EF_DISCREPANCY_MAX,
-    EMPIRICAL_CI_90, GF_OUTLIER_THRESHOLD
+    EMPIRICAL_CI_90, GF_OUTLIER_THRESHOLD, CEILING_RATIO
 } from '../model/constants.js';
 
 import {
@@ -503,7 +503,7 @@ export function estimateGreatFalls() {
     // shared helper. The correction is looked up off the bin of the UNCLIPPED raw final, which is
     // exactly the bin the server's EMA learns into → displayed model == validated model.
     const rawFinalUnclipped = estimatedCFS;
-    const { flowBin, correction, correctedFinal, ceilingApplied } = applyGFCorrection({
+    const { flowBin, correction, correctedFinal, correctedFinalUnclipped, ceilingApplied } = applyGFCorrection({
         rawFinalUnclipped, lfCFS: lf?.q || 0, correctionBins: gfLearningData?.correctionBins, flowState
     });
     if (correction !== 0) {
@@ -594,7 +594,12 @@ export function estimateGreatFalls() {
                 reductionPct: riseRate.flowState === 'rising' ? Math.min(30, riseRate.ratePerHour * 2) : 0
             } : null,
             porDeltaCorrection: porDeltaCorrection,
-            ceilingApplied: ceilingApplied
+            ceilingApplied: ceilingApplied,
+            // v39.3 (A4a): additive display facts for the cap indicator. Read-only copies; never feed the estimate.
+            uncappedCFS: Math.round(correctedFinalUnclipped),
+            ceilingLimitCFS: Math.round(lf.q * CEILING_RATIO),
+            lfCFS: Math.round(lf.q),
+            lfReadMs: lf.readTime ?? null
         },
         uncertaintyRange: uncertaintyRange,
         efEstimate: efEstimate,

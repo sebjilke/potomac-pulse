@@ -84,6 +84,13 @@ the rise and peak (it hid a raw over-read of 18 to 37 percent) and flipped the s
 at the onset. The interface never says the cap is active. Rows masked by the cap still trained
 the bins, which is how 12,000–25,000 rising reached +3,762 cfs.
 
+**Correction, 2026-11-10.** The capped rows did train the 12,000 to 25,000 rising bin, but the cap
+did not cause the value. Bins learn the raw residual (rawCFS minus actual). The learning code never
+reads `ceilingApplied`. The same residuals would have been learned with no cap at all. So "stop
+capped rows from training bins" was aimed at the wrong cause. Evidence:
+`analysis/cap-mechanism-map-2026-11-10.md`. The visible half of this problem (the page never says the
+cap is active) was fixed in v39.3 (A4a). The learning half (A4b) is left open as an owner decision.
+
 ### 5. The offline cache can serve old river data labelled "Updated just now" [S]
 The service worker returns the cached USGS response first and refreshes in the background; the
 staleness label is driven by fetch time, not reading time. A returning visitor can see data up to
@@ -153,7 +160,7 @@ learning; client shadow models; mobile layout; error monitoring.
 | 1 | Make the cache network-first for river data and drive "Updated" from reading time | User-facing, safety-relevant, small | small |
 | 2 | Decide what to do with the single-observation +9,743 bin | Live hazard at the next 12–25k steady flow | decision |
 | 3 | Log each prediction's inputs, raw value, flags and whether the cap bound; keep clean rows longer | Every other item needs this to be measured | small |
-| 4 | Show when the 120 percent cap is active; stop capped rows from training bins | Honesty, and stops bins learning an artifact | small–medium |
+| 4 | Show when the 120 percent cap is active; stop capped rows from training bins | Honesty, and stops bins learning an artifact (2026-11-10: the second half, stop capped rows from training bins, was found to be aimed at the wrong cause; see the correction under problem 4. Only the indicator was done, as A4a.) | small–medium |
 | 5 | Subtract Difficult Run from the validation truth, or flag validations when it is high | Removes a known contaminant from learning | medium, needs a backtest |
 | 6 | Reopen multi-pending validation for responsiveness | Learning was 23 hours late at onset | large, was rejected once |
 | 7 | Fix the rising-limb travel lookup and review the delta correction | Largest raw-model error, but magnitudes unverified | large, needs item 3 first |

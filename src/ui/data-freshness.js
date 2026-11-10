@@ -174,7 +174,8 @@ export function bandFor(min) {
 
 const atLeast = (cls, floor) => (ORDER.indexOf(cls) < ORDER.indexOf(floor) ? floor : cls);
 const pad2 = (n) => String(n).padStart(2, '0');
-const clock = (ms) => { const d = new Date(ms); return `${d.getHours()}:${pad2(d.getMinutes())}`; };
+/** Local 24-hour H:MM clock, used by the header label and by the cap note. */
+export const clock = (ms) => { const d = new Date(ms); return `${d.getHours()}:${pad2(d.getMinutes())}`; };
 const stamp = (ms) => (ms === null || ms === undefined ? 'none' : new Date(ms).toLocaleString());
 
 /**
