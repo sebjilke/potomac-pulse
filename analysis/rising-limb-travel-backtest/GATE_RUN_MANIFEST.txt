@@ -1,0 +1,19 @@
+Single gate run of the rising-limb travel backtest (plan step 3, second half).
+Started 2026-11-10T23:56:48.692Z, finished 2026-11-10T23:57:25.164Z, exit 0, at git commit 17c6060.
+Command: node run_gate.mjs --i-am-the-single-gate-run   (47 of 47 harness tests passed in the same invocation)
+Node v24.12.0, darwin arm64. Run log with input and code checksums: rising_limb_run_log.json.
+
+The tick files are NOT in git (about 200 MB each). They are reproduced exactly by checking out commit 17c6060,
+restoring hourly_backtest_data_v39.csv from the .gz, and running the command above in a folder with no outputs.
+
+sha256                                                            rows      file
+8d841145905de1f6b6d217835c65229862ec6e115f33823c9472ffcfbfca0a6f  523948    rising_limb_ticks.csv        (primary: single-slot learning, primary lag view)
+0407062ba39f5bb3381fab77b7418fbef984ab4c2de423a6b636d04b8079b0f4  523948    rising_limb_ticks_S2.csv     (sensitivity S2)
+33af47ce920bea6a51956e2e2deb06ff6a1d79d06cdb13f05e19f65e1f844f26  523948    rising_limb_ticks_S3.csv     (sensitivity S3)
+c99c4b56e3ae3edc47cda561a7322174d6797709e509ea63f8e0106e17064778  523948    rising_limb_ticks_multi.csv  (multi-pending replay, report-only)
+adb0f9f5ad8c8e7219608a1502df9f6e7587ab25f4fd2a4bac179edd483949ad            rising_limb_snapshots_t0m72.json (in git)
+f5622d46f5a7f86deaa6fe49505da24112820b7319a344c9a13bfa456173164e            rising_limb_run_log.json (in git)
+
+Each tick file: 130,987 hourly ticks x 4 arms (base, A, B, C), 50 columns, described in TICK_SCHEMA.md.
+No error of any arm against the truth was computed by the run or by the person who launched it.
+Only the blind metric analysts (Python and R), the third implementation and the auditor may open the tick files.

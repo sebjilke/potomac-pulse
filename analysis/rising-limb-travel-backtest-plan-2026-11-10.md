@@ -252,6 +252,8 @@ The Python analyst reported that the alternative readings of C1 and C2 give an i
 - H14. For criterion G7b, MAPE is the hour-pooled mean of 100 x |e_unc| / truth over the rising-limb ticks.
 - H15. The single gate run must be able to prove which code it ran: the harness, the tick schema and this plan are committed to git first; the run refuses to start if the harness folder has uncommitted changes; and its log records the sha256 of every harness source file, of the tick schema and of this plan, with the git commit.
 
+**D-6, 2026-11-10, the single gate run, recorded by the orchestrator. Not a change to the plan.** The run was executed once, from 2026-11-10T23:56:48Z to 23:57:25Z, at git commit 17c6060 (`node run_gate.mjs --i-am-the-single-gate-run`, exit 0; the 47 harness tests passed in the same invocation; input and code checksums are in `rising_limb_run_log.json`). It wrote the primary tick file, the S2 and S3 sensitivity files, the multi-pending file, and the bin and pending-slot snapshots at t0-72 h, 130,987 ticks x 4 arms each. Their sha256 values are in `analysis/rising-limb-travel-backtest/GATE_RUN_MANIFEST.txt`. The tick files are too large for git and are reproduced exactly from commit 17c6060. Neither the run nor the orchestrator computed or looked at any error of any arm against the truth. Next, in this order: the blind Python and R metric analysts (steps 4 and 5), the third implementation (step 6), the agreement check and the auditor (step 7), the gate table and verdict (step 8).
+
 ## 13. Audit response (plan audit 2026-11-10: approve_with_changes)
 
 All 15 amendments are ACCEPTED. None rejected.

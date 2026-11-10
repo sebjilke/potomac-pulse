@@ -1,0 +1,234 @@
+{
+ "startedAt": "2026-11-10T23:56:48.692Z",
+ "node": "v24.12.0",
+ "platform": "darwin arm64",
+ "inputs": {
+  "hourly_backtest_data_v39.csv": "d1d3f6a515d0c90c1e0bc1b075c6b53977d34aa82e704e163b449785259c8c4f",
+  "rising_limb_events_python_v39.csv": "978c6c2f98a522ad98ff54cd3f172df534ed2a4c552a29490739ba0f5d7cac44",
+  "rising_limb_bootstrap_indices.csv": "7eff92a751fd9cc0c6f8e0220998e98788cc2f293b5437088bf9376e1dd96519",
+  "rising_limb_bootstrap_indices_nonoct.csv": "c1f50235edf229d65f8dcd0432f0a9699c752e3a67f7fac27e597c040a29ff5c"
+ },
+ "dryRun": false,
+ "scheduledUpdateBlob": "f8a3b244dc0c0506cdb0182dfde56bbab5a8fcb2",
+ "head": "17c60603852ebb22deb2cc61bb87f318bc46fde3",
+ "codeSha256": {
+  "drift_lib.mjs": "a09e455412e5eeed599e92353a3667c377939f445a7b2219837dcc183df3e212",
+  "generate_copies.mjs": "113286f2775c0fa21fe795d506556f50d676f130004300bb36b93cc3fdf6ca95",
+  "preconditions.mjs": "24f53b2d5314898791f5e164b5bda8a372a9aed23286e42d202fcbcab02d7506",
+  "rising_limb_harness.mjs": "c99ca24f51b0ce46e745d3597445df3a0a46766375725b27848b2d720f446ccd",
+  "rising_limb_learning_gate.mjs": "9b1b8e13a6308f9f6a26eff5fe97aa9bb78e58bd4d68fe3e0880ffb4cd412af7",
+  "rising_limb_model_variants.mjs": "7c5fa941cc5ed39096b0d223f59eda7f589dc46f1fb8d103c58a6d7f06db3da1",
+  "run_gate.mjs": "5011ac6fb721efd1b6f04be6ccfa7fd3adc490edcb73e6bf183a9233c8b36a56",
+  "tests/drift.test.mjs": "b770dac8a6d137667c778fcefaecc1c73b02393807359b558c14839178837714",
+  "tests/harness.test.mjs": "18400436e4f88be860f6046760b02f45e91b60aad9d3fb56e3efb95f1ccbf1ad",
+  "tests/preconditions.test.mjs": "57c24ff163e4893f4401db1902f99fabb4cf90c522048063f00fb045b279333d",
+  "TICK_SCHEMA.md": "a2b4f943266f144df856d9d7bde4f5dcf5f89dcd36d33e9484aeb7b5c22dd925",
+  "production_fingerprints.json": "b9ab049be89fafc84bf22aaee7afe0209a2028e7b3aa5a90fe050687d0468894",
+  "../rising-limb-travel-backtest-plan-2026-11-10.md": "59c29937ad82b5139220e52e32800433878245b7714507cbbcb5033ae874da8d"
+ },
+ "ticksPerView": 130987,
+ "gridTicks": 130987,
+ "runs": {
+  "primary": {
+   "rows": 523948,
+   "seconds": 8.492,
+   "counters": {
+    "base": {
+     "validated": 23609,
+     "hard": 34,
+     "soft": 2313,
+     "stale": 6,
+     "stored": 23627,
+     "replaced": 11,
+     "skipped": 104247,
+     "claims": 23609,
+     "retries": 47
+    },
+    "A": {
+     "validated": 23609,
+     "hard": 34,
+     "soft": 2332,
+     "stale": 6,
+     "stored": 23627,
+     "replaced": 11,
+     "skipped": 104247,
+     "claims": 23609,
+     "retries": 47
+    },
+    "B": {
+     "validated": 23928,
+     "hard": 37,
+     "soft": 2411,
+     "stale": 6,
+     "stored": 23947,
+     "replaced": 12,
+     "skipped": 103927,
+     "claims": 23928,
+     "retries": 50
+    },
+    "C": {
+     "validated": 23928,
+     "hard": 37,
+     "soft": 2408,
+     "stale": 6,
+     "stored": 23947,
+     "replaced": 12,
+     "skipped": 103927,
+     "claims": 23928,
+     "retries": 50
+    }
+   }
+  },
+  "S2": {
+   "rows": 523948,
+   "seconds": 8.552,
+   "counters": {
+    "base": {
+     "validated": 23617,
+     "hard": 34,
+     "soft": 2418,
+     "stale": 6,
+     "stored": 23634,
+     "replaced": 10,
+     "skipped": 104244,
+     "claims": 23617,
+     "retries": 48
+    },
+    "A": {
+     "validated": 23617,
+     "hard": 34,
+     "soft": 2418,
+     "stale": 6,
+     "stored": 23634,
+     "replaced": 10,
+     "skipped": 104244,
+     "claims": 23617,
+     "retries": 48
+    },
+    "B": {
+     "validated": 24012,
+     "hard": 36,
+     "soft": 2512,
+     "stale": 6,
+     "stored": 24028,
+     "replaced": 9,
+     "skipped": 103850,
+     "claims": 24012,
+     "retries": 44
+    },
+    "C": {
+     "validated": 24012,
+     "hard": 36,
+     "soft": 2511,
+     "stale": 6,
+     "stored": 24028,
+     "replaced": 9,
+     "skipped": 103850,
+     "claims": 24012,
+     "retries": 44
+    }
+   }
+  },
+  "S3": {
+   "rows": 523948,
+   "seconds": 8.506,
+   "counters": {
+    "base": {
+     "validated": 23613,
+     "hard": 35,
+     "soft": 2421,
+     "stale": 6,
+     "stored": 23631,
+     "replaced": 11,
+     "skipped": 104246,
+     "claims": 23613,
+     "retries": 48
+    },
+    "A": {
+     "validated": 23613,
+     "hard": 35,
+     "soft": 2430,
+     "stale": 6,
+     "stored": 23631,
+     "replaced": 11,
+     "skipped": 104246,
+     "claims": 23613,
+     "retries": 48
+    },
+    "B": {
+     "validated": 23988,
+     "hard": 37,
+     "soft": 2509,
+     "stale": 6,
+     "stored": 24004,
+     "replaced": 9,
+     "skipped": 103873,
+     "claims": 23988,
+     "retries": 44
+    },
+    "C": {
+     "validated": 23988,
+     "hard": 37,
+     "soft": 2509,
+     "stale": 6,
+     "stored": 24004,
+     "replaced": 9,
+     "skipped": 103873,
+     "claims": 23988,
+     "retries": 44
+    }
+   }
+  },
+  "multi": {
+   "rows": 523948,
+   "seconds": 10.915,
+   "counters": {
+    "base": {
+     "validated": 127714,
+     "hard": 316,
+     "soft": 17119,
+     "stale": 48,
+     "stored": 127874,
+     "replaced": 0,
+     "skipped": 0,
+     "claims": 127714,
+     "retries": 0
+    },
+    "A": {
+     "validated": 127714,
+     "hard": 316,
+     "soft": 17138,
+     "stale": 48,
+     "stored": 127874,
+     "replaced": 0,
+     "skipped": 0,
+     "claims": 127714,
+     "retries": 0
+    },
+    "B": {
+     "validated": 127714,
+     "hard": 319,
+     "soft": 17022,
+     "stale": 48,
+     "stored": 127874,
+     "replaced": 0,
+     "skipped": 0,
+     "claims": 127714,
+     "retries": 0
+    },
+    "C": {
+     "validated": 127714,
+     "hard": 319,
+     "soft": 17049,
+     "stale": 48,
+     "stored": 127874,
+     "replaced": 0,
+     "skipped": 0,
+     "claims": 127714,
+     "retries": 0
+    }
+   }
+  }
+ },
+ "finishedAt": "2026-11-10T23:57:25.164Z"
+}
