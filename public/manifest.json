@@ -1,7 +1,7 @@
 {
   "name": "Potomac Pulse",
   "short_name": "Potomac Pulse",
-  "description": "Real-time Potomac River flow tracking and Great Falls predictions for paddlers",
+  "description": "Live Potomac River flow for paddlers: a Great Falls estimate from upstream USGS gauges, a 48 hour outlook, travel times and local creek levels.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",

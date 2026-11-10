@@ -25,7 +25,7 @@ export default defineConfig({
         clientsClaim: true,
         skipWaiting: true,
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/\.netlify\//], // never serve the SPA shell for function calls
+        navigateFallbackDenylist: [/^\/\.netlify\//, /^\/robots\.txt$/, /^\/sitemap\.xml$/], // never serve the SPA shell for function calls or the crawler files
         // River data is network-first (v39.1); see config/runtime-caching.mjs.
         runtimeCaching,
       },

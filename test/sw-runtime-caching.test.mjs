@@ -150,6 +150,19 @@ describe('built dist/sw.js', () => {
         assert.equal(routeFor(routes, 'https://server.arcgisonline.com/x/tile/5/10/10'), undefined);
     });
 
+    it('8b. built output has robots.txt and sitemap.xml, and the built worker denies them for navigation', (t) => {
+        if (process.env.SW_DIST_TEST !== '1') return t.skip('set SW_DIST_TEST=1 after npm run build to check the built output');
+        for (const f of ['robots.txt', 'sitemap.xml']) assert.ok(existsSync(resolve(root, 'dist', f)), `dist/${f} is absent`);
+        const code = readFileSync(resolve(root, 'dist/sw.js'), 'utf8');
+        const m = code.match(/denylist:\s*\[([^\]]*)\]/);
+        assert.ok(m, 'no navigation denylist in the built worker');
+        const list = [...m[1].matchAll(/\/((?:\\.|[^/\\])+)\//g)].map((x) => new RegExp(x[1]));
+        for (const path of ['/robots.txt', '/sitemap.xml', '/.netlify/functions/x']) assert.ok(list.some((re) => re.test(path)), `denylist misses ${path}`);
+        assert.ok(!list.some((re) => re.test('/')), 'denylist must not cover the app shell');
+        const html = readFileSync(resolve(root, 'dist/index.html'), 'utf8');
+        assert.match(html, /<link rel="canonical" href="https:\/\/potomac-pulse\.netlify\.app\/">/);
+    });
+
     it('9. CI wiring: the GitHub workflow builds before running the built-worker test', () => {
         const wf = readFileSync(resolve(root, '.github/workflows/test.yml'), 'utf8');
         assert.match(wf, /npm run build && SW_DIST_TEST=1 node --test test\/sw-runtime-caching\.test\.mjs/);

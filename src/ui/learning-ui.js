@@ -9,6 +9,7 @@ import {
     shadowModelState, shadowResults, setShadowModelState, setShadowResults,
     shadowLeaderboard
 } from '../state/store.js';
+import { readAppVersion } from './app-version.js';
 import { mergeValidationReadings, summarizeValidations } from './validation-merge.js';
 
 // ==================== UPDATE GF LEARNING UI ====================
@@ -746,7 +747,7 @@ export async function downloadLearningBackup() {
         const gf = await gfRes.json();
         const forecastAccuracy = faRes.ok ? await faRes.json() : null;
 
-        const version = (document.title.match(/v[\d.]+/) || ['unknown'])[0];
+        const version = readAppVersion(document);
         const payload = {
             app: 'Potomac Pulse',
             kind: 'learning-backup',
