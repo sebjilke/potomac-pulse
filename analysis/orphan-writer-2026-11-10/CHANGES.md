@@ -7,8 +7,18 @@ All times UTC, 2026-11-10. Approved by the owner ("do what you recommend").
 `select cron.alter_job(job_id := 2, active := false);`
 
 Job 2 is `potomac-learning-job`, schedule `*/15 * * * *`, which called the edge function
-`potomac-learner`. Last run before the pause: 18:00:00 (run number 28,792). The job definition is
-untouched, only its `active` flag changed.
+`potomac-learner`. Last run before the pause: 18:00:00 (runid 28793 in cron.job_run_details; 28,792
+runs were recorded for the job in total). The job definition is untouched, only its `active` flag
+changed.
+
+Verified independently at 18:16:55: job inactive, no run at 18:15, no pg_net response after
+18:00:00, no call to the function and no Deno request in the API log since the pause; the function,
+the five RLS policies and the eleven rows the function owns are unchanged; the app's own hourly job
+ran normally at 18:01 (missedRuns still 656).
+
+Also found, not changed: a database function `public.run_potomac_learning()` (calls USGS through
+pg_net, no recorded calls, nothing depends on it). It belongs with the cleanup below. The anon key
+remains embedded in the paused job's stored command until the job is unscheduled.
 
 Undo: `select cron.alter_job(job_id := 2, active := true);`
 
