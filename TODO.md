@@ -14,7 +14,7 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 - Effort is a rough order-of-magnitude.
 - 🔒 = needs a decision from you before work starts · 📅 = date-gated · 🔍 = verify-only.
 - Anything touching the estimate must keep the characterization/golden tests green and the
-  client↔server parity tests green (`npm test` = **1032**), or deliberately re-baseline + version-bump.
+  client↔server parity tests green (`npm test` = **1033**), or deliberately re-baseline + version-bump.
 - **Pushing auto-deploys from `main`** through the Netlify gate (`npm install && npm test && npm run build`);
   a red suite blocks deploy. Pushing needs explicit approval each time.
 

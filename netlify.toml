@@ -7,9 +7,11 @@
   # Functions directory
   functions = "netlify/functions"
 
-  # Install dependencies, gate the deploy on the test suite, then build.
-  # If `npm test` fails the build fails and Netlify keeps the last good deploy.
-  command = "npm install && npm test && npm run build"
+  # Install dependencies, gate the deploy on the test suite, build, then check the service worker
+  # that was just built (river data must be network-first). If any step fails the build fails and
+  # Netlify keeps the last good deploy. The last step must come AFTER the build: Netlify reuses its
+  # working folder, so before the build dist/ still holds the previous deploy's worker.
+  command = "npm install && npm test && npm run build && SW_DIST_TEST=1 node --test test/sw-runtime-caching.test.mjs"
 
 [functions]
   # Node runtime for serverless functions (deployed: nodejs22.x)

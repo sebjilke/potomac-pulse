@@ -3,7 +3,8 @@
 // The built-worker test is opt-in because a dist/ left over from an earlier build is not evidence about
 // this commit: Netlify reuses its working folder between builds, so `npm test` there (which runs BEFORE
 // `npm run build`) would inspect the previous deploy's worker. That failed the first v39.1 deploy.
-// GitHub Actions runs it right after a build (see .github/workflows/test.yml); locally use
+// GitHub Actions and the Netlify build command both run it right after their own build (see
+// .github/workflows/test.yml and netlify.toml; tests 9 and 10 pin both); locally use
 // `npm run build && SW_DIST_TEST=1 node --test test/sw-runtime-caching.test.mjs`.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -152,5 +153,18 @@ describe('built dist/sw.js', () => {
     it('9. CI wiring: the GitHub workflow builds before running the built-worker test', () => {
         const wf = readFileSync(resolve(root, '.github/workflows/test.yml'), 'utf8');
         assert.match(wf, /npm run build && SW_DIST_TEST=1 node --test test\/sw-runtime-caching\.test\.mjs/);
+    });
+
+    it('10. deploy gate: the Netlify build command checks the built worker after its own build', () => {
+        const toml = readFileSync(resolve(root, 'netlify.toml'), 'utf8');
+        const m = toml.match(/^\s*command\s*=\s*"([^"]+)"/m);
+        assert.ok(m, 'no build command in netlify.toml');
+        const steps = m[1].split('&&').map((x) => x.trim());
+        const iTest = steps.indexOf('npm test');
+        const iBuild = steps.indexOf('npm run build');
+        const iGate = steps.indexOf('SW_DIST_TEST=1 node --test test/sw-runtime-caching.test.mjs');
+        assert.ok(iTest >= 0 && iBuild > iTest, 'npm test must run before npm run build');
+        assert.equal(iGate, iBuild + 1, 'the built-worker check must be the step right after npm run build');
+        assert.equal(iGate, steps.length - 1, 'the built-worker check must be the last step');
     });
 });
