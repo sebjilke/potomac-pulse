@@ -4,7 +4,7 @@
 Session state is in `.claude/HANDOFF.md`; methodology provenance for shipped versions is the
 small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, prioritize, go.
 
-*Last updated: 2026-11-09 (current version: v37.21). Verified against live DB + git history, not memory.*
+*Last updated: 2026-11-10 (current version: v39.0). Verified against live DB + git history, not memory.*
 
 ---
 
@@ -14,7 +14,7 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 - Effort is a rough order-of-magnitude.
 - 🔒 = needs a decision from you before work starts · 📅 = date-gated · 🔍 = verify-only.
 - Anything touching the estimate must keep the characterization/golden tests green and the
-  client↔server parity tests green (`npm test` = **798**), or deliberately re-baseline + version-bump.
+  client↔server parity tests green (`npm test` = **842**), or deliberately re-baseline + version-bump.
 - **Pushing auto-deploys from `main`** through the Netlify gate (`npm install && npm test && npm run build`);
   a red suite blocks deploy. Pushing needs explicit approval each time.
 
@@ -143,7 +143,7 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 | 31 | 🔴 **The 25,000 cfs cliff — the corrected estimate FALLS as the river RISES** | small | `CORR_SMOOTH_BOUNDARIES` (`shared/model.js`) smooths 3k/6k/12k but deliberately leaves 25k and 50k as steps ("backtest showed smoothing them degraded accuracy"). With the current bins that step is now enormous: at exactly 25,000 cfs the applied correction jumps **219 → 3,273** (rising) and **209 → 2,336** (steady). Since `corrected = raw − correction`, the displayed estimate **drops 3,053 cfs (rising) / 2,126 cfs (steady) for a 1-cfs rise in the raw estimate.** A full 500→80,000 cfs monotonicity sweep confirms these are the only large inversions (falling is clean: 209 → 185). The original decision justified a *step*; it did not anticipate a 3,000 cfs one, and 25,000 cfs at Great Falls is exactly when someone is watching the number. **Also:** rising is mildly non-monotonic *through the smoothed 3,000 band* — the correction ramps +769 cfs while flow rises 681, a gradient of 1.13, so ~88 cfs of backward travel. Smoothing removed the jump but not the inversion; the inversion condition is d(correction)/d(flow) > 1 inside a band, which nothing checks. |
 | 32 | 🔴 **`50000+` has never been observed and silently inherits the bin below** | medium | n=0 in all three states, permanently — no 50k event since the bins began. `getFallbackCorrection` walks to the neighbour and applies `25000-50000` wholesale: **3,273 cfs subtracted at 70,000 cfs** (rising). No extrapolation guard, no widened uncertainty band, no "this bin is unlearned" signal anywhere in the UI. The most consequential flow regime for safety has the least evidence behind its correction, and nothing says so. |
 | 33 | 🟠 **Bins carry no `lastUpdated`, so a stale correction is indistinguishable from a fresh one** | small | Confirmed: `lastUpdated` is null on all 28 rows. Consequence, live: `6000-12000_rising` holds n=4, meanError −1,580.25, and applies **−1,000 cfs (−11.1%)** — the only negative bin in the system. `analysis/ef-divergence-gate-plan-v2-external-review-2026-07-20.md` recorded that bin at n=4 / −1,580 on **2026-07-20**; it is *still* n=4 / −1,580.25, `created_at` 2026-05-24. **Zero observations in six weeks**, applied at full strength to every rising 6–12k estimate, with no way to see it. Minimal fix: stamp `lastUpdated` on write and surface bin age in the panel. Whether staleness should *decay* the correction is a separate call (see #35). |
-| 34 | 🟠 **Corrections apply at full weight from n=5, but the outlier clamp only starts at n=10** | trivial | `getGFCorrection` reaches full weight at `count >= 5`; `updateCorrectionBin`'s ±2σ soft clamp requires `count >= 10`. **Bins with n = 5–9 therefore apply a raw EMA at full strength with no outlier protection at all** — precisely the sparse bins most vulnerable to one bad observation. Live right now: `0-3000_rising` at n=7, the bin a falling river is heading into. The two thresholds should be the same number, or the clamp should start at 5. |
+| 34 | 🟠 **Corrections apply at full weight from n=5, but the outlier clamp only starts at n=10** | trivial | `getGFCorrection` reaches full weight at `count >= 5`; `updateCorrectionBin`'s ±2σ soft clamp requires a PRE-observation `count >= 10` (v39.0; was post-increment, i.e. pre ≥ 9). **Bins with n = 5–9 therefore apply a raw EMA at full strength with no outlier protection at all** — precisely the sparse bins most vulnerable to one bad observation. Live right now: `0-3000_rising` at n=7, the bin a falling river is heading into. The two thresholds should be the same number, or the clamp should start at 5. |
 | 35 | 🟠 **EMA memory is counted in observations, not time** | medium | `GF_EMA_ALPHA = 0.3` gives ~3.3 observations of effective memory — *identically for every bin*. Low bins update roughly hourly, so that is ~3 hours (appropriate). `25000-50000` has 57 observations total since May across a handful of flood events, so ~3 observations can span **months**. The same constant yields time constants differing by orders of magnitude, and high-flow corrections are in practice frozen snapshots of the last flood. Interacts with #33. Needs a decision-gated backtest before any change — do not re-tune alpha by intuition. |
 | 36 | 🟡 **No floor guard: the correction is a large fraction of flow at the bottom end** | small | `applyGFCorrection` has a 120%-of-LF *ceiling* (`CEILING_RATIO`) and nothing below. The 0–3000 correction is a flat cfs offset learned mostly near 2,000–3,000 and applied unscaled all the way down: at raw 1,000 cfs steady the correction is 420 → corrected **580 (a 42% cut)**; at 1,500 → 1,080 (28%); at 2,500 → 2,080 (17%). Drought is when low-flow accuracy matters most to paddlers. Consider scaling the correction by flow, or a floor analogous to the ceiling. |
 
@@ -153,16 +153,25 @@ Recorded so a future session does not re-litigate it: the 3k/6k/12k smoothing pr
 
 ---
 
-## 🔴 Open — anomaly-gate follow-ups (2026-11-09)
+## 🔴 Open — anomaly-gate follow-ups (2026-11-09, updated 2026-11-10)
 
-*From `analysis/anomaly-gate-rework-plan-2026-11-09.md` and its plan audit. v37.21 shipped the Check 3 ice gate only.*
+*From `analysis/anomaly-gate-rework-plan-2026-11-09.md`, `analysis/outlier-always-soft-plan-2026-11-09.md` and their plan audits. v37.21 shipped the Check 3 ice gate; v39.0 implements option A1 (Check 5 always-soft, pre-observation clamp).*
 
-1. 🔒 **Check 5 (`STATISTICAL_OUTLIER`) rework ON HOLD pending your decision** — see "Open decision for v37.22" in `analysis/anomaly-gate-rework-plan-2026-11-09.md` (options A always-soft, B hard only on surprise relative to flow, C leave as is with EMA centre). Not implemented.
+1. ✅ **Check 5 rework — implemented in v39.0 (option A1)**: outliers are soft, learned through a clamp bounded at 0.6·σ_pre and counted in accuracy. **Production behaviour UNVERIFIED until a z > 3 validation occurs** (then `softOutlierValidations` ≥ 1, the bin count +1, a `soft_outlier_event` row, no new `validation_failure` row).
 2. Recalibrate Check 3's 2.45 ft threshold against the rating relation using winter data (2.45 ft is ~500 cfs; in cold water every sub-1,500 cfs validation still flags).
 3. The water-temperature reading has no age check (it is the latest value in P1D), so a stale temperature can decide Check 3.
-4. Rewire `analysis/ci_backtest_harness.mjs`, `c45_gate.mjs` and `flow_state_floor_gate.mjs` to the shared `isIcePlausible` helper before the next backtest (they replay the pre-v37.21 gate; header notes added).
-5. Dead client copy of Check 5: `isGFOutlier` in `src/estimation/great-falls.js` and `GF_OUTLIER_THRESHOLD` in `src/model/constants.js`.
+4. Rewire `analysis/ci_backtest_harness.mjs`, `c45_gate.mjs` and `flow_state_floor_gate.mjs` to the shared `isIcePlausible` and `classifyOutlier` helpers before the next backtest (they replay the pre-v37.21 Check 3 and the pre-v39.0 hard Check 5 while importing the v39.0 `updateCorrectionBin`; header notes added in v37.21 and v39.0). `analysis/v38_gate_harness.mjs` and `multipending_gate.mjs` import `scoreAnomalies` from `ci_backtest_harness.mjs` and `updateCorrectionBin` from `shared/model.js`, so they mix the same pre-v39.0 hard Check 5 / pre-v37.21 Check 3 with the v39.0 clamp (v39.0 NOTE headers added to both).
+5. Dead client copy of Check 5: `isGFOutlier` in `src/estimation/great-falls.js` and `GF_OUTLIER_THRESHOLD` in `src/model/constants.js` (v39.0: marked dead by comment; delete in a later cleanup).
 6. The validation-failures GET endpoint caps at 50 rows and the table now holds 54.
+7. 👀 **Review the first live `soft_outlier_event` rows** (v39.0): confirm `clamped`, `emaAfter − emaBefore` ≤ 0.6·`sdPre`, `zScore` and `binCountAfter` look right, that no new `validation_failure` row was written for the same prediction, and that `softOutlierValidations` advanced by one. Ignore `emaAfter` / `binCountAfter` on any row where `binWriteFailed` is true (the bin upsert failed, so those values were never persisted). Closes the v39.0 verification gap.
+8. **7-day chart y-domain now takes soft outliers** (v39.0): soft-flagged observations are non-hard-flagged readings, so a −70 % local-runoff miss now enters the chart's y-domain and can squash the real series. Decide whether to exclude `outlierZ` entries from the domain (client change, not done).
+9. **CI-band provenance**: `EMPIRICAL_CI_90` (v36.1) was derived under the old hard Check 5 and the post-stat clamp; it lags the v39.0 learning rule. Re-derive when the harnesses are rewired (item 4), via the plan → audit → blind dual-language protocol.
+10. 🔒 **Owner decision: should bin-read-failure rows still be excluded from accuracy?** (v37.20 excluded them because "Check 5 could not run"; since v39.0 Check 5 no longer drops observations, so that rationale lapses. Kept as is. Note an unvetted observation also cannot be clamped, which is the remaining reason.)
+11. *(accepted, not fixed — v39.0 review)* `resetGFLearning` zeroes `softOutlierValidations` but keeps `soft_outlier_event` rows (audit history, same as `validation_failure`); compare row counts with the counter only after `resetAt`.
+12. *(accepted, pre-existing)* An observation whose bin read failed (`binReadFailed`) still enters `gf_validation_history` and the client's 7-day chart/average: `storeValidationPair` is gated on `!isHardFlagged` only. Fix if wanted: `!isHardFlagged && !binReadFailed` (scheduled-update.js).
+13. *(accepted, not fixed)* No API endpoint reads `soft_outlier_event` rows; inspecting them needs direct DB access. Optional: a `soft-outlier-events` GET mirroring `loadValidationFailures` (newest 50).
+14. *(accepted, not fixed)* The stage-bin clamp is triggered by the CFS-domain outlier flag (`isSoftFlagged`), so a normal-looking stage residual can be clamped when the CFS residual is an outlier (per spec section 2), and the event row records no stage outcome (`stageLearningError` / `stageClamped` would need hoisting out of the stage block).
+15. *(accepted, by design)* With `sd_pre = 0` and pre-count >= 10 a soft observation is learned unclamped at the full step (a zero-width clamp would freeze the bin; `classifyOutlier` never flags it either). A floor would be a spec change and needs unit-scaled values for flow (cfs) vs stage (ft).
 
 ---
 
@@ -178,7 +187,8 @@ Recorded so a future session does not re-litigate it: the 3k/6k/12k smoothing pr
 
 ## Recently completed (reference)
 
-- **v37.21** (2026-11-09) — Check 3 (`LOW_FLOW_HIGH_STAGE`) fires only when ice is plausible: water temp ≤ 5 °C, or Nov–Mar UTC when temp is unknown (MINOR, server-only). 15 warm-water validations had been hard-flagged 2026-09-16 → 10-10. Thresholds unchanged; production behaviour UNVERIFIED until LF < 1,500 cfs. 780→798 tests. Check 5 part on hold (above).
+- **v39.0** (2026-11-10) — Statistical outliers (Check 5) are soft: learned through a ±2σ clamp computed from PRE-observation bin stats (≤ 0.6·σ_pre per observation; stage bins likewise; `EF_DISCREPANCY` soft path changes with it) and counted in accuracy, so the headline reads worse for the same model (MAJOR, server-only; v38 skipped). New `soft_outlier_event` rows / `softOutlierValidations` / `outlierZ`. 798→842 tests. Production behaviour UNVERIFIED until a z > 3 validation occurs. Plan: `analysis/outlier-always-soft-plan-2026-11-09.md`.
+- **v37.21** (2026-11-09) — Check 3 (`LOW_FLOW_HIGH_STAGE`) fires only when ice is plausible: water temp ≤ 5 °C, or Nov–Mar UTC when temp is unknown (MINOR, server-only). 15 warm-water validations had been hard-flagged 2026-09-16 → 10-10. Thresholds unchanged; production behaviour UNVERIFIED until LF < 1,500 cfs. 780→798 tests. Check 5 part then on hold; done in v39.0.
 - **v37.20** (2026-09-02) — CFS bin read stops discarding its error; unvetted observations are refused, not guessed (TODO #30 closed).
 - **v37.19** (2026-09-02) — Stage error stops averaging over hard-flagged observations; legacy frozen against a latched denominator; stage-bin read/write failures now suppress the clean series and register as faults (TODO #27 closed, #30 opened).
 - **v37.18** (2026-09-02) — Removed dead `resetLowFlowBins`; `resetGFLearning` keeps bin-write health; `errorStage` uses `Number.isFinite` (TODO #28, #29 closed).

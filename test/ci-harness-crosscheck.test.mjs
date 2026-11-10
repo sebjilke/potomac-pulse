@@ -1,10 +1,15 @@
 // v36.1 — CROSS-CHECK: the offline CI backtest harness (analysis/ci_backtest_harness.mjs)
-// must reproduce the REAL server validation/learning path bit-for-bit. The EMA math is already
-// shared (updateCorrectionBin), so the only harness REIMPLEMENTATION is the anomaly scoring
-// (scoreAnomalies vs validatePendingPredictions Checks 1-5). This test drives the REAL
-// validatePendingPredictions with a mock Supabase client, captures the learned correction bin,
-// and asserts it equals what the harness path produces from the same inputs — across a clean,
-// a HARD-flagged (skip), and a SOFT-flagged (clamp at count>=10) scenario. (Plan §6/§12 C-F1.)
+// reproduces the REAL server validation/learning path for the scenarios below. The EMA math is shared
+// (updateCorrectionBin), so the only harness REIMPLEMENTATION is the anomaly scoring (scoreAnomalies vs
+// validatePendingPredictions Checks 1-5). This test drives the REAL validatePendingPredictions with a
+// mock Supabase client, captures the learned correction bin, and asserts it equals what the harness path
+// produces from the same inputs - across a clean, a HARD-flagged (skip), and a SOFT-flagged (clamp at
+// pre-count>=10) scenario. (Plan §6/§12 C-F1.)
+//
+// v39.0: the claim is NO LONGER "bit-for-bit" in general. The harness still carries the pre-v39.0 Check 3
+// (no ice gate) and Check 5 (HARD, lifetime-mean centred), so for z > 3 observations the real path learns
+// (soft, clamped) while the harness skips (hard). The last test asserts that DOCUMENTED divergence so it
+// cannot widen silently; the harness is to be rewired before the next backtest (TODO).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -132,10 +137,26 @@ test('SOFT-FLAG (EF discrepancy) clamps identically at count>=10', async () => {
     // If the harness had MISjudged soft→clean, it would NOT clamp and emaMeanError would differ
     // (this is the meaningful cross-check of the soft determination).
     assertBinsMatch(real.bin, harness.bin);
-    // Prove the soft clamp actually engaged: with the seed emaMeanError=0 (falsy), the recurrence
-    // falls back to meanError via `|| meanError` (the preserved v36.0 quirk), so the UNCLAMPED value
-    // would be 0.3*5000 + 0.7*(5000/11) = 1818.2; the clamped (learningError=4777) value is ~1751.
-    const unclampedEma = 0.3 * 5000 + 0.7 * (5000 / 11);
+    // Prove the soft clamp actually engaged. v39.0: centre = the pre-state EMA 0 (honoured, no `||`
+    // fallback to the mean), sd_pre = 2000, so learningError = 0 + 2*2000 = 4000 and ema = 0.3*4000 = 1200;
+    // the UNCLAMPED value would be 0.3*5000 = 1500.
+    const unclampedEma = 0.3 * 5000;
+    assert.equal(real.bin.emaMeanError, 1200);
     assert.ok(real.bin.emaMeanError < unclampedEma - 1,
         `clamp must pull ema below the unclamped ${unclampedEma.toFixed(1)} (got ${real.bin.emaMeanError.toFixed(1)})`);
+});
+
+test('v39.0 DOCUMENTED DIVERGENCE: a z > 3 observation - real path learns it (soft, clamped), harness (pre-v39.0 Check 5) skips it (hard)', async () => {
+    // LF 5000 / 3.46 ft consistent; no EF. Seed sd = 2000, mean 0, EMA 0; raw error +7000 -> z = 3.5.
+    const usgs = { data: { '01646500': { q: 5000, h: 3.46 }, '01645000': {}, '01644148': {} },
+                   gauges: { lf: '01646500', seneca: '01645000', ef: '01644148', monocacy: '01643000', goose: '01644000', broadRun: '01644280', por: '01638500' } };
+    const rawFinalCFS = 12000, binKey = '6000-12000_steady';
+    const seedBin = { count: 10, sumError: 0, sumErrorSq: 4e7, meanError: 0, emaMeanError: 0 };
+    const real = await realLearned({ usgs, temp: 15, row: pendingRow({ rawFinalCFS, predictedCFS: 11800 }), seedBin, binKey });
+    const harness = harnessLearned({ rawFinalCFS, usgs, temp: 15, flowBin: '6000-12000', flowState: 'steady', seedBin });
+    assert.equal(real.learned, true, 'v39.0 real path: outlier is soft and learned');
+    assert.equal(harness.learned, false, 'harness still replays the pre-v39.0 hard Check 5');
+    assert.equal(real.bin.count, 11);
+    assert.equal(real.bin.emaMeanError, 0.3 * (0 + 2 * 2000));   // clamped to centre + 2*sd_pre
+    assert.equal(real.result.pairs[0].hardFlagged, false);
 });

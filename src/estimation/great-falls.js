@@ -103,7 +103,9 @@ export function computeUncertaintyBand(estimatedCFS, q05, q95) {
 }
 
 /**
- * Tests whether a residual error is a statistical outlier relative to a learned bin's error distribution.
+ * DEAD CODE (no caller; pre-v39.0). Tests whether a residual error is a statistical outlier relative to a learned bin's error distribution.
+ * The server's Check 5 is `classifyOutlier` in netlify/functions/shared/model.js (v39.0: EMA-centred, soft, not hard).
+ * This copy is lifetime-mean-centred and encodes the retired hard-flag semantics - do not wire it to anything.
  * @param {number} errorCFS - The residual error to test, in cfs.
  * @param {{count: number, meanError: (number|undefined), sumErrorSq: number}} binData - Learned bin stats holding observation count, mean error (cfs), and sum of squared errors.
  * @returns {boolean} True if the error's z-score exceeds GF_OUTLIER_THRESHOLD; false when the bin has fewer than 10 observations or zero variance.

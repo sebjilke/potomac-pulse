@@ -720,7 +720,7 @@ function applyGFCorrection({ rawFinalUnclipped, lfCFS, correctionBins, flowState
     return { flowBin, correction, correctedFinalUnclipped, correctedFinal, ceilingApplied };
 }
 
-// --- EMA correction-bin update (v36.1) ---
+// --- EMA correction-bin update (v36.1; clamp rule rewritten v39.0) ---
 // Pure, in-place update of a single correction bin's running stats from one RAW residual
 // (errorCFS = rawFinalCFS − actualLF). Extracted verbatim from validatePendingPredictions
 // (scheduled-update.js) so the cron AND the offline CI backtest harness learn through the
@@ -728,45 +728,103 @@ function applyGFCorrection({ rawFinalUnclipped, lfCFS, correctionBins, flowState
 //
 // Contract:
 //  - HARD-flagged observations must be filtered by the CALLER; they never reach this function.
-//  - SOFT-flagged observations are clamped to ±2σ around the current EMA center, but ONLY once
-//    the bin has ≥10 observations (so σ is meaningful). The center is `emaMeanError ?? meanError`
-//    and the recurrence falls back `emaMeanError || meanError` — both preserved EXACTLY as the
-//    original, because a fresh bin's seed may or may not carry an `emaMeanError` key.
-//  - count===1 seeds emaMeanError = learningError (the EMA's first value), matching the original.
-// Mutates `binData` and returns { learningError, clamped, maxDelta } for the caller to log.
+//  - SOFT-flagged observations are clamped to ±2σ around the EMA centre, but ONLY when the bin
+//    ALREADY held ≥10 observations BEFORE this one (so σ is meaningful).
+//  - v39.0: σ and the centre are the PRE-observation values. Through v37.x the clamp width was
+//    computed AFTER the raw error had entered sumErrorSq, so an extreme observation widened its own
+//    clamp (had a −4,275 cfs miss in a bin with σ≈436 been admitted through it, it would have moved the
+//    EMA by about 603 cfs, ≈0.6·|e|/√(n+1), i.e. proportional to the error and not bounded; in fact
+//    that miss was hard-flagged and never learned). Now the guaranteed bound is
+//    |emaAfter − centre| ≤ α·2·σ_pre = 0.6·σ_pre per clamped observation.
+//    The gate moved from post-increment count ≥10 (pre ≥ 9) to PRE count ≥10 — a one-observation
+//    shift for the EF_DISCREPANCY soft path (TODO #34 tracks the n=5 / n=10 mismatch).
+//  - No clamp when σ_pre is zero or non-finite (a zero-width clamp would freeze the bin; NaN must
+//    never reach the EMA) or when the centre is non-finite.
+//  - Lifetime sums (count, sumError, sumErrorSq, meanError) still take the RAW error, so the
+//    bin's lifetime σ still jumps once a raw extreme enters the sums.
+//  - EMA: first observation (pre-count 0) seeds emaMeanError = learningError; afterwards
+//    ema = α·learningError + (1−α)·centre with centre = emaMeanError ?? preMean (pre-state). This
+//    replaces `emaMeanError || meanError`: an EMA of exactly 0 is honoured and the post-update mean
+//    is never mixed in. For a bin with a numeric non-zero EMA and no clamp it is numerically identical.
+// Mutates `binData` and returns the telemetry object below for the caller to log.
 /**
  * In-place EMA update of one correction bin from a single raw residual; soft-flagged residuals are clamped
- * to ±2σ around the EMA center once the bin has ≥10 obs. Mutates binData (count, sums, meanError, emaMeanError).
+ * to ±2σ_pre around the pre-observation EMA centre once the bin already held ≥10 obs. Mutates binData
+ * (count, sums, meanError, emaMeanError).
  * @param {Object} binData - The bin's mutable stats { count, sumError, sumErrorSq, meanError, emaMeanError? }.
  * @param {number} errorCFS - The raw residual (rawFinalCFS − actualLF) in cfs.
- * @param {boolean} isSoftFlagged - Whether this observation is soft-flagged (model disagreement); enables ±2σ clamping.
- * @returns {{learningError: number, clamped: boolean, maxDelta: number|null}} The value actually learned, whether it was clamped, and the clamp half-width (null when not applied).
+ * @param {boolean} isSoftFlagged - Whether this observation is soft-flagged; enables ±2σ_pre clamping.
+ * @returns {{learningError: number, clamped: boolean, maxDelta: number|null, sdPre: number|null, center: number|null, emaBefore: number|null, emaAfter: number}} The value actually learned, whether it was clamped, the clamp half-width (null when not applied), the pre-observation σ and EMA centre (null when the bin was empty / no finite value), the pre-update emaMeanError (null if absent) and the new emaMeanError.
  */
 function updateCorrectionBin(binData, errorCFS, isSoftFlagged) {
+    // 1. Pre-observation snapshot.
+    const preCount = binData.count;
+    const preMean = binData.meanError;
+    const emaBefore = (binData.emaMeanError === undefined || binData.emaMeanError === null) ? null : binData.emaMeanError;
+    const center = binData.emaMeanError ?? preMean;
+    let sdPre = null;
+    if (preCount > 0) {
+        const variance = (binData.sumErrorSq / preCount) - (preMean * preMean);
+        sdPre = Math.sqrt(Math.max(0, variance));   // NaN if stats are missing — guarded below
+    }
+
+    // 2. Clamp from the PRE stats.
+    let learningError = errorCFS;
+    let clamped = false;
+    let maxDelta = null;
+    if (isSoftFlagged && preCount >= 10 && Number.isFinite(sdPre) && sdPre > 0 && Number.isFinite(center)) {
+        maxDelta = 2 * sdPre;
+        learningError = Math.max(center - maxDelta, Math.min(center + maxDelta, errorCFS));
+        clamped = (learningError !== errorCFS);
+    }
+
+    // 3. Lifetime sums take the RAW error.
     binData.count += 1;
     binData.sumError += errorCFS;
     binData.sumErrorSq += errorCFS * errorCFS;
     binData.meanError = binData.sumError / binData.count;
 
-    let learningError = errorCFS;
-    let clamped = false;
-    let maxDelta = null;
-    if (isSoftFlagged && binData.count >= 10) {
-        const variance = (binData.sumErrorSq / binData.count) - (binData.meanError * binData.meanError);
-        const stdDev = Math.sqrt(Math.max(0, variance));
-        maxDelta = 2 * stdDev;
-        const center = binData.emaMeanError ?? binData.meanError;
-        learningError = Math.max(center - maxDelta, Math.min(center + maxDelta, errorCFS));
-        clamped = (learningError !== errorCFS);
-    }
-
-    if (binData.count === 1) {
+    // 4. EMA recurrence from the pre-state centre.
+    // Documented deviation from FINAL SPEC section 1.4 (defensive; not reachable with bins as stored
+    // today): a non-finite pre-state centre seeds the EMA with the learning error instead of NaN.
+    if (preCount === 0 || !Number.isFinite(center)) {
         binData.emaMeanError = learningError;
     } else {
-        binData.emaMeanError = GF_EMA_ALPHA * learningError + (1 - GF_EMA_ALPHA) * (binData.emaMeanError || binData.meanError);
+        binData.emaMeanError = GF_EMA_ALPHA * learningError + (1 - GF_EMA_ALPHA) * center;
     }
 
-    return { learningError, clamped, maxDelta };
+    return {
+        learningError, clamped, maxDelta,
+        sdPre: Number.isFinite(sdPre) ? sdPre : null,
+        center: Number.isFinite(center) ? center : null,
+        emaBefore, emaAfter: binData.emaMeanError
+    };
+}
+
+// --- Statistical-outlier classifier for anomaly Check 5 (v39.0) ---
+// Check 5 no longer hard-flags: z > OUTLIER.zThreshold takes the SOFT path (learned through the
+// pre-stat ±2σ clamp in updateCorrectionBin, counted in accuracy). Pure.
+const OUTLIER = { zThreshold: 3 };
+
+/**
+ * Classifies one raw residual against the bin's PRE-observation stats (call BEFORE updateCorrectionBin mutates the bin).
+ * Gate: count ≥ 10 and a finite, positive lifetime σ. Centre is `emaMeanError ?? meanError` — the same
+ * expression updateCorrectionBin clamps around (was the lifetime mean through v37.x). Note z therefore mixes an
+ * EMA centre with a σ taken around the lifetime mean, which inflates z when the two diverge; this is
+ * consistent with the clamp. Strict `>` (z exactly 3 is not an outlier). Non-finite inputs → no outlier.
+ * @param {Object} binData - Bin stats { count, sumError, sumErrorSq, meanError, emaMeanError? }.
+ * @param {number} errorCFS - The raw residual (rawFinalCFS − actualLF) in cfs.
+ * @returns {{zScore: number|null, isOutlier: boolean}} z-score (null when not computable) and the outlier verdict.
+ */
+function classifyOutlier(binData, errorCFS) {
+    if (!binData || !(binData.count >= 10)) return { zScore: null, isOutlier: false };
+    const variance = (binData.sumErrorSq / binData.count) - (binData.meanError * binData.meanError);
+    const sd = Math.sqrt(Math.max(0, variance));
+    if (!Number.isFinite(sd) || !(sd > 0)) return { zScore: null, isOutlier: false };
+    const center = binData.emaMeanError ?? binData.meanError;
+    if (!Number.isFinite(errorCFS) || !Number.isFinite(center)) return { zScore: null, isOutlier: false };
+    const zScore = Math.abs(errorCFS - center) / sd;
+    return { zScore, isOutlier: zScore > OUTLIER.zThreshold };
 }
 
 // --- Tributary drainage-area fallback ratios ---
@@ -851,5 +909,6 @@ module.exports = {
     getBinCorrection, getFallbackCorrection,
     getGFCorrection, getGFCorrectionInterpolated, buildCorrectionBins, applyGFCorrection,
     updateCorrectionBin,
+    OUTLIER, classifyOutlier,
     estimateLFStage
 };

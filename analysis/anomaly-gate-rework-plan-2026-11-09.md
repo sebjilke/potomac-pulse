@@ -1,6 +1,6 @@
 # Anomaly-gate rework — plan (v37.21 ice check, v37.22 outlier check)
 
-Date: 2026-11-09. Status: AUDITED — v37.21 implemented and re-audited (PASS WITH FIXES, fixes applied); v37.22 ON HOLD.
+Date: 2026-11-09. Status: AUDITED — v37.21 implemented and re-audited (PASS WITH FIXES, fixes applied); v37.22 was ON HOLD and is SUPERSEDED: option A1 was chosen on 2026-11-10 and implemented as v39.0 (see "Open decision" and `analysis/outlier-always-soft-plan-2026-11-09.md`).
 Scope approved by the user 2026-11-09 ("do 1-4" of the 2026-11-09 audit recommendations).
 
 ## Why
@@ -182,7 +182,9 @@ decision — do not implement from the section above.**
 | 14 | Doc impact list | ACCEPTED (appendix §6.5, §7.2, §7.3, §7.5, §13 + stale footer; index.html title, tooltip; README; CLAUDE.md; CHANGELOG; TODO). |
 | 15 | Wording | ACCEPTED. |
 
-### Open decision for v37.22 (user)
+### Open decision for v37.22 (user) — RESOLVED 2026-11-10: **A1 chosen → v39.0**
+
+The owner chose option A on 2026-11-09; the plan audit of `analysis/outlier-always-soft-plan-2026-11-09.md` then found the option-A contamination bound wrong (the old clamp used post-update statistics, so the 2026-10-12 miss would move its bin ≈603 cfs, not ≈250), and on 2026-11-10 the owner chose **A1** (always-soft with the clamp computed from PRE-observation statistics; bound 0.6·σ_pre). Implemented as **v39.0 (MAJOR)**; "v37.22" and "v38" are not used. The options below are kept as the original record.
 
 A. **Always-soft.** Check 5 never hard-flags: every z > 3 observation is learned through the ±2 sd
    EMA clamp and counted in accuracy. Hard flags return to meaning data corruption only (Checks 2, 3).

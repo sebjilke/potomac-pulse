@@ -19,7 +19,7 @@ const {
     estimateLFStage,
     applyGFCorrection, buildCorrectionBins, updateCorrectionBin,
     VALIDATION_MAX_DELAY_MS, isExistingPredictionReplaceable,
-    isIcePlausible
+    isIcePlausible, classifyOutlier
 } = require('./shared/model');
 
 const {
@@ -399,9 +399,10 @@ async function storeGFHistory(client, prediction) {
  * @param {string} flowBin - Flow-range bin label for the prediction.
  * @param {string} flowState - Flow state ('rising'/'falling'/'steady') for the prediction.
  * @param {{efDivergence?: (number|null), divergenceActive?: (boolean|null), lfResidualActive?: (boolean|null), lfResidualLastErrPct?: (number|null)}} [divergence={}] - Prediction-time advisory states (v37.13 EF divergence, v37.15 LF residual; null-safe for legacy rows).
+ * @param {number|null} [outlierZ=null] - v39.0: z-score of a soft statistical outlier; stamped as `outlierZ` (one decimal) only when finite.
  * @returns {Promise<void>}
  */
-async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent, flowBin, flowState, divergence = {}) {
+async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent, flowBin, flowState, divergence = {}, outlierZ = null) {
     const now = Date.now();
     const newEntry = {
         timestamp: now,
@@ -417,6 +418,8 @@ async function storeValidationPair(client, predictedCFS, actualCFS, errorPercent
         lfResidualActive: divergence.lfResidualActive ?? null,
         lfResidualLastErrPct: divergence.lfResidualLastErrPct ?? null
     };
+    // v39.0: z-score of a soft statistical outlier (one decimal); absent on every other entry.
+    if (Number.isFinite(outlierZ)) newEntry.outlierZ = Math.round(outlierZ * 10) / 10;
 
     const existing = await getObs(client, 'gf_validation_history', 'system');
 
@@ -921,7 +924,7 @@ function makeGFPrediction(usgsData, porHistory, waterTempC = null, correctionBin
 }
 
 /**
- * Validates due pending GF predictions against actual LF: cleans stale/unparseable rows, claims each row idempotently (delete-before-learn), runs two-tier anomaly detection, and on non-hard-flagged obs updates the EMA flow bin, stage bin, EF correlation, metadata accuracy, validation history, and shadow leaderboard. Learns on the RAW residual; headline scores the CORRECTED residual.
+ * Validates due pending GF predictions against actual LF: cleans stale/unparseable rows, claims each row idempotently (delete-before-learn), runs two-tier anomaly detection (hard = Checks 2/3; soft = EF discrepancy, large error and, since v39.0, statistical outliers), and on non-hard-flagged obs updates the EMA flow bin, stage bin, EF correlation, metadata accuracy, validation history, and shadow leaderboard. Learns on the RAW residual; headline scores the CORRECTED residual.
  * @param {Object} client - Supabase client.
  * @param {{data: Object, gauges: Object}} usgsData - Parsed USGS data/gauge map; requires LF discharge within [500, 500000] cfs or validation is skipped.
  * @param {number|null|undefined} waterTempC - Current water temperature (Celsius) for cold-water EF model selection in the EF cross-check.
@@ -1060,6 +1063,7 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             // TWO-TIER ANOMALY DETECTION (v33.0)
             // Hard flags: physical data corruption → skip learning AND accuracy
             // Soft flags: model disagreement → INCLUDE in learning (with EMA clamp) AND accuracy
+            // v39.0: statistical outliers (Check 5) are soft too — hard = Checks 2 and 3 only
             // USGS ice flags are separate (upstream) — anomaly detection only runs on clean data
             // ============================================
             let hardScore = 0;
@@ -1138,8 +1142,8 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             // PGRST116 when the row simply does not exist yet — so a transient read failure was
             // indistinguishable from "new bin". That was not one bug but three, compounding:
             //   1. `binData.count` falls back to 0, so **Check 5 below is skipped entirely**
-            //      (it needs count >= 10) — the statistical-outlier HARD flag cannot fire.
-            //   2. `updateCorrectionBin`'s +/-2 sigma soft clamp also needs count >= 10, so the
+            //      (it needs count >= 10) — the statistical-outlier check cannot run.
+            //   2. `updateCorrectionBin`'s +/-2 sigma soft clamp also needs a pre-count >= 10, so the
             //      unvetted observation enters learning unclamped.
             //   3. The upsert then writes `count: 1` over a bin holding n=71, destroying the
             //      learned correction — while `binWriteSuccesses` INCREMENTS, because the write
@@ -1147,10 +1151,12 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             // Unlike the stage bins this one feeds the ESTIMATE: the next estimate in that bin
             // applies a correction derived from one observation, blended at weight 1/5 toward the
             // hierarchical fallback, so the visible jump is hundreds of cfs.
-            // A read failure therefore means the observation could not be VETTED, not merely that a
-            // write is unavailable — so it is excluded from learning AND from accuracy, the same
+            // A read failure therefore means the observation could not be VETTED or CLAMPED, not merely
+            // that a write is unavailable — so it is excluded from learning AND from accuracy, the same
             // principle v32.3 and v37.19 applied to observations that fail screening. Losing one
             // observation is strictly cheaper than corrupting a bin or publishing an unscreened one.
+            // (v39.0: Check 5 no longer drops observations, so "Check 5 could not run" alone would not
+            // imply exclusion from accuracy; the exclusion is kept as an owner default — see TODO.)
             const { data: existingBin, error: binReadErr } = await client
                 .from('potomac_observations')
                 .select('data')
@@ -1167,21 +1173,17 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 count: 0, sumError: 0, sumErrorSq: 0, meanError: 0, emaMeanError: 0
             };
 
-            // Check 5: Statistical outlier → HARD (transient event, not systematic bias)
+            // Check 5: Statistical outlier → SOFT (v39.0; was HARD from v33.0 to v37.x). A z > 3
+            // observation is learned through updateCorrectionBin's pre-observation ±2σ clamp and counted
+            // in accuracy; hard flags now mean physical data corruption only (Checks 2 and 3). Called on
+            // the bin BEFORE updateCorrectionBin mutates it, with the same centre/σ definitions.
             // GF_EMA_ALPHA imported from shared/model.js (= 0.3); used below for EMA updates
-            let isOutlier = false;
-
-            if (binData.count >= 10) {
-                const variance = (binData.sumErrorSq / binData.count) - (binData.meanError * binData.meanError);
-                const stdDev = Math.sqrt(Math.max(0, variance));
-                if (stdDev > 0) {
-                    const zScore = Math.abs((errorCFS - binData.meanError) / stdDev);
-                    isOutlier = zScore > 3;
-                    if (isOutlier) {
-                        hardScore += 2;  // v33.0: statistical outliers are hard flags
-                        anomalyFlags.push(`STATISTICAL_OUTLIER:z=${zScore.toFixed(1)}`);
-                    }
-                }
+            const { zScore, isOutlier } = classifyOutlier(binData, errorCFS);
+            if (isOutlier) {
+                softScore += 2;
+                // 'OUTLIER:' is deliberately neutral; 'STATISTICAL_OUTLIER:' in historical rows means
+                // hard, lifetime-mean-centred, pre-v39.0.
+                anomalyFlags.push(`OUTLIER:z=${zScore.toFixed(1)}`);
             }
 
             // v33.0: Two-tier flag determination
@@ -1230,10 +1232,10 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                             lfResidualLastErrPct: pred.data.lfResidualLastErrPct ?? null,
                             // v37.21: Check 3 gate provenance (rows before/after are not comparable).
                             waterTempC: Number.isFinite(waterTempC) ? waterTempC : null,
-                            // Provenance on EVERY hard-flag row (also Check 2 / Check 5 rows) — iceBasis
-                            // does NOT mean Check 3 fired; read anomalyFlags for that.
+                            // Provenance on EVERY hard-flag row (Check 2 / Check 3 rows; pre-v39.0 also Check 5
+                            // rows) — iceBasis does NOT mean Check 3 fired; read anomalyFlags for that.
                             iceBasis: ice.basis,
-                            gateVersion: 'v37.21',
+                            gateVersion: 'v39.0',
                         }
                     );
                     if (failErr) console.error(`❌ validation_failure log FAILED for ${pred.id}:`, failErr.message);
@@ -1244,6 +1246,11 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 console.log(`⚠️ SOFT FLAG (score=${softScore}): ${anomalyFlags.join(', ')}`);
                 console.log(`   LF reading: ${Math.round(actualCFS)} cfs — included in learning (EMA clamped) + accuracy`);
             }
+
+            // v39.0: a soft-flagged statistical outlier that is actually learned (not hard-flagged, bin
+            // read succeeded — a failed read leaves binData empty so isOutlier is already false).
+            const isSoftOutlier = isOutlier && !isHardFlagged && !binReadFailed;
+            let softOutlierUpdate = null;   // updateCorrectionBin telemetry for the event row
 
             // Track bin write outcome for health counters (set inside learning block)
             let binWriteFailed = false;
@@ -1262,11 +1269,14 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
             if (!isHardFlagged && !binReadFailed) {
                 // v36.1: EMA bin update extracted to shared/model.js `updateCorrectionBin` so the
                 // cron and the offline CI backtest harness (analysis/) learn through identical code
-                // (no drift). Behavior-preserving — same accumulation, ±2σ soft-clamp, and EMA
-                // recurrence as v36.0. Hard-flagged obs are filtered above and never reach here.
-                const { learningError, clamped, maxDelta } = updateCorrectionBin(binData, errorCFS, isSoftFlagged);
+                // (no drift). v39.0: the soft clamp and the EMA recurrence now use PRE-observation
+                // statistics (see updateCorrectionBin); accumulation is unchanged. Hard-flagged obs
+                // are filtered above and never reach here.
+                const binUpdate = updateCorrectionBin(binData, errorCFS, isSoftFlagged);
+                const { learningError, clamped, maxDelta } = binUpdate;
+                if (isSoftOutlier) softOutlierUpdate = binUpdate;
                 if (clamped) {
-                    console.log(`   EMA clamped: ${Math.round(errorCFS)} → ${Math.round(learningError)} cfs (±2σ = ±${Math.round(maxDelta)})`);
+                    console.log(`   EMA clamped: ${Math.round(errorCFS)} → ${Math.round(learningError)} cfs (±2σ_pre = ±${Math.round(maxDelta)})`);
                 }
 
                 const { error: binErr } = await client.from('potomac_observations').upsert({
@@ -1302,30 +1312,42 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                         count: 0, sumError: 0, sumErrorSq: 0, meanError: 0, emaMeanError: 0
                     };
 
+                    // v39.0: pre-observation snapshot for the clamp and the EMA recurrence (see below).
+                    const stagePre = {
+                        count: stageBinData.count,
+                        center: stageBinData.emaMeanError ?? stageBinData.meanError,
+                        sd: stageBinData.count > 0
+                            ? Math.sqrt(Math.max(0, (stageBinData.sumErrorSq / stageBinData.count) - (stageBinData.meanError * stageBinData.meanError)))
+                            : null
+                    };
+
                     stageBinData.count += 1;
                     stageBinData.sumError += errorStage;
                     stageBinData.sumErrorSq += errorStage * errorStage;
                     stageBinData.meanError = stageBinData.sumError / stageBinData.count;
 
-                    // EMA with soft-flag clamp (mirrors flow bin logic — Fix A).
-                    // v36.0: clamp around emaMeanError (the updated quantity), not cumulative meanError.
+                    // EMA with soft-flag clamp (mirrors the flow-bin rule in updateCorrectionBin).
+                    // v39.0: σ and the centre come from the PRE-observation stats, the gate is the PRE
+                    // count >= 10, σ_pre must be finite and > 0, and the EMA recurrence runs from the
+                    // pre-state centre with `??` (an EMA of exactly 0 is honoured). The lifetime sums
+                    // above already took the raw value, so the pre-stats are captured before them.
                     let stageLearningError = errorStage;
-                    if (isSoftFlagged && stageBinData.count >= 10) {
-                        const stageVariance = (stageBinData.sumErrorSq / stageBinData.count) - (stageBinData.meanError * stageBinData.meanError);
-                        const stageStdDev = Math.sqrt(Math.max(0, stageVariance));
-                        const stageMaxDelta = 2 * stageStdDev;
-                        const stageCenter = stageBinData.emaMeanError ?? stageBinData.meanError;
-                        stageLearningError = Math.max(stageCenter - stageMaxDelta,
-                                             Math.min(stageCenter + stageMaxDelta, errorStage));
+                    if (isSoftFlagged && stagePre.count >= 10 && Number.isFinite(stagePre.sd) && stagePre.sd > 0 && Number.isFinite(stagePre.center)) {
+                        const stageMaxDelta = 2 * stagePre.sd;
+                        stageLearningError = Math.max(stagePre.center - stageMaxDelta,
+                                             Math.min(stagePre.center + stageMaxDelta, errorStage));
                         if (stageLearningError !== errorStage) {
-                            console.log(`   Stage EMA clamped: ${errorStage.toFixed(3)} → ${stageLearningError.toFixed(3)} ft (±2σ = ±${stageMaxDelta.toFixed(3)})`);
+                            console.log(`   Stage EMA clamped: ${errorStage.toFixed(3)} → ${stageLearningError.toFixed(3)} ft (±2σ_pre = ±${stageMaxDelta.toFixed(3)})`);
                         }
                     }
 
-                    if (stageBinData.count === 1) {
+                    // Documented deviation from FINAL SPEC section 1.4 (defensive; not reachable with bins as
+                    // stored today): a non-finite pre-state centre seeds the EMA with the learning error
+                    // instead of producing NaN.
+                    if (stagePre.count === 0 || !Number.isFinite(stagePre.center)) {
                         stageBinData.emaMeanError = stageLearningError;
                     } else {
-                        stageBinData.emaMeanError = GF_EMA_ALPHA * stageLearningError + (1 - GF_EMA_ALPHA) * (stageBinData.emaMeanError || stageBinData.meanError);
+                        stageBinData.emaMeanError = GF_EMA_ALPHA * stageLearningError + (1 - GF_EMA_ALPHA) * stagePre.center;
                     }
 
                     const stageVariance = (stageBinData.sumErrorSq / stageBinData.count) - (stageBinData.meanError * stageBinData.meanError);
@@ -1342,6 +1364,46 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                     }
 
                     console.log(`📈 Stage bin ${stageBinKey}: n=${stageBinData.count}, mean=${stageBinData.meanError.toFixed(3)}ft, stdDev=${stageBinData.stdDev}ft`);
+                }
+            }
+
+            // v39.0: append-only `soft_outlier_event` row for every learned statistical outlier, so the
+            // production behaviour of the always-soft rule can be inspected (the bin only keeps the
+            // clamped EMA). Its OWN observation_type — never `validation_failure`, whose row count equals
+            // hardFlaggedValidations and which the client draws as a hollow ring. NON-FATAL, like the
+            // failure log: the prediction row is already claimed and the metadata below must still run.
+            if (softOutlierUpdate) {
+                try {
+                    const { error: evErr } = await insertObs(
+                        client, 'soft_outlier_event', `${Date.now()}_${pred.id}`,
+                        {
+                            validatedAt: new Date().toISOString(),
+                            predictionId: pred.id,
+                            flowBin,
+                            flowState,
+                            actualCFS,
+                            predictedCFS: correctedCFS,
+                            rawPredictedCFS: rawCFS,
+                            errorCFS,
+                            errorPercentRaw,
+                            errorPercentCorrected,
+                            zScore,
+                            center: softOutlierUpdate.center,
+                            sdPre: softOutlierUpdate.sdPre,
+                            learningError: softOutlierUpdate.learningError,
+                            clamped: softOutlierUpdate.clamped,
+                            emaBefore: softOutlierUpdate.emaBefore,
+                            emaAfter: softOutlierUpdate.emaAfter,
+                            binCountAfter: binData.count,
+                            binWriteFailed,
+                            anomalyFlags,
+                            waterTempC: Number.isFinite(waterTempC) ? waterTempC : null,
+                            gateVersion: 'v39.0',
+                        }
+                    );
+                    if (evErr) console.error(`❌ soft_outlier_event log FAILED for ${pred.id}:`, evErr.message);
+                } catch (evLogErr) {
+                    console.error(`❌ soft_outlier_event log threw (non-fatal) for ${pred.id}:`, evLogErr?.message || evLogErr);
                 }
             }
 
@@ -1459,9 +1521,10 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 metaData.lastFlagged = new Date().toISOString();
                 metaData.lastFlaggedReason = anomalyFlags.join(', ');
             } else if (binReadFailed) {
-                // v37.20: NOT an anomaly — the model may well have been right. Check 5 simply could
-                // not run, so admitting it to a published average would repeat the v32.3 / v37.19
-                // defect of averaging over observations that were never screened. Counted separately
+                // v37.20: NOT an anomaly — the model may well have been right. The observation could not
+                // be vetted or clamped (v39.0: Check 5 is now soft, so its absence alone no longer implies
+                // exclusion — this exclusion is an owner default, see TODO), so admitting it to a published
+                // average would repeat the v32.3 / v37.19 defect of averaging over unscreened observations. Counted separately
                 // so a read-outage is never mistaken for a run of model failures.
                 metaData.binReadFailures = (metaData.binReadFailures || 0) + 1;
                 metaData.lastBinError = `${binKey}: read failed (learning + accuracy skipped)`;
@@ -1470,6 +1533,12 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 // Both validated AND soft-flagged contribute to accuracy
                 if (isSoftFlagged) {
                     metaData.softFlaggedValidations = (metaData.softFlaggedValidations || 0) + 1;
+                }
+                // v39.0: separates statistical outliers from EF_DISCREPANCY inside softFlaggedValidations
+                if (isSoftOutlier) {
+                    metaData.softOutlierValidations = (metaData.softOutlierValidations || 0) + 1;
+                    metaData.lastSoftOutlier = new Date().toISOString();
+                    metaData.lastSoftOutlierReason = anomalyFlags.join(', ');
                 }
                 metaData.validValidations = (metaData.validValidations || 0) + 1;
                 // Headline accuracy scores the CORRECTED model (what the user sees), prequentially.
@@ -1549,7 +1618,8 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                 //   c4  hard-flag+no stage -> neither bin written
                 // Without the guard this would count c2+c4 and no longer mean "learned CFS but not
                 // stage". c4 is 0 live today, but a degraded LF gauge (actualStage = lf.h) is exactly
-                // the condition that also trips the outlier hard flags, so it is not impossible.
+                // the condition that also trips the hard flags (Checks 2/3; the statistical outlier was
+                // hard until v39.0), so it is not impossible.
                 //
                 // NOT backfilled: `totalValidations - stageValidations` = c2+c4, a different (also
                 // well-defined) quantity that the UI shows alongside. Both counters live in the same
@@ -1608,7 +1678,7 @@ async function validatePendingPredictions(client, usgsData, waterTempC) {
                         divergenceActive: pred.data.divergenceActive ?? null,
                         lfResidualActive: pred.data.lfResidualActive ?? null,
                         lfResidualLastErrPct: pred.data.lfResidualLastErrPct ?? null
-                    });
+                    }, isSoftOutlier ? zScore : null);
             }
 
             // Score shadow model predictions (non-blocking — failure must not break validation)

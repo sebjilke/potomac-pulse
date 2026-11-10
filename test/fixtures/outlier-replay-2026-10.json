@@ -1,0 +1,174 @@
+{
+  "fetchedAt": "2026-11-10",
+  "sources": {
+    "validationFailures": "https://potomac-pulse.netlify.app/api/sync?endpoint=validation-failures",
+    "gf": "https://potomac-pulse.netlify.app/api/sync?endpoint=gf"
+  },
+  "note": "NON-REPRODUCIBLE SNAPSHOT of live production state taken 2026-11-10 (the live bins move every validation and validation_failure rows age out of a 50-row window). Built once by analysis/build_outlier_replay_fixture.mjs from local, gitignored snapshot files; tests read this file only and never touch the network. Rows are the pre-v39.0 HARD STATISTICAL_OUTLIER flags; bin stats are the live (frozen) stats at fetch time.",
+  "fallingBin": {
+    "key": "6000-12000_falling",
+    "stats": {
+      "count": 17,
+      "sumError": 3933,
+      "sumErrorSq": 1422029,
+      "meanError": 231.35294117647058,
+      "emaMeanError": 401.15096838548686
+    }
+  },
+  "fallingRows": [
+    {
+      "validatedAt": "2026-10-16T08:00:17.947Z",
+      "predictionId": "1809ee5f-d42b-4ecf-a147-c8741c9c7541",
+      "flowBin": "6000-12000",
+      "flowState": "falling",
+      "errorCFS": -410,
+      "actualCFS": 12000,
+      "errorPercentRaw": -3.4166666666666665,
+      "errorPercentCorrected": -5.833333333333333,
+      "anomalyFlags": [
+        "STATISTICAL_OUTLIER:z=3.7"
+      ]
+    },
+    {
+      "validatedAt": "2026-10-16T12:00:19.742Z",
+      "predictionId": "16cff80f-cf0c-44f3-ae2c-edbfbfb689ac",
+      "flowBin": "6000-12000",
+      "flowState": "falling",
+      "errorCFS": -413,
+      "actualCFS": 11300,
+      "errorPercentRaw": -3.6548672566371683,
+      "errorPercentCorrected": -7.000000000000001,
+      "anomalyFlags": [
+        "STATISTICAL_OUTLIER:z=3.7"
+      ]
+    },
+    {
+      "validatedAt": "2026-10-16T16:00:16.117Z",
+      "predictionId": "644317ce-ab0e-4ba2-9f38-233e14566d25",
+      "flowBin": "6000-12000",
+      "flowState": "falling",
+      "errorCFS": -487,
+      "actualCFS": 10800,
+      "errorPercentRaw": -4.5092592592592595,
+      "errorPercentCorrected": -8.222222222222223,
+      "anomalyFlags": [
+        "STATISTICAL_OUTLIER:z=4.1"
+      ]
+    },
+    {
+      "validatedAt": "2026-10-16T21:00:15.131Z",
+      "predictionId": "8e279e7c-e453-440a-a518-7d80204f0a7b",
+      "flowBin": "6000-12000",
+      "flowState": "falling",
+      "errorCFS": -575,
+      "actualCFS": 10200,
+      "errorPercentRaw": -5.637254901960785,
+      "errorPercentCorrected": -9.568627450980392,
+      "anomalyFlags": [
+        "STATISTICAL_OUTLIER:z=4.6"
+      ]
+    },
+    {
+      "validatedAt": "2026-10-17T02:00:17.100Z",
+      "predictionId": "3b9c1ece-87d7-4e5b-bcc4-348f36822003",
+      "flowBin": "6000-12000",
+      "flowState": "falling",
+      "errorCFS": -688,
+      "actualCFS": 9680,
+      "errorPercentRaw": -7.107438016528926,
+      "errorPercentCorrected": -11.260330578512397,
+      "anomalyFlags": [
+        "STATISTICAL_OUTLIER:z=5.3"
+      ]
+    },
+    {
+      "validatedAt": "2026-10-17T07:00:14.241Z",
+      "predictionId": "9557e873-932c-40f8-aa9d-c9cc826c0e5c",
+      "flowBin": "6000-12000",
+      "flowState": "falling",
+      "errorCFS": -535,
+      "actualCFS": 9220,
+      "errorPercentRaw": -5.802603036876356,
+      "errorPercentCorrected": -10.162689804772235,
+      "anomalyFlags": [
+        "STATISTICAL_OUTLIER:z=4.4"
+      ]
+    },
+    {
+      "validatedAt": "2026-10-17T13:00:17.379Z",
+      "predictionId": "002b5941-11f6-4fd7-baaa-68176592457f",
+      "flowBin": "6000-12000",
+      "flowState": "falling",
+      "errorCFS": -540,
+      "actualCFS": 8860,
+      "errorPercentRaw": -6.094808126410835,
+      "errorPercentCorrected": -10.62076749435666,
+      "anomalyFlags": [
+        "STATISTICAL_OUTLIER:z=4.4"
+      ]
+    },
+    {
+      "validatedAt": "2026-10-17T19:00:14.487Z",
+      "predictionId": "693f682a-1be0-4c92-a1b0-70bd78bd22c7",
+      "flowBin": "6000-12000",
+      "flowState": "falling",
+      "errorCFS": -757,
+      "actualCFS": 8420,
+      "errorPercentRaw": -8.990498812351543,
+      "errorPercentCorrected": -13.752969121140143,
+      "anomalyFlags": [
+        "STATISTICAL_OUTLIER:z=5.7"
+      ]
+    },
+    {
+      "validatedAt": "2026-10-18T01:00:16.781Z",
+      "predictionId": "c0929e2f-e52a-43cc-a108-6bbfb6fbb790",
+      "flowBin": "6000-12000",
+      "flowState": "falling",
+      "errorCFS": -594,
+      "actualCFS": 7820,
+      "errorPercentRaw": -7.595907928388747,
+      "errorPercentCorrected": -12.72378516624041,
+      "anomalyFlags": [
+        "STATISTICAL_OUTLIER:z=4.8"
+      ]
+    },
+    {
+      "validatedAt": "2026-10-18T07:00:16.067Z",
+      "predictionId": "3b19b9e2-16bc-43fd-abe3-abd2e6782947",
+      "flowBin": "6000-12000",
+      "flowState": "falling",
+      "errorCFS": -561,
+      "actualCFS": 7330,
+      "errorPercentRaw": -7.653478854024557,
+      "errorPercentCorrected": -13.137789904502045,
+      "anomalyFlags": [
+        "STATISTICAL_OUTLIER:z=4.6"
+      ]
+    }
+  ],
+  "risingBin": {
+    "key": "0-3000_rising",
+    "stats": {
+      "count": 22,
+      "sumError": 4088,
+      "sumErrorSq": 4933260,
+      "meanError": 185.8181818181818,
+      "emaMeanError": -226.27556965580249
+    }
+  },
+  "risingRow": {
+    "validatedAt": "2026-10-12T02:00:17.630Z",
+    "predictionId": "29ee13ab-1d32-4d2e-abc8-096a42219696",
+    "flowBin": "0-3000",
+    "flowState": "rising",
+    "errorCFS": -4275,
+    "actualCFS": 6080,
+    "errorPercentRaw": -70.3125,
+    "errorPercentCorrected": -72.86184210526315,
+    "anomalyFlags": [
+      "LARGE_ERROR:-70%",
+      "STATISTICAL_OUTLIER:z=11.7"
+    ]
+  }
+}

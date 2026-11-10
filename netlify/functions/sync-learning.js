@@ -632,6 +632,7 @@ async function saveGFLearningData(client, data) {
                 flaggedValidations: 0,
                 hardFlaggedValidations: 0,
                 softFlaggedValidations: 0,
+                softOutlierValidations: 0,   // v39.0
                 lastPrediction: oldMeta.lastPrediction,  // Keep for health tracking
                 consecutiveRuns: oldMeta.consecutiveRuns,
                 missedRuns: oldMeta.missedRuns,
@@ -814,8 +815,10 @@ async function loadAuditLog(client) {
 /**
  * Loads the 50 most-recent dropped (hard-flagged) validation-failure rows for the GET
  * 'validation-failures' endpoint (newest first). These are validations the cron rejected as
- * data-corrupted (ice / stage-discharge inconsistency / statistical outlier) and excluded from
- * both learning and accuracy — recorded by scheduled-update.js for post-hoc analysis (v37.9 #18).
+ * data-corrupted (ice / stage-discharge inconsistency) and excluded from both learning and
+ * accuracy — recorded by scheduled-update.js for post-hoc analysis (v37.9 #18). Rows written before
+ * v39.0 may also carry a `STATISTICAL_OUTLIER` flag (then a hard flag); since v39.0 statistical
+ * outliers are soft, learned, and logged as separate `soft_outlier_event` rows, never here.
  * @param {Object} client - Supabase client.
  * @returns {Promise<{statusCode: number, headers: Object, body: string}>} HTTP response with `{ entries }`, or a 500 on failure.
  */

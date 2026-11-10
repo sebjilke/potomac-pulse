@@ -1240,7 +1240,7 @@ describe('validatePendingPredictions', () => {
         assert.equal(rows.length, 1);
         assert.equal(rows[0].data.waterTempC, 1);
         assert.equal(rows[0].data.iceBasis, 'temp');
-        assert.equal(rows[0].data.gateVersion, 'v37.21');
+        assert.equal(rows[0].data.gateVersion, 'v39.0');   // v39.0: was 'v37.21'
         assert.ok(rows[0].data.anomalyFlags.some(x => x.startsWith('LOW_FLOW_HIGH_STAGE') && x.includes('T=1.0C')), rows[0].data.anomalyFlags.join('|'));
         assert.equal(binUpserts(captures).length, 0, 'hard flag skips learning');
     });
@@ -1266,6 +1266,291 @@ describe('validatePendingPredictions', () => {
         assert.equal(rows[0].data.waterTempC, null);
         assert.ok(rows[0].data.anomalyFlags.some(x => x.includes('T=unknown(month)')));
         t.mock.timers.reset();
+    });
+
+    // ── v39.0: Check 5 (statistical outlier) is SOFT — always learned through the pre-stat clamp ──
+    // Seeded bin: n=20, lifetime mean 0, sd exactly 1000, EMA +100. A raw error of +4000 is z = 3.9.
+    // LF 10000 cfs / 3.95 ft is self-consistent (no hard flag); raw 14000 vs predicted 13900 -> +39 %
+    // corrected, +40 % raw (under the 50 % LARGE_ERROR line), so Check 5 is the ONLY flag.
+    const OUT_KEY = '6000-12000_steady';
+    const outlierBinSeed = () => ({ count: 20, sumError: 0, meanError: 0, sumErrorSq: 20 * 1000 * 1000, emaMeanError: 100 });
+    const stageBinSeed = () => ({ count: 12, sumError: 0, meanError: 0, sumErrorSq: 0.12, emaMeanError: 0.02 });   // sd_pre 0.1 ft
+    const outlierRow = (over = {}) => pendingRow({
+        rawFinalCFS: 14000, predictedCFS: 13900, rawFinalStage: 4.95, predictedStage: 4.9,
+        flowBin: '6000-12000', flowState: 'steady', ...over
+    });
+    const eventRows = (caps) => caps.inserts.filter(i => i.observation_type === 'soft_outlier_event');
+    const outlierSeed = (extra = {}) => ({
+        [`gf_correction_bin:${OUT_KEY}`]: outlierBinSeed(),
+        [`gf_correction_bin:stage_${OUT_KEY}`]: stageBinSeed(),
+        ...extra
+    });
+    const histEntry = (caps) => valHistUpsertOf(caps).data.readings.slice(-1)[0];
+    const valHistUpsertOf = (caps) => caps.upserts.find(u => u.observation_type === 'gf_validation_history');
+
+    it('v39.0: z > 3 is NOT hard-flagged: clamped bin + stage bin written, soft counters, event row, no failure row, accuracy counted', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = outlierRow({ shadowModels: { lfFeedback: 10100, onlineRegression: 10200, kalman: 10300 } });
+        const client = validateClient({ pending: [row], captures, seed: outlierSeed() });
+        const result = await validatePendingPredictions(client, usgs);
+        assert.equal(result.validated, 1);
+        assert.equal(failRows(captures).length, 0, 'NO validation_failure row');
+        // flow bin: clamped from PRE stats: learningError = 100 + 2*1000, ema = 0.3*2100 + 0.7*100
+        const bin = flowBinUpsert(captures, OUT_KEY);
+        assert.ok(bin, 'correction bin written');
+        assert.equal(bin.data.count, 21);
+        assert.equal(bin.data.sumError, 4000);                         // lifetime sums take the RAW error
+        assert.equal(bin.data.sumErrorSq, 20 * 1000 * 1000 + 4000 * 4000);
+        assert.ok(Math.abs(bin.data.emaMeanError - 700) < 1e-9, `ema=${bin.data.emaMeanError}`);
+        // stage bin: errorStage 4.95 - 3.95 = 1.0; pre-stat clamp: centre .02, maxDelta .2 -> learn .22 -> ema .3*.22+.7*.02
+        const sbin = flowBinUpsert(captures, `stage_${OUT_KEY}`);
+        assert.ok(sbin, 'stage bin written');
+        assert.equal(sbin.data.count, 13);
+        assert.ok(Math.abs(sbin.data.emaMeanError - 0.08) < 1e-9, `stage ema=${sbin.data.emaMeanError}`);
+        // metadata
+        const meta = metaUpsert(captures).data;
+        assert.equal(meta.softFlaggedValidations, 1);
+        assert.equal(meta.softOutlierValidations, 1);
+        assert.match(meta.lastSoftOutlierReason, /^OUTLIER:z=3\.9$/);
+        assert.ok(!Number.isNaN(Date.parse(meta.lastSoftOutlier)));
+        assert.ok(!meta.hardFlaggedValidations, 'hardFlaggedValidations unchanged (0)');
+        assert.equal(meta.lastFlagged, undefined, 'lastFlagged (the Last Flag panel) is hard-only');
+        assert.equal(meta.validValidations, 1);
+        assert.ok(Math.abs(meta.sumAbsErrorPercent - 39) < 1e-9, 'counted in accuracy (corrected +39 %)');
+        assert.equal(meta.stageObsClean, 1);
+        // pairs + validation history + shadow leaderboard
+        assert.equal(result.pairs.length, 1);
+        assert.equal(result.pairs[0].hardFlagged, false);
+        const h = histEntry(captures);
+        assert.equal(h.outlierZ, 3.9);
+        assert.equal(h.errorPercent, 39);
+        assert.ok(captures.upserts.some(u => u.observation_type === 'shadow_leaderboard'), 'shadow leaderboard scored');
+        // event row
+        const ev = eventRows(captures);
+        assert.equal(ev.length, 1);
+        assert.match(ev[0].gauge_id, /_p1$/);
+        const d = ev[0].data;
+        assert.equal(d.predictionId, 'p1');
+        assert.equal(d.flowBin, '6000-12000'); assert.equal(d.flowState, 'steady');
+        assert.equal(d.actualCFS, 10000); assert.equal(d.predictedCFS, 13900); assert.equal(d.rawPredictedCFS, 14000);
+        assert.equal(d.errorCFS, 4000);
+        assert.equal(d.errorPercentRaw, 40); assert.equal(d.errorPercentCorrected, 39);
+        assert.ok(Math.abs(d.zScore - 3.9) < 1e-9);
+        assert.equal(d.center, 100); assert.equal(d.sdPre, 1000);
+        assert.equal(d.learningError, 2100); assert.equal(d.clamped, true);
+        assert.equal(d.emaBefore, 100); assert.ok(Math.abs(d.emaAfter - 700) < 1e-9);
+        assert.equal(d.binCountAfter, 21);
+        assert.equal(d.binWriteFailed, false, 'normal soft outlier: bin write succeeded');
+        assert.deepEqual(d.anomalyFlags, ['OUTLIER:z=3.9']);
+        assert.equal(d.waterTempC, null);
+        assert.equal(d.gateVersion, 'v39.0');
+        assert.ok(!Number.isNaN(Date.parse(d.validatedAt)));
+    });
+
+    it('v39.0: a NON-outlier validation has no outlierZ, no event row, softOutlierValidations never created', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = outlierRow({ rawFinalCFS: 10500, predictedCFS: 10400 });   // error +500 -> z 0.4
+        await validatePendingPredictions(validateClient({ pending: [row], captures, seed: outlierSeed() }), usgs);
+        assert.equal(histEntry(captures).outlierZ, undefined);
+        assert.equal('outlierZ' in histEntry(captures), false);
+        assert.equal(eventRows(captures).length, 0);
+        const meta = metaUpsert(captures).data;
+        assert.equal(meta.softOutlierValidations, undefined);
+        assert.equal(meta.lastSoftOutlierReason, undefined);
+        assert.equal(meta.softFlaggedValidations, 0, 'not soft-flagged at all');
+    });
+
+    it('v39.0: outlier + EF_DISCREPANCY together -> still soft, softFlaggedValidations +1 exactly once, both flags listed', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const efUsgs = { data: { '01646500': { q: 10000, h: 3.95 }, '01645000': {}, '01644148': { h: 7.0 } }, gauges: usgs.gauges };
+        await validatePendingPredictions(validateClient({ pending: [outlierRow()], captures, seed: outlierSeed() }), efUsgs, 15);
+        const meta = metaUpsert(captures).data;
+        assert.equal(meta.softFlaggedValidations, 1);
+        assert.equal(meta.softOutlierValidations, 1);
+        assert.match(meta.lastSoftOutlierReason, /^EF_DISCREPANCY:.*, OUTLIER:z=3\.9$/);
+        assert.equal(failRows(captures).length, 0);
+        assert.equal(eventRows(captures).length, 1);
+        assert.deepEqual(eventRows(captures)[0].data.anomalyFlags.map(f => f.split(':')[0]), ['EF_DISCREPANCY', 'OUTLIER']);
+    });
+
+    it('v39.0: EF_DISCREPANCY alone (no outlier) still counts softFlagged but NOT softOutlierValidations and writes no event row', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const efUsgs = { data: { '01646500': { q: 10000, h: 3.95 }, '01645000': {}, '01644148': { h: 7.0 } }, gauges: usgs.gauges };
+        const row = outlierRow({ rawFinalCFS: 10500, predictedCFS: 10400 });
+        await validatePendingPredictions(validateClient({ pending: [row], captures, seed: outlierSeed() }), efUsgs, 15);
+        const meta = metaUpsert(captures).data;
+        assert.equal(meta.softFlaggedValidations, 1);
+        assert.equal(meta.softOutlierValidations, undefined);
+        assert.equal(eventRows(captures).length, 0);
+        assert.equal('outlierZ' in histEntry(captures), false);
+    });
+
+    it('v39.0: outlier + cold Check 3 -> HARD (Check 3): one failure row gateVersion v39.0, OUTLIER flag kept, no bin write, no soft counters, no event row', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = pendingRow({ rawFinalCFS: 3000, predictedCFS: 2900, rawFinalStage: 3.0, predictedStage: 3.0, flowBin: '0-3000', flowState: 'steady' });
+        const seed = { 'gf_correction_bin:0-3000_steady': { count: 20, sumError: 0, meanError: 0, sumErrorSq: 20 * 100 * 100, emaMeanError: 0 } };   // error +1800 -> z 18
+        const result = await validatePendingPredictions(validateClient({ pending: [row], captures, seed }), hardUsgs, 1);
+        const rows = failRows(captures);
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].data.gateVersion, 'v39.0');
+        const flags = rows[0].data.anomalyFlags;
+        assert.ok(flags.some(f => f.startsWith('LOW_FLOW_HIGH_STAGE')), flags.join('|'));
+        assert.ok(flags.some(f => f.startsWith('OUTLIER:z=')), flags.join('|'));
+        assert.equal(binUpserts(captures).length, 0);
+        const meta = metaUpsert(captures).data;
+        assert.equal(meta.hardFlaggedValidations, 1);
+        assert.equal(meta.softOutlierValidations, undefined);
+        assert.equal(meta.lastSoftOutlier, undefined);
+        assert.ok(!meta.softFlaggedValidations);
+        assert.equal(eventRows(captures).length, 0);
+        assert.equal(result.pairs[0].hardFlagged, true);
+    });
+
+    it('v39.0: outlier + Check 2 (stage-discharge) in warm water -> HARD: failure row, no learning, no event row', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        // 5000 cfs reported at 4.6 ft (rating implies ~16,800 cfs) -> stage discrepancy >> 35 %
+        const bad = { data: { '01646500': { q: 5000, h: 4.6 }, '01645000': {}, '01644148': {} }, gauges: usgs.gauges };
+        const row = pendingRow({ rawFinalCFS: 9000, predictedCFS: 8900, rawFinalStage: 4.6, predictedStage: 4.6, flowBin: '3000-6000', flowState: 'steady' });
+        const seed = { 'gf_correction_bin:3000-6000_steady': { count: 20, sumError: 0, meanError: 0, sumErrorSq: 20 * 100 * 100, emaMeanError: 0 } };
+        await validatePendingPredictions(validateClient({ pending: [row], captures, seed }), bad, 22);
+        const rows = failRows(captures);
+        assert.equal(rows.length, 1);
+        const flags = rows[0].data.anomalyFlags;
+        assert.ok(flags.some(f => f.startsWith('STAGE_DISCHARGE')), flags.join('|'));
+        assert.ok(flags.some(f => f.startsWith('OUTLIER:z=')), flags.join('|'));
+        assert.equal(rows[0].data.gateVersion, 'v39.0');
+        assert.equal(binUpserts(captures).length, 0);
+        assert.equal(eventRows(captures).length, 0);
+        assert.equal(metaUpsert(captures).data.softOutlierValidations, undefined);
+    });
+
+    it('v39.0: bin READ failure -> unchanged v37.20 behaviour: binReadFailures, no learning, no accuracy, no soft counters, no event row', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const client = validateClient({ pending: [outlierRow()], captures, seed: outlierSeed(), readErrorFor: OUT_KEY });
+        await validatePendingPredictions(client, usgs);
+        const meta = metaUpsert(captures).data;
+        assert.equal(meta.binReadFailures, 1);
+        assert.equal(binUpserts(captures).length, 0);
+        assert.ok(!meta.validValidations);
+        assert.equal(meta.softOutlierValidations, undefined);
+        assert.equal(eventRows(captures).length, 0);
+        assert.equal(failRows(captures).length, 0);
+    });
+
+    it('v39.0: raw error >= 50 % (LARGE_ERROR) + outlier -> soft, clamped, learned (one softFlagged increment)', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        // raw +6000 (60 %) -> LARGE_ERROR (+1) and z = 5.9 (+2); sd_pre 1000 so the clamp binds at 2100
+        const row = outlierRow({ rawFinalCFS: 16000, predictedCFS: 15900 });
+        await validatePendingPredictions(validateClient({ pending: [row], captures, seed: outlierSeed() }), usgs);
+        assert.equal(failRows(captures).length, 0);
+        const bin = flowBinUpsert(captures, OUT_KEY);
+        assert.ok(Math.abs(bin.data.emaMeanError - 700) < 1e-9);
+        const meta = metaUpsert(captures).data;
+        assert.equal(meta.softFlaggedValidations, 1);
+        assert.equal(meta.softOutlierValidations, 1);
+        assert.match(meta.lastSoftOutlierReason, /LARGE_ERROR.*OUTLIER:z=5\.9/);
+        const d = eventRows(captures)[0].data;
+        assert.equal(d.errorCFS, 6000);
+        assert.equal(d.learningError, 2100);
+    });
+
+    it('v39.0: a failing soft_outlier_event insert (reject OR resolved {error}) is NON-FATAL; learning + accounting still complete', async () => {
+        for (const mode of [{ failInsertType: 'soft_outlier_event' }, { errorInsertType: 'soft_outlier_event' }]) {
+            const captures = { upserts: [], inserts: [], deletes: [] };
+            const result = await validatePendingPredictions(validateClient({ pending: [outlierRow()], captures, seed: outlierSeed(), ...mode }), usgs);
+            assert.equal(result.validated, 1);
+            assert.equal(eventRows(captures).length, 1, 'insert attempted');
+            assert.ok(flowBinUpsert(captures, OUT_KEY), 'bin still written');
+            assert.equal(metaUpsert(captures).data.softOutlierValidations, 1, 'metadata still written');
+        }
+    });
+
+    it('v39.0: statistical outlier is learned even though the bin pre-count is exactly 10 (gate boundary), and NOT classified at 9', async () => {
+        for (const [n, want] of [[10, true], [9, false]]) {
+            const captures = { upserts: [], inserts: [], deletes: [] };
+            const seed = { [`gf_correction_bin:${OUT_KEY}`]: { count: n, sumError: 0, meanError: 0, sumErrorSq: n * 1000 * 1000, emaMeanError: 100 } };
+            await validatePendingPredictions(validateClient({ pending: [outlierRow()], captures, seed }), usgs);
+            assert.equal(eventRows(captures).length, want ? 1 : 0, `n=${n}`);
+            assert.equal(metaUpsert(captures).data.softOutlierValidations, want ? 1 : undefined, `n=${n}`);
+        }
+    });
+
+    it('v39.0: stage bin clamps from PRE-stats only when the stage bin already holds >= 10; unclamped at 9, at sd 0, and when new', async () => {
+        const cases = [
+            ['pre-count 10 (clamped)', { count: 10, sumError: 0, meanError: 0, sumErrorSq: 0.10, emaMeanError: 0.02 }, 0.3 * 0.22 + 0.7 * 0.02],
+            ['pre-count 9 (unclamped)', { count: 9, sumError: 0, meanError: 0, sumErrorSq: 0.09, emaMeanError: 0.02 }, 0.3 * 1.0 + 0.7 * 0.02],
+            ['sd_pre 0 at n=12 (unclamped, not frozen)', { count: 12, sumError: 0, meanError: 0, sumErrorSq: 0, emaMeanError: 0.02 }, 0.3 * 1.0 + 0.7 * 0.02],
+            ['EMA exactly 0 honoured (n=12, clamp around 0)', { count: 12, sumError: 0, meanError: 0, sumErrorSq: 0.12, emaMeanError: 0 }, 0.3 * 0.2],
+            // mean 0.1 != EMA 0: a `||` centre would use 0.1 (clamp [-0.1, 0.3], ema 0.16); `??` uses 0 (clamp [-0.2, 0.2], ema 0.06)
+            ['EMA exactly 0 with a non-zero lifetime mean (?? not ||)', { count: 12, sumError: 1.2, meanError: 0.1, sumErrorSq: 0.24, emaMeanError: 0 }, 0.3 * 0.2],
+            ['new stage bin (first obs seeds the EMA)', null, 1.0],
+        ];
+        for (const [label, stageSeed, wantEma] of cases) {
+            const captures = { upserts: [], inserts: [], deletes: [] };
+            const seed = { [`gf_correction_bin:${OUT_KEY}`]: outlierBinSeed() };
+            if (stageSeed) seed[`gf_correction_bin:stage_${OUT_KEY}`] = stageSeed;
+            await validatePendingPredictions(validateClient({ pending: [outlierRow()], captures, seed }), usgs);
+            const sbin = flowBinUpsert(captures, `stage_${OUT_KEY}`);
+            assert.ok(Math.abs(sbin.data.emaMeanError - wantEma) < 1e-9, `${label}: ema=${sbin.data.emaMeanError} want ${wantEma}`);
+        }
+    });
+
+    it('v39.0 (review): stage bin with pre-count 1 runs the recurrence, not the first-observation seed', async () => {
+        // errorStage = 4.95 - 3.95 = 1.0; pre-count 1 < 10 -> unclamped; ema = 0.3*1.0 + 0.7*0.5 = 0.65 (a seed would give 1.0)
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const seed = {
+            [`gf_correction_bin:${OUT_KEY}`]: outlierBinSeed(),
+            [`gf_correction_bin:stage_${OUT_KEY}`]: { count: 1, sumError: 0.5, meanError: 0.5, sumErrorSq: 0.25, emaMeanError: 0.5 },
+        };
+        await validatePendingPredictions(validateClient({ pending: [outlierRow()], captures, seed }), usgs);
+        const sbin = flowBinUpsert(captures, `stage_${OUT_KEY}`);
+        assert.equal(sbin.data.count, 2);
+        assert.ok(Math.abs(sbin.data.emaMeanError - 0.65) < 1e-9, `stage ema=${sbin.data.emaMeanError}`);
+    });
+
+    it('v39.0 (review): stage bin with a non-finite pre-state centre (no EMA, no meanError) seeds the EMA with the learning error, never NaN', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const seed = {
+            [`gf_correction_bin:${OUT_KEY}`]: outlierBinSeed(),
+            [`gf_correction_bin:stage_${OUT_KEY}`]: { count: 12, sumError: 0, sumErrorSq: 0.12 },
+        };
+        await validatePendingPredictions(validateClient({ pending: [outlierRow()], captures, seed }), usgs);
+        const sbin = flowBinUpsert(captures, `stage_${OUT_KEY}`);
+        assert.ok(Number.isFinite(sbin.data.emaMeanError), `stage ema=${sbin.data.emaMeanError}`);
+        assert.ok(Math.abs(sbin.data.emaMeanError - 1.0) < 1e-9);
+    });
+
+    it('v39.0 (review): outlierZ is rounded to one decimal on the history entry; event row keeps the raw z and a finite waterTempC', async () => {
+        // raw 14037 vs LF 10000 -> error +4037, centre 100, sd 1000 -> z = 3.937 (no EF reading -> no EF_DISCREPANCY)
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const row = outlierRow({ rawFinalCFS: 14037, predictedCFS: 13937 });
+        await validatePendingPredictions(validateClient({ pending: [row], captures, seed: outlierSeed() }), usgs, 15);
+        assert.equal(histEntry(captures).outlierZ, 3.9);
+        const d = eventRows(captures)[0].data;
+        assert.ok(Math.abs(d.zScore - 3.937) < 1e-9, `zScore=${d.zScore}`);
+        assert.equal(d.waterTempC, 15);
+        assert.deepEqual(d.anomalyFlags, ['OUTLIER:z=3.9']);
+    });
+
+    it('v39.0 (review): bin with NO emaMeanError key -> event row emaBefore null, centre = pre lifetime mean', async () => {
+        // n=20, mean 0, sd 1000, no EMA key: error +4000 -> z = 4, clamp to 0 + 2000, ema = 0.3*2000 + 0.7*0 = 600
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        const seed = { [`gf_correction_bin:${OUT_KEY}`]: { count: 20, sumError: 0, meanError: 0, sumErrorSq: 20 * 1000 * 1000 } };
+        await validatePendingPredictions(validateClient({ pending: [outlierRow()], captures, seed }), usgs);
+        const d = eventRows(captures)[0].data;
+        assert.equal(d.emaBefore, null);
+        assert.equal(d.center, 0);
+        assert.equal(d.learningError, 2000);
+        assert.ok(Math.abs(d.emaAfter - 600) < 1e-9, `emaAfter=${d.emaAfter}`);
+    });
+
+    it('v39.0 (review): CFS bin upsert failure -> event row is still written but flagged binWriteFailed: true', async () => {
+        const captures = { upserts: [], inserts: [], deletes: [] };
+        await validatePendingPredictions(validateClient({ pending: [outlierRow()], captures, seed: outlierSeed(), upsertErrorFor: OUT_KEY }), usgs);
+        const ev = eventRows(captures);
+        assert.equal(ev.length, 1);
+        assert.equal(ev[0].data.binWriteFailed, true);
+        assert.equal(metaUpsert(captures).data.binWriteFailures, 1);
     });
 
     it('#18: a failing validation_failure insert is NON-FATAL — validation still completes + accounts', async () => {

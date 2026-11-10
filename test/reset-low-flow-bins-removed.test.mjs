@@ -69,4 +69,11 @@ describe('v37.18: resetLowFlowBins is fully removed', () => {
         // Learning stats must still be explicitly zeroed, not carried over.
         assert.ok(/totalValidations: 0/.test(s) && /validValidations: 0/.test(s), 'learning stats must reset');
     });
+
+    it('v39.0: resetGFLearning zeroes softOutlierValidations next to the other flag counters', () => {
+        const s = files['netlify/functions/sync-learning.js'];
+        for (const f of ['hardFlaggedValidations: 0', 'softFlaggedValidations: 0', 'softOutlierValidations: 0']) {
+            assert.ok(s.includes(f), `resetGFLearning must zero ${f.split(':')[0]}`);
+        }
+    });
 });

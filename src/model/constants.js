@@ -152,6 +152,7 @@ export const GF_VALIDATION_CHECK_INTERVAL = 60 * 1000;
 export const FORECAST_PREDICTION_INTERVAL = 2 * 60 * 60 * 1000;
 export const FORECAST_HORIZONS = [6, 12, 24, 48];
 export const GF_EMA_ALPHA = 0.3;
+// DEAD (pre-v39.0): only used by the dead client isGFOutlier (src/learning/gf-learning.js imports it but never uses it). The live threshold is OUTLIER.zThreshold in netlify/functions/shared/model.js.
 export const GF_OUTLIER_THRESHOLD = 3;
 export const GF_FLOW_BINS = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
 

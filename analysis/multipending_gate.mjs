@@ -1,3 +1,9 @@
+// NOTE (v39.0): this harness imports scoreAnomalies and updateCorrectionBin from ci_backtest_harness.mjs /
+// shared/model.js. scoreAnomalies still HARD-flags z > 3 (Check 5, lifetime-mean centred) and uses the
+// pre-v37.21 Check 3, while the shared updateCorrectionBin now clamps soft observations from PRE-observation
+// stats and a PRE-count >= 10 gate. A replay therefore mixes a pre-v39.0 admission gate with the v39.0 clamp;
+// results describe neither version exactly. Rewire to the shared classifyOutlier / isIcePlausible before the
+// next backtest.
 // #14 — Multi-pending vs single-pending learning gate (analysis only; NOT shipped).
 //
 // Dual-arm, common-evaluation-stream backtest (see analysis/multipending-learning-backtest-plan-2026-06-19.md).

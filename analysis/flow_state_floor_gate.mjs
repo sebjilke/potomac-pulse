@@ -1,6 +1,11 @@
 // NOTE (v37.21): this file's local copy of the anomaly checks replays the PRE-v37.21 gate (Check 3 has
 // no temperature gate here). Rewire to the shared isIcePlausible helper (netlify/functions/shared/model.js)
 // before the next backtest.
+// NOTE (v39.0): its Check 5 copy still HARD-flags z > 3 (lifetime-mean centred) - the pre-v39.0 gate - while
+// the shared updateCorrectionBin it imports now clamps soft observations from PRE-observation stats and a
+// PRE-count >= 10 gate. A replay therefore mixes a pre-v39.0 admission gate with the v39.0 clamp; results
+// (incl. the EMPIRICAL_CI_90 band derived from them) describe neither version exactly. Rewire to the shared
+// classifyOutlier before the next backtest.
 // Flow-state floor A/B gate (analysis only; NOT shipped; NO production source edited).
 //
 // PURPOSE
