@@ -5,7 +5,7 @@ import { loadPoRHistory, loadGFHistory } from './data/history.js';
 import { loadShadowModelState } from './estimation/shadow-models.js';
 import { loadEFHysteresis } from './estimation/edwards-ferry.js';
 import { loadGFLearningData, loadForecastAccuracy, resetGFLearning } from './learning/gf-learning.js';
-import { fetchData, dismissErrorBanner } from './data/fetch.js';
+import { fetchData, dismissErrorBanner, updateStalenessDisplay } from './data/fetch.js';
 import { initMap, toggleMap } from './ui/map.js';
 import { buildBranches, updateUI } from './ui/gauges-ui.js';
 import { buildCreeks, updateCreeksUI } from './ui/creeks-ui.js';
@@ -56,6 +56,10 @@ export async function init() {
 
         // v37.10 (#19): offline indicator (navigator.onLine-driven; see offline-banner.js).
         initOfflineBanner();
+        // v39.1: the freshness label depends on connectivity (saved-copy wording); redraw on change
+        // so it cannot disagree with the offline bar for up to 60 s.
+        window.addEventListener('online', updateStalenessDisplay);
+        window.addEventListener('offline', updateStalenessDisplay);
 
         // Bind event listeners (replaces inline onclick handlers)
         bindButton('mapToggleBtn', toggleMap);

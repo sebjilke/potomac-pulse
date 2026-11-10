@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { runtimeCaching } from './config/runtime-caching.mjs';
 
 export default defineConfig({
   root: '.',
@@ -25,31 +26,8 @@ export default defineConfig({
         skipWaiting: true,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/\.netlify\//], // never serve the SPA shell for function calls
-        runtimeCaching: [
-          {
-            // Same-origin learning/forecast endpoints — show last-known instantly, refresh in background.
-            // All sync-learning GETs are unauthenticated public reads (PIN gates POST only).
-            urlPattern: /\/\.netlify\/functions\/sync-learning/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'pp-api',
-              expiration: { maxEntries: 32, maxAgeSeconds: 86400 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            // Cross-origin live data: USGS (via CORS proxies) + NWS. Bounded TTL/entries for storage hygiene.
-            // Map tiles (arcgisonline) are intentionally NOT matched — too heavy for the cache quota.
-            urlPattern: ({ url }) =>
-              /allorigins\.win|corsproxy\.io|waterservices\.usgs\.gov|api\.water\.noaa\.gov/.test(url.href),
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'pp-data',
-              expiration: { maxEntries: 32, maxAgeSeconds: 21600 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
+        // River data is network-first (v39.1); see config/runtime-caching.mjs.
+        runtimeCaching,
       },
       devOptions: { enabled: false },
     }),

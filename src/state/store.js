@@ -35,6 +35,8 @@ export let shadowResults = {
 // --- Data fetch state ---
 export let dataSource = "loading";
 export let lastFetchTime = null;
+// v39.1: reading time of the data on screen ({ ms, lf, por } in ms, or null). Set by processData.
+export let lastReading = null;
 export let isFetching = false;
 
 // --- Edwards Ferry ---
@@ -94,6 +96,8 @@ export function setShadowResults(v) { shadowResults = v; }
 export function setDataSource(v) { dataSource = v; }
 /** Set the {@link lastFetchTime} state value. @param {number|null} v - New last-fetch timestamp (ms), or null. */
 export function setLastFetchTime(v) { lastFetchTime = v; }
+/** Set the {@link lastReading} state value. @param {({ms: (number|null), lf: (number|null), por: (number|null)}|null)} v - Reading times of the shown data, or null. */
+export function setLastReading(v) { lastReading = v; }
 /** Set the {@link isFetching} state value. @param {boolean} v - New fetch-in-progress flag. */
 export function setIsFetching(v) { isFetching = v; }
 /** Set the {@link efHysteresis} state value. @param {Object} v - New Edwards Ferry hysteresis object. */

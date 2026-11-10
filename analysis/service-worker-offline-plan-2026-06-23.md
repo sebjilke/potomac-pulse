@@ -151,3 +151,9 @@ Should-fix:
   noted; the only dynamic import is the added prod-only `virtual:pwa-register`.
 
 No findings rejected.
+
+## Addendum (2026-11-10, v39.1)
+
+- River data (`pp-data`, plus the new `pp-data-main`) is now NetworkFirst, not stale-while-revalidate. See `analysis/stale-cache-fix-plan-2026-11-10.md`.
+- The claim above that cache expiry bounds served age at 6 h is false at serve time. Workbox reads freshness from the response `Date` header, which a page-side worker cannot read on a CORS response, and expiry runs in the background, so an entry of any age can be served once.
+- The `pp-api` route matches only `/.netlify/functions/sync-learning`. The client's learning reads use `/api/sync` and are never worker-cached.

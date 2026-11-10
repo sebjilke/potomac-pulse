@@ -145,7 +145,9 @@ bias-corrected NWS LF forecast + a sub-1% EF blend below ~6k cfs** — say so ra
 Client estimation: `src/estimation/great-falls.js`. Forecast UI: `src/ui/great-falls-ui.js`.
 NWS integration: `src/estimation/nws.js`. Learning UI: `src/ui/learning-ui.js`.
 
-## Current Model Parameters (v39.0)
+## Current Model Parameters (v39.1)
+
+- **Data freshness (v39.1, client only)**: live river data is NetworkFirst in the service worker (main USGS call 8 s timeout, other river data 4 s; cache is a fallback only; config in `config/runtime-caching.mjs`). The "last update" label shows the age of the READINGS (older of Little Falls and Point of Rocks, `readTime` set in `processData`), never fetch time; logic is the pure `src/ui/data-freshness.js`. Old readings are classified by the USGS response time (`requestDT`): a body at most 10 min old is a live answer (no proxy retry, no early refetch), an older body is a saved copy. Estimation unchanged.
 
 - **EF Power-Law**: 126×EF^2.46 (default), 160×EF^2.36 (cold water ≤10°C)
 - **EF Weight (Logistic Ramp)**: `ef_weight = 0.40 / (1 + exp(-5.0 × (ln(flow) - ln(10000))))`. Near 0% at low flows, ~40% at high. EF has negative predictive skill below 6k cfs.

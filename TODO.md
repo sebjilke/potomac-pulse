@@ -4,7 +4,7 @@
 Session state is in `.claude/HANDOFF.md`; methodology provenance for shipped versions is the
 small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, prioritize, go.
 
-*Last updated: 2026-11-10 (current version: v39.0). Verified against live DB + git history, not memory.*
+*Last updated: 2026-11-10 (current version: v39.1). Verified against live DB + git history, not memory.*
 
 ---
 
@@ -14,7 +14,7 @@ small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, pr
 - Effort is a rough order-of-magnitude.
 - 🔒 = needs a decision from you before work starts · 📅 = date-gated · 🔍 = verify-only.
 - Anything touching the estimate must keep the characterization/golden tests green and the
-  client↔server parity tests green (`npm test` = **842**), or deliberately re-baseline + version-bump.
+  client↔server parity tests green (`npm test` = **913**), or deliberately re-baseline + version-bump.
 - **Pushing auto-deploys from `main`** through the Netlify gate (`npm install && npm test && npm run build`);
   a red suite blocks deploy. Pushing needs explicit approval each time.
 
@@ -63,7 +63,7 @@ Decided 2026-06-18 not to do the remaining Tier 2 items (all optional, all need 
 | 16 | **Admin monitoring dashboard** | done | ✅ **v37.7** — added a "🔧 System Diagnostics" panel surfacing already-captured-but-hidden metrics (throughput, stage error, bin-write health, last-flag recency+reason, EF regression R²) from the loaded `gfLearningData`. Additive read-only display, no new fetch/server change. Scoped down from timelines/heatmap (would need new fetches). Build green, 645 tests. ✅ in-browser verified (2026-06-22, user). The existing dashboard (current conditions, model health, validation chart, bin stats, shadow horse-race, forecast accuracy) already covered most of this item. |
 | 17 | **Audit logging** | done | ✅ **v37.8** — the 3 PIN-gated reset actions append to a new `audit_log` observation type via a non-fatal `logAdminAction()` helper; GET `audit-log` endpoint + "🧾 Recent Admin Actions" list in the Learning tab. Fixed stale hardcoded `resetReason`. Full protocol (plan→audit→implement→re-audit); 9 new tests incl. non-fatal characterization (645→654). ✅ in-browser verified (2026-06-22, user). Note: `resetForecastAccuracy` has no UI button (logs only via out-of-band POST). |
 | 18 | **Log validation failures** | done | ✅ **v37.9** — hard-flagged validations (dropped from both learning + accuracy) now append to a new `validation_failure` observation type via the non-fatal `insertObs` helper, written inside the `if (isHardFlagged)` block after the claim-delete; GET `validation-failures` endpoint (`loadValidationFailures`, 50 newest, mirrors `audit-log`). Full protocol (plan→audit→test-first→re-audit); +8 tests incl. both non-fatal-guard halves + soft-flag/clean negatives (654→662). Append-only, no retention (hard flags rare; GET caps 50). Server-only, additive — no model/learning/accuracy/estimate change. See `analysis/validation-failure-logging-plan-2026-06-22.md`. |
-| 19 | **Service worker for offline** | done | ✅ **v37.10** — offline SW via `vite-plugin-pwa` (Workbox `generateSW`, `autoUpdate`): precaches the hashed app shell + geojson, runtime-caches (SWR) the `sync-learning` GETs (`pp-api`) + USGS/NWS data (`pp-data`), so a returning user opens offline with last-known state. `skipWaiting`+`clientsClaim`+`cleanupOutdatedCaches` busts the precache per deploy (no stale code); tiles excluded; `manifest:false`; no SW in dev; registered prod-only in `main.js`. New `#offlineBar` (`navigator.onLine`-driven, distinct from the fetch-failure banner the SW masks). CSP unchanged (origins already in `connect-src`). +2 tests (662→664); `dist/sw.js` emitted. 1 new build-time devDep (`vite-plugin-pwa`; 5 dev-only audit advisories, none shipped). ⚠️ in-browser verification pending (SW register/activate, offline reload, post-deploy cache-bust, no CSP errors). Plan→audit→implement→verify: `analysis/service-worker-offline-plan-2026-06-23.md`. |
+| 19 | **Service worker for offline** | done | ✅ **v37.10** — offline SW via `vite-plugin-pwa` (Workbox `generateSW`, `autoUpdate`): precaches the hashed app shell + geojson, runtime-caches (SWR) the `sync-learning` GETs (`pp-api`) + USGS/NWS data (`pp-data`), so a returning user opens offline with last-known state. `skipWaiting`+`clientsClaim`+`cleanupOutdatedCaches` busts the precache per deploy (no stale code); tiles excluded; `manifest:false`; no SW in dev; registered prod-only in `main.js`. New `#offlineBar` (`navigator.onLine`-driven, distinct from the fetch-failure banner the SW masks). CSP unchanged (origins already in `connect-src`). +2 tests (662→664); `dist/sw.js` emitted. 1 new build-time devDep (`vite-plugin-pwa`; 5 dev-only audit advisories, none shipped). ⚠️ in-browser verification pending (SW register/activate, offline reload, post-deploy cache-bust, no CSP errors). Plan→audit→implement→verify: `analysis/service-worker-offline-plan-2026-06-23.md`. **Update v39.1:** river data is now network-first (A1). The in-browser verification listed above is still pending. |
 | 20 | **Mobile sidebar scrolling** | done | ✅ **v37.11** — fixed the mobile double-scroll (CSS-only): `#app` uses `100dvh` with a `100vh` fallback (fills the visual viewport, not the chrome-occluded 100vh), and on ≤768px the sidebar is the single scroll container (`.tab-content`'s inner `overflow` removed) with the tab bar pinned (`.tabs` `position: sticky; top: 0`, opaque). Mobile-scoped — desktop `.tab-content`-scrolls model untouched (`100dvh` == `100vh` on desktop). Build green, 664 tests. ⚠️ in-browser (mobile) verification pending. |
 | 21 | **Show hard-flagged validations in the accuracy chart** | done | ✅ **v37.12** (follow-on to #18) — the Prediction Accuracy (7d) chart merges the `validation_failure` log into its timeline as hollow rings (legend + "⚠ hard-flagged" tooltip note), so flagged validations stop appearing as unexplained gaps (the 2026-07-09/10 local-runoff event left a silent 44h hole; this chart is now also the recurrence monitor for that decision). Flagged points stay out of the line paths, y-domain, and headline avg (byte-identical over history; failures 7d-windowed client-side; summary discloses the count). New pure `src/ui/validation-merge.js` + 15 tests (664→679). Client display only — no learning/accuracy-metric change. Full protocol (plan → audit (15 findings) → implement → re-audit). ⚠️ in-browser verification pending. |
 | 22 | **EF-divergence display-honesty patch (v38-gate fallback)** | done | ✅ **v37.13** (2026-07-20) — server maintains a fail-closed 5h-median D̄ state (`ef_divergence/state`, non-fatal upsert; strict EF validity incl. new `hTime` stage-timestamp capture; cold lockout w/ 1°C hysteresis; ON≥1.20/OFF<1.15); pending/validation/`validation_failure` rows stamped with `efDivergence`/`divergenceActive`; learning GET ships the state; client (2h freshness guard) downgrades displayed confidence one notch + shows the evidence-based "why to trust it less" advisory; learning payload refreshes on the 15-min cycle. NO estimate/learning/weight change. Full protocol (plan → 17-finding audit, all accepted → implement → re-audit); 679→702 tests. Plan: `analysis/ef-divergence-advisory-plan-2026-07-20.md`. ⚠️ in-browser + first-live-cron verification pending. |
@@ -183,7 +183,7 @@ plan → audit → dual-language protocol; A6 and A7 must not be judged on this 
 
 | # | Item | Status | Size |
 |---|------|--------|------|
-| A1 | **Stale cache.** Fetch river data network-first; drive "Updated" from reading time, not fetch time. | in progress | small |
+| A1 | **Stale cache.** Fetch river data network-first; drive "Updated" from reading time, not fetch time. | ✅ done 2026-11-10 (v39.1); plan and audit response in `analysis/stale-cache-fix-plan-2026-11-10.md`. In-browser checks still pending (see plan section 6). | small |
 | A2 | **+9,743 bin** (12,000–25,000 steady, one mislabelled observation). | ✅ done 2026-11-10: flow bin + paired stage bin deleted; record and undo in `analysis/bin-reset-2026-11-10-12000-25000-steady.json` | decision |
 | A3 | **Logging.** Per prediction: inputs seen, raw value, flags, whether the cap bound; keep clean rows longer. | open | small |
 | A4 | **120% cap.** Show when it is active; stop capped rows training bins. | open | small–medium |
@@ -193,6 +193,17 @@ plan → audit → dual-language protocol; A6 and A7 must not be judged on this 
 | A8 | **Confidence band and labels.** Rebuild from live residuals. | open 🔒 | medium |
 | A9 | **Creeks tab high-water state; How It Works corrections.** | open | small |
 | A10 | **Orphan `rise_event` writer.** Find what is writing every 15 minutes. | open | investigation |
+
+**Follow-ups from A1 (v39.1, 2026-11-10; plan `analysis/stale-cache-fix-plan-2026-11-10.md`):**
+
+| # | Item | Status | Size |
+|---|------|--------|------|
+| A1a | **`/api/sync` is not SW-cached.** The learning reads use `/api/sync` (Netlify rewrite), which matches no runtime route, so the June plan's "offline user sees last learned estimate" is false for corrections. If the `pp-api` regex is ever widened to `/api/sync`, it must be NetworkFirst. The false comment in `src/main.js` was corrected in v39.1. | open | small |
+| A1b | **"Live - Connected to USGS" status text** is also shown when the SW served an old body. The label now carries the truth; the header text does not. | open | small |
+| A1c | **`loadFromCache` age stamp.** A localStorage copy saved after an SW-stale 200 is stamped "now", so the cached/stale status dot can be off. The label is immune. | open | small |
+| A1d | **Edwards Ferry freshness** is not in the label (it carries up to about 40% weight at high flow). | open | small |
+| A1e | **24 h lag sample** of real USGS reading lag (Little Falls, Point of Rocks) to confirm the 120 min boundary; raise it if the 99th percentile of lag plus drift is over 120. | open | small |
+| A1f | **CORS proxy fallbacks look dead (2026-11-10).** corsproxy.io answered 403 `keyless_legacy_url` and allorigins did not answer, so the direct USGS call is effectively the only path. Replace or remove the proxy chain. | open | small |
 
 ---
 
@@ -208,6 +219,7 @@ plan → audit → dual-language protocol; A6 and A7 must not be judged on this 
 
 ## Recently completed (reference)
 
+- **v39.1** (2026-11-10): River data is network-first in the service worker; the "last update" label shows the age of the readings, not of the fetch; an old direct USGS payload now still tries the CORS proxies (A1, flood audit finding 5; MINOR, client only). 842→913 tests. Amendment: the page reads the USGS response time (requestDT), so a live body with old readings costs no extra downloads when the clock is right (plan section 11). In-browser checks still pending. Plan: `analysis/stale-cache-fix-plan-2026-11-10.md`.
 - **v39.0** (2026-11-10) — Statistical outliers (Check 5) are soft: learned through a ±2σ clamp computed from PRE-observation bin stats (≤ 0.6·σ_pre per observation; stage bins likewise; `EF_DISCREPANCY` soft path changes with it) and counted in accuracy, so the headline reads worse for the same model (MAJOR, server-only; v38 skipped). New `soft_outlier_event` rows / `softOutlierValidations` / `outlierZ`. 798→842 tests. Production behaviour UNVERIFIED until a z > 3 validation occurs. Plan: `analysis/outlier-always-soft-plan-2026-11-09.md`.
 - **v37.21** (2026-11-09) — Check 3 (`LOW_FLOW_HIGH_STAGE`) fires only when ice is plausible: water temp ≤ 5 °C, or Nov–Mar UTC when temp is unknown (MINOR, server-only). 15 warm-water validations had been hard-flagged 2026-09-16 → 10-10. Thresholds unchanged; production behaviour UNVERIFIED until LF < 1,500 cfs. 780→798 tests. Check 5 part then on hold; done in v39.0.
 - **v37.20** (2026-09-02) — CFS bin read stops discarding its error; unvetted observations are refused, not guessed (TODO #30 closed).

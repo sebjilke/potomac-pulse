@@ -50,8 +50,10 @@ init().catch(e => {
 
 // Refresh every 15 minutes. v37.13: the learning payload refreshes first (it carries the
 // EF divergence advisory, whose 2h freshness guard would otherwise hide it for long-open
-// tabs and SW-cached revisits — plan F8; SWR converges to fresh within one cycle), then
-// fetchData re-renders. Learning-refresh failure must never block the data refresh.
+// tabs — plan F8), then fetchData re-renders. v39.1 correction: the learning payload is read
+// from /api/sync, which the service worker does NOT cache (only /.netlify/functions/sync-learning
+// is), so there is no SWR convergence here; each cycle simply fetches it from the network.
+// Learning-refresh failure must never block the data refresh.
 setInterval(async () => {
     try { await loadGFLearningData(); } catch (e) { console.warn('Learning refresh failed:', e); }
     fetchData();

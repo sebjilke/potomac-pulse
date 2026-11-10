@@ -15,6 +15,7 @@ import {
     data, setData,
     dataSource, setDataSource,
     lastFetchTime, setLastFetchTime,
+    lastReading, setLastReading,
     isFetching, setIsFetching,
     edwardsFerryData,
     waterTempC, setWaterTempC,
@@ -26,6 +27,7 @@ import {
 import { fetchNWSForecasts } from '../estimation/nws.js';
 import { fetchEdwardsFerry, fetchWaterTemp } from '../estimation/edwards-ferry.js';
 import { emit } from '../state/event-bus.js';
+import { readingFromData, describeFreshness, shouldEarlyRefetch, payloadReadingMs, isOldPayload, bodyTimeMs, classifyOldPayload, chainSuppressed, noteChainFoundNothing, clearChainMemo } from '../ui/data-freshness.js';
 
 // ==================== CORE FUNCTIONS ====================
 
@@ -168,7 +170,7 @@ export function calcTravelTimes() {
  */
 export function processData(json) {
     setData({});
-    if (!json?.value?.timeSeries) return;
+    if (!json?.value?.timeSeries) { setLastReading(null); return; }
 
     // Track PoR time series for history backfill
     let porTimeSeries = null;
@@ -189,11 +191,19 @@ export function processData(json) {
             const latest = values[values.length-1];
             const n = parseFloat(latest.value);
             const qualifiers = latest.qualifiers || [];
-            const isIceFlag = n <= -999999 || qualifiers.includes('Ice');
+            const hasIceQualifier = qualifiers.includes('Ice');
+            const isIceFlag = n <= -999999 || hasIceQualifier;
+            // v39.1: readTime is the time of the report behind the discharge the page shows. Only a
+            // literal 'Ice' qualifier counts as a fresh report when the number is unusable; a bare
+            // sentinel (Eqp, Mnt, Ssn, Dis) never does, so a broken gauge visibly ages.
+            const latestMs = Date.parse(latest.dateTime);
 
             if (n > 0 && n < 9999999) {
                 // Valid current reading
-                if (p === "00060") data[s].q = n;
+                if (p === "00060") {
+                    data[s].q = n;
+                    if (Number.isFinite(latestMs)) data[s].readTime = latestMs;
+                }
                 if (p === "00065") data[s].h = n;
             } else if (isIceFlag && p === "00060") {
                 // Ice-flagged discharge: find last valid reading in time series
@@ -204,6 +214,8 @@ export function processData(json) {
                         data[s].q = val;
                         data[s].iceAffected = true;
                         data[s].lastValidTime = new Date(values[i].dateTime).getTime();
+                        const readMs = hasIceQualifier ? latestMs : data[s].lastValidTime;
+                        if (Number.isFinite(readMs)) data[s].readTime = readMs;
                         console.log(`🧊 ${s}: Ice-flagged, using last valid: ${val} cfs from ${values[i].dateTime}`);
                         foundValid = true;
                         break;
@@ -213,6 +225,7 @@ export function processData(json) {
                 if (!foundValid) {
                     data[s].iceAffected = true;
                     data[s].iceLongTerm = true;
+                    if (hasIceQualifier && Number.isFinite(latestMs)) data[s].readTime = latestMs;
                     console.log(`🧊 ${s}: Ice-flagged for >2 days, no valid readings in window`);
                 }
             }
@@ -224,8 +237,11 @@ export function processData(json) {
         backfillPoRHistory(porTimeSeries);
     }
 
-    // Fill in missing gauges with estimates
+    // Fill in missing gauges with estimates (fillMissingData must never set readTime)
     fillMissingData();
+
+    // v39.1: age of the shown readings = older of Little Falls and Point of Rocks
+    setLastReading({ ...readingFromData(data), bodyMs: bodyTimeMs(json) });
 
     calcTravelTimes();
 }
@@ -368,6 +384,13 @@ export async function fetchCreekData() {
 
 // ==================== MAIN FETCH ====================
 
+let earlyRefetchTimer = null;
+
+/** @returns {boolean} False only when the browser reports offline (true where navigator.onLine is unavailable). */
+function browserOnline() {
+    return typeof navigator === 'undefined' || navigator.onLine !== false;
+}
+
 const PROXIES_LIST = [
     "https://api.allorigins.win/raw?url=",
     "https://corsproxy.io/?"
@@ -375,9 +398,10 @@ const PROXIES_LIST = [
 
 /**
  * Top-level data refresh: fetches USGS gauge data (direct, then proxies, then cache fallback) in parallel with Edwards Ferry, water temp, and creek data, processes it, updates status, emits render events, and kicks off the background NWS forecast fetch.
+ * @param {{early?: boolean}} [opts] - early is true only for the single follow-up fetch scheduled after old readings.
  * @returns {Promise<void>} Resolves when the synchronous fetch/process pipeline completes (NWS forecast continues in the background).
  */
-export async function fetchData() {
+export async function fetchData({ early = false } = {}) {
     if (isFetching) return;
     setIsFetching(true);
     try {
@@ -385,22 +409,58 @@ export async function fetchData() {
     const sites = Object.keys(GAUGES).join(",");
     const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${sites}&parameterCd=00060,00065&period=P7D&format=json`;
 
+    let earlyOk = true; // false when the body time (or the unknown-body memo) says an early refetch cannot help
     /**
      * Attempts to fetch and validate USGS data directly, then via each CORS proxy, falling back to cached data if all network attempts fail; updates fetch time and data source accordingly.
      * @returns {Promise<Object|null>} The validated USGS JSON (live or cached), or null if no data is available.
      */
     async function fetchUSGS() {
+        // v39.1 (SW-1): when the direct call fails or is slow, the service worker answers with its saved
+        // copy as a normal 200. An old-looking direct payload therefore does not end the chain: the
+        // proxies are still tried and the payload with the newest reading wins.
+        // Amendment (body time): an old-reading direct payload is classified by the server's own response
+        // time (requestDT). A body at most 10 min old is a live answer with the gauges behind: accept it,
+        // no proxies, no early refetch. An older body is a saved copy: walk the chain. With no body time,
+        // walk the chain but not again for the same reading time within 60 min (chainSuppressed).
+        let best = null; // { json, ms }
+        let directOld = null; // { ms } when the direct payload had old readings and no live body (unknown body time, or a saved copy)
+        const consider = (json) => {
+            const ms = payloadReadingMs(json);
+            const bms = bodyTimeMs(json, Date.now());
+            // Newer readings win. On a tie the payload with the newer body time wins (null counts as oldest),
+            // so a live proxy body is not beaten by a saved direct copy with the same readings (review B-1).
+            const better = !best
+                || (ms ?? -Infinity) > (best.ms ?? -Infinity)
+                || ((ms ?? -Infinity) === (best.ms ?? -Infinity) && (bms ?? -Infinity) > (best.bms ?? -Infinity));
+            if (better) best = { json, ms, bms };
+            return ms;
+        };
+        const accept = () => {
+            saveToCache(best.json);
+            setLastFetchTime(Date.now());
+            setDataSource("live");
+            return best.json;
+        };
         try {
             let r = await fetchWithTimeout(url, 10000);
             if (r.ok) {
                 const json = await r.json();
                 if (validateUSGSResponse(json)) {
-                    saveToCache(json);
-                    setLastFetchTime(Date.now());
-                    setDataSource("live");
-                    return json;
+                    const ms = consider(json);
+                    const t = Date.now();
+                    const cls = classifyOldPayload({ readingMs: ms, bodyMs: bodyTimeMs(json, t), now: t });
+                    if (cls === 'readings-fresh') return accept();
+                    if (cls === 'live-behind') { earlyOk = false; return accept(); }
+                    if (cls === 'unknown-body' || cls === 'saved-copy') {
+                        // review B-2: the 60 min memo also covers saved copies, so a fast device clock or a
+                        // permanently slow network cannot repeat the large chain every cycle.
+                        if (chainSuppressed(ms, t)) { earlyOk = false; return accept(); }
+                        directOld = { ms };
+                    }
+                    console.log('Direct USGS payload has old readings, trying proxies...');
+                } else {
+                    console.log('USGS response validation failed, trying proxies...');
                 }
-                console.log('USGS response validation failed, trying proxies...');
             }
         } catch(e) {
             console.log('Direct USGS fetch failed:', e.message || e);
@@ -412,16 +472,24 @@ export async function fetchData() {
                 if (r.ok) {
                     const json = await r.json();
                     if (validateUSGSResponse(json)) {
-                        saveToCache(json);
-                        setLastFetchTime(Date.now());
-                        setDataSource("live");
-                        return json;
+                        if (!isOldPayload(consider(json), Date.now())) return accept();
+                    } else {
+                        console.log(`Proxy ${p} returned invalid USGS response`);
                     }
-                    console.log(`Proxy ${p} returned invalid USGS response`);
                 }
             } catch(e) {
                 console.log('Proxy fetch failed:', e);
             }
+        }
+
+        if (directOld) {
+            if (best.ms !== null && best.ms > directOld.ms) clearChainMemo();
+            else noteChainFoundNothing(directOld.ms, Date.now());
+        }
+        if (best) {
+            const t = Date.now();
+            if (classifyOldPayload({ readingMs: best.ms, bodyMs: bodyTimeMs(best.json, t), now: t }) === 'live-behind') earlyOk = false;
+            return accept();
         }
 
         const cached = loadFromCache();
@@ -443,6 +511,7 @@ export async function fetchData() {
     if (!usgsJson) {
         console.log('⚠️ No data available - no cache exists');
         setLastFetchTime(null);
+        setLastReading(null);
         setDataSource("unavailable");
         setStatus("error");
         emit('data:unavailable');
@@ -456,6 +525,19 @@ export async function fetchData() {
     // Promise.race render gate). 'data:unavailable' / 'data:updated' / 'nws:arrived' are all wired in init.js.
     setStatus(dataSource === "live" ? "ok" : (dataSource === "stale" ? "stale" : "cached"));
     emit('data:updated');
+
+    // v39.1: after a service-worker fallback the SW refreshes its cache a few seconds later, but the
+    // page would wait 15 min. Schedule ONE early refetch ~60 s later; an early run never schedules another.
+    if (!earlyRefetchTimer && shouldEarlyRefetch({
+        readingMs: lastReading?.ms ?? null,
+        now: Date.now(),
+        online: browserOnline(),
+        source: dataSource,
+        allowed: earlyOk,
+        early
+    })) {
+        earlyRefetchTimer = setTimeout(() => { earlyRefetchTimer = null; fetchData({ early: true }); }, 60000);
+    }
 
     fetchNWSForecasts()
         .then(() => {
@@ -515,7 +597,8 @@ export function setStatus(s) {
         showErrorBanner("Unable to connect to USGS. Check your connection.");
     }
 
-    updateStalenessDisplay();
+    // Final states redraw even though isFetching is still true here: processData has already run.
+    updateStalenessDisplay({ ignoreFetching: s !== "loading" });
 }
 
 /**
@@ -539,11 +622,16 @@ export function dismissErrorBanner() {
 }
 
 /**
- * Updates the "last updated" UI element with a human-readable age (e.g. "just now", "5m ago") and a freshness CSS class based on time since the last successful fetch.
+ * Updates the "last update" label. v39.1: the label describes the age of the readings on screen
+ * (older of Little Falls and Point of Rocks, from lastReading), never the time of the fetch. Wording,
+ * bands and the saved-copy / stalled-refresh cases live in the pure describeFreshness (ui/data-freshness.js).
  */
-export function updateStalenessDisplay() {
+export function updateStalenessDisplay({ ignoreFetching = false } = {}) {
     const el = document.getElementById("lastUpdate");
     if (!el) return;
+    // v39.1 (C1): mid-fetch, lastFetchTime/dataSource describe the new payload but lastReading still
+    // describes the old one. Keep the current label until setStatus redraws after processData.
+    if (isFetching && !ignoreFetching) return;
 
     if (!lastFetchTime) {
         el.textContent = "No data";
@@ -552,29 +640,19 @@ export function updateStalenessDisplay() {
         return;
     }
 
-    const age = Date.now() - lastFetchTime;
-    const mins = Math.floor(age / 60000);
-    const hours = Math.floor(age / 3600000);
-
-    let text, className;
-
-    if (mins < 2) {
-        text = "Updated just now";
-        className = "fresh";
-    } else if (mins < 60) {
-        text = `Updated ${mins}m ago`;
-        className = mins < 30 ? "fresh" : "recent";
-    } else if (hours < 6) {
-        text = `Updated ${hours}h ago`;
-        className = "old";
-    } else {
-        text = `Updated ${hours}h+ ago`;
-        className = "stale";
-    }
-
-    el.textContent = text;
-    el.className = `last-update ${className}`;
-    el.title = `Last updated: ${new Date(lastFetchTime).toLocaleString()}`;
+    const f = describeFreshness({
+        readingMs: lastReading?.ms ?? null,
+        lfMs: lastReading?.lf ?? null,
+        porMs: lastReading?.por ?? null,
+        bodyMs: lastReading?.bodyMs ?? null,
+        fetchMs: lastFetchTime,
+        now: Date.now(),
+        online: browserOnline(),
+        source: dataSource
+    });
+    el.textContent = f.text;
+    el.className = `last-update ${f.className}`;
+    el.title = f.title;
 }
 
 // ==================== FORMATTING UTILITIES ====================
