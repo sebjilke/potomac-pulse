@@ -227,7 +227,7 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
 .tab-content { display: none; flex: 1; overflow-y: auto; }
 .tab-content.active { display: block; }
 
-/* Tab indicator dot — green when any creek is running */
+/* Tab indicator dot: colour follows the highest creek level band (v39.4): green, amber, red */
 .tab[data-tab="creeks"] { position: relative; }
 .tab[data-tab="creeks"].has-running::after {
     content: '';
@@ -239,6 +239,17 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
     box-shadow: 0 0 4px rgba(74,222,128,0.6);
 }
 
+.tab[data-tab="creeks"].has-high::after,
+.tab[data-tab="creeks"].has-veryhigh::after {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    position: absolute;
+    top: 4px; right: 4px;
+}
+.tab[data-tab="creeks"].has-high::after { background: var(--accent-amber); box-shadow: 0 0 4px rgba(251,191,36,0.6); }
+.tab[data-tab="creeks"].has-veryhigh::after { background: var(--accent-red); box-shadow: 0 0 4px rgba(239,68,68,0.6); }
+
 /* ==================== CREEK RUNS ==================== */
 .creeks-banner {
     padding: 10px 12px;
@@ -248,7 +259,10 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
     border-bottom: 1px solid var(--border-default);
 }
 .creeks-banner.running { color: var(--accent-green); background: rgba(74,222,128,0.08); }
+.creeks-banner.high { color: var(--accent-amber); background: rgba(251,191,36,0.08); }
+.creeks-banner.veryhigh { color: var(--accent-red-light); background: rgba(239,68,68,0.08); }
 .creeks-banner.quiet { color: var(--text-tertiary); background: rgba(0,0,0,0.15); }
+.creeks-banner.unknown { color: var(--text-tertiary); background: rgba(0,0,0,0.15); }
 
 .creek-card {
     margin: 6px 8px;

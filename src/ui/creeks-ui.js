@@ -3,6 +3,7 @@
 
 import { CREEK_RUNS } from '../model/constants.js';
 import { creekData } from '../state/store.js';
+import { creekCardView, creekBanner, creekTabDotClass, TAB_DOT_CLASSES } from './creek-level.js';
 
 // ==================== BUILD CREEKS ====================
 
@@ -84,7 +85,7 @@ function toggleCreekChart(id) {
 
 /**
  * Renders an inline SVG sparkline of the creek's last-24h flow history into the given element: a
- * gradient-filled area + line (green when running, muted otherwise), round-CFS gridlines, a dashed
+ * gradient-filled area + line (coloured by level band, muted otherwise), round-CFS gridlines, a dashed
  * runnable-threshold line and label, the current-value dot, and 24h-ago/12h-ago/Now x-axis labels.
  * Shows a placeholder message instead if there is no data or fewer than two history points.
  * @param {string} id - USGS gauge id, used to look up `creekData[id]` and CREEK_RUNS[id].
@@ -133,7 +134,8 @@ function renderCreekChart(id, el) {
         return;
     }
 
-    const lineColor = d.running ? 'var(--accent-green)' : 'var(--text-muted)';
+    const view = creekCardView(d, c, Date.now());
+    const lineColor = view.lineColor;
     const fillId = `cgf-${id}`;
 
     // Line path
@@ -181,7 +183,7 @@ function renderCreekChart(id, el) {
     const lastPt = pts[pts.length - 1];
     const dotX = xScale(lastPt.time.getTime());
     const dotY = yScale(lastPt.q);
-    const dotColor = d.running ? 'var(--accent-green)' : 'var(--text-muted)';
+    const dotColor = view.lineColor;
 
     const yLabelCurrent = '';
 
@@ -196,7 +198,7 @@ function renderCreekChart(id, el) {
     }).join('');
 
     // Gradient def
-    const gradColor = d.running ? '74,222,128' : '100,116,139';
+    const gradColor = view.chartRgb;
 
     el.innerHTML = `<svg width="${W}" height="${H}" style="display:block;overflow:visible;">
   <defs>
@@ -220,14 +222,14 @@ function renderCreekChart(id, el) {
 
 /**
  * Refreshes all creek cards from the `creekData` store: per card updates the dot color, CFS, trend arrow,
- * status text, running border glow, and "last ran" label (from localStorage), or shows a no-data state.
+ * status text, band-coloured border, and "last ran" label (from localStorage), or shows a no-data state.
  * Re-renders any expanded chart, reorders cards (running first by CFS descending), updates the master
- * #creeks-status banner with running count / last activity, and toggles the creeks tab's has-running dot.
+ * #creeks-status banner with running count / last activity, and toggles the creeks tab dot class (highest band).
  * @returns {void}
  */
 export function updateCreeksUI() {
     const entries = Object.entries(CREEK_RUNS);
-    let runningCount = 0;
+    const bands = [];
     const cardOrder = [];
 
     for (const [id, c] of entries) {
@@ -241,44 +243,18 @@ export function updateCreeksUI() {
 
         if (!dot) continue;  // Card not built yet
 
-        if (d) {
-            const running = d.running;
-            if (running) runningCount++;
-            cardOrder.push({ id, running, q: d.q });
-
-            // Dot color
-            dot.style.background = running ? 'var(--accent-green)' : 'var(--text-muted)';
-            // CFS
-            cfsEl.textContent = `${Math.round(d.q)} cfs`;
-            cfsEl.style.color = running ? 'var(--accent-green)' : 'var(--text-tertiary)';
-            // Trend arrow
-            const arrows = { rising: '↑', falling: '↓', steady: '→' };
-            const colors = { rising: 'var(--accent-green)', falling: 'var(--accent-red-light)', steady: 'var(--text-tertiary)' };
-            const titles = { rising: 'Flow rising', falling: 'Flow falling', steady: 'Flow steady' };
-            trendEl.textContent = arrows[d.trend] || '→';
-            trendEl.style.color = colors[d.trend] || 'var(--text-tertiary)';
-            trendEl.title = titles[d.trend] || 'Flow steady';
-            // Status text
-            if (running) {
-                statusEl.textContent = `Running! (≥${c.runnable} cfs)`;
-                statusEl.style.color = 'var(--accent-green)';
-            } else {
-                statusEl.textContent = `Needs ≥${c.runnable} cfs${c.microRun ? ' (micro-run)' : ''}`;
-                statusEl.style.color = 'var(--text-tertiary)';
-            }
-            // Card border glow for running creeks
-            card.style.borderColor = running ? 'var(--accent-green)' : 'var(--border-default)';
-        } else {
-            // No data
-            dot.style.background = 'var(--border-hover)';
-            cfsEl.textContent = '❓ No data';
-            cfsEl.style.color = 'var(--text-tertiary)';
-            trendEl.textContent = '';
-            statusEl.textContent = 'Gauge offline or no response';
-            statusEl.style.color = 'var(--text-tertiary)';
-            card.style.borderColor = 'var(--border-default)';
-            cardOrder.push({ id, running: false, q: -1 });
-        }
+        const view = creekCardView(d, c, Date.now());
+        bands.push(view.band);
+        cardOrder.push({ id, running: view.active, q: d ? d.q : -1 });
+        dot.style.background = view.dotColor;
+        cfsEl.textContent = view.cfsText;
+        cfsEl.style.color = view.cfsColor;
+        trendEl.textContent = view.trendText;
+        trendEl.style.color = view.trendColor;
+        trendEl.title = view.trendTitle;
+        statusEl.textContent = view.status;
+        statusEl.style.color = view.statusColor;
+        card.style.borderColor = view.borderColor;
 
         // Last ran (try/catch for localStorage disabled in private browsing)
         try {
@@ -287,7 +263,9 @@ export function updateCreeksUI() {
                 const lastRan = new Date(lastRanStr);
                 const now = new Date();
                 const daysAgo = Math.round((now - lastRan) / 86400000);
-                if (d?.running) {
+                if (view.lastRan === 'hidden') {
+                    lastranEl.textContent = '';
+                } else if (view.lastRan === 'now') {
                     lastranEl.textContent = 'Last ran: now';
                 } else if (daysAgo === 0) {
                     lastranEl.textContent = 'Last ran: today';
@@ -323,8 +301,9 @@ export function updateCreeksUI() {
     // Master status banner
     const statusEl = document.getElementById("creeks-status");
     const total = entries.length;
-    if (runningCount > 0) {
-        statusEl.innerHTML = `<div class="creeks-banner running">🟢 CREEKS ARE RUNNING — ${runningCount} of ${total} runnable</div>`;
+    const banner = creekBanner(bands, total);
+    if (banner.tone !== 'quiet') {  // running, high, veryhigh and unknown: no "Last activity" suffix
+        statusEl.innerHTML = `<div class="creeks-banner ${banner.tone}">${banner.emoji} ${banner.text}</div>`;
     } else {
         // Find most recent "last ran" across all creeks
         let lastActivity = '';
@@ -344,12 +323,13 @@ export function updateCreeksUI() {
                 lastActivity = ` — Last activity: ${name}, ${daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : daysAgo + 'd ago'}`;
             }
         } catch(e) {}
-        statusEl.innerHTML = `<div class="creeks-banner quiet">⚫ Nothing running${lastActivity}</div>`;
+        statusEl.innerHTML = `<div class="creeks-banner quiet">${banner.emoji} ${banner.text}${lastActivity}</div>`;
     }
 
     // Tab indicator dot
     const creeksTab = document.querySelector('.tab[data-tab="creeks"]');
     if (creeksTab) {
-        creeksTab.classList.toggle('has-running', runningCount > 0);
+        const dotClass = creekTabDotClass(bands);
+        for (const k of TAB_DOT_CLASSES) creeksTab.classList.toggle(k, k === dotClass);
     }
 }

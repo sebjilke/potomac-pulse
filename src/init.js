@@ -45,6 +45,7 @@ export async function init() {
         on('data:updated', updateLearningUI);
         on('data:updated', updateCreeksUI);
         on('data:unavailable', updateUI);
+        on('data:unavailable', updateCreeksUI);  // re-apply the 2 h age rule to the last known creek readings
         on('nws:arrived', updateUI);
         on('gf-estimate:rendered', updateGFLearningUI);
         on('forecast-accuracy:updated', updateForecastAccuracyUI);

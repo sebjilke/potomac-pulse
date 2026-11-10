@@ -4,7 +4,7 @@
 Session state is in `.claude/HANDOFF.md`; methodology provenance for shipped versions is the
 small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, prioritize, go.
 
-*Last updated: 2026-11-10 (current version: v39.3). Verified against live DB + git history, not memory.*
+*Last updated: 2026-11-10 (current version: v39.4; 1140 tests, 1139 pass, 1 opt-in skip). Verified against live DB + git history, not memory.*
 
 ---
 
@@ -193,8 +193,19 @@ plan → audit → dual-language protocol; A6 and A7 must not be judged on this 
 | A6 | **Multi-pending validation.** Reopen for responsiveness (learning was 23 h late at onset). | open 🔒 | large, rejected once in June |
 | A7 | **Rising-limb travel lookup + PoR-delta correction.** | open 🔒 | large, needs A3 data first |
 | A8 | **Confidence band and labels.** Rebuild from live residuals. | open 🔒 | medium |
-| A9 | **Creeks tab high-water state; How It Works corrections.** | open | small |
+| A9 | **Creeks tab high-water state; How It Works corrections.** | ✅ done 2026-11-10 (v39.4); plan and audit response in `analysis/creeks-highwater-and-howitworks-plan-2026-11-10.md`. Browser checks pending (see A9 follow-ups). | small |
+| A9z | **Left by the last independent check of v39.4 (none blocks; none changes the estimate).** (1) The banner and tab dot stay green when one creek is currently at 1x to 2x while another creek's OLD reading was at 2x or more; the old card is grey and says so, but the colour ignores it. Decide whether an old high reading should hold the colour. (2) The confidence legend's "also drops when the latest check against Little Falls was far off" is broader than the code: it lowers only when the estimate was at least 15% below Little Falls within the last 12 h, and never for an over-estimate (appendix 5.9 is exact). (3) "1 with no data. Levels for those creeks" mixes singular and plural. (4) Old-reading text rounds the cfs but truncates the multiple (1599.6 cfs reads "1600 cfs, 7.9x"). (5) `creek_lastran` is stamped with fetch time, so a card with an old reading can show "Last ran: today". (6) The `data:unavailable` re-render is pinned only by a source pattern, not a behavioural test. | open | small |
 | A10 | **Orphan `rise_event` writer.** Find what is writing every 15 minutes. | open | investigation |
+
+**Follow-ups from A9 (v39.4, 2026-11-10; plan `analysis/creeks-highwater-and-howitworks-plan-2026-11-10.md`):**
+
+- 🔒 **Per-creek high-water values.** Owner to supply a level per creek with a source (American Whitewater range or local knowledge). Then add `upper` and `upperSource` to `CREEK_RUNS` and change the label. Until then the card says Potomac Pulse has no high-water level for the creek. Also decide whether 2x and 5x suit every creek (Sligo is a 6.5 sq mi micro-run).
+- **How It Works travel-time numbers disagree** between index.html :273, :331 and the table at :422-426 (about 19 h vs 26 h typical). Separate ticket; not part of A9.
+- **Card cfs rounding.** The card uses Math.round, so Rock Creek at 399.6 shows "400 cfs" next to "Needs ≥400". Pre-existing.
+- **Browser checks not done (unverified):** colours and contrast of green, amber and red in light and dark theme; banner wrapping at 320 px and the long high-water sentence fitting the card; the amber flow line in the chart is distinguishable from the amber dashed threshold line (`--accent-amber` vs `--accent-loading`) and the gradient renders the amber and red RGB values; tab-dot colours in the real tab bar; screen reader reading of the status line; live USGS response with the service worker cache.
+- The confidence-band wording at index.html:215 (49% coverage) is left to A8.
+- **Untested creek display parts (v39.4).** The UI status colour, cfs colour, chart line colour and gradient, card order and trend tooltip are not covered by tests (the chart renderer never runs in tests). The cfs text in red (4.19:1 on the card) still uses the plain red; only the status line and the banner use the lighter red.
+- **Age is re-checked only on the 15 minute tick** (and on `data:unavailable`), so a reading can show as current for up to about 15 minutes past 2 h.
 
 **Follow-ups from A3 (v39.2, 2026-11-10; plan `analysis/prediction-logging-plan-2026-11-10.md`):**
 
@@ -209,6 +220,7 @@ plan → audit → dual-language protocol; A6 and A7 must not be judged on this 
 | A3g | **RLS "Allow public access".** The logs (and every other row) can be read, deleted or forged with the anon key. Separate migration; can break the cron if done wrong. | open 🔒 | medium |
 | A3h | **Platform limits.** Netlify's 30 s scheduled-function limit and the 500 MB vs 2 GB plan limit are from memory; check both. Added time is capped at about 6 s after the ping. | open 🔍 | tiny |
 | A3i | **Three test gaps left by the last independent check (code is correct today).** The handler test's event recorder sees only inserts and upserts, so a prune delete or a log select moved before the success ping is not caught; and the five handler-stamped fields on a stored prediction (`shadowModels`, `efDivergence` and three more) are checked for presence, not value. Record delete and select events in the recorder; pin the stamp values. | open | small |
+| A3j | **Three notes from the production check of v39.2.** (1) `commit` is null in every `tick_log` row because `COMMIT_REF` is not available to the scheduled function, so rows identify code only by `ver`. (2) On a tick whose `slot` is `skipped_in_window` the row's `due` field is the due time of a prediction that was not stored, and can be mistaken for the real pending deadline. (3) `ef.w` in the tick row is rounded to 0 where the pending row keeps 6.85e-5. | open | small |
 
 **Follow-ups from A1 (v39.1, 2026-11-10; plan `analysis/stale-cache-fix-plan-2026-11-10.md`):**
 
@@ -234,6 +246,8 @@ plan → audit → dual-language protocol; A6 and A7 must not be judged on this 
 ---
 
 ## Recently completed (reference)
+
+- **v39.4** (2026-11-10): Creek level bands and How It Works corrections (A9; MINOR, client only, estimation unchanged). Creeks tab shows the multiple of the minimum with green/amber/red bands, a grey old-reading state, and says Potomac Pulse has no high-water level for the creek; banner and tab dot follow the highest band; four How It Works statements and the matching appendix/README lines corrected. New `src/ui/creek-level.js`; 65 new tests (1140 total). `SERVER_VERSION` stays v39.2.
 
 - **v39.3** (2026-11-10): Cap indicator (A4a, flood audit problem 4; MINOR, display only, estimation unchanged). The Great Falls card says when the 120% cap holds the number down, with the model's own value; inputs row "120% ceiling"; 90% CI row marked when capped. Additive `inputs` fields only. 42 new tests (1075 total). `SERVER_VERSION` stays v39.2. A4b split off and left open. Plan: `analysis/cap-indicator-plan-2026-11-10.md`.
 - **v39.2** (2026-11-10): Audit logging for the hourly cron (A3, flood audit finding 3; MINOR, server-only, estimation unchanged). `tick_log`, `validation_log`, `bin_snapshot`, `log_health` rows; non-fatal, time-bounded, written after the success ping; bounded prune of the three log types only. 913→1032 tests. Production behaviour UNVERIFIED (see A3 follow-ups).
