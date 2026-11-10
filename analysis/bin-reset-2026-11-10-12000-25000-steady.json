@@ -1,0 +1,28 @@
+{
+  "what": "Manual single-bin reset approved by the owner on 2026-11-10. Two gf_correction_bin rows deleted from potomac_observations: the 12000-25000 steady flow bin and its paired stage bin. Both were created by one validation at 2026-10-13T07:00:18Z (a rising-limb miss labelled steady, on a row where the 120 percent ceiling bound).",
+  "why": "One observation of +9,743 cfs. Blended with the hierarchical fallback it subtracted about 2,680 cfs from any steady estimate in the 12,000-25,000 band, in the unsafe (under-read) direction. See analysis/pulse-audit-2026-10/REPORT.md, problem 9.",
+  "captured_at_utc": "2026-11-10T17:30Z",
+  "before": {
+    "gf_correction_bin_rows": 30,
+    "md5_all_rows": "c7cc31b1da333f7496122f7067a4e43a",
+    "md5_other_28_rows": "9cec1feb179108a6f1892b73310030c5",
+    "hash_recipe": "md5(string_agg(gauge_id || '|' || data::text, E'\\n' order by gauge_id)) over observation_type = 'gf_correction_bin'"
+  },
+  "deleted_rows": [
+    {
+      "id": "fd96b72d-ddf7-41b1-b6a6-b3a3856607dd",
+      "observation_type": "gf_correction_bin",
+      "gauge_id": "12000-25000_steady",
+      "created_at": "2026-10-13T07:00:18.015096+00:00",
+      "data": { "count": 1, "sumError": 9743, "meanError": 9743, "sumErrorSq": 94926049, "emaMeanError": 9743 }
+    },
+    {
+      "id": "53599520-6b3b-4b05-9896-34cef86b3d2d",
+      "observation_type": "gf_correction_bin",
+      "gauge_id": "stage_12000-25000_steady",
+      "created_at": "2026-10-13T07:00:18.094927+00:00",
+      "data": { "count": 1, "stdDev": 0, "sumError": 0.83, "meanError": 0.83, "sumErrorSq": 0.6889, "emaMeanError": 0.83 }
+    }
+  ],
+  "undo": "Re-insert the two rows above (observation_type, gauge_id, data). A missing row is read as an empty bin, which is the state that held before 2026-10-13."
+}

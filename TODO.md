@@ -175,6 +175,27 @@ Recorded so a future session does not re-litigate it: the 3k/6k/12k smoothing pr
 
 ---
 
+## 🔴 Open — October 2026 flood audit (2026-11-10)
+
+Source: `analysis/pulse-audit-2026-10/REPORT.md` (ranked problems and evidence). Owner asked for all ten,
+worked one at a time in this order. A–E items change the model or its scoring and need the full
+plan → audit → dual-language protocol; A6 and A7 must not be judged on this one event alone.
+
+| # | Item | Status | Size |
+|---|------|--------|------|
+| A1 | **Stale cache.** Fetch river data network-first; drive "Updated" from reading time, not fetch time. | in progress | small |
+| A2 | **+9,743 bin** (12,000–25,000 steady, one mislabelled observation). | ✅ done 2026-11-10: flow bin + paired stage bin deleted; record and undo in `analysis/bin-reset-2026-11-10-12000-25000-steady.json` | decision |
+| A3 | **Logging.** Per prediction: inputs seen, raw value, flags, whether the cap bound; keep clean rows longer. | open | small |
+| A4 | **120% cap.** Show when it is active; stop capped rows training bins. | open | small–medium |
+| A5 | **Difficult Run.** Subtract from the validation truth, or flag validations when it is high. | open 🔒 | medium, needs a backtest |
+| A6 | **Multi-pending validation.** Reopen for responsiveness (learning was 23 h late at onset). | open 🔒 | large, rejected once in June |
+| A7 | **Rising-limb travel lookup + PoR-delta correction.** | open 🔒 | large, needs A3 data first |
+| A8 | **Confidence band and labels.** Rebuild from live residuals. | open 🔒 | medium |
+| A9 | **Creeks tab high-water state; How It Works corrections.** | open | small |
+| A10 | **Orphan `rise_event` writer.** Find what is writing every 15 minutes. | open | investigation |
+
+---
+
 ## 📅 Date-gated / watch
 
 - ✅ **`scheduled-update` outage — RESOLVED:** the cron resumed on its own by 2026-09-03T21:00Z (first post-outage write `legacyStageFrozenAt`). Root cause was never diagnosed. As of 2026-11-09: 454 consecutive runs and 656 lifetime missed ticks. There is still no stall alerting because `HEALTHCHECKS_PING_URL` is unset.
