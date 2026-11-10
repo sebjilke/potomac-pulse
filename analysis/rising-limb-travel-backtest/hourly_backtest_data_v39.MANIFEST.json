@@ -1,0 +1,9 @@
+{
+ "file": "hourly_backtest_data_v39.csv",
+ "rows": 130416,
+ "v38_rows": 127728,
+ "appended_rows": 2688,
+ "first_timestamp": "2011-12-01 05:00",
+ "last_timestamp": "2026-11-09 23:00",
+ "sha256": "d1d3f6a515d0c90c1e0bc1b075c6b53977d34aa82e704e163b449785259c8c4f"
+}

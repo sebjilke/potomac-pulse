@@ -1,0 +1,9 @@
+2026-10-14 12:00 por_now: csv=22300.0 live=22300.0 n=12 OK | lf_discharge: csv=24050.0 live=24050.0 n=12 OK | monocacy: csv=735.5 live=735.5 n=4 OK | ef_stage: csv=9.12 live=9.125 n=4 OK | lf_stage: csv=5.24 live=5.235 n=12 OK
+2026-10-14 18:00 por_now: csv=19250.0 live=19250.0 n=12 OK | lf_discharge: csv=23600.0 live=23600.0 n=12 OK | monocacy: csv=660.5 live=660.5 n=4 OK | ef_stage: csv=8.7 live=8.7 n=4 OK | lf_stage: csv=5.2 live=5.2 n=12 OK
+2026-08-25 01:00 por_now: csv=4750.0 live=4750.0 n=12 OK | lf_discharge: csv=3510.0 live=3510.0 n=12 OK | monocacy: csv=569.5 live=569.5 n=4 OK | ef_stage: csv=5.08 live=5.075 n=4 OK | lf_stage: csv=3.12 live=3.12 n=12 OK
+2026-08-25 23:00 por_now: csv=5170.0 live=5170.0 n=12 OK | lf_discharge: csv=4420.0 live=4420.0 n=12 OK | monocacy: csv=329.5 live=329.5 n=4 OK | ef_stage: csv=5.23 live=5.23 n=4 OK | lf_stage: csv=3.27 live=3.27 n=12 OK
+2026-09-01 15:00 por_now: csv=2700.0 live=2700.0 n=12 OK | lf_discharge: csv=2260.0 live=2260.0 n=12 OK | monocacy: csv=139.0 live=139.0 n=4 OK | ef_stage: csv=4.41 live=4.405 n=4 OK | lf_stage: csv=2.88 live=2.88 n=12 OK
+2026-09-24 06:00 por_now: csv=3395.0 live=3395.0 n=12 OK | lf_discharge: csv=3400.0 live=3400.0 n=12 OK | monocacy: csv=410.0 live=410.0 n=4 OK | ef_stage: csv=4.52 live=4.52 n=4 OK | lf_stage: csv=3.1 live=3.1 n=12 OK
+2026-10-15 05:00 por_now: csv=15100.0 live=15100.0 n=12 OK | lf_discharge: csv=19500.0 live=19500.0 n=12 OK | monocacy: csv=553.0 live=553.0 n=4 OK | ef_stage: csv=7.78 live=7.779999999999999 n=4 OK | lf_stage: csv=4.87 live=4.87 n=12 OK
+2026-11-01 02:00 por_now: csv=1660.0 live=1660.0 n=12 OK | lf_discharge: csv=2260.0 live=2260.0 n=12 OK | monocacy: csv=162.0 live=162.0 n=4 OK | ef_stage: csv=3.26 live=3.26 n=4 OK | lf_stage: csv=2.88 live=2.88 n=12 OK
+rows checked: 8 cell mismatches (>1%): 0

@@ -219,7 +219,21 @@ Threshold and action. ROLL BACK (revert S to base in a new minor version via the
 
 ## 12. Deviations
 
-(Empty. This is the only place a later change may be recorded. Each entry needs date, reason, who approved.)
+This is the only place a later change may be recorded. Each entry needs date, reason, who approved.
+
+**D-1, 2026-11-10, wording clarifications, approved by the orchestrator before any arm was run or any error computed.** The plan text allowed two readings in five places. One reading was fixed for both event-list analysts:
+- C1. "A gap of 3 h" means at most 3 consecutive missing hourly stamps.
+- C2. A search "up to 2.5 h" after a tick is counted from the first tick found at or after the target time.
+- C3. An hourly stamp with no row in the CSV counts as missing for X1 and X2.
+- C4. An event "contains" a stamp when t0 <= stamp <= tend.
+- C5. Section 2 appends from 2026-07-21 00:00, but the v38 file ends 2026-07-20 16:00. The seven stamps 2026-07-20 17:00 to 23:00 UTC are in neither file and are treated as missing stamps. No event is near them.
+The Python analyst reported that the alternative readings of C1 and C2 give an identical event list (sensitivity files `_sensfill2`, `_senstime`).
+
+**D-2, 2026-11-10, step 2 result and freeze of the event list (precondition P2), recorded by the orchestrator.** The Python list and the blind R list agree exactly on all 53 events: t0, tp, tend, class, X0 to X4, kept, oct, holdout, scored rising-limb ticks and peak (`compare_event_lists.py`, 0 differences). Frozen file: `analysis/rising-limb-travel-backtest/rising_limb_events_python_v39.csv`, sha256 978c6c2f98a522ad98ff54cd3f172df534ed2a4c552a29490739ba0f5d7cac44 (R copy: `rising_limb_events_R_v39.csv`, sha256 6faa963ffa08bde2b13c962a7adc2782d428a1f3572af44166d94806b586ef35). Counts: 87 onsets; 34 GATE, 20 STRATUM, 33 below 8,000; one merge (2019-08-07); 53 events; GATE kept 21 (20 non-October plus October 2026), STRATUM kept 15; holdout event ids 47, 48, 49, 51. Non-October GATE kept is 20 against the floor of 15: PROCEED. October 2026 is detected (t0 2026-10-12 02:00, tp 2026-10-14 15:00 at 24,300 cfs, tend 2026-10-19 15:00), GATE class, no exclusion, so P3 applies and G1b differs from G1a. Bootstrap index files: all events 10000 x 21, sha256 7eff92a751fd9cc0c6f8e0220998e98788cc2f293b5437088bf9376e1dd96519; non-October 10000 x 20, sha256 c1f50235edf229d65f8dcd0432f0a9699c752e3a67f7fac27e597c040a29ff5c. Not a change to the plan.
+
+**D-3, 2026-11-10, data regime, recorded by the orchestrator as a limit, not a change.** Extended file `hourly_backtest_data_v39.csv`: 130,416 rows, 2011-12-01 05:00 to 2026-11-09 23:00, sha256 d1d3f6a515d0c90c1e0bc1b075c6b53977d34aa82e704e163b449785259c8c4f (127,728 v38 rows kept byte for byte, 2,688 appended). Refetching the v38 overlap 2026-06-14 to 07-20 showed that USGS has revised its provisional data since the v38 fetch: all 864 overlapping rows differ (Point of Rocks median -4.3 percent, Little Falls median -1.9 percent). Per section 2 the v38 values are kept. The appended months are therefore on a later USGS revision state than the months just before them, and all of it differs from the provisional values the cron saw live. The October 2026 event lies wholly in the appended period. The final report must state this next to any October-specific number. A committed gzip of the extended file accompanies the manifest because the file cannot be regenerated exactly once USGS revises again.
+
+**D-4, 2026-11-10, blindness note.** The R analyst read `netlify/functions/shared/model.js` for the travel functions the plan names without formulas (needed for X3). It did not read the Python script, its outputs, the preliminary counting scripts or the log.
 
 ## 13. Audit response (plan audit 2026-11-10: approve_with_changes)
 

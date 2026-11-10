@@ -1,0 +1,174 @@
+hourly_backtest_data_v39.csv provenance
+Fetch date(s) (UTC, from raw/FETCH_MANIFEST.json): 2026-11-10
+Generator: analysis/rising-limb-travel-backtest/fetch_hourly_backtest_data_v39.py
+Base: hourly_backtest_data_v38.csv (127728 rows, 2011-12-01 05:00 .. 2026-07-20 16:00, FROZEN, rows win)
+Appended: 2688 rows, 2026-07-21 00:00 .. 2026-11-09 23:00 (plan section 2 window; data after 2026-06-14 are PROVISIONAL USGS values)
+Output: 130416 rows, last stamp 2026-11-09 23:00, sha256 d1d3f6a515d0c90c1e0bc1b075c6b53977d34aa82e704e163b449785259c8c4f
+Median-of-readings rule: each stamp T = UTC-truncated median of all 15-min readings in [T, T+1h).
+Row driver: a row exists only if PoR>0 or LF>0 at that hour (unchanged from v38).
+
+Per series (fetch window 2026-06-12..2026-11-09): readings -> hourly stamps
+  por_discharge: 43500 readings -> 3625 stamps
+  por_temp: 42904 readings -> 3578 stamps
+  monocacy: 14500 readings -> 3625 stamps
+  goose: 14500 readings -> 3625 stamps
+  broad_run: 43308 readings -> 3610 stamps
+  seneca: 43500 readings -> 3625 stamps
+  ef_stage: 14496 readings -> 3624 stamps
+  lf_discharge: 43467 readings -> 3625 stamps
+  lf_stage: 43479 readings -> 3625 stamps
+
+Non-blank cells in appended rows (of 2688 possible hourly stamps, 2688 rows exist):
+  por_now: 2688
+  ef_stage: 2687
+  lf_discharge: 2688
+  lf_stage: 2688
+  water_temp_c: 2641
+  monocacy: 2688
+  goose: 2688
+  broad_run: 2688
+  seneca: 2688
+
+Gaps in appended period (runs of missing hourly stamps, start UTC, length):
+  por_now: 0 runs; 
+  lf_discharge: 0 runs; 
+
+Gap between v38 end (2026-07-20 16:00) and append start (2026-07-21 00:00): 7 hourly stamps not covered by either (literal plan window).
+
+OVERLAP CHECK vs v38 (864 v38 rows with stamp >= 2026-06-14 00:00):
+  v38 rows with no refetched row: 0
+  refetched rows absent from v38 inside v38 span: 17 e.g. 2026-07-15 20:00, 2026-07-15 21:00, 2026-07-15 22:00, 2026-07-15 23:00, 2026-07-16 00:00
+  v38 rows with at least one differing cell: 864
+  differing cells by column: broad_run=687, goose=191, lf_discharge=864, lf_stage=853, monocacy=255, por_lagged=864, por_now=864, travel_time_h=861
+  differing rows by month: 2026-06=408, 2026-07=456
+  relative revision (new-old)/old, by column [median, p5, p95, max abs] over rows where both present:
+    por_now: n=864 median=-0.0433 p5=-0.0688 p95=-0.0165 max_abs=0.0860
+    lf_discharge: n=862 median=-0.0185 p5=-0.0221 p95=-0.0125 max_abs=0.0417
+    monocacy: n=864 median=+0.0000 p5=-0.0217 p95=+0.0000 max_abs=0.0303
+    goose: n=864 median=+0.0000 p5=+0.0000 p95=+0.0229 max_abs=0.0283
+    broad_run: n=864 median=+0.0050 p5=+0.0000 p95=+0.0972 max_abs=0.1230
+    seneca: n=864 median=+0.0000 p5=+0.0000 p95=+0.0000 max_abs=0.0000
+    lf_stage: n=862 median=-0.0033 p5=-0.0035 p95=-0.0029 max_abs=0.0070
+    ef_stage: n=864 median=+0.0000 p5=+0.0000 p95=+0.0000 max_abs=0.0000
+    por_now 2026-06-14..06-30: n=408 median=-0.0315
+    lf_discharge 2026-06-14..06-30: n=408 median=-0.0192
+    por_now 2026-07-01..07-20: n=456 median=-0.0526
+    lf_discharge 2026-07-01..07-20: n=454 median=-0.0172
+  first 40 differing rows:
+    2026-06-14 00:00: por_now: '3580.0' -> '3530.0'; por_lagged: '3600.0' -> '3560.0'; lf_discharge: '4110.0' -> '4050.0'; lf_stage: '3.22' -> '3.21'; monocacy: '289.0' -> '284.0'; goose: '109.0' -> '111.0'; broad_run: '72.5' -> '78.8'; travel_time_h: '21.7' -> '21.9'
+    2026-06-14 01:00: por_now: '3550.0' -> '3500.0'; por_lagged: '3598.4' -> '3560.0'; lf_discharge: '4050.0' -> '3980.0'; lf_stage: '3.21' -> '3.2'; monocacy: '286.0' -> '280.0'; goose: '106.0' -> '109.0'; broad_run: '69.5' -> '75.6'; travel_time_h: '21.9' -> '22.1'
+    2026-06-14 02:00: por_now: '3520.0' -> '3470.0'; por_lagged: '3583.0' -> '3540.5'; lf_discharge: '3980.0' -> '3920.0'; lf_stage: '3.2' -> '3.19'; monocacy: '286.0' -> '280.0'; goose: '104.0' -> '106.0'; broad_run: '67.0' -> '73.0'; travel_time_h: '22.1' -> '22.4'
+    2026-06-14 03:00: por_now: '3475.0' -> '3435.0'; por_lagged: '3570.3' -> '3525.6'; lf_discharge: '3920.0' -> '3860.0'; lf_stage: '3.19' -> '3.18'; monocacy: '283.0' -> '277.0'; goose: '103.0' -> '105.0'; broad_run: '65.3' -> '71.2'; travel_time_h: '22.4' -> '22.6'
+    2026-06-14 04:00: por_now: '3440.0' -> '3390.0'; por_lagged: '3545.0' -> '3510.7'; lf_discharge: '3860.0' -> '3800.0'; lf_stage: '3.18' -> '3.17'; monocacy: '279.0' -> '273.0'; goose: '102.0' -> '104.0'; broad_run: '62.9' -> '68.6'; travel_time_h: '22.6' -> '22.8'
+    2026-06-14 05:00: por_now: '3410.0' -> '3360.0'; por_lagged: '3503.8' -> '3479.0'; lf_discharge: '3800.0' -> '3740.0'; lf_stage: '3.17' -> '3.16'; monocacy: '276.0' -> '270.0'; goose: '99.4' -> '102.0'; broad_run: '60.5' -> '66.1'; travel_time_h: '22.8' -> '23.0'
+    2026-06-14 06:00: por_now: '3350.0' -> '3310.0'; por_lagged: '3448.8' -> '3421.9'; lf_discharge: '3740.0' -> '3690.0'; lf_stage: '3.16' -> '3.15'; monocacy: '276.0' -> '270.0'; goose: '99.4' -> '102.0'; broad_run: '58.2' -> '63.7'; travel_time_h: '23.0' -> '23.2'
+    2026-06-14 07:00: por_now: '3330.0' -> '3280.0'; por_lagged: '3379.5' -> '3358.9'; lf_discharge: '3690.0' -> '3630.0'; lf_stage: '3.15' -> '3.14'; monocacy: '274.5' -> '268.5'; goose: '99.4' -> '102.0'; broad_run: '56.6' -> '62.1'; travel_time_h: '23.2' -> '23.4'
+    2026-06-14 08:00: por_now: '3300.0' -> '3250.0'; por_lagged: '3273.8' -> '3258.8'; lf_discharge: '3690.0' -> '3630.0'; lf_stage: '3.15' -> '3.14'; monocacy: '273.0' -> '267.0'; goose: '99.4' -> '102.0'; broad_run: '55.1' -> '60.5'; travel_time_h: '23.2' -> '23.4'
+    2026-06-14 09:00: por_now: '3270.0' -> '3230.0'; por_lagged: '3191.8' -> '3176.4'; lf_discharge: '3630.0' -> '3570.0'; lf_stage: '3.14' -> '3.13'; monocacy: '269.0' -> '263.0'; goose: '99.4' -> '102.0'; broad_run: '53.7' -> '58.9'; travel_time_h: '23.4' -> '23.6'
+    2026-06-14 10:00: por_now: '3220.0' -> '3170.0'; por_lagged: '3099.0' -> '3083.9'; lf_discharge: '3600.0' -> '3540.0'; lf_stage: '3.13' -> '3.12'; monocacy: '269.0' -> '263.0'; goose: '97.2' -> '99.4'; broad_run: '52.2' -> '57.4'; travel_time_h: '23.5' -> '23.8'
+    2026-06-14 11:00: por_now: '3190.0' -> '3140.0'; por_lagged: '3010.0' -> '2994.1'; lf_discharge: '3570.0' -> '3510.0'; lf_stage: '3.13' -> '3.12'; monocacy: '269.0' -> '263.0'; goose: '97.2' -> '99.4'; broad_run: '50.8' -> '55.9'; travel_time_h: '23.6' -> '23.9'
+    2026-06-14 12:00: por_now: '3140.0' -> '3090.0'; por_lagged: '2931.6' -> '2913.6'; lf_discharge: '3570.0' -> '3510.0'; lf_stage: '3.13' -> '3.12'; monocacy: '266.0' -> '260.0'; goose: '97.2' -> '99.4'; broad_run: '49.8' -> '54.8'; travel_time_h: '23.6' -> '23.9'
+    2026-06-14 13:00: por_now: '3095.0' -> '3050.0'; por_lagged: '2900.0' -> '2870.0'; lf_discharge: '3570.0' -> '3510.0'; lf_stage: '3.13' -> '3.12'; monocacy: '263.0' -> '257.0'; goose: '95.1' -> '97.2'; broad_run: '49.4' -> '54.4'; travel_time_h: '23.6' -> '23.9'
+    2026-06-14 14:00: por_now: '3060.0' -> '3010.0'; por_lagged: '2914.7' -> '2873.8'; lf_discharge: '3570.0' -> '3510.0'; lf_stage: '3.13' -> '3.12'; monocacy: '259.0' -> '254.0'; goose: '92.9' -> '95.1'; broad_run: '48.7' -> '53.7'; travel_time_h: '23.6' -> '23.9'
+    2026-06-14 15:00: por_now: '3030.0' -> '2980.0'; por_lagged: '2978.6' -> '2912.8'; lf_discharge: '3570.0' -> '3510.0'; lf_stage: '3.13' -> '3.12'; monocacy: '259.0' -> '254.0'; goose: '91.9' -> '94.0'; broad_run: '48.0' -> '52.9'; travel_time_h: '23.6' -> '23.9'
+    2026-06-14 16:00: por_now: '3015.0' -> '2970.0'; por_lagged: '3132.2' -> '3055.2'; lf_discharge: '3630.0' -> '3570.0'; lf_stage: '3.14' -> '3.13'; monocacy: '256.0' -> '250.0'; goose: '89.8' -> '91.9'; broad_run: '46.7' -> '51.5'; travel_time_h: '23.4' -> '23.6'
+    2026-06-14 17:00: por_now: '3000.0' -> '2960.0'; por_lagged: '3274.2' -> '3197.8'; lf_discharge: '3630.0' -> '3570.0'; lf_stage: '3.14' -> '3.13'; monocacy: '256.0' -> '250.0'; goose: '88.8' -> '90.9'; broad_run: '45.4' -> '50.1'; travel_time_h: '23.4' -> '23.6'
+    2026-06-14 18:00: por_now: '3000.0' -> '2960.0'; por_lagged: '3429.5' -> '3355.2'; lf_discharge: '3690.0' -> '3630.0'; lf_stage: '3.15' -> '3.14'; monocacy: '253.0' -> '247.0'; goose: '86.8' -> '88.8'; broad_run: '44.0' -> '48.7'; travel_time_h: '23.2' -> '23.4'
+    2026-06-14 19:00: por_now: '3000.0' -> '2960.0'; por_lagged: '3532.9' -> '3462.2'; lf_discharge: '3690.0' -> '3630.0'; lf_stage: '3.15' -> '3.14'; monocacy: '253.0' -> '247.0'; goose: '86.8' -> '88.8'; broad_run: '43.4' -> '48.0'; travel_time_h: '23.2' -> '23.4'
+    2026-06-14 20:00: por_now: '3000.0' -> '2960.0'; por_lagged: '3600.4' -> '3549.8'; lf_discharge: '3740.0' -> '3690.0'; lf_stage: '3.16' -> '3.15'; monocacy: '253.0' -> '247.0'; goose: '84.8' -> '86.8'; broad_run: '42.1' -> '46.7'; travel_time_h: '23.0' -> '23.2'
+    2026-06-14 21:00: por_now: '3000.0' -> '2960.0'; por_lagged: '3630.0' -> '3584.9'; lf_discharge: '3740.0' -> '3690.0'; lf_stage: '3.16' -> '3.15'; monocacy: '250.0' -> '244.0'; goose: '82.8' -> '84.8'; broad_run: '41.5' -> '46.0'; travel_time_h: '23.0' -> '23.2'
+    2026-06-14 22:00: por_now: '3030.0' -> '2980.0'; por_lagged: '3629.3' -> '3590.0'; lf_discharge: '3740.0' -> '3690.0'; lf_stage: '3.16' -> '3.15'; monocacy: '250.0' -> '244.0'; goose: '82.8' -> '84.8'; broad_run: '40.9' -> '45.4'; travel_time_h: '23.0' -> '23.2'
+    2026-06-14 23:00: por_now: '3060.0' -> '3010.0'; por_lagged: '3579.6' -> '3540.2'; lf_discharge: '3740.0' -> '3690.0'; lf_stage: '3.16' -> '3.15'; monocacy: '250.0' -> '244.0'; goose: '80.9' -> '82.8'; broad_run: '39.7' -> '44.0'; travel_time_h: '23.0' -> '23.2'
+    2026-06-15 00:00: por_now: '3060.0' -> '3010.0'; por_lagged: '3555.1' -> '3511.9'; lf_discharge: '3690.0' -> '3630.0'; lf_stage: '3.15' -> '3.14'; monocacy: '247.0' -> '241.0'; goose: '80.9' -> '82.8'; broad_run: '38.5' -> '42.8'; travel_time_h: '23.2' -> '23.4'
+    2026-06-15 01:00: por_now: '3060.0' -> '3010.0'; por_lagged: '3539.0' -> '3496.2'; lf_discharge: '3570.0' -> '3510.0'; lf_stage: '3.13' -> '3.12'; monocacy: '247.0' -> '241.0'; goose: '79.0' -> '80.9'; broad_run: '37.9' -> '42.1'; travel_time_h: '23.6' -> '23.9'
+    2026-06-15 02:00: por_now: '3060.0' -> '3010.0'; por_lagged: '3503.4' -> '3465.5'; lf_discharge: '3570.0' -> '3510.0'; lf_stage: '3.13' -> '3.12'; monocacy: '247.0' -> '241.0'; goose: '79.0' -> '80.9'; broad_run: '37.3' -> '41.5'; travel_time_h: '23.6' -> '23.9'
+    2026-06-15 03:00: por_now: '3080.0' -> '3030.0'; por_lagged: '3470.5' -> '3439.2'; lf_discharge: '3510.0' -> '3450.0'; lf_stage: '3.12' -> '3.11'; monocacy: '247.0' -> '241.0'; goose: '77.1' -> '79.0'; broad_run: '37.3' -> '41.5'; travel_time_h: '23.9' -> '24.1'
+    2026-06-15 04:00: por_now: '3080.0' -> '3030.0'; por_lagged: '3444.2' -> '3404.8'; lf_discharge: '3450.0' -> '3400.0'; lf_stage: '3.11' -> '3.1'; monocacy: '247.0' -> '241.0'; goose: '77.1' -> '79.0'; broad_run: '37.3' -> '41.5'; travel_time_h: '24.1' -> '24.3'
+    2026-06-15 05:00: por_now: '3080.0' -> '3030.0'; por_lagged: '3416.7' -> '3373.8'; lf_discharge: '3425.0' -> '3370.0'; lf_stage: '3.1' -> '3.09'; monocacy: '247.0' -> '240.0'; goose: '75.3' -> '77.1'; broad_run: '37.9' -> '42.1'; travel_time_h: '24.2' -> '24.5'
+    2026-06-15 06:00: por_now: '3060.0' -> '3010.0'; por_lagged: '3369.8' -> '3339.5'; lf_discharge: '3400.0' -> '3340.0'; lf_stage: '3.1' -> '3.09'; monocacy: '247.0' -> '240.0'; goose: '75.3' -> '77.1'; broad_run: '37.9' -> '42.1'; travel_time_h: '24.3' -> '24.6'
+    2026-06-15 07:00: por_now: '3060.0' -> '3010.0'; por_lagged: '3332.4' -> '3289.9'; lf_discharge: '3450.0' -> '3400.0'; lf_stage: '3.12' -> '3.1'; monocacy: '243.0' -> '237.0'; goose: '73.5' -> '75.3'; broad_run: '37.6' -> '41.8'; travel_time_h: '24.1' -> '24.3'
+    2026-06-15 08:00: por_now: '3060.0' -> '3010.0'; por_lagged: '3302.9' -> '3260.5'; lf_discharge: '3455.0' -> '3395.0'; lf_stage: '3.11' -> '3.1'; monocacy: '243.0' -> '237.0'; goose: '73.5' -> '75.3'; broad_run: '37.3' -> '41.5'; travel_time_h: '24.1' -> '24.4'
+    2026-06-15 09:00: por_now: '3030.0' -> '2980.0'; por_lagged: '3269.7' -> '3234.5'; lf_discharge: '3480.0' -> '3425.0'; lf_stage: '3.12' -> '3.1'; monocacy: '240.0' -> '234.0'; goose: '73.5' -> '75.3'; broad_run: '36.7' -> '40.9'; travel_time_h: '24.0' -> '24.2'
+    2026-06-15 10:00: por_now: '3030.0' -> '2980.0'; por_lagged: '3216.2' -> '3177.1'; lf_discharge: '3510.0' -> '3450.0'; lf_stage: '3.12' -> '3.11'; monocacy: '240.0' -> '234.0'; goose: '71.7' -> '73.5'; broad_run: '36.1' -> '40.3'; travel_time_h: '23.9' -> '24.1'
+    2026-06-15 11:00: por_now: '3000.0' -> '2960.0'; por_lagged: '3193.6' -> '3149.9'; lf_discharge: '3450.0' -> '3400.0'; lf_stage: '3.11' -> '3.1'; monocacy: '243.0' -> '237.0'; goose: '71.7' -> '73.5'; broad_run: '35.0' -> '39.1'; travel_time_h: '24.1' -> '24.3'
+    2026-06-15 12:00: por_now: '3000.0' -> '2960.0'; por_lagged: '3169.5' -> '3132.8'; lf_discharge: '3340.0' -> '3280.0'; lf_stage: '3.09' -> '3.08'; monocacy: '243.0' -> '237.0'; goose: '71.7' -> '73.5'; broad_run: '35.0' -> '39.1'; travel_time_h: '24.6' -> '24.9'
+    2026-06-15 13:00: por_now: '2980.0' -> '2930.0'; por_lagged: '3133.5' -> '3094.3'; lf_discharge: '3280.0' -> '3230.0'; lf_stage: '3.08' -> '3.07'; monocacy: '240.0' -> '234.0'; goose: '71.7' -> '73.5'; broad_run: '34.7' -> '38.8'; travel_time_h: '24.9' -> '25.1'
+    2026-06-15 14:00: por_now: '2980.0' -> '2930.0'; por_lagged: '3111.5' -> '3074.4'; lf_discharge: '3170.0' -> '3120.0'; lf_stage: '3.06' -> '3.05'; monocacy: '238.5' -> '232.5'; goose: '71.7' -> '73.5'; broad_run: '34.4' -> '38.5'; travel_time_h: '25.4' -> '25.6'
+    2026-06-15 15:00: por_now: '2950.0' -> '2910.0'; por_lagged: '3072.9' -> '3034.4'; lf_discharge: '3170.0' -> '3120.0'; lf_stage: '3.06' -> '3.05'; monocacy: '237.0' -> '231.0'; goose: '71.7' -> '73.5'; broad_run: '34.4' -> '38.5'; travel_time_h: '25.4' -> '25.6'
+
+October coverage precondition (non-blank hours/day, appended rows, 2026-10-05..22):
+  day         por_no  lf_dis  ef_sta  monoca   goose  broad_  seneca
+  2026-10-05      24      24      24      24      24      24      24
+  2026-10-06      24      24      24      24      24      24      24
+  2026-10-07      24      24      24      24      24      24      24
+  2026-10-08      24      24      24      24      24      24      24
+  2026-10-09      24      24      24      24      24      24      24
+  2026-10-10      24      24      24      24      24      24      24
+  2026-10-11      24      24      24      24      24      24      24
+  2026-10-12      24      24      24      24      24      24      24
+  2026-10-13      24      24      24      24      24      24      24
+  2026-10-14      24      24      24      24      24      24      24
+  2026-10-15      24      24      24      24      24      24      24
+  2026-10-16      24      24      24      24      24      24      24
+  2026-10-17      24      24      24      24      24      24      24
+  2026-10-18      24      24      24      24      24      24      24
+  2026-10-19      24      24      24      24      24      24      24
+  2026-10-20      24      24      24      24      24      24      24
+  2026-10-21      24      24      24      24      24      24      24
+  2026-10-22      24      24      24      24      24      24      24
+
+USGS query URLs (read-only GET; no credentials):
+  https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00010&startDT=2026-06-12T00%3A00Z&endDT=2026-07-11T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00010&startDT=2026-07-12T00%3A00Z&endDT=2026-08-10T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00010&startDT=2026-08-11T00%3A00Z&endDT=2026-09-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00010&startDT=2026-09-10T00%3A00Z&endDT=2026-10-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00010&startDT=2026-10-10T00%3A00Z&endDT=2026-11-08T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00010&startDT=2026-11-09T00%3A00Z&endDT=2026-11-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00060&startDT=2026-06-12T00%3A00Z&endDT=2026-07-11T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00060&startDT=2026-07-12T00%3A00Z&endDT=2026-08-10T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00060&startDT=2026-08-11T00%3A00Z&endDT=2026-09-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00060&startDT=2026-09-10T00%3A00Z&endDT=2026-10-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00060&startDT=2026-10-10T00%3A00Z&endDT=2026-11-08T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00060&startDT=2026-11-09T00%3A00Z&endDT=2026-11-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01643000&parameterCd=00060&startDT=2026-06-12T00%3A00Z&endDT=2026-07-11T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01643000&parameterCd=00060&startDT=2026-07-12T00%3A00Z&endDT=2026-08-10T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01643000&parameterCd=00060&startDT=2026-08-11T00%3A00Z&endDT=2026-09-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01643000&parameterCd=00060&startDT=2026-09-10T00%3A00Z&endDT=2026-10-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01643000&parameterCd=00060&startDT=2026-10-10T00%3A00Z&endDT=2026-11-08T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01643000&parameterCd=00060&startDT=2026-11-09T00%3A00Z&endDT=2026-11-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644000&parameterCd=00060&startDT=2026-06-12T00%3A00Z&endDT=2026-07-11T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644000&parameterCd=00060&startDT=2026-07-12T00%3A00Z&endDT=2026-08-10T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644000&parameterCd=00060&startDT=2026-08-11T00%3A00Z&endDT=2026-09-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644000&parameterCd=00060&startDT=2026-09-10T00%3A00Z&endDT=2026-10-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644000&parameterCd=00060&startDT=2026-10-10T00%3A00Z&endDT=2026-11-08T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644000&parameterCd=00060&startDT=2026-11-09T00%3A00Z&endDT=2026-11-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644148&parameterCd=00065&startDT=2026-06-12T00%3A00Z&endDT=2026-07-11T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644148&parameterCd=00065&startDT=2026-07-12T00%3A00Z&endDT=2026-08-10T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644148&parameterCd=00065&startDT=2026-08-11T00%3A00Z&endDT=2026-09-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644148&parameterCd=00065&startDT=2026-09-10T00%3A00Z&endDT=2026-10-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644148&parameterCd=00065&startDT=2026-10-10T00%3A00Z&endDT=2026-11-08T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644148&parameterCd=00065&startDT=2026-11-09T00%3A00Z&endDT=2026-11-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644280&parameterCd=00060&startDT=2026-06-12T00%3A00Z&endDT=2026-07-11T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644280&parameterCd=00060&startDT=2026-07-12T00%3A00Z&endDT=2026-08-10T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644280&parameterCd=00060&startDT=2026-08-11T00%3A00Z&endDT=2026-09-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644280&parameterCd=00060&startDT=2026-09-10T00%3A00Z&endDT=2026-10-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644280&parameterCd=00060&startDT=2026-10-10T00%3A00Z&endDT=2026-11-08T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01644280&parameterCd=00060&startDT=2026-11-09T00%3A00Z&endDT=2026-11-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01645000&parameterCd=00060&startDT=2026-06-12T00%3A00Z&endDT=2026-07-11T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01645000&parameterCd=00060&startDT=2026-07-12T00%3A00Z&endDT=2026-08-10T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01645000&parameterCd=00060&startDT=2026-08-11T00%3A00Z&endDT=2026-09-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01645000&parameterCd=00060&startDT=2026-09-10T00%3A00Z&endDT=2026-10-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01645000&parameterCd=00060&startDT=2026-10-10T00%3A00Z&endDT=2026-11-08T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01645000&parameterCd=00060&startDT=2026-11-09T00%3A00Z&endDT=2026-11-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01646500&parameterCd=00060&startDT=2026-06-12T00%3A00Z&endDT=2026-07-11T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01646500&parameterCd=00060&startDT=2026-07-12T00%3A00Z&endDT=2026-08-10T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01646500&parameterCd=00060&startDT=2026-08-11T00%3A00Z&endDT=2026-09-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01646500&parameterCd=00060&startDT=2026-09-10T00%3A00Z&endDT=2026-10-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01646500&parameterCd=00060&startDT=2026-10-10T00%3A00Z&endDT=2026-11-08T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01646500&parameterCd=00060&startDT=2026-11-09T00%3A00Z&endDT=2026-11-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01646500&parameterCd=00065&startDT=2026-06-12T00%3A00Z&endDT=2026-07-11T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01646500&parameterCd=00065&startDT=2026-07-12T00%3A00Z&endDT=2026-08-10T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01646500&parameterCd=00065&startDT=2026-08-11T00%3A00Z&endDT=2026-09-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01646500&parameterCd=00065&startDT=2026-09-10T00%3A00Z&endDT=2026-10-09T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01646500&parameterCd=00065&startDT=2026-10-10T00%3A00Z&endDT=2026-11-08T23%3A59Z&format=json&siteStatus=all
+  https://waterservices.usgs.gov/nwis/iv/?sites=01646500&parameterCd=00065&startDT=2026-11-09T00%3A00Z&endDT=2026-11-09T23%3A59Z&format=json&siteStatus=all

@@ -1,0 +1,74 @@
+{
+ "data_file": "hourly_backtest_data_v39.csv",
+ "data_rows": 130416,
+ "data_first": "2011-12-01 05:00",
+ "data_last": "2026-11-09 23:00",
+ "onsets": 87,
+ "onset_class": {
+  "GATE": 34,
+  "STRATUM": 20,
+  "BELOW": 33
+ },
+ "merges": 1,
+ "events_after_merge": 53,
+ "events_class": {
+  "GATE": 34,
+  "STRATUM": 19
+ },
+ "GATE": {
+  "events": 34,
+  "X0": 2,
+  "X1": 10,
+  "X2": 4,
+  "X3": 1,
+  "X4": 0,
+  "sequential_after_X0": 32,
+  "sequential_after_X1": 22,
+  "sequential_after_X2": 21,
+  "sequential_after_X3": 21,
+  "kept": 21
+ },
+ "STRATUM": {
+  "events": 19,
+  "X0": 1,
+  "X1": 3,
+  "X2": 1,
+  "X3": 1,
+  "X4": 0,
+  "sequential_after_X0": 18,
+  "sequential_after_X1": 15,
+  "sequential_after_X2": 15,
+  "sequential_after_X3": 15,
+  "kept": 15
+ },
+ "october": [
+  {
+   "event_id": 53,
+   "class": "GATE",
+   "t0": "2026-10-12 02:00",
+   "tp": "2026-10-14 15:00",
+   "tend": "2026-10-19 15:00",
+   "peak": 24300.0,
+   "excluded_by": [],
+   "kept": 1,
+   "oct_flag": 1
+  }
+ ],
+ "gate_kept_total": 21,
+ "gate_kept_nonoct": 20,
+ "floor": 15,
+ "holdout_n": 4,
+ "holdout_event_ids": [
+  47,
+  48,
+  49,
+  51
+ ],
+ "verdict": "PROCEED",
+ "events_file": "rising_limb_events_python_v39_senstime.csv",
+ "events_file_sha256": "978c6c2f98a522ad98ff54cd3f172df534ed2a4c552a29490739ba0f5d7cac44",
+ "sensitivity": {
+  "fill_max": 3,
+  "search_from_time": true
+ }
+}

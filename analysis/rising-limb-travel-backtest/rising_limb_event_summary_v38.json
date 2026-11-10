@@ -1,0 +1,62 @@
+{
+ "data_file": "hourly_backtest_data_v38.csv",
+ "data_rows": 127728,
+ "data_first": "2011-12-01 05:00",
+ "data_last": "2026-07-20 16:00",
+ "onsets": 86,
+ "onset_class": {
+  "GATE": 33,
+  "STRATUM": 20,
+  "BELOW": 33
+ },
+ "merges": 1,
+ "events_after_merge": 52,
+ "events_class": {
+  "GATE": 33,
+  "STRATUM": 19
+ },
+ "GATE": {
+  "events": 33,
+  "X0": 2,
+  "X1": 10,
+  "X2": 4,
+  "X3": 1,
+  "X4": 0,
+  "sequential_after_X0": 31,
+  "sequential_after_X1": 21,
+  "sequential_after_X2": 20,
+  "sequential_after_X3": 20,
+  "kept": 20
+ },
+ "STRATUM": {
+  "events": 19,
+  "X0": 1,
+  "X1": 3,
+  "X2": 1,
+  "X3": 1,
+  "X4": 0,
+  "sequential_after_X0": 18,
+  "sequential_after_X1": 15,
+  "sequential_after_X2": 15,
+  "sequential_after_X3": 15,
+  "kept": 15
+ },
+ "october": [],
+ "gate_kept_total": 20,
+ "gate_kept_nonoct": 20,
+ "floor": 15,
+ "holdout_n": 4,
+ "holdout_event_ids": [
+  47,
+  48,
+  49,
+  51
+ ],
+ "verdict": "PROCEED",
+ "events_file": "rising_limb_events_python_v38.csv",
+ "events_file_sha256": "962723268f659e2d68625b10f562dcf74a2f92747bf11056f71677ea0ab85ccc",
+ "sensitivity": {
+  "fill_max": 3,
+  "search_from_time": false
+ }
+}
