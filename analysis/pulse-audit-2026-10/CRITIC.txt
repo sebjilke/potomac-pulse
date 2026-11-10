@@ -1,0 +1,281 @@
+AUDIT COMPLETENESS CRITIC: Potomac Pulse flood, 2026-10-12 to 10-19 (times UTC; error = estimate − actual; this is one event, so these are observations, not skill estimates)
+
+Scripts and outputs are in /private/tmp/claude-503/-Users-sebjilke/252f7c3c-5965-4854-a165-14468fc066da/scratchpad/pulse-audit/out/critic/:
+- c1_sw_staleness.py and .txt
+- c2_creeks.py and .txt
+- c3_difficult_run.py and .txt
+- live/creeks_usgs.json, from one read-only GET to waterservices.usgs.gov for 01648010, 01650500, 01646000 and 01650800, 10-09 to 10-20.
+
+I made no Supabase queries, did not touch the live repo, and committed nothing. Wherever I use replay values, they are from the chosen lag setting (por55/lf10/mono5/goose5/br50/sen20/ef45 plus LF overrides). The fidelity caveats are the replay's own; see contradiction C2 for the rising limb.
+
+=====================================================================
+1. WHAT NOBODY TRACED (app surface vs aspects)
+=====================================================================
+
+Great Falls tab
+- The browser estimate (estimateGreatFalls) was never replayed. E8 compared only the rise rate, and its displayed-value claims were not re-checked.
+- The Inputs panel and its data-source line were not traced, for example "PoR (45h ago) [Δ-corrected 130%] + 39% EF → LF in ~13 hrs".
+- The "FORECAST (no history yet)" path was not traced.
+- The gf_history graph was not traced. It comes from client localStorage plus dropLocalSpikes(frac 0.40), and recordGFEstimate stamps entries with render time, not reading time.
+- The EF cross-check row (agreement icon) was not traced.
+- **Offline service worker and staleness label: not traced. I investigated it (G1 below).**
+
+Creeks tab (creeks-ui.js, CREEK_RUNS)
+- Nobody looked at it. I investigated it (G2, and G3 for Difficult Run).
+
+All Gauges tab (gauges-ui.js)
+- Only the travel-time column was traced (H4).
+- Not traced: NWS flood-category rings (nws.js fetchFloodCategory), per-gauge trend arrows, the ice-flag display, and per-gauge popups.
+
+Map (map.js)
+- Not traced. It uses static geojson plus tile layers and is low relevance.
+
+Learning tab (learning-ui.js, 805 lines, PIN-gated; validation-merge.js)
+- Nobody checked what it displayed during the event: accuracy, bins, validation tables, shadow leaderboard.
+- L8 and OPS-05 cover the underlying numbers but not the display.
+
+Stage learning
+- Not traced: the stage_* bins, avgStageErrorClean and stageObsClean, which PLAN listed as missed item 3.
+- D6 covered only the rating curve.
+
+Client shadow models (src/estimation/shadow-models.js)
+- Not traced. OPS-05 covered only the server leaderboard.
+
+Edwards Ferry client module (edwards-ferry.js)
+- Its hysteresis ×1.08/×0.92 and its trend are reported only in E8's unverified part.
+- D2 used its trend rule.
+
+NWS flood-category fetch and the NWS fallback flow state (getFlowStateFromTrend)
+- Not traced.
+
+Not traced and not observable to this audit:
+- Sentry and healthchecks behaviour.
+- The offline banner.
+- Mobile layout.
+- Real visitor timing.
+- analyze-stage-errors.js and build-ef-correlation-advanced.js. These are not scheduled, so they are irrelevant here.
+
+=====================================================================
+2. GAPS INVESTIGATED
+=====================================================================
+
+G1. The service worker serves stale USGS data labelled as fresh. HIGH. Single-source: the mechanism is read from code and the effect is simulated.
+
+Code (frozen v37.21; the service worker shipped in v37.10 on 06-23, so it was live during the flood):
+- vite.config.js sets StaleWhileRevalidate on `waterservices.usgs.gov|corsproxy|allorigins|api.water.noaa.gov` (cache pp-data, maxAge 6 h).
+- fetch.js:386 uses a constant URL (period=P7D), so every fetch hits the same cache key.
+- When a cached entry exists, the service worker returns it and refreshes the cache in the background.
+- fetchUSGS then calls setLastFetchTime(Date.now()) and sets dataSource "live" (fetch.js:398-399).
+- updateStalenessDisplay (fetch.js:544-578) shows "Updated just now" from the fetch time, not the USGS reading dateTime.
+
+Effects:
+- A returning visitor first sees data from their previous visit, up to 6 h old, labelled fresh, for up to 15 min (the refresh interval).
+- After that, every render is one fetch cycle (15 min) behind, on top of USGS latency.
+- The sync-learning bins and advisories are cached the same way (pp-api, 24 h TTL). The advisory freshness guards (2 h) partly protect the banners.
+- TODO #19 itself lists the in-browser check of this behaviour as a "pending manual gap".
+
+Effect size, with the server replay standing in for the browser (c1_sw_staleness.txt):
+- LF 6 h stale vs current LF: onset mean −20.5% (worst −62%), rise −11.0% (worst −30.8%), peak −12.4% (worst −31.2%). The largest deficit was −7,000 cfs at 10-14T10.
+- Displayed estimate (approx-corrected) rendered 6 h late vs truth for tick t:
+  - onset MAPE 50.8 → 66.6
+  - rise 11.4 → 19.0 (bias −7.0 → −17.1)
+  - peak 3.9 → 14.4
+  - recession 8.7 → 6.9 (stale happens to help on the fall)
+- 1 h stale: onset worst shift −27%. 15 min: up to −5.8% on LF at onset.
+- The 120% ceiling is computed client-side from the same stale LF, so on the rise the cap was stale too.
+
+How many paddlers saw stale data is not observable: no browser telemetry exists.
+
+Recommendation:
+- Switch the USGS and NWS routes to NetworkFirst with a timeout, or add a cache-buster.
+- Drive "Updated …" from the newest reading dateTime.
+- Set dataSource from the response's actual freshness.
+
+G2. The Creeks tab has no upper or flood threshold. MEDIUM, safety wording. Single-source.
+
+Code:
+- CREEK_RUNS (constants.js:114-119) defines only `runnable`.
+- creeks-ui.js:263-264 shows "Running! (≥N cfs)" with a green glow, and the banner says "CREEKS ARE RUNNING", for any q ≥ runnable.
+
+Live USGS (c2_creeks.txt):
+- Difficult Run peaked at 1,620 cfs at 10-11T18:45, 8.1× its threshold. It was ≥5× threshold for 6.8 h.
+- Rock Creek peaked at 978 (2.4×), NW Branch at 322 (1.6×), Sligo at 556 (2.8×).
+
+During the flash-flood peak, the tab told paddlers these Class III-V creeks were "Running!" in green, with no high-water warning. Whether 8× is above the safe upper limit for Difficult Run is not checked here; American Whitewater ranges are outside the allowlist.
+
+G3. Most of the onset "local runoff" is Difficult Run, which the app already fetches. HIGH for interpreting accuracy. Single-source, but it explains a verified number.
+
+Difficult Run (01646000) joins the Potomac between Great Falls and Little Falls. Its flow is therefore inside the LF "truth" but can never be in a GF estimate.
+
+Comparison with the verified H5 residual (c3_difficult_run.txt):
+
+| Time | H5 residual | Difficult Run excess over baseline |
+|---|---|---|
+| 10-11T15Z | +756 | +793 |
+| 10-11T16Z | +1,638 | +1,171 |
+| 10-11T17Z | +2,201 | +1,431 |
+| 10-11T18Z | +2,110 | +1,561 |
+| 10-11T19Z | +2,193 | +1,581 |
+| 10-11T20Z | +2,204 | +1,481 |
+| 10-11T21Z | +1,566 | +1,291 |
+| 10-11T22Z | +759 | +1,011 |
+
+So Difficult Run alone accounts for about 65-100% of the "unexplained" residual.
+
+At the onset ticks' validationDue:
+- Difficult Run averaged 686 cfs, 12.0% of mean truth (max 1,590).
+- Scoring against LF minus Difficult Run moves raw onset MAPE from 46.0% to 39.4% and bias from −31.1% to −21.9%.
+
+Consequences:
+- The app scores and learns Great Falls error against inflow that enters below Great Falls.
+- That inflow was measured and fetched (creeks tab), but never subtracted.
+- It contaminates every validation during local storms, the low-flow bins included.
+
+Recommendation: subtract Difficult Run (and an ungauged-area scaling) from the LF truth at validation, or at least flag validations where Difficult Run is above some fraction of LF.
+
+=====================================================================
+3. CONTRADICTIONS AND VERDICTS THAT LOOK TOO GENEROUS OR TOO HARSH
+=====================================================================
+
+C1. Onset cause.
+- Positions held:
+  - The replay notes say "dominated by local runoff".
+  - E5 (verified CONFIRMED) says "mostly unforecastable local runoff".
+  - H5 (CORRECTED) says gauged-tributary timing dominates, with about 2k cfs of ungauged runoff for about 6 h.
+  - D3-verify says the worst onset misses were "local runoff".
+- G3 shows the "ungauged" part is mostly Difficult Run, which is gauged.
+- E5's CONFIRMED is too generous. The onset error mixes horizon (E5 itself: 46.0 → 29.8 at +3 h), tributary timing (H5/H6), and below-GF inflow that is measurable (G3). It should read CORRECTED.
+
+C2. Rising-limb raw fidelity.
+- The replay builder says the gate passes 20/20.
+- L6 (verified CONFIRMED) shows a failed hard constraint: the n=1 bin (sumErrorSq = 9,743²) forces raw = 20,743 at the 10-12T15 tick. The replay has 16,401 (−20.9%) at every lag setting.
+- At that tick the travel time was 45.4 h, the maximum (OPS-08), and the iteration had not converged. That is exactly where a different first-seen PoR history would swing the lookback. This is a plausible cause, not a tested one.
+- E1, E2, D3 and the replay "Rise" row (23.4% / +23.2%) were verified as reproductions of the replay, not as true production raw. Under amendment 18, every rising-limb raw magnitude should carry an UNVERIFIABLE label, and the E1 verdict omits that label.
+
+C3. Ceiling binding: raw vs corrected.
+- E2-verify additional finding 2 says "the gf_history line on the rise was mostly 1.2×LF (46/54)". L2's 62/72 is the same raw-binding measure.
+- OPS-03-verify shows 46/54 is raw binding. Corrected (displayed) binding with the 10-15 bins is 27/54, and true production binding is not observable hourly.
+- E2's extra claim is too strong. Only the 8 stored rows are proven clipped.
+
+C4. Advisory timing.
+- L3 says the banner was "12 h late". L7 and D4-verify show it was already up 10-11T12 to 10-12T00 for the wrong reason.
+- The verifiers caught this, but L3 should be cited only in its corrected form: about 2.5 h of real gain, plus removing a 2-h lapse.
+
+C5. CI mechanism.
+- D1 blames the tiny learned bin SD. D1-verify shows the band uses only the fixed backtest q05/q95; stdDev is never rendered.
+- The verifier is right. Drop D1's SD recommendation.
+
+C6. Recession bias attribution. E6, L1 and D1/D5 each treat the recession under-read as having one cause. It has two stacked causes:
+- The PoR-delta pushes raw down: raw −4.3%, and without the delta −0.6% (E6).
+- The frozen +401 bin subtracts on top of that: corrected −9.1% (L1, exact bins).
+E6-verify rightly rejected "the delta feeds the corrected miss". The report should present raw recession bias as delta-driven and the extra about −5 pp as bin-driven.
+
+C7. D6 inconsistency left open.
+- scheduled-update.js:898 stores predictedStage as the corrected stage.
+- Yet 21/21 failure-row stages equal the raw stage.
+- D6-verify noted this but marked CONFIRMED with "holds for this file". It is an unexplained export/storage discrepancy and should be an open OPS item, not closed.
+
+C8. E3 vs H8.
+- E3 is CONFIRMED with "missing attenuation" as the PoR-route cause.
+- H8-verify adds water-supply withdrawals and rating bias as equal candidates.
+- E3's recommendation (an attenuation term) rests on an inseparable attribution. CONFIRMED is fair on the numbers but generous on the cause.
+
+C9. Display relevance of the peak over-read.
+- E3/E4 rank the +31-37% peak raw over-read as high.
+- The displayed values on those rows were ceiling-clipped: 20,880 displayed vs 20,937 truth.
+- For users the peak over-read was mostly invisible. It mattered for learning, via the 25000-50000 and 12000-25000 rising bins (L2, L6). Severity for display is too high.
+
+C10. Forecast persistence cross-check (F2). The verifier was correct and the analyst's reproduction was an artifact. No further issue.
+
+C11. Network allowlist.
+- The forecast analyst made GETs to api.water.noaa.gov, outside the allowlist (F9; flagged by the verifier).
+- This is a process breach that should be stated in the final report.
+
+=====================================================================
+4. TOP TEN THINGS THAT WENT WRONG OR NEED IMPROVEMENT (ranked)
+=====================================================================
+V = verified by an independent verifier; S = single-source (analyst only, or critic only).
+
+1. Recession under-read for about 3 days, and every safety layer missed it.
+   - Two causes stacked: the PoR-delta pushed raw down, and Check 5 froze a wrong-sign bin (6000-12000/falling, +401) that kept subtracting from an already-low estimate. Corrected MAPE was 9.2% vs raw 5.6%, and the correction helped on 0 of 12 rows.
+   - The 90% band missed 14 consecutive validations.
+   - The residual banner never fired: worst was −13.8%, against a −15% latch with no persistence rule.
+   - The headline accuracy barely moved: 7.379 → 7.3755.
+   - Support: L1, E6, D1, D5, L8, L10, OPS-verify#6. [V]
+
+2. A single pending slot plus a 13-16 h GF→LF horizon left the onset nearly unscored, so learning and advisories were structurally about 24 h late.
+   - 1 of 26 onset predictions was scored.
+   - The first flood pair arrived at 10-12T02. The first learned observation was at 10-12T15.
+   - Support: L3 (corrected), D4, E5, H1/additional finding 4, PLAN amendment 13. [V]
+
+3. Rising-limb travel/lookback mechanism.
+   - The multiplier is taken from the lagged base-flow PoR, giving 48-61 h of travel against about 13 h observed.
+   - The PoR-delta then scales the tributaries too.
+   - Support: H1, E1, OPS-08 (non-convergence 22/54). [V for the mechanism]
+   - Raw magnitudes are UNVERIFIABLE and may be biased low (C2, L6).
+
+4. The 120%-of-LF ceiling on a stale LF value was effectively what the app showed on the rise.
+   - It is never shown to the user.
+   - Masked rows still trained the bins: 12000-25000/rising reached +3,762.
+   - The -21.6% miss came from a cap fixed at creation and validated 13 h later.
+   - Support: E2, D3 (corrected), L2 (corrected), OPS-03 (corrected). [V]
+
+5. The browser's service worker serves stale USGS/NWS data as "Updated just now".
+   - Up to 6 h stale on revisit, otherwise one 15-min cycle behind.
+   - Simulated effect on the rise: MAPE 11.4 → 19.0 at 6 h; at peak 3.9 → 14.4.
+   - Support: G1 (critic). [S: code-confirmed, effect simulated with the server replay as a proxy]
+
+6. Validation truth includes Difficult Run, which is gauged, fetched by the app and ignored.
+   - It explains about 65-100% of the onset "ungauged" residual and about 12% of onset truth.
+   - It corrupts learning during local storms.
+   - Support: G3 (critic), H5. [S]
+
+7. Uncertainty communication carried almost no information.
+   - Confidence labels: median |error| HIGH 9.4% / MEDIUM 9.0% / LOW 9.0%.
+   - LOW was shown on 50 of 72 calm pre-event ticks, so it was devalued before the flood.
+   - The CI band covered 42% of hourly ticks (3/97 with exact bins).
+   - How It Works contradicts the event in 4 places.
+   - Support: D1, D2, D7, D9. [V, labels reconstructed]
+
+8. Evidence was lost: the event cannot be fully audited.
+   - No per-prediction input log and no reading timestamps.
+   - Clean-row raw values and flags are gone, and the per-forecast rows are deleted.
+   - There are no bin or leaderboard snapshots.
+   - A null-prediction run is invisible to health monitoring.
+   - Support: OPS-06, OPS-02, OPS-03, F1, F9, OPS-05. [V]
+
+9. Thin and flood-learned bins are still in force, with no decay; edge and state artifacts.
+   - 12000-25000/steady holds n=1 (+9,743), which blends to +2,792.
+   - 12000-25000/rising sits at +3,762.
+   - There is a −1,071 cfs step at the 25k edge.
+   - The rising state is non-monotone across the 12k band.
+   - Flow state flickers on flat flow (±910 cfs), and labels agree with LF direction only about 62% of the time.
+   - Support: L5, L6, L4, OPS-07, D8. [V]
+
+10. The 48 h forecast is unauditable and fragile.
+   - It is generated only in the browser, so coverage depends on page views.
+   - Travel offset is built on one flow and scored on another (12-22% mismatch before the onset).
+   - The bias reference can be a future NWS point.
+   - In calm flow it does not beat persistence at 6/12 h.
+   - Support: F1, F3, F4, F5, F6, F7. [V, corrected]
+
+Honourable mentions:
+- Creeks show "Running!" at 8× threshold with no high-water state (G2) [S].
+- The EF law is near its 0.40 maximum weight exactly where it over-reads (E4) [V].
+- The orphan rise_event writer may still be running (OPS-04) [V].
+- The pre-event miss rate was about 8% of hours; the clean cron stretch began only 4 days before the rise (OPS-verify additional finding 1) [V].
+- The soft-flag counter shows 0/47 after the event, which is suspicious (OPS-10) [V, not resolvable].
+
+What went well [V]:
+- The cron never missed a run in the event window (OPS-01).
+- Measured tributaries were the load-bearing component (E7).
+- The LF stage rating was accurate (H11, D6).
+- The recession travel time roughly fit (H3).
+- Learning arithmetic reproduces exactly (L9).
+
+Not observable for any of the above:
+- What browsers actually computed or showed.
+- Visitor timing.
+- The cron's first-seen PoR, tributary and EF values.
+- Pre-10-15T16 bin EMAs.
+- Great Falls flow itself.

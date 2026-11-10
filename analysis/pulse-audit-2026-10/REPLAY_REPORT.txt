@@ -1,0 +1,55 @@
+The replay dataset is built and its fidelity gate passes: the chosen latency setting reproduces all 20 logged raw estimates within 1%. The lag fit and the gate use the same rows, so the match is in-sample. On the rising limb (10-11T12 to 10-14T06) no raw estimate was logged, so those replayed raw values are unverified.
+
+**Outputs** (all in `/private/tmp/claude-503/-Users-sebjilke/252f7c3c-5965-4854-a165-14468fc066da/scratchpad/pulse-audit/out/replay/`):
+- `replay_hourly.csv`: 313 ticks, 80 columns, chosen lag setting.
+- `replay_hourly_L0.csv`, `replay_hourly_L15.csv`, `replay_hourly_L30.csv`, `replay_hourly_L60.csv`, `replay_hourly_L75.csv`: same dataset at a uniform lag on every gauge, no overrides.
+- `replay_build.cjs`: CommonJS; imports the real `makeGFPrediction`, `fetchUSGSData`, `fetchWaterTemp` and `getPoRFromHistory` from `_test`, plus the `shared/model.js` helpers. Fetch and Supabase are stubbed; nothing loads from the live repo.
+- `fidelity_table.csv`, `fidelity_table_lag_sensitivity.csv`, `fidelity_summary_by_lag.csv`.
+- `REPLAY_NOTES.md`: column dictionary, reconstruction rules, rerun commands, caveats.
+- Supporting: `best_lags.json`, `fit_trace.csv`, `grid_fit.csv`, `lf_lag_scan.csv`, `lf_overrides.csv`, `exactbins_updates.json`, `phase_summary.csv`, `phase_by_lag.txt` (from `phase_by_lag.py`), `advisory_compare.txt` (from `compare_advisories.py`), `supabase_episodes_2026-10.json`.
+
+**Lag setting** (minutes): PoR 55, LF 10, Monocacy 5, Goose 5, Broad Run 50, Seneca 20, Edwards Ferry 45. LF has per-tick overrides of 70/65/70 min at 10-14T09, 10-14T21 and 10-15T09, where the logged LF value proves an older reading. Six lags were fitted on 22 constraints. Per amendment 18, each finding should cite the lag setting and the tick's `fidelity_evidence` value.
+
+**Fidelity** (41 logged rows: 20 hard-flag, 21 clean, 10-08 to 10-19):
+
+| Check | Chosen setting | Uniform L=0 | Uniform L=60 |
+|---|---|---|---|
+| Raw vs `rawPredictedCFS` (n=20): median / max abs diff | 0.15% / 0.83% | 0.74% / 9.1% | 0.18% / 2.2% |
+| Raw within 2% | 20/20 | 17/20 | 18/20 |
+| Ceiling-implied LF values reproduced (of 8) | 8 | 1 | 0 |
+
+At the chosen setting, all of these also match:
+- **Bin-implied raw on clean rows:** within 0.31% and 0.15%.
+- **Logged cron LF values:** all 39 `actualCFS` and all 8 ceiling-implied values exact.
+- **Validation timing:** 41/41 replayed `validationDue` fall in the observed interval.
+- **Flow state and bin:** 41/41 each.
+- **Corrected values from 10-15T16 on:** 17/17 within 0.57% using reconstructed bins. In-force corrections match within 4 cfs.
+- **Pending-slot chain:** reproduces all 41 observed prediction-creation ticks.
+- **LF-residual advisory stamps:** match every row.
+- **Edwards Ferry divergence:** ratio within 0.009 median. The replay misses 4 logged one-tick deactivations, probably Edwards Ferry readings older than 2 h, which cannot be observed.
+
+**Phase summary** (all hourly ticks, chosen lag; error vs Little Falls interpolated at `validationDue`; MAPE / bias). "Approx-corrected" uses the 10-15T16Z bin snapshot at every tick, so it already contains learning from the flood.
+
+| Phase | Ticks | Raw | Approx-corrected |
+|---|---|---|---|
+| Pre (10-08 to 10-11) | 72 | 12.0% / +11.0% | 8.2% / −3.5% |
+| Onset (10-11T00 to 10-12T00) | 24 | 46.0% / −31.1% | 50.8% / −50.8% |
+| Rise (10-12T00 to 10-14T06) | 54 | 23.4% / +23.2% | 11.4% / −7.0% |
+| Peak (10-14T06 to 10-15T00) | 18 | 11.5% / +11.5% | 3.9% / +3.9% |
+| Recession (10-15 to 10-21) | 145 | 4.5% / −4.3% | 8.7% / −8.6% |
+
+- With the reconstructed bins (10-15T16 to 10-19T16 only, 97 ticks), recession is 9.3% / −9.1%.
+- Across all lag settings these phase numbers move by about 2 points at most.
+- The app's own scoring value differs from the interpolated Little Falls value by 0.9% mean absolute, up to +17% at the onset.
+
+**Caveats analysts must respect:**
+1. Rising-limb raw values are unverified, with up to 45 h to the nearest verified raw. The evidence there is timing, the cron's LF view, and ceiling binding: all 6 clean rising-limb rows were clipped at 1.2 × stale LF, which shows the cron's LF reading but not the raw estimate.
+2. The lag fit is in-sample. Late deliveries were observed only for LF. Check findings against the uniform-lag files.
+3. Approx-corrected before 10-15T16 is a bracket, not what was displayed. Logged in-force corrections differ from the snapshot (209 and 403 vs 230). Clean rows 10-13T07 and 10-13T14 were ceiling-bound in production but not in the approx pass. Only `exactbins_*` (10-15T16 to 10-19T16) is reconstructed, and its intermediate 6000-12000 steady values come from the replay (error sum −740 vs −816 logged).
+4. On the rise, what the app displayed was mostly the 120%-of-LF ceiling on a reading up to 70 min old. Ceiling binding is in separate columns and says nothing about the correction.
+5. This is the server cron's estimate only. The browser estimate paddlers saw is not replayed.
+6. 47 of 313 hourly predictions were stored, so 266 were never scored; 41 are verified up to 10-19T10. The slot was locked for 24 hourly ticks from 10-11T13 to 10-12T14, covering most of the onset surge.
+7. Hard flags come from the log, not reproduced. Flag provenance follows v37.20 rules.
+8. Revisions to Point of Rocks, tributary and Edwards Ferry data cannot be checked. Little Falls values at the 39 validation ticks still match what the cron saw.
+9. Truth is Little Falls, including ungauged inflow below Great Falls. The onset error is dominated by local runoff: Little Falls reached about 11,500 cfs while Point of Rocks was about 3,000. This is one event, so these are observations, not skill estimates.
+10. The Supabase query was SELECT only (the two advisory-episode row types). I made no other network calls, did not touch the live repo, and committed nothing.

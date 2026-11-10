@@ -1,0 +1,110 @@
+PLAN AUDIT: Potomac Pulse flood replay (2026-10-12→19). All times are UTC. USGS dateTimes carry -04:00 (EDT), and I converted them to UTC.
+
+Evidence scripts (read-only, run by me):
+- /private/tmp/claude-503/-Users-sebjilke/252f7c3c-5965-4854-a165-14468fc066da/scratchpad/pulse-audit/out/plan-audit/check_latency.py
+- /private/tmp/claude-503/-Users-sebjilke/252f7c3c-5965-4854-a165-14468fc066da/scratchpad/pulse-audit/out/plan-audit/check_ceiling_lag.py
+- /private/tmp/claude-503/-Users-sebjilke/252f7c3c-5965-4854-a165-14468fc066da/scratchpad/pulse-audit/out/plan-audit/check_inforce_correction.py
+
+Verdict: the plan's main problem is the rule "latest USGS values at or before the tick". That rule leaks future readings into the replay. Two other gaps matter as much. The fidelity gate covers almost no rising-limb rows, and the corrected pass uses bins that already contain learning from the flood. The six traces also replay the server cron's estimate. During the flood, paddlers mostly saw a different estimate, computed in their browser.
+
+AMENDMENTS (the replay builder and analysts MUST follow these)
+
+1. Freeze the clock. makeGFPrediction never takes a "now" argument. It reads Date.now() in getPoRFromHistory, getPoRRiseRateFromHistory, getFlowState and validationDue. The replay must stub Date.now() to each tick's run time:
+   - Rows that exist: use the row's created_at minus about 2 s. Cron rows land at HH:00:15–HH:00:27.
+   - Synthetic ticks: use HH:00:20.
+   Restore the clock after each call.
+
+2. Model USGS reporting latency. Do not feed "the latest value at or before the tick".
+   - Evidence: at three ticks, the actualCFS and actualStage the cron recorded match current USGS values 65–80 min before validatedAt, and both match at the same lag. The ticks are 10-14T09 (20,100 cfs), 10-14T21 and 10-15T09.
+   - At 10-14T09 the newest value now on file for that time is 21,400 cfs. The cron had 20,100, which is 6% lower.
+   - The 10-14T06 and 10-14T09 rows hit the ceiling. Dividing their predicted values by 1.2 gives the LF the cron saw: 17,400 and 20,100. 20,100 is about 70 min old (script: check_ceiling_lag.py). 17,400 appears in the record only 10 min before the tick, while the newest value at the tick is 17,600.
+   - At flat flow the lag cannot be identified (repeated values), so treat it as unobserved there.
+   - Required approach: apply a per-gauge lag L (the cron's view = readings with time ≤ tick − L). Fit L against the fidelity rows. Report the results at L = 0, 15, 30, 60 and 75 min. Never report only the zero-lag replay.
+
+3. Lag every input from the same "available-at-tick" set:
+   - lf.q
+   - por.q
+   - the PoR history tail
+   - Monocacy and Goose (15-min series)
+   - Broad Run and Seneca
+   - the Edwards Ferry stage (15-min)
+   - water temperature
+   Stale tails change several things together: the rise rate (current = last history entry, so its time span is shorter than 6 h), the wave-celerity cut to travel time (capped at 30% once the rise reaches 15%/h), the convergence of the travel-time iteration, flowState (por.q against the last reading at or before now−6h), the EF weight, the >50% EF discrepancy skip, and the 120%-of-LF ceiling, which uses the stale lf.q.
+
+4. Build PoR history the way storePoRHistory does:
+   - Use the union of the P2D fetches made at all earlier hourly ticks.
+   - Keep the first value seen for each timestamp. A later USGS revision never overwrites a stored value.
+   - Keep readings newer than tick − 72h. Drop readings with cfs ≤ 0 or ≥ 500,000.
+   - The replay cannot see original-versus-revised PoR values. The por-history endpoint keeps only 72h, so those values are gone. Say so; do not assume no revisions.
+
+5. Water temperature has no effect on this event, and the replay must not invent one:
+   - PoR temperature ran 13.9–21.7 °C from 10-08 to 10-21, so the cold EF model (≤10 °C) never applies. Pass the PoR 00010 latest value at the tick.
+   - The LF 00010 series in the data file is empty.
+   - waterTempC is absent from every October hard-flag row. That field arrived in v37.21.
+
+6. Flag reproduction must use v37.20 rules, not the frozen v37.21 code. v37.21 shipped 2026-11-09, after the flood. Under v37.21 the Check-3 ice gate (UTC months 10, 11, 0–2 = Nov–Mar, or temperature ≤5 °C) would not flag October. Under v37.20, the four pre-event LOW_FLOW_HIGH_STAGE rows (predictions 10-07T11 → 10-09T17) were hard-flagged. The validator diff must be stated.
+
+7. Score two kinds of "truth" and keep them separate:
+   - App truth: what the app scored. That is lf.q at the first hourly tick at or after validationDue, within 2.5 h. That value is itself up to about 80 min stale, as in amendment 2.
+   - Physical truth: LF interpolated at validationDue from the current USGS record.
+   Use app truth for the fidelity gate and when reproducing published accuracy. Use physical truth for skill findings. Report the gap between them.
+
+8. Widen the fidelity gate. The planned gate (rawPredictedCFS on the October hard-flag rows) covers the 10-11T12 row before the rise, the 10-14T06 and 10-14T09 rows (both clipped at the ceiling), and the falling limb from 10-14T18 to 10-18T01. It has no raw row on the rising limb (10-12T02 → 10-14T06). Add three checks:
+   - (a) Validation timing for every stored prediction. Interleave hard-flag and clean rows. A prediction is created at the tick where the previous one was validated, because the cron validates and then stores in the same run. The replayed validationDue must fall in the interval (validated tick − 1 h, validated tick].
+   - (b) Corrected values for clean rows, but only where the bins are known (amendment 10).
+   - (c) The ceiling-implied LF on the two clipped rows.
+   Report a match table for each check.
+
+9. Handle validation timing exactly. validationDue = run time + travelGFtoLF. That travel time uses the multiplier from the iteration, and on a rising river that multiplier comes from the low historic PoR flow, not today's LF. This likely explains the long rising-limb gaps (10-12T02→T15, 13 h; 10-12T15→10-13T07, 16 h). The replay must reproduce the 3-step iteration, the <1 h convergence break and the 1 h match window in selectHistoricReading. It must not compute travel time from the current LF.
+
+10. Split the corrected pass at 10-15T16Z. The 10-15T16Z bin snapshot already contains flood learning (12000-25000 rising: 7 obs; 25000-50000: 59 obs).
+    - Before 10-15T16Z: present the corrected values only as "approximate, contaminated with learning from the flood itself". Bracket them between empty bins and the 10-15 bins.
+    - From 10-15T16Z on: build bins exactly. Start from the 10-15 snapshot and apply the logged updates: 12000-25000 falling → (24, 81) from the 10-15T20 validation, and 6000-12000 steady 1→5 from 10-18T13 to 10-19T10. Run updateCorrectionBin in time order.
+    - Check: with the 10-19 values, the C45-interpolated correction reproduces raw − predicted on every hard-flag row from 10-16T00 to 10-18T01 to within 1 cfs (188, 290, 378, 401…; script: check_inforce_correction.py).
+    - Use the 10-11T12 row (155, identical in both snapshots) as a check on the bins before the event.
+
+11. Use the observed in-force corrections as ground truth. On rows not clipped by the ceiling, the correction in force equals rawPredictedCFS − predictedCFS. Before 10-15T16 these values differ from the snapshot: 12000-25000 falling was 209 at 10-14T18 and 403 at 10-15T06, against 230 in the snapshot. The analysis must report this difference and must not overwrite those values with snapshot values.
+
+12. The two ceiling rows can say nothing about the correction. At 10-14T06 and 10-14T09 the "implied" values (6,655 and 3,900) are mostly the 120%-of-LF clip. Report ceiling binding separately, against the stale lf.q.
+
+13. Model the single pending slot explicitly:
+    - The hourly replay gives two outputs: (i) the server's hourly predictedCFS, which fed the gf_history graph line (24 h retention, now gone), and (ii) the stored and validated subsample, about one prediction per travel time.
+    - Learning and accuracy come only from (ii). Report how many hourly predictions were never scored. Report how much of the rising limb (10-11T12 → 10-12T15) passed while the slot was locked.
+
+14. Check row origin before using any row in the gate. A gf_prediction 'pending' row can also come from the API path: sync-learning.js action storePrediction. That path writes a reduced field set and no porEstimateCFS. Accept only rows created at HH:00:1x–:00:3x (cron) and exclude the rest. All October rows passed this check.
+
+15. Treat hard-flag censoring as an outcome. STATISTICAL_OUTLIER (Check 5, z-score against the bin's cumulative meanError and SD) hard-flagged 16 of the 18 rows from 10-14T06 to 10-18T01. Check 5 alone flagged 15 of them. Hard flags remove a row from learning and from avgErrorPercent. avgErrorPercent barely moved (7.379 → 7.3755 from 10-15T16 to 10-19T16), while hard flags went from 40 to 52. The headline accuracy figure excluded most of the falling limb, and analysts must report that.
+
+16. Check 5 depends on bin state at the moment of validation (count, sumError, sumErrorSq), and that state was not captured. Do not claim to reproduce a flag decision. Use the anomalyFlags as logged.
+
+17. Advisory replay must keep state. The EF divergence and LF residual advisories (updateEfDivergenceState / updateLfResidualState in model.js) carry state from tick to tick, and the LF residual one takes validation pairs as input. Replay them as a chain, not one tick at a time. Check the replay against the ef_divergence_episode and lf_residual_episode rows in Supabase.
+
+18. Every finding must cite the replay's lag setting and fidelity-match result. A trace finding that rests on a replay window where the fidelity gate failed must be labelled UNVERIFIABLE.
+
+THREATS TO VALIDITY (state these in the final report)
+
+- **Latency is uncertain.** The cron's actual view of USGS at each tick was never logged except in three places: lf.q/h at validation, and lfCFS on the ceiling rows. PoR, tributary and EF latency are not observable and are inferred only through replay fit.
+- **Provisional revisions.**
+  - LF values at the event's validation ticks still match the cron's values (as of today's file), so there is no evidence of LF revision at those 23 points.
+  - PoR, tributary and EF revisions cannot be checked. The stored first-seen PoR history is gone.
+  - Monocacy carries 'A' (approved) for 10-04T23Z–10-07T14:30Z, so those values may have been edited. That window is before the event.
+- **Bins before 10-15T16Z are unknown.** The corrected-pass results before then carry leakage from the flood's own learning.
+- **The gate is small and lopsided.** About 18 raw rows from the event, almost all from the peak or falling limb. Rising-limb raw fidelity rests on validation-timing checks and clean corrected rows only.
+- **Validation definition.** The app validates the GF estimate against raw Little Falls discharge, including the ungauged area below GF, and does so at hourly ticks with stale LF. "Error" means error against LF as the app sampled it. It is not error against Great Falls.
+- **One event, about 39 scored predictions.** Most hourly predictions were never scored, and the stored ones were picked by the slot-lock timing, not at random. These are observations, not skill estimates.
+- **Code version.** The estimator is identical to v37.20, but the validator differs (Check-3 gate). Flag provenance must be stated per amendment 6.
+- **Bin-state source.** The 10-15 and 10-19 bin values come from a capture by an earlier review session. The 10-19 bin values are recorded only as two "changes".
+- **Unlogged run failures.** Cron cadence was continuous from about 10-07T21 to 10-19T16 (consecutiveRuns 188 → 285, missedRuns flat at 655). A run that threw before updateRunHealth would count as missed, so that part is covered. A run where the USGS fetch succeeded but makeGFPrediction returned null (LF or PoR missing) would not show up anywhere.
+
+WHAT THE SIX TRACES WOULD MISS
+
+1. **What paddlers actually saw.**
+   - The page shows a browser-side estimate: estimateGreatFalls in src/estimation/great-falls.js.
+   - It uses its own data: a P7D/P1D client fetch, localStorage PoR history, a median-robust rise rate (a deliberate divergence from the server) and an NWS fallback for flow state.
+   - The server replay does not reproduce this number. Only the gf_history graph line was server-side.
+2. **The 48h forecast is sampled only when someone views the page.** gf_forecast_pending rows are written only by browsers, through storeForecastPredictions on page render. Forecast-counter changes over the event reflect when someone had the page open, not hourly coverage. Per-row forecasts and NWS inputs are gone.
+3. **Stage learning.** The stage_* bins, avgStageErrorClean and stageObsClean, and the displayed stage against the LF rating breakpoints (estimateLFStage).
+4. **Server shadow models and the shadow_leaderboard.** These are stateful and fed by the raw estimate.
+5. **The CI band.** The client's getGFUncertainty takes the bin SD from the sync API, and bins with few observations behave oddly: 12000-25000 steady had n=1 with ema 9,743, which then blends with the fallback at weight 1/5.
+6. **Pre-event false ice flags.** v37.20 hard-flagged four October low-flow validations as ice (LOW_FLOW_HIGH_STAGE). This was fixed only in v37.21.
+7. **Other UI and plumbing.** Creeks UI, map, gauges UI, offline banner, Sentry/healthchecks behaviour, staleness or caching in the sync-learning endpoints, and the soft-flag counter frozen at 165 from 10-15 to 11-09. That counter freeze needs a check: either nothing was soft-flagged, or the counter path is broken.
