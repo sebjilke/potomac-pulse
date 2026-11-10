@@ -1,0 +1,239 @@
+{
+ "dataRows": 130416,
+ "gridTicks": 130987,
+ "baseChain": {
+  "validated": 23609,
+  "hard": 34,
+  "soft": 2313,
+  "stale": 6,
+  "stored": 23627,
+  "replaced": 11,
+  "skipped": 104247,
+  "claims": 23609,
+  "retries": 47
+ },
+ "invariants": {
+  "identity": {
+   "checked": 127874,
+   "exact": 127874,
+   "firstFail": null
+  },
+  "B_eq_base_not_rising": {
+   "checked": 105744,
+   "fail": 0
+  },
+  "A_eq_base_delta_off": {
+   "checked": 66018,
+   "fail": 0
+  },
+  "C_eq_A_B_inactive": {
+   "checked": 105744,
+   "fail": 0
+  },
+  "C_eq_B_delta_off": {
+   "checked": 66046,
+   "fail": 0
+  },
+  "A_travel_eq_base": {
+   "checked": 127874,
+   "fail": 0
+  },
+  "C_travel_eq_B": {
+   "checked": 127874,
+   "fail": 0
+  },
+  "C_porEst_delta_on": {
+   "checked": 61828,
+   "fail": 0
+  },
+  "firstInvFail": null
+ },
+ "maskTicks": 127745,
+ "tauNonConvergedTicks": 775,
+ "maskCmp": {
+  "events": 53,
+  "rlTicksMatch": 53,
+  "scoredMatch": 53,
+  "mismatches": []
+ },
+ "recCmp": {
+  "events": 53,
+  "match": 53,
+  "mismatches": []
+ },
+ "p3": {
+  "applicable": true,
+  "eventId": 53,
+  "risingTicks": 26,
+  "nonConverged": 9,
+  "lookupFail": 0,
+  "share": 0.34615384615384615,
+  "pass": true
+ },
+ "p4": {
+  "rows": [
+   {
+    "tick": "2026-10-08T00:00:00Z",
+    "logged_raw": 1615,
+    "october_replay_raw": 1628,
+    "harness_base_raw": 1666,
+    "diff_vs_logged": 51,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-09T04:00:00Z",
+    "logged_raw": 1672,
+    "october_replay_raw": 1674,
+    "harness_base_raw": 1664,
+    "diff_vs_logged": -8,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-09T17:00:00Z",
+    "logged_raw": 1653,
+    "october_replay_raw": 1645,
+    "harness_base_raw": 1656,
+    "diff_vs_logged": 3,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-11T12:00:00Z",
+    "logged_raw": 1805,
+    "october_replay_raw": 1807,
+    "harness_base_raw": 1687,
+    "diff_vs_logged": -118,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-14T06:00:00Z",
+    "logged_raw": 27535,
+    "october_replay_raw": 27416,
+    "harness_base_raw": 27213,
+    "diff_vs_logged": -322,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-14T09:00:00Z",
+    "logged_raw": 28020,
+    "october_replay_raw": 28022,
+    "harness_base_raw": 28030,
+    "diff_vs_logged": 10,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-14T18:00:00Z",
+    "logged_raw": 24100,
+    "october_replay_raw": 24236,
+    "harness_base_raw": 24544,
+    "diff_vs_logged": 444,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-15T06:00:00Z",
+    "logged_raw": 18534,
+    "october_replay_raw": 18380,
+    "harness_base_raw": 18652,
+    "diff_vs_logged": 118,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-15T20:00:00Z",
+    "logged_raw": 13503,
+    "october_replay_raw": 13429,
+    "harness_base_raw": 13638,
+    "diff_vs_logged": 135,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-16T00:00:00Z",
+    "logged_raw": 12460,
+    "october_replay_raw": 12459,
+    "harness_base_raw": 12571,
+    "diff_vs_logged": 111,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-16T04:00:00Z",
+    "logged_raw": 11590,
+    "october_replay_raw": 11557,
+    "harness_base_raw": 11622,
+    "diff_vs_logged": 32,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-16T08:00:00Z",
+    "logged_raw": 10887,
+    "october_replay_raw": 10891,
+    "harness_base_raw": 10957,
+    "diff_vs_logged": 70,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-16T12:00:00Z",
+    "logged_raw": 10313,
+    "october_replay_raw": 10320,
+    "harness_base_raw": 10327,
+    "diff_vs_logged": 14,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-16T16:00:00Z",
+    "logged_raw": 9625,
+    "october_replay_raw": 9641,
+    "harness_base_raw": 9730,
+    "diff_vs_logged": 105,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-16T21:00:00Z",
+    "logged_raw": 8992,
+    "october_replay_raw": 8998,
+    "harness_base_raw": 9030,
+    "diff_vs_logged": 38,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-17T02:00:00Z",
+    "logged_raw": 8685,
+    "october_replay_raw": 8727,
+    "harness_base_raw": 8693,
+    "diff_vs_logged": 8,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-17T07:00:00Z",
+    "logged_raw": 8320,
+    "october_replay_raw": 8332,
+    "harness_base_raw": 8388,
+    "diff_vs_logged": 68,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-17T13:00:00Z",
+    "logged_raw": 7663,
+    "october_replay_raw": 7675,
+    "harness_base_raw": 7734,
+    "diff_vs_logged": 71,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-17T19:00:00Z",
+    "logged_raw": 7226,
+    "october_replay_raw": 7233,
+    "harness_base_raw": 7272,
+    "diff_vs_logged": 46,
+    "within_tol": true
+   },
+   {
+    "tick": "2026-10-18T01:00:00Z",
+    "logged_raw": 6769,
+    "october_replay_raw": 6773,
+    "harness_base_raw": 6819,
+    "diff_vs_logged": 50,
+    "within_tol": true
+   }
+  ],
+  "n": 20,
+  "within": 20
+ }
+}

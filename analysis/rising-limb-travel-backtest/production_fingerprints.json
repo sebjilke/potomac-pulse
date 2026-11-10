@@ -1,0 +1,7 @@
+{
+ "validateHead": "39de32b26e4de131ce46147639495aa2765d25e44193e0141203e11223e41570",
+ "storePrediction": "a1eb22fe1bc2e2e9aeec5038e49a72b65d323106ba4ec39f1829f54acf638155",
+ "handlerValidate": "1baabb843b3fe7dfc43d3bc52acb8b1e8a42c38ad5cff982efea6b9efb059c5e",
+ "handlerPredict": "8d2e3004f74dc136b66bc0cc274c6001de1121a660c188a5aa765d7cbb83584c",
+ "handlerStore": "8ed77dc85f77080223b2d56bb4eb1be4e023ac76602d1f507c716a38d65d90a0"
+}

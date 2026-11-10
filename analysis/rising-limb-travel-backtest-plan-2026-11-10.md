@@ -235,6 +235,23 @@ The Python analyst reported that the alternative readings of C1 and C2 give an i
 
 **D-4, 2026-11-10, blindness note.** The R analyst read `netlify/functions/shared/model.js` for the travel functions the plan names without formulas (needed for X3). It did not read the Python script, its outputs, the preliminary counting scripts or the log.
 
+**D-5, 2026-11-10, harness clarifications, approved by the orchestrator after an independent review of the harness and before any arm was run for scoring or any error computed.** The plan was silent or allowed two readings on the points below. None changes a threshold.
+- H1. Ticks run hourly from 2011-12-01 05:00 to 2026-11-09 23:00 UTC (first to last CSV stamp).
+- H2. Carry-forward uses stamps s, s-1 h, s-2 h, s-3 h, per gauge and per quantity independently.
+- H3. Point of Rocks history at tick t is the non-blank stamps s' with t-72 h <= s' <= t-2 h, each given the timestamp s'+30 min.
+- H4. Production's critical-ice skip is NOT modelled. The data file holds no ice qualifiers and sentinels are blank cells, so ice cannot be told from an outage. Limit: the harness validates when Point of Rocks is blank and Little Falls is present, and predicts and validates up to 3 h into a blank run, where production during ice would not. This mainly affects December to March normal hours (criterion G4) and the bin state carried out of winter, identically for all arms. Events with ice risk are already excluded by X1.
+- H5. Arm-symmetric limits of the replay: a 3 h carry against production's 48 h (24 h for water temperature); hourly medians against 15 minute readings; the lag view is about 35 min staler than the fitted Point of Rocks delivery lag and about 20 min staler for Little Falls.
+- H6. Criterion G7d and sensitivity S1: the base horizon is the baseline arm's `travel_gf_lf` at t, the own horizon is the arm's own. Truth at horizon h is the Little Falls view at the first tick v >= t+h, searching v to v+2 h. G7d is scored, for each arm-versus-baseline comparison, on the ticks where `mask==1`, `truth_basehz` is non-blank and the arm's `truth_own` is non-blank; both horizons use that same set.
+- H7. Every metric uses only ticks with tick_utc >= 2012-12-01 00:00 (burn-in). The tick file carries an `in_scoring` column for this.
+- H8. e_raw = `raw` (rawFinalCFS, rounded as production returns it) minus truth; e_unc = `unc` (`trace.unc` as returned) minus truth; e_disp = `disp` minus truth. A rising tick, for G5 and G7e, is a tick where the BASELINE flow state is rising (`base_rst == 'rising'`), for every arm.
+- H9. Each window label holds one event id. A second id in a label is a STOP.
+- H10. The drift test also covers the preamble of the learning gate, from `const actualCFS = lf.q;` (last occurrence inside the validation function) to the gate start.
+- H11. Sensitivities S2, S3 and the multi-pending replay are produced in the SAME single gate run as the primary results, not after the primary results have been seen. The run also writes the bin and pending-slot snapshots at t0-72 h that the third implementation needs, and records the Node version.
+- H12. Under S2 and S3 only the model inputs, the Point of Rocks history and the learning inputs change. Every truth column, tau_ref and the rise rate behind it use the PRIMARY lag view. The mask is the primary mask AND the view's Point of Rocks and Little Falls exist. The same rule applies to the multi-pending replay. (A sensitivity on the lag view changes only what the model sees; the river truth is held fixed.)
+- H13. The snapshot for the third implementation holds each arm's bins and pending slot AFTER the full tick at t0-72 h (validate, predict, store). The third implementation resumes at the tick t0-71 h. The seeded rebuild replays the baseline from 2011-12-01 05:00 through the tick t0-72 h inclusive, then compares bin by bin. Bins never written are equivalent to empty bins (count 0).
+- H14. For criterion G7b, MAPE is the hour-pooled mean of 100 x |e_unc| / truth over the rising-limb ticks.
+- H15. The single gate run must be able to prove which code it ran: the harness, the tick schema and this plan are committed to git first; the run refuses to start if the harness folder has uncommitted changes; and its log records the sha256 of every harness source file, of the tick schema and of this plan, with the git commit.
+
 ## 13. Audit response (plan audit 2026-11-10: approve_with_changes)
 
 All 15 amendments are ACCEPTED. None rejected.
