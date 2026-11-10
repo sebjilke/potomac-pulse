@@ -16,4 +16,4 @@ jobs:
           node-version: 24
       - run: npm install
       - run: npm test
-      - run: npm run build && node --test test/sw-runtime-caching.test.mjs
+      - run: npm run build && SW_DIST_TEST=1 node --test test/sw-runtime-caching.test.mjs

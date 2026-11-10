@@ -1,5 +1,10 @@
 // v39.1 (audit finding 5 / TODO A1): pins the Workbox strategy for live river data.
-// Config level (always runs) and built dist/sw.js level (runs when dist exists; fails if stale).
+// Config level (always runs) and built dist/sw.js level (runs only when SW_DIST_TEST=1).
+// The built-worker test is opt-in because a dist/ left over from an earlier build is not evidence about
+// this commit: Netlify reuses its working folder between builds, so `npm test` there (which runs BEFORE
+// `npm run build`) would inspect the previous deploy's worker. That failed the first v39.1 deploy.
+// GitHub Actions runs it right after a build (see .github/workflows/test.yml); locally use
+// `npm run build && SW_DIST_TEST=1 node --test test/sw-runtime-caching.test.mjs`.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, statSync } from 'node:fs';
@@ -117,8 +122,9 @@ describe('built dist/sw.js', () => {
     };
 
     it('8. built SW routes the real request URLs to the right handler, cache and timeout', (t) => {
+        if (process.env.SW_DIST_TEST !== '1') return t.skip('set SW_DIST_TEST=1 after npm run build to check the built worker');
         const sw = resolve(root, 'dist/sw.js');
-        if (!existsSync(sw)) return t.skip('dist/sw.js absent');
+        assert.ok(existsSync(sw), 'SW_DIST_TEST=1 but dist/sw.js is absent, run npm run build first');
         const built = statSync(sw).mtimeMs;
         for (const src of ['config/runtime-caching.mjs', 'vite.config.js']) {
             assert.ok(built >= statSync(resolve(root, src)).mtimeMs, 'dist/sw.js is stale, run npm run build first');
@@ -145,7 +151,6 @@ describe('built dist/sw.js', () => {
 
     it('9. CI wiring: the GitHub workflow builds before running the built-worker test', () => {
         const wf = readFileSync(resolve(root, '.github/workflows/test.yml'), 'utf8');
-        assert.match(wf, /npm run build/);
-        assert.match(wf, /test\/sw-runtime-caching\.test\.mjs/);
+        assert.match(wf, /npm run build && SW_DIST_TEST=1 node --test test\/sw-runtime-caching\.test\.mjs/);
     });
 });

@@ -285,3 +285,24 @@ Findings from `amend-review-behaviour.md` and `amend-review-tests.md`. Tests 884
 - **T-5 FIXED.** The em-dash in the new TODO.md v39.1 line is now a colon.
 - **Test harness.** The fetchData suites now mute console output during the run and wait on real timers in `afterEach`; stray log output from timer-fired fetches caused a rare "Unable to deserialize cloned data" failure of the whole file (about 1 run in 12 before the fix, 0 in 20 after).
 - **Still unverified in a browser:** everything listed above, plus the fast-clock and slow-network cases (covered by unit tests only).
+
+## 12. Deploy failure and fix (2026-11-10, after the first push)
+
+The first push of v39.1 (932d24d) failed in Netlify's build; the live site stayed on v39.0. GitHub
+Actions passed on the same commit (Linux, Node 24, including the build and the built-worker test), and
+a clean export of the commit passed locally. Netlify's build log is not available through the API.
+
+Cause, reproduced locally: test 8 inspected `dist/sw.js` whenever the file existed. Netlify reuses its
+working folder between builds and runs `npm test` before `npm run build`, so the `dist/` it found was
+the previous deploy's (v39.0, StaleWhileRevalidate routes, older than the new config). The test then
+failed, either on the staleness check or on the route assertions. The plan's audit (PA-9) had asked
+for the staleness failure and nobody, including the orchestrator, considered a leftover `dist/` in CI.
+
+Fix: test 8 is opt-in through `SW_DIST_TEST=1`. Without the flag it skips whatever is in `dist/`. With
+the flag a missing or stale `dist/sw.js` is a failure. The GitHub workflow step sets the flag after
+`npm run build`; test 9 pins that exact step. Netlify's gate therefore does not check the built worker.
+That gap is covered by GitHub CI on the same commit and by the post-deploy check of the live `/sw.js`.
+
+Not established: that Netlify runs Node 22 while the suite has only ever been run on Node 24 (locally
+and in GitHub CI). If the second deploy also fails, a Node 22 difference is the next suspect.
+
