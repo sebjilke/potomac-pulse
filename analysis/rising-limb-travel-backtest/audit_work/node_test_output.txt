@@ -1,0 +1,66 @@
+✔ anchors each occur exactly once in production (2.311375ms)
+✔ MODEL and POR copies equal production text (hook lines stripped) (2.205583ms)
+✔ exactly four VARIANT-HOOK lines (R, H1, H2, H3) (0.621416ms)
+✔ learning-gate copy equals production text between the section 4 anchors (two permitted hooks only) (2.474917ms)
+✔ generated files on disk equal a fresh generation from current production (blob header line excluded) (7.899958ms)
+✔ recorded source hashes match current production blocks (2.140542ms)
+✔ detector: a one-character change inside MODEL is reported as drift (1.202ms)
+✔ detector: a change inside POR is reported as drift (1.085ms)
+✔ detector: a change inside the learning gate is reported as drift (1.285292ms)
+✔ detector: a duplicated anchor line (2 matches) throws (1.014625ms)
+✔ detector: a missing anchor line (0 matches) throws (2.327583ms)
+✔ detector: duplicated gate-hook anchor throws (1.272041ms)
+✔ repo npm test glob (test/**) cannot pick up this folder (0.176375ms)
+✔ fingerprints of hand-reimplemented production code (validation loop head, storePrediction, handler order) are unchanged (1.793625ms)
+✔ fingerprint detector: a change in the validation loop head, storePrediction or handler store step is caught (5.570792ms)
+✔ each stripped production line equals its anchor, and each hook sits where the plan says (2.324ms)
+✔ lag view: carry-forward within 3 h, missing beyond (0.584334ms)
+✔ PoR history: stamps <= t-2h within 72 h, timestamp s+30 min, blanks skipped (0.337917ms)
+✔ loadData never reads por_lagged or travel_time_h (1.630917ms)
+✔ no reading from the future: poisoning every index >= t leaves inputs, history and base prediction unchanged (1205.444125ms)
+✔ deepEq is zero tolerance; invariant comparer ignores fields after rawUnc only (1.092334ms)
+✔ chain (a): retries every tick while LF missing or out of range; early returns leave the row (2.271542ms)
+✔ chain (a2): a pending that missed the 2.5 h window stays, blocks the slot until replaceable (0.199875ms)
+✔ chain (b): hard-flagged pending is still claimed (slot freed) but not learned (0.160375ms)
+✔ chain (c): stale cleanup (>48 h) does not run on ticks where LF is missing or out of range (0.090292ms)
+✔ chain (d): learning bin key comes from the stored prediction, not the bin at validation (0.346541ms)
+✔ soft outlier path uses the shared updateCorrectionBin (learned, flagged soft) (0.491041ms)
+✔ tick row schema has every column, labels derive from the frozen event file (248.240625ms)
+✔ runReplay plumbing: 4 arm rows per tick, schema columns, base_rst on every arm row, in_scoring, b_active, snapshots (burn-in slice, counts only) (226.440709ms)
+✔ horizon truth columns follow D-5 H6 (first tick v >= t+h, search v..v+2 h) with h = base travel and own travel (183.833875ms)
+✔ carry hours: 0 when the stamp is present, k when carried, NaN beyond 3 h (0.097958ms)
+✔ window label STOP (D-5 H9): a second event id in one label throws (0.322792ms)
+✔ retries counter increments when a due pending meets a missing or out-of-range LF inside its window (0.065792ms)
+✔ multi-pending chain: every tick stores; due rows are claimed when LF is available (0.208583ms)
+✔ D-5 H12: S2/S3 views change inputs only; every truth column, tau_ref and the label columns equal the primary run; mask = primary mask AND view inputs (324.695708ms)
+✔ D-5 H13: snapshot carries bins, written keys and pending slot of the state after the full tick (0.157875ms)
+identity: 127874 exact of 127874
+B_eq_base_not_rising: 105744 checked, 0 fail
+A_eq_base_delta_off: 66018 checked, 0 fail
+C_eq_A_B_inactive: 105744 checked, 0 fail
+C_eq_B_delta_off: 66046 checked, 0 fail
+A_travel_eq_base: 127874 checked, 0 fail
+C_travel_eq_B: 127874 checked, 0 fail
+C_porEst_delta_on: 61828 checked, 0 fail
+P3: 9/26
+P4: 20/20
+✔ P1 baseline identity: harness base == production makeGFPrediction, every tick, return + trace, zero tolerance (1.770834ms)
+✔ P1 invariant B_eq_base_not_rising (1.651042ms)
+✔ P1 invariant A_eq_base_delta_off (0.279292ms)
+✔ P1 invariant C_eq_A_B_inactive (0.124042ms)
+✔ P1 invariant C_eq_B_delta_off (0.408917ms)
+✔ P1 invariant A_travel_eq_base (0.127375ms)
+✔ P1 invariant C_travel_eq_B (0.053333ms)
+✔ P1 invariant C_porEst_delta_on (0.049542ms)
+✔ common mask and RL tick counts equal the step-2 event file for all 53 events; REC stamp counts too (0.285125ms)
+✔ P3 October mechanism: base non-converged share on October RL rising ticks (common mask) >= 20% (0.1835ms)
+✔ P4 (report only): 20 logged hard-flag raw values vs harness base raw within max(5%,150 cfs) (0.078083ms)
+ℹ tests 47
+ℹ suites 0
+ℹ pass 47
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5081.376042
+node --test tests/*.test.mjs  8.59s user 0.51s system 177% cpu 5.129 total
