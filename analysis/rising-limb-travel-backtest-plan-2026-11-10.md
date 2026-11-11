@@ -266,6 +266,13 @@ The Python analyst reported that the alternative readings of C1 and C2 give an i
 - E9. The orchestrator stays blind until step 7. The implementers report status, file checksums, assertion counts and any wording they found unclear, with no metric value and no hint of which arm did better. The auditor is the first to read the values.
 - E10. Tools as found on the machine, nothing installed: `/usr/bin/python3` 3.9.6 with numpy 2.0.2 and pandas 2.3.3; R 4.5.2 with readr, dplyr and vroom.
 
+**D-8, 2026-11-11, truth at the end of the tick grid, ruled by the orchestrator while blind (no error or metric of any arm had been computed or seen by anyone).** The Python metric analyst stopped at its step 2, before any arm metric. Its independent rebuild of the truth from the raw CSV matched the tick files on 130,986 of 130,987 ticks (largest tau_ref difference 1.8e-15 h; window labels, views and structure all matched). The one difference, identical in all four files, is the tick 2026-11-09T12:00Z, a normal-hours tick in no event window. The harness gave it a truth read at 2026-11-10T00:00Z, one hour after the last tick of the grid (D-5 H1), while the ticks 13:00 to 23:00 of the same day have no truth in the file, so the harness is not consistent with itself at the grid end.
+- Ruling: the literal reading stands. A truth search uses only ticks of the H1 grid (last tick 2026-11-09T23:00Z). The tick 2026-11-09T12:00Z therefore has no truth and is outside the common mask, in all four files.
+- The tick files are NOT regenerated; no arm is run a second time. Both metric analysts exclude this one tick by an explicit, commented override, assert that it is the only tick where their rebuilt truth or mask differs from the file, and STOP if any other tick differs.
+- Each analyst also asserts that no tick with an RL, RLX or REC label has `truth_tick_utc`, `truth_basehz_tick` or `truth_own_tick` after 2026-11-09T23:00Z (the last such window ends in October 2026), so no rising-limb or recession criterion can be touched.
+- Effect: only the normal-hours criteria G4a and G4b can change, by one tick among roughly 100,000. As a report-only sensitivity both analysts also compute them with the file's mask as written, under the names `G4a_edge` and `G4b_edge`. These never decide anything.
+- The edge behaviour is recorded as a harness finding for the auditor (step 7).
+
 ## 13. Audit response (plan audit 2026-11-10: approve_with_changes)
 
 All 15 amendments are ACCEPTED. None rejected.
