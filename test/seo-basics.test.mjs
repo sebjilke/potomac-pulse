@@ -108,3 +108,13 @@ describe('version reader', () => {
         assert.equal(readAppVersion(fake(m[1])), m[1]);
     });
 });
+
+describe('Search Console ownership tag', () => {
+    it('is in the head exactly once, with a non-empty code', () => {
+        const html = read('index.html');
+        const head = html.slice(0, html.indexOf('</head>'));
+        const tags = head.match(/<meta name="google-site-verification" content="([^"]+)"\s*\/?>/g) || [];
+        assert.equal(tags.length, 1, 'removing or duplicating this tag unverifies the site in Search Console');
+        assert.equal((html.match(/google-site-verification/g) || []).length, 1);
+    });
+});
