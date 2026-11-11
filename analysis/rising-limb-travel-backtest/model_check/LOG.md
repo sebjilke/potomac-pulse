@@ -1,0 +1,6 @@
+# model_check LOG (third implementation, step 6)
+
+- 2026-11-11 step 0: read plan s0-4,6,7(third impl),12; TICK_SCHEMA; production makeGFPrediction, getPoRFromHistory, validatePendingPredictions, storePrediction, handler order; shared/model.js. Events: positions 1,10,20 of 20 kept non-Oct GATE = event ids 11, 30, 51; Oct = 53.
+- step 1+2 (2026-11-11): wrote model/lag view/truth/chain port in rising_limb_model_check_python.py. First check on event 11 window (566 ticks): my mask, mask_why, tau_ref, tau_converged, truth, truth_tick_utc = harness on all ticks (0 diffs); baseline chain from snapshot: raw, travel_por_gf, travel_gf_lf, corr, unc, slot, validated, hard/soft flags, stop, rst, flow_state, flow_bin, it: 0 diffs. Next: full driver (all arms, all 4 events, all fields), snapshot-in-window check, seeded rebuild.
+- step 3-5 (2026-11-11): full driver run. 4 events (11, 30, 51, 53) x 4 arms x 32 fields = 512 comparison rows, 0 beyond tolerance. Max abs diffs: raw 0, travel 0, corr 1.1e-11, unc 1.1e-11. Seeded pick index 3 = event 53; baseline rebuild from empty bins 2011-12-01 05:00 through 2026-10-09 02:00: all 18 bins x 5 fields abs diff 0.0; pending slot identical. Remaining: ASSUMPTIONS.md, RESULT.md, checksums.
+- step 6 (2026-11-11): wrote ASSUMPTIONS.md, RESULT.md. Status COMPLETE, all checks PASS, no findings.

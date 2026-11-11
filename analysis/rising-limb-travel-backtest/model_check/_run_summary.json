@@ -1,0 +1,116 @@
+{
+ "summary": {
+  "11": {
+   "first_tick": "2015-06-17T13:00:00.000Z",
+   "last_tick": "2015-07-11T02:00:00.000Z",
+   "n_ticks": 566,
+   "replaced": {
+    "base": {
+     "replaced": 0,
+     "stale": 0
+    },
+    "A": {
+     "replaced": 0,
+     "stale": 0
+    },
+    "B": {
+     "replaced": 0,
+     "stale": 0
+    },
+    "C": {
+     "replaced": 0,
+     "stale": 0
+    }
+   },
+   "snapshots_inside": 0
+  },
+  "30": {
+   "first_tick": "2021-06-08T17:00:00.000Z",
+   "last_tick": "2021-06-22T14:00:00.000Z",
+   "n_ticks": 334,
+   "replaced": {
+    "base": {
+     "replaced": 0,
+     "stale": 0
+    },
+    "A": {
+     "replaced": 0,
+     "stale": 0
+    },
+    "B": {
+     "replaced": 0,
+     "stale": 0
+    },
+    "C": {
+     "replaced": 0,
+     "stale": 0
+    }
+   },
+   "snapshots_inside": 0
+  },
+  "51": {
+   "first_tick": "2026-05-20T19:00:00.000Z",
+   "last_tick": "2026-06-05T12:00:00.000Z",
+   "n_ticks": 378,
+   "replaced": {
+    "base": {
+     "replaced": 0,
+     "stale": 0
+    },
+    "A": {
+     "replaced": 0,
+     "stale": 0
+    },
+    "B": {
+     "replaced": 0,
+     "stale": 0
+    },
+    "C": {
+     "replaced": 0,
+     "stale": 0
+    }
+   },
+   "snapshots_inside": 0
+  },
+  "53": {
+   "first_tick": "2026-10-09T03:00:00.000Z",
+   "last_tick": "2026-10-20T15:00:00.000Z",
+   "n_ticks": 277,
+   "replaced": {
+    "base": {
+     "replaced": 0,
+     "stale": 0
+    },
+    "A": {
+     "replaced": 0,
+     "stale": 0
+    },
+    "B": {
+     "replaced": 0,
+     "stale": 0
+    },
+    "C": {
+     "replaced": 0,
+     "stale": 0
+    }
+   },
+   "snapshots_inside": 0
+  }
+ },
+ "snapshots_inside_windows": [],
+ "rebuild_pick": 3,
+ "rebuild_event": 53,
+ "rebuild_chain_stats": {
+  "ticks": 130222,
+  "validated": 23520,
+  "hard_flag": 34,
+  "soft_flag": 2302,
+  "stale": 6,
+  "stored": 23527,
+  "replaced": 11,
+  "skipped_in_window": 103571,
+  "no_prediction": 3113
+ },
+ "rebuild_max_bin_diff": 0.0,
+ "rebuild_pending_equal": true
+}

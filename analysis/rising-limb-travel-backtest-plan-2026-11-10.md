@@ -273,6 +273,14 @@ The Python analyst reported that the alternative readings of C1 and C2 give an i
 - Effect: only the normal-hours criteria G4a and G4b can change, by one tick among roughly 100,000. As a report-only sensitivity both analysts also compute them with the file's mask as written, under the names `G4a_edge` and `G4b_edge`. These never decide anything.
 - The edge behaviour is recorded as a harness finding for the auditor (step 7).
 
+**D-9, 2026-11-11, steps 4 to 6 complete and frozen; clarifications for step 7. Recorded by the orchestrator while still blind (no metric value seen).**
+- Steps 4, 5 and 6 finished. Both metric analysts applied D-8 and report, in all four files: 130,987 ticks compared, one truth/mask difference before the override (the D-8 tick), none after; no window-label, view or layout difference; no labelled tick with a truth tick after the grid end. The third implementation reports every check passed: on four events (ids 11, 30, 51 and 53, 1,555 ticks x 4 arms) raw, both travel times, the correction, slot, validation and flag columns match the harness with no value beyond tolerance, and the seeded rebuild (seed pick 3, event 53; baseline replayed from empty bins over 130,222 ticks) matches the harness snapshot exactly in all 18 bins and in the pending slot. The outputs of the three steps are committed together with this entry, before the auditor reads them; their sha256 values are in the commit.
+- Definitions the orchestrator sent to both analysts with the D-8 ruling, repeated here for the record: `truth_mismatches` counts differences before the override, `truth_mismatches_after_override` after it; `n_tau_nonconverged_masked` counts ticks with in_scoring = 1, mask = 1 (after the override) and tau_converged = 0.
+- The Python analyst's session could not write its `REPORT_ONLY_README.md`. With the owner's approval ("save the readme", 2026-11-11) the orchestrator saved the analyst's returned text; the file states this. It describes columns and holds no result.
+- Further harness edge note from the Python analyst, for the auditor: two unlabelled ticks per file have a `truth_basehz_tick` or `truth_own_tick` after the last grid tick. They are in no window and enter no criterion.
+- Spot-check sampling (section 7): the forced early row "from 2012 to 2014" is drawn from RL ticks of kept events of either class in that period if any exist; if none exists (the first kept GATE event is in 2015), it is drawn with the same seed from scored normal-hours ticks between 2012-12-01 and 2014-12-31. The purpose (a check of old data and of the hourly bucket convention) is unchanged.
+- Step 7 and 8: the auditor is the first to read the metric values, runs the agreement check, and fills in the gate table. The orchestrator then writes the verdict file from the audited table.
+
 ## 13. Audit response (plan audit 2026-11-10: approve_with_changes)
 
 All 15 amendments are ACCEPTED. None rejected.
