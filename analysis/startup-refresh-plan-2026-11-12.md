@@ -409,3 +409,42 @@ Only the owner can check: the phone and DevTools list in section 10 (sleep/wake,
 - /Users/sebjilke/Desktop/PotomacPulse/src/data/fetch.js
 - /Users/sebjilke/Desktop/PotomacPulse/src/ui/great-falls-ui.js
 - /Users/sebjilke/Desktop/PotomacPulse/src/ui/map.js
+
+---
+
+## 15. Audit response (independent plan audit 2026-11-12: approve_with_changes) and final scope
+
+The audit is in `startup-refresh-plan-2026-11-12.PLAN_AUDIT.md`. Orchestrator rulings, 2026-11-12. Where a ruling differs from the text above, the ruling wins. The implementer works from this section plus the audit's exact wording.
+
+| Finding | Severity | Ruling |
+|---|---|---|
+| PA-1 `fetchSettled` never seen by a render | must-fix | Accepted. Set it before each final emit and in the exception path; behaviour test added. Implemented through the PA-7 hook. |
+| PA-2 `hidden` does not hide `.btn` | must-fix | Accepted. `#gfRetryBtn[hidden] { display: none; }` plus a source test. No global `[hidden]` rule. |
+| PA-3 retry button never hidden on the ready path; helper could overwrite the ice label | must-fix | Accepted, with all four constraints of the audit (hide at the top of `updateGreatFallsUI`; helper is a no-op for ice; helper defined above the function with no `return;` line and no `renderCapIndicator` call; no new `return;` in the second segment). |
+| PA-4 admin reset overwritten by an older request | must-fix | Accepted. Generation counter; `if (inFlight === p) inFlight = null`; race test. |
+| PA-5 negative age refetches on slow device clocks | must-fix | Accepted. Age between -5 min and 0 is clamped to 0; only a larger negative age counts as unknown. |
+| PA-6 two renders within seconds on refresh | should-fix | Accepted, option (b): when `gfDataReady` is already true and a learning load is in flight, `fetchData` awaits the shared learning promise (bounded by the 10 s deadline) after its network `Promise.all` and before `processData`, so a refresh renders once. At startup (`gfDataReady` false) the two stay independent. |
+| PA-7 exception path not covered; one hook instead of three mechanisms | should-fix | Accepted. One `emit('fetch:settled')` in `fetchData`'s `finally` (after `setIsFetching(false)`, in try/catch) with one subscriber that sets `fetchSettled`, re-renders the card if learning settled during the fetch or the flag changed, and consumes `resumePending`. |
+| PA-8 deferred resume dropped during an early-timer fetch | should-fix | Accepted (consumed in the PA-7 hook). The "up to three downloads in about 60 s when the radio is not up" bound is added to the risk list. |
+| PA-9 emit inside the loader can break a reset | should-fix | Accepted. `emit('learning:loaded')` is wrapped in try/catch. |
+| PA-10 Netlify limit is 60 s, not 10 s | should-fix | Accepted. Reason (c) is deleted; the 10 s deadline stands on (a), (b), (d). The helper races a timer and does not rely on the abort alone. |
+| PA-11 duplicate outline layer on retry | should-fix | Accepted. One run-once promise per file. |
+| PA-12 drop the flood-category deferral (3c) | should-fix | Accepted. 3c is NOT in v39.7. NWS calls are unchanged. The `pp-data` cache size observation goes to TODO as a follow-up. |
+| PA-13 ice-lookback text | note | Accepted as a correction; the decision to keep `period=P7D` stands. The stage-series cut is a follow-up. |
+| PA-14 bin table empty for a signed-in admin | note | Accepted. `onLearningLoaded` also calls `updateGFLearningUI()`. |
+| PA-15 click event passed to `refreshAll` | note | Accepted. Bind `() => refreshAll()`. |
+| PA-16 tests | should-fix | Accepted, all six additions. `startup-wiring.test.mjs` stays minimal and is not counted as behaviour coverage. |
+| PA-17 simplicity | note | Accepted. `refresh-policy` is merged into `src/data/refresh.js`; the deadline helper is a local function in `gf-learning.js`. New files: `src/data/refresh.js`, `src/ui/gf-card-state.js`, and `src/ui/map-outlines.js` only if it is needed for a test. 4e also releases `#gfRetryBtn`. |
+| PA-18 docs | note | Accepted. Baseline is 1224 tests (1222 pass, 2 skipped). The new CLAUDE.md bullet says `SERVER_VERSION` stays v39.6. |
+| PA-19 browser check after deploy | should-fix | Partly accepted. The curl additions are adopted. No browser tool exists in this session, so the browser pass is an owner check on a phone and is reported as an unverified gap until done. |
+| PA-20 button inside the live region | note | Accepted. The button is placed just after `#gf-estimate-display`, not inside it. |
+| PA-21 extra renders step the shadow models | note | Noted; PA-6 (b) and dropping 3c remove the extra renders this plan would have added. |
+
+Defaults for the plan's five open questions (the auditor agreed with 1, 2, 4, 5 and objected to 3; the owner was told on 2026-11-12):
+1. No automatic learning retry.
+2. The learning deadline is 10 s.
+3. The flood-category deferral is dropped (PA-12).
+4. The iPhone cache-write check is an optional owner check later.
+5. Wording: label "UNAVAILABLE"; the line under it shows the reason only ("Edwards Ferry data did not load." / "USGS data did not load." / "Little Falls or Point of Rocks readings are missing."), without an "Estimate unavailable." prefix; button "Try again". No other new text.
+
+Final scope of v39.7: item 1 (startup does not wait on learning; 10 s deadline; in-flight sharing), item 2 (resume on visible, pageshow, online; 10 min age, 60 s gap), item 3b only (map outlines on first map open), item 4 (unavailable state with a retry button). Not in v39.7: 3a (shorter period), 3c (NWS), 3d (cache write). Steps: section 9 without step 8.
