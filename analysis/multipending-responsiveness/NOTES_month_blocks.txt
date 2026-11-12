@@ -1,0 +1,14 @@
+A6 month-block indices (plan section 6). Results-blind; only columns tick_utc, arm, in_scoring, mask, normal, has_pred of base rows were loaded.
+Tick file sha256 verified against GATE_RUN_MANIFEST.txt before reading (match).
+Base rows read: 130987
+Scored normal ticks: 108140  (in_scoring==1, mask==1 after D-8 override, has_pred==1, normal==1)
+Months M: 168 (first 2012-12, last 2026-11)
+Index file shape: 10000 rows x 168 columns (no header), month list: 168 rows, no header, "index,YYYY-MM"
+sha256 a6_month_list.csv:          c647b7e820b1eb81e2d3c0198146e031b95dee51532ef001b32da8cbbc78b6cb
+sha256 a6_month_block_indices.csv: bfce274c4aa0b72713dc4e38bd0a9245e13c0907987210b8beff04e056aba8a9
+sha256 make_month_block_indices.py: 2f634ee36872fa216e4556b7264a6066073722a0f22539a350dcf65c2b6dcb53
+Second run reproduced both CSVs byte for byte.
+Literal readings taken:
+- "scored" = plan section 4 definition (in_scoring==1, mask==1 after A5, has_pred==1); section 6 does not restate has_pred, section 4 does. "normal" = normal==1.
+- Month from tick_utc in UTC, formatted YYYY-MM; D-8 tick matched by parsed timestamp.
+- Ticks with mask != "1" (incl. D-8) excluded.

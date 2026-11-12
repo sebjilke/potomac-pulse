@@ -540,3 +540,8 @@ These two points were added by the orchestrator after the revision and before th
 Empty. Each entry needs a date, a reason and who approved it, and must state whether it was made blind. The first expected entries are the step 0b grep result and the sha256 values of `a6_month_list.csv` and `a6_month_block_indices.csv`.
 
 ---
+
+**D-1, 2026-11-12, results of steps 0b and 1, recorded by the orchestrator while blind (no metric computed or seen by anyone). Not a change to the plan.**
+- Step 0b: a results-blind agent searched the A7 verdict and the A7 audit text. Neither holds any figure comparing the baseline under the multi-pending replay with the baseline under the single-slot replay. The only multi-pending numbers there are arm-against-baseline results within one replay (already declared in section 2).
+- Step 1: `analysis/multipending-responsiveness/make_month_block_indices.py` (sha256 2f634ee36872fa216e4556b7264a6066073722a0f22539a350dcf65c2b6dcb53) read only the six permitted columns of the base rows of `rising_limb_ticks.csv`, after checking that file's sha256 and applying the D-8 override. Scored normal ticks: 108,140. Months M = 168 (2012-12 to 2026-11). Outputs: `a6_month_list.csv`, 168 rows, sha256 c647b7e820b1eb81e2d3c0198146e031b95dee51532ef001b32da8cbbc78b6cb; `a6_month_block_indices.csv`, 10000 x 168, sha256 bfce274c4aa0b72713dc4e38bd0a9245e13c0907987210b8beff04e056aba8a9. A second run reproduced both files byte for byte.
+- Reading taken for "scored normal tick" in section 6: the section 4 definition (`in_scoring == 1`, mask 1 after A5, `has_pred == 1`) together with `normal == 1`.
