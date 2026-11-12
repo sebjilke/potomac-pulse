@@ -1,0 +1,56 @@
+sha256 rising_limb_ticks.csv 8d841145905de1f6b6d217835c65229862ec6e115f33823c9472ffcfbfca0a6f OK
+sha256 rising_limb_ticks_multi.csv c99c4b56e3ae3edc47cda561a7322174d6797709e509ea63f8e0106e17064778 OK
+sha256 rising_limb_events_python_v39.csv 978c6c2f98a522ad98ff54cd3f172df534ed2a4c552a29490739ba0f5d7cac44 OK
+sha256 rising_limb_bootstrap_indices.csv 7eff92a751fd9cc0c6f8e0220998e98788cc2f293b5437088bf9376e1dd96519 OK
+sha256 a6_month_block_indices.csv bfce274c4aa0b72713dc4e38bd0a9245e13c0907987210b8beff04e056aba8a9 OK
+sha256 a6_month_list.csv c647b7e820b1eb81e2d3c0198146e031b95dee51532ef001b32da8cbbc78b6cb OK
+loaded 523948 523948 130987 130987
+A4 first validation index 5 2011-12-01T10:00:00.000Z
+A6 consistency fails 0 completeness fails 0
+PMECH pass
+  check,A0,both,all,n_checked,,6
+  check,A0,both,all,n_fail,,0
+  check,A0,both,all,pass,,1
+  check,A1,both,all,n_checked,,1047896
+  check,A1,both,all,n_fail,,0
+  check,A1,both,all,pass,,1
+  check,A1,both,all,n_in_scoring,,122208
+  check,A2,both,all,n_checked,,130987
+  check,A2,both,all,n_fail,,0
+  check,A2,both,all,pass,,1
+  check,A3,both,all,n_checked,,130987
+  check,A3,both,all,n_fail,,0
+  check,A3,both,all,pass,,1
+  check,A4,both,all,n_checked,,130992
+  check,A4,both,all,n_fail,,0
+  check,A4,both,all,pass,,1
+  check,A5,both,all,n_checked,,5968
+  check,A5,both,all,n_fail,,0
+  check,A5,both,all,pass,,1
+  check,A6,both,all,n_checked,,47236
+  check,A6,both,all,n_fail,,0
+  check,A6,both,all,pass,,1
+  check,A6,single,all,n_validations,,23609
+  check,A7,both,all,n_checked,,130987
+  check,A7,both,all,n_fail,,0
+  check,A7,both,all,pass,,1
+  check,A7,multi,all,n_validations,,127714
+  check,A8,both,all,n_checked,,23630
+  check,A8,both,all,n_fail,,0
+  check,A8,both,all,pass,,1
+  check,A9,both,all,n_checked,,3640
+  check,A9,both,all,n_fail,,0
+  check,A9,both,all,pass,,1
+  check,BAND,both,all,n_checked,,238072
+  check,BAND,both,all,n_fail,,0
+  check,BAND,both,all,pass,,1
+  check,SCHEMA_MASKPRED,both,all,n_checked,,119036
+  check,SCHEMA_MASKPRED,both,all,n_fail,,0
+  check,SCHEMA_MASKPRED,both,all,pass,,1
+  check,RLCOUNT,both,all,n_checked,,21
+  check,RLCOUNT,both,all,n_fail,,0
+  check,RLCOUNT,both,all,pass,,1
+  check,RLCOUNT,both,RL21,n_ticks,,727
+  check,N3,both,NORM_T80,t80_index,2024-01-26T14:00:00.000Z,97766
+  check,PMECH,both,RL21,pass,,1
+assert-only: all checks passed

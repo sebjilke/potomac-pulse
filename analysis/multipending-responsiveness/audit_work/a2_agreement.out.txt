@@ -1,0 +1,84 @@
+python rows 1074, R rows 1046, dup python 0, dup R 0, common 1046, agree 994, diverge 52
+max abs diff on agreeing numeric rows by run: {'report': 17.0, 'gate': 4.979483492206782e-11, 'check': 3012701.0, 'edge': 7.02016222930979e-11}
+DIVERGE	('check', 'A1', 'both', 'all', 'n_checked', '')	py=1047896	R=11	diff=1047885.0
+DIVERGE	('check', 'A2', 'both', 'all', 'n_checked', '')	py=130987	R=2357766	diff=2226779.0
+DIVERGE	('check', 'A3', 'both', 'all', 'n_checked', '')	py=130987	R=3143688	diff=3012701.0
+DIVERGE	('check', 'A4', 'both', 'all', 'n_checked', '')	py=130992	R=131232	diff=240.0
+DIVERGE	('check', 'A5', 'both', 'all', 'n_checked', '')	py=5968	R=11934	diff=5966.0
+DIVERGE	('check', 'A6', 'both', 'all', 'n_checked', '')	py=47236	R=47218	diff=18.0
+DIVERGE	('check', 'A7', 'both', 'all', 'n_checked', '')	py=130987	R=124118	diff=6869.0
+DIVERGE	('check', 'A8', 'both', 'all', 'n_checked', '')	py=23630	R=47239	diff=23609.0
+DIVERGE	('check', 'BAND', 'both', 'all', 'n_checked', '')	py=238072	R=238074	diff=2.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_lf3000_h', '53')	py=14.0	R=10	diff=4.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '11')	py=8.0	R=-4	diff=12.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '12')	py=14.0	R=2	diff=12.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '13')	py=10.0	R=-1	diff=11.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '16')	py=8.0	R=-4	diff=12.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '17')	py=6.0	R=-5	diff=11.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '21')	py=8.0	R=-3	diff=11.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '22')	py=5.0	R=-1	diff=6.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '25')	py=8.0	R=-3	diff=11.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '28')	py=9.0	R=-3	diff=12.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '30')	py=8.0	R=-3	diff=11.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '32')	py=9.0	R=-3	diff=12.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '34')	py=8.0	R=-3	diff=11.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '35')	py=9.0	R=-2	diff=11.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '39')	py=9.0	R=-3	diff=12.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '41')	py=5.0	R=-5	diff=10.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '43')	py=8.0	R=-4	diff=12.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '47')	py=9.0	R=-4	diff=13.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '48')	py=5.0	R=-5	diff=10.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '49')	py=6.0	R=-5	diff=11.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '51')	py=8.0	R=-3	diff=11.0
+DIVERGE	('report', 'RESP', 'multi', 'RLev', 'D_t0_h', '53')	py=13.0	R=1	diff=12.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '11')	py=8.0	R=0	diff=8.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '12')	py=17.0	R=3	diff=14.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '13')	py=17.0	R=6	diff=11.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '16')	py=11.0	R=3	diff=8.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '17')	py=10.0	R=-2	diff=12.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '21')	py=15.0	R=5	diff=10.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '22')	py=8.0	R=3	diff=5.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '25')	py=9.0	R=3	diff=6.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '28')	py=15.0	R=-2	diff=17.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '30')	py=9.0	R=3	diff=6.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '32')	py=11.0	R=2	diff=9.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '34')	py=8.0	R=2	diff=6.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '35')	py=10.0	R=3	diff=7.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '39')	py=Inf	R=-1	diff=inf-mismatch
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '41')	py=9.0	R=-4	diff=13.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '43')	py=9.0	R=1	diff=8.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '47')	py=9.0	R=3	diff=6.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '48')	py=6.0	R=2	diff=4.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '49')	py=7.0	R=1	diff=6.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '51')	py=13.0	R=-3	diff=16.0
+DIVERGE	('report', 'RESP', 'single', 'RLev', 'D_t0_h', '53')	py=24.0	R=10	diff=14.0
+--- only in python
+check|RLCOUNT|both|RL21|n_ticks|	727
+check|RLCOUNT|both|all|n_checked|	21
+check|RLCOUNT|both|all|n_fail|	0
+check|RLCOUNT|both|all|pass|	1
+check|SCHEMA_MASKPRED|both|all|n_checked|	119036
+check|SCHEMA_MASKPRED|both|all|n_fail|	0
+check|SCHEMA_MASKPRED|both|all|pass|	1
+report|EV|diff|RLev|mae_diff|11	-67.62162162162167
+report|EV|diff|RLev|mae_diff|12	91.70270270270248
+report|EV|diff|RLev|mae_diff|13	-9.705882352941444
+report|EV|diff|RLev|mae_diff|16	-22.740740740740875
+report|EV|diff|RLev|mae_diff|17	185.54054054054052
+report|EV|diff|RLev|mae_diff|21	-100.72972972972957
+report|EV|diff|RLev|mae_diff|22	8.088235294117794
+report|EV|diff|RLev|mae_diff|25	122.25
+report|EV|diff|RLev|mae_diff|28	-414.67567567567585
+report|EV|diff|RLev|mae_diff|30	0.6176470588236498
+report|EV|diff|RLev|mae_diff|32	-206.08108108108127
+report|EV|diff|RLev|mae_diff|34	1617.5945945945946
+report|EV|diff|RLev|mae_diff|35	247.40540540540542
+report|EV|diff|RLev|mae_diff|39	253.8571428571422
+report|EV|diff|RLev|mae_diff|41	-142.26470588235293
+report|EV|diff|RLev|mae_diff|43	-48.56756756756761
+report|EV|diff|RLev|mae_diff|47	774.1081081081081
+report|EV|diff|RLev|mae_diff|48	2039.2972972972975
+report|EV|diff|RLev|mae_diff|49	43.351351351351354
+report|EV|diff|RLev|mae_diff|51	0.0
+report|EV|diff|RLev|mae_diff|53	76.45945945945948
+--- only in R

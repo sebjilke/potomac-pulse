@@ -1,0 +1,26 @@
+19:15:51 sha256 single 8d841145905de1f6b6d217835c65229862ec6e115f33823c9472ffcfbfca0a6f ok 
+19:15:51 sha256 multi c99c4b56e3ae3edc47cda561a7322174d6797709e509ea63f8e0106e17064778 ok 
+19:15:51 sha256 events 978c6c2f98a522ad98ff54cd3f172df534ed2a4c552a29490739ba0f5d7cac44 ok 
+19:15:51 sha256 boot 7eff92a751fd9cc0c6f8e0220998e98788cc2f293b5437088bf9376e1dd96519 ok 
+19:15:51 sha256 mblk bfce274c4aa0b72713dc4e38bd0a9245e13c0907987210b8beff04e056aba8a9 ok 
+19:15:51 sha256 mlist c647b7e820b1eb81e2d3c0198146e031b95dee51532ef001b32da8cbbc78b6cb ok 
+19:15:51 A0    n_checked=6 n_fail=0 PASS 
+19:15:51 reading single 
+19:15:53 reading multi 
+19:15:56 base rows single 130987 multi 130987 
+19:15:56 A1    n_checked=11 n_fail=0 PASS 
+19:15:56 A2    n_checked=2357766 n_fail=0 PASS 
+19:15:56 A3    n_checked=3143688 n_fail=0 PASS 
+19:15:56 A4 first validated tick: 2011-12-01T10:00:00.000Z index 6 
+19:15:56 A4    n_checked=131232 n_fail=0 PASS 
+19:15:57 A5    n_checked=11934 n_fail=0 PASS 
+19:15:57 A6: validations 23609 consistency fails 0 completeness applicable 23609 fails 0 | s matched twice: 0 
+19:15:57 A6    n_checked=47218 n_fail=0 PASS 
+19:15:57 A7: pendings 127874 validations 127714 dropped(missed window) 146 never-reached 14 ticks with val 124118 file 124118 
+19:15:57 A7    n_checked=124118 n_fail=0 PASS 
+19:15:57 A8    n_checked=47239 n_fail=0 PASS 
+19:15:57 A9    n_checked=3640 n_fail=0 PASS 
+19:15:57 BAND  n_checked=238074 n_fail=0 PASS 
+19:15:57 PMECH PASS 
+19:15:57 October LF<3000 reference tick: 2026-10-11T17:00:00.000Z 
+19:15:57 assert-only mode: stopping after checks (nothing written) 

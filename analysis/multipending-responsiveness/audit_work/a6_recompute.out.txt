@@ -1,0 +1,8 @@
+own reconstruction: multi pairs 127714, ticks with >=1 124118, equals file validated set: True
+single pairs 23609; A8 every single pair in multi pairs: True
+ticks where RL time window [rl_start, rl_end] and rl_event label disagree (21 GATE events): 0
+per-tick multi n_val: third-impl vs python analyst differ at 0 ticks; vs R analyst 0; vs auditor 0; totals 127714/127714/127714/127714
+per-tick single n_val: third-impl vs python 0 ticks differ; vs R (1-based) 0; vs auditor 0; R pairs (s,v) equal python pairs: True
+third-impl multi: hard validations at ticks where file hard_flag=0: 0; ticks with n_hard>0 and hard_flag=0: 0
+event 51 RL ticks 37, capped both 37, disp equal 37
+ticks differing between files by column (of those read): {'disp': 123807, 'unc': 127870, 'ceiling_applied': 2714, 'flow_bin': 0, 'flow_state': 0, 'validated': 100509, 'hard_flag': 245, 'slot': 104247}
