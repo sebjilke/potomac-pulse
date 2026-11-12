@@ -17,6 +17,8 @@ import {
     lastFetchTime, setLastFetchTime,
     lastReading, setLastReading,
     isFetching, setIsFetching,
+    gfDataReady, learningInFlight,
+    setFetchSettled, setLastAttemptMs,
     edwardsFerryData,
     waterTempC, setWaterTempC,
     creekData,
@@ -404,6 +406,7 @@ const PROXIES_LIST = [
 export async function fetchData({ early = false } = {}) {
     if (isFetching) return;
     setIsFetching(true);
+    setLastAttemptMs(Date.now()); // v39.7: calls blocked by the guard above do not count (resume policy gap)
     try {
     setStatus("loading");
     const sites = Object.keys(GAUGES).join(",");
@@ -508,22 +511,36 @@ export async function fetchData({ early = false } = {}) {
         fetchCreekData()
     ]);
 
+    // v39.7 (PA-6 b): on a refresh (corrections already loaded) a learning load may still be in flight. Wait for
+    // it here, after the network calls and before processData, so the card renders once with the new
+    // corrections. The shared promise never rejects and carries its own 10 s deadline. At startup
+    // (gfDataReady false) the two stay independent.
+    if (gfDataReady && learningInFlight) {
+        try { await learningInFlight; } catch (e) { console.warn('Learning wait failed:', e); }
+    }
+
     if (!usgsJson) {
         console.log('⚠️ No data available - no cache exists');
         setLastFetchTime(null);
         setLastReading(null);
         setDataSource("unavailable");
         setStatus("error");
+        // v39.7 (PA-1): the flag must be set BEFORE the final emit, or the render it triggers cannot see it.
+        setFetchSettled(true);
         emit('data:unavailable');
         return;
     }
 
-    processData(usgsJson);
+    // v39.7 (N-1): processData starts by emptying `data`. If it throws partway, put back what was there
+    // before, so the fetch:settled repaint cannot build a number from a half-built set (first load: {}).
+    const prevData = data;
+    try { processData(usgsJson); } catch (e) { setData(prevData); throw e; }
 
     // Render immediately with USGS + EF data; the forecast/trends use NWS, which is fetched in the
     // background and triggers a re-render via 'nws:arrived' when it lands (v37.4 — replaces the old 4s
     // Promise.race render gate). 'data:unavailable' / 'data:updated' / 'nws:arrived' are all wired in init.js.
     setStatus(dataSource === "live" ? "ok" : (dataSource === "stale" ? "stale" : "cached"));
+    setFetchSettled(true); // v39.7 (PA-1): before the emit, so the card render sees it
     emit('data:updated');
 
     // v39.1: after a service-worker fallback the SW refreshes its cache a few seconds later, but the
@@ -548,16 +565,34 @@ export async function fetchData({ early = false } = {}) {
 
     } finally {
         setIsFetching(false);
+        // v39.7 (4e): if an exception skipped the final setStatus, the status is still "loading" and the
+        // buttons would stay disabled for ever. Release only the buttons.
+        if (currentStatus === "loading") releaseRetryButtons();
+        // v39.7 (PA-7): one hook for every exit (including exceptions): sets fetchSettled, repaints the card
+        // if learning landed mid-fetch, and runs a deferred resume. A handler error must not escape.
+        try { emit('fetch:settled'); } catch (e) { console.warn('fetch:settled handler failed:', e); }
     }
 }
 
 // ==================== STATUS & UI UTILITIES ====================
+
+// v39.7: last status passed to setStatus (4e: lets fetchData's finally notice a stuck "loading").
+let currentStatus = null;
+
+/** Re-enables the header refresh button and the card's "Try again" button (4e). */
+function releaseRetryButtons() {
+    const refreshBtn = document.getElementById("refreshBtn");
+    if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.classList.remove("loading"); }
+    const retryBtn = document.getElementById("gfRetryBtn");
+    if (retryBtn) retryBtn.disabled = false;
+}
 
 /**
  * Updates the status indicator dot, status text, refresh button state, and error banner to reflect the current connection/data state.
  * @param {string} s - The status: "loading", "ok", "cached", "stale", or "error".
  */
 export function setStatus(s) {
+    currentStatus = s;
     const dot = document.getElementById("dot");
     const st = document.getElementById("status");
     const refreshBtn = document.getElementById("refreshBtn");
@@ -571,6 +606,9 @@ export function setStatus(s) {
             refreshBtn.classList.remove("loading");
         }
     }
+    // v39.7: the card's "Try again" button follows the same rule as the header refresh button.
+    const retryBtn = document.getElementById("gfRetryBtn");
+    if (retryBtn) retryBtn.disabled = (s === "loading");
 
     if (s === "loading") {
         dot.className = "dot loading";

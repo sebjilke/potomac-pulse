@@ -4,8 +4,8 @@
 import { loadPoRHistory, loadGFHistory } from './data/history.js';
 import { loadShadowModelState } from './estimation/shadow-models.js';
 import { loadEFHysteresis } from './estimation/edwards-ferry.js';
-import { loadGFLearningData, loadForecastAccuracy, resetGFLearning } from './learning/gf-learning.js';
-import { fetchData, dismissErrorBanner, updateStalenessDisplay } from './data/fetch.js';
+import { loadForecastAccuracy, resetGFLearning } from './learning/gf-learning.js';
+import { dismissErrorBanner, updateStalenessDisplay } from './data/fetch.js';
 import { initMap, toggleMap } from './ui/map.js';
 import { buildBranches, updateUI } from './ui/gauges-ui.js';
 import { buildCreeks, updateCreeksUI } from './ui/creeks-ui.js';
@@ -21,6 +21,7 @@ import { lockLearning } from './ui/auth.js';
 import { on } from './state/event-bus.js';
 import { updateForecastAccuracyUI, updateGreatFallsUI, updateForecastPeriods } from './ui/great-falls-ui.js';
 import { initOfflineBanner } from './ui/offline-banner.js';
+import { refreshAll, maybeResume, onLearningLoaded, onFetchSettled, clearLearningMissed } from './data/refresh.js';
 
 /**
  * Attaches a click handler to the DOM element with the given id, if it exists.
@@ -53,6 +54,10 @@ export async function init() {
         on('learning:reset', updateGFBinStats);
         on('learning:reset', renderAuditLog);
         on('por-history:healed', updateGreatFallsUI);
+        on('learning:loaded', onLearningLoaded);
+        on('fetch:settled', onFetchSettled);
+        on('data:updated', clearLearningMissed);
+        on('data:unavailable', clearLearningMissed);
         on('gf-history:updated', updateForecastPeriods);
 
         // v37.10 (#19): offline indicator (navigator.onLine-driven; see offline-banner.js).
@@ -62,9 +67,19 @@ export async function init() {
         window.addEventListener('online', updateStalenessDisplay);
         window.addEventListener('offline', updateStalenessDisplay);
 
+        // v39.7: refresh on wake. Each event first ages the label (no network), then lets the policy decide
+        // (readings at least 10 min old, 60 s between attempts; see src/data/refresh.js). 'pageshow' covers
+        // back/forward-cache restores where 'visibilitychange' may not fire.
+        const onResume = () => { updateStalenessDisplay(); maybeResume(); };
+        document.addEventListener('visibilitychange', onResume);
+        window.addEventListener('pageshow', onResume);
+        window.addEventListener('online', onResume);
+
         // Bind event listeners (replaces inline onclick handlers)
         bindButton('mapToggleBtn', toggleMap);
-        bindButton('refreshBtn', fetchData);
+        // v39.7 (PA-15): arrow functions, so the click event never reaches refreshAll as an argument.
+        bindButton('refreshBtn', () => refreshAll());
+        bindButton('gfRetryBtn', () => refreshAll());
         bindButton('dismissErrorBtn', dismissErrorBanner);
         bindButton('techAppendixBtn', downloadTechAppendix);
         bindButton('resetGFLearningBtn', resetGFLearning);
@@ -84,9 +99,6 @@ export async function init() {
         // Load EF hysteresis corrections (local learning)
         loadEFHysteresis();
 
-        // Load GF learning data for Great Falls corrections
-        await loadGFLearningData();
-
         // Load forecast accuracy data (non-blocking)
         loadForecastAccuracy().catch(e => console.warn('Forecast accuracy load error:', e));
 
@@ -100,14 +112,16 @@ export async function init() {
         updateLearningUI();
         renderAuditLog();   // load recent admin actions (no-op if learning locked)
 
-        // Fetch current data
-        await fetchData();
+        // v39.7: learning (10 s deadline) and the data fetch start together, after the UI is built. The card
+        // waits for both (gate in updateGreatFallsUI); 'learning:loaded' repaints it if learning lands last.
+        // refreshAll never rejects, so awaiting it cannot send a failed load to the catch below.
+        await refreshAll();
     } catch(e) {
         console.error('Init error:', e);
         // Fallback: at least show the map
         initMap();
         buildBranches();
         buildCreeks();
-        fetchData();
+        refreshAll(); // v39.7: the fallback also loads learning, so the card cannot wait for it for ever
     }
 }

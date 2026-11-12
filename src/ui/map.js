@@ -5,6 +5,7 @@ import L from 'leaflet';
 import { LF, GAUGES, BRANCHES, GREAT_FALLS } from '../model/constants.js';
 import { map, setMap, markers } from '../state/store.js';
 import { popup } from '../ui/gauges-ui.js';
+import { createOutlineLoader } from './map-outlines.js';
 
 // ==================== NHD RIVER STYLING ====================
 
@@ -45,42 +46,34 @@ function nhdStyle(feature) {
     };
 }
 
-// Load NHD river GeoJSON from static asset, add behind markers
-/**
- * Fetches the NHD river GeoJSON static asset and adds the styled rivers layer behind the markers; logs a warning on failure.
- * @param {L.Map} mapInstance - The Leaflet map to add the rivers layer to.
- * @returns {void}
- */
-function loadNHDRivers(mapInstance) {
-    fetch('/potomac-nhd.geojson')
-        .then(r => r.json())
-        .then(data => {
-            L.geoJSON(data, { style: nhdStyle }).addTo(mapInstance).bringToBack();
-        })
-        .catch(err => console.warn('NHD rivers failed to load:', err));
-}
+// v39.7: the two outline files are fetched on the first map open, one run-once promise per file. The service
+// worker precaches both files, so this is served from the precache and works offline after one online visit.
+// Both layers call bringToBack() and arrive in whatever order the fetches resolve (as before).
+const outlineLoader = createOutlineLoader({
+    fetchFn: (url) => fetch(url),
+    files: [
+        {
+            url: '/potomac-watershed.geojson',
+            add: (data) => {
+                L.geoJSON(data, {
+                    style: { color: '#2563eb', weight: 1.5, opacity: 0.35, fillColor: '#2563eb', fillOpacity: 0.04 }
+                }).addTo(map).bringToBack();
+            }
+        },
+        {
+            url: '/potomac-nhd.geojson',
+            add: (data) => { L.geoJSON(data, { style: nhdStyle }).addTo(map).bringToBack(); }
+        }
+    ]
+});
 
-// Load Potomac watershed boundary polygon, add behind rivers
 /**
- * Fetches the Potomac watershed boundary GeoJSON and adds the styled boundary polygon behind the rivers; logs a warning on failure.
- * @param {L.Map} mapInstance - The Leaflet map to add the watershed boundary layer to.
- * @returns {void}
+ * Loads the watershed boundary and NHD river outlines the first time the map is shown (a failed file retries
+ * on the next open; a loaded file is never added twice). Failures only log a warning.
+ * @returns {Promise<*>}
  */
-function loadWatershedBoundary(mapInstance) {
-    fetch('/potomac-watershed.geojson')
-        .then(r => r.json())
-        .then(data => {
-            L.geoJSON(data, {
-                style: {
-                    color: '#2563eb',
-                    weight: 1.5,
-                    opacity: 0.35,
-                    fillColor: '#2563eb',
-                    fillOpacity: 0.04
-                }
-            }).addTo(mapInstance).bringToBack();
-        })
-        .catch(err => console.warn('Watershed boundary failed to load:', err));
+export function ensureMapOutlines() {
+    return map ? outlineLoader.ensureOutlines() : Promise.resolve();
 }
 
 // ==================== MAP FUNCTIONS ====================
@@ -121,11 +114,7 @@ export function initMap() {
     tileLayer.on('load', () => overlay.classList.add('hidden'));
     tileLayer.on('loading', () => overlay.classList.remove('hidden'));
 
-    // Watershed boundary (async, behind rivers and markers)
-    loadWatershedBoundary(mapInstance);
-
-    // NHD rivers (async, added behind markers via bringToBack)
-    loadNHDRivers(mapInstance);
+    // v39.7: the watershed and river outlines load on the first map open, not here.
 
     // Gauges
     for (const [id, g] of Object.entries(GAUGES)) {
@@ -294,5 +283,5 @@ export function toggleMap() {
     const show = document.body.classList.toggle('show-map');
     btn.setAttribute('aria-pressed', show);
     btn.classList.toggle('active', show);
-    if (map && show) map.invalidateSize();
+    if (map && show) { map.invalidateSize(); ensureMapOutlines(); }
 }

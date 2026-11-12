@@ -39,8 +39,8 @@ import './ui/about.js';
 
 // Application initialization
 import { init } from './init.js';
-import { fetchData, updateStalenessDisplay } from './data/fetch.js';
-import { loadGFLearningData } from './learning/gf-learning.js';
+import { updateStalenessDisplay } from './data/fetch.js';
+import { refreshAll } from './data/refresh.js';
 
 // Boot the application
 init().catch(e => {
@@ -48,16 +48,12 @@ init().catch(e => {
     Sentry.captureException(e);
 });
 
-// Refresh every 15 minutes. v37.13: the learning payload refreshes first (it carries the
-// EF divergence advisory, whose 2h freshness guard would otherwise hide it for long-open
-// tabs — plan F8), then fetchData re-renders. v39.1 correction: the learning payload is read
-// from /api/sync, which the service worker does NOT cache (only /.netlify/functions/sync-learning
-// is), so there is no SWR convergence here; each cycle simply fetches it from the network.
-// Learning-refresh failure must never block the data refresh.
-setInterval(async () => {
-    try { await loadGFLearningData(); } catch (e) { console.warn('Learning refresh failed:', e); }
-    fetchData();
-}, 900000);
+// Refresh every 15 minutes. v37.13: the learning payload refreshes with the data (it carries the EF divergence
+// advisory, whose 2h freshness guard would otherwise hide it for long-open tabs). v39.1 correction: it is read
+// from /api/sync, which the service worker does NOT cache, so each cycle fetches it from the network.
+// v39.7: refreshAll starts the learning load and the data fetch together; a learning failure or timeout (10 s)
+// never blocks the data refresh, and on a refresh fetchData waits for the learning load before it renders.
+setInterval(() => { refreshAll(); }, 900000);
 
 // Update staleness display every minute
 setInterval(updateStalenessDisplay, 60000);

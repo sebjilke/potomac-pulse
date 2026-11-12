@@ -14,7 +14,7 @@ import {
     edwardsFerryData,
     lastForecastPredictionTime, setLastForecastPredictionTime,
     forecastAccuracyData, setForecastAccuracyData,
-    setShadowLeaderboard
+    setShadowLeaderboard, setLearningInFlight
 } from '../state/store.js';
 
 import { getEdwardsFerryTrend } from '../estimation/edwards-ferry.js';
@@ -23,13 +23,65 @@ import { emit } from '../state/event-bus.js';
 
 // ==================== GF LEARNING DATA ====================
 
+// v39.7: the learning call has a deadline. 10 s matches the 10 s timeout of the main USGS call, so the card
+// and the numbers settle in the same window; the server normally answers in well under 2 s. A shorter
+// deadline would turn a slow but working answer into an uncorrected number on the card.
+const LEARNING_DEADLINE_MS = 10000;
+
+/**
+ * Fetches JSON with one deadline that covers headers AND body. It races a timer instead of relying only on
+ * the abort, so a stalled body (or a fetch that ignores the abort) still ends at the deadline.
+ * @param {string} url
+ * @param {number} ms
+ * @returns {Promise<{ok: boolean, status: number, body: *}>}
+ */
+function fetchJsonWithDeadline(url, ms) {
+    const controller = new AbortController();
+    let timer;
+    const deadline = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+            controller.abort();
+            reject(new Error(`Request timed out after ${ms}ms`));
+        }, ms);
+    });
+    const work = (async () => {
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) return { ok: false, status: response.status, body: null };
+        return { ok: true, status: response.status, body: await response.json() };
+    })();
+    work.catch(() => {}); // the race may already be lost; do not leave an unhandled rejection
+    return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
+}
+
+let loadGen = 0;      // each request takes a number; only the newest may write to the store (admin reset)
+let inFlight = null;  // the shared request, so two callers make one call
+
 /**
  * Fetches GF (System 2) learning data from the sync API, populating the store with
  * correction bins, EF correlation, and shadow leaderboard; falls back to an empty
- * structure on failure and marks GF data as ready.
+ * structure on failure and marks GF data as ready. v39.7: 10 s deadline, one shared request
+ * for concurrent callers, and a 'learning:loaded' event when it settles. Never rejects.
+ * @param {{force?: boolean}} [opts] - force: skip sharing and start a new request (admin reset).
  * @returns {Promise<void>}
  */
-export async function loadGFLearningData() {
+export function loadGFLearningData({ force = false } = {}) {
+    if (inFlight && !force) return inFlight;
+    const my = ++loadGen;
+    const p = (async () => {
+        try {
+            await doLoadGFLearning(my);
+        } catch (e) {
+            console.warn('GF learning load error:', e);
+        } finally {
+            if (inFlight === p) { inFlight = null; setLearningInFlight(null); }
+        }
+    })();
+    inFlight = p;
+    setLearningInFlight(p);
+    return p;
+}
+
+async function doLoadGFLearning(my) {
     // Default empty structure
     const emptyData = {
         correctionBins: {},
@@ -37,23 +89,26 @@ export async function loadGFLearningData() {
         metadata: { totalValidations: 0, totalPredictions: 0, avgErrorPercent: null },
         efCorrelation: null
     };
+    const current = () => my === loadGen; // a newer request (admin reset) owns the store
 
     try {
-        const response = await fetch(SYNC_API + '?endpoint=gf');
+        const response = await fetchJsonWithDeadline(SYNC_API + '?endpoint=gf', LEARNING_DEADLINE_MS);
         if (response.ok) {
-            setGfLearningData(await response.json());
-            console.log('🌊 GF learning data loaded:', gfLearningData.metadata);
+            if (current()) {
+                setGfLearningData(response.body);
+                console.log('🌊 GF learning data loaded:', gfLearningData.metadata);
 
-            // Store EF correlation for use in estimation
-            if (gfLearningData.efCorrelation?.slope) {
-                edwardsFerryData.correlation = gfLearningData.efCorrelation;
-                console.log(`📍 EF correlation loaded: CFS = ${gfLearningData.efCorrelation.slope.toFixed(0)} × stage + ${gfLearningData.efCorrelation.intercept.toFixed(0)}`);
-            }
+                // Store EF correlation for use in estimation
+                if (gfLearningData.efCorrelation?.slope) {
+                    edwardsFerryData.correlation = gfLearningData.efCorrelation;
+                    console.log(`📍 EF correlation loaded: CFS = ${gfLearningData.efCorrelation.slope.toFixed(0)} × stage + ${gfLearningData.efCorrelation.intercept.toFixed(0)}`);
+                }
 
-            // Store shadow leaderboard for UI rendering
-            if (gfLearningData.shadowLeaderboard) {
-                setShadowLeaderboard(gfLearningData.shadowLeaderboard);
-                console.log(`🏇 Shadow leaderboard loaded: ${gfLearningData.shadowLeaderboard.totalRounds} rounds`);
+                // Store shadow leaderboard for UI rendering
+                if (gfLearningData.shadowLeaderboard) {
+                    setShadowLeaderboard(gfLearningData.shadowLeaderboard);
+                    console.log(`🏇 Shadow leaderboard loaded: ${gfLearningData.shadowLeaderboard.totalRounds} rounds`);
+                }
             }
         } else {
             console.warn('GF learning API returned:', response.status);
@@ -61,15 +116,19 @@ export async function loadGFLearningData() {
             // the 15-min cycle, and wiping to emptyData would drop the live correction bins
             // (and thus the displayed estimate's correction) for a whole cycle on one flaky
             // response. emptyData is only the cold-start fallback.
-            if (!gfLearningData) setGfLearningData(emptyData);
+            if (current() && !gfLearningData) setGfLearningData(emptyData);
         }
     } catch (e) {
+        // Network error, bad JSON, or the deadline: same as before the deadline existed.
         console.warn('Failed to load GF learning data:', e);
-        if (!gfLearningData) setGfLearningData(emptyData);
+        if (current() && !gfLearningData) setGfLearningData(emptyData);
     }
 
+    if (!current()) return;
     // Mark GF data as ready (UI will update when USGS data arrives)
     setGfDataReady(true);
+    // A handler error must never turn a good load (or an admin reset) into a failure.
+    try { emit('learning:loaded'); } catch (e) { console.warn('learning:loaded handler failed:', e); }
 }
 
 // ==================== PREDICTION STORAGE ====================
@@ -192,7 +251,7 @@ export async function resetGFLearning() {
         if (result.success) {
             alert("GF learning data reset.\n\nFlow-bin corrections cleared.\nNew observations will start accumulating with proper flow state classification.");
             // Reload GF learning data
-            await loadGFLearningData();
+            await loadGFLearningData({ force: true });
             emit('learning:reset');
         } else {
             alert("Reset failed: " + (result.error || 'Unknown error'));

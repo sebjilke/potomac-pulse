@@ -14,7 +14,7 @@ import {
     data, gfEstimate, setGfEstimate,
     edwardsFerryData, waterTempC,
     gfDataReady, gfLearningData, gfHistory,
-    forecastAccuracyData
+    forecastAccuracyData, fetchSettled, dataSource
 } from '../state/store.js';
 
 import { estimateGreatFalls, getPoRFromHoursAgo, getPoRRiseRate } from '../estimation/great-falls.js';
@@ -28,6 +28,7 @@ import {
     RESIDUAL_ADVISORY_TITLE, RESIDUAL_ADVISORY_BODY
 } from './residual-advisory.js';
 import { capView, applyCapView, ciRowText } from './cap-indicator.js';
+import { gfCardState } from './gf-card-state.js';
 import { runShadowModels } from '../estimation/shadow-models.js';
 import { recordGFEstimate } from '../data/history.js';
 import { fmtArrival } from '../data/fetch.js';
@@ -49,6 +50,31 @@ function renderCapIndicator(estimate) {
         row: document.getElementById("gf-input-ceiling")
     });
     return view;
+}
+
+// v39.7: card state before an estimate exists (pure logic in gf-card-state.js). Display only.
+// For "unavailable" it writes the label, the reason line and shows "Try again". For "ice" it does nothing
+// (the ice branch owns its own label). For "loading" it restores the normal label. It has no early return
+// and no renderCapIndicator call on purpose: test/cap-indicator.test.mjs reads the shape of the function below.
+function renderGFCardGate(view) {
+    if (view.kind === 'unavailable') {
+        document.getElementById("gf-cfs").textContent = "--";
+        document.getElementById("gf-stage").textContent = "--";
+        const labelEl = document.getElementById("gf-estimate-label");
+        labelEl.textContent = "UNAVAILABLE";
+        labelEl.style.color = "var(--text-muted)";
+        const trendEl = document.getElementById("gf-trend");
+        trendEl.textContent = view.text;
+        trendEl.style.color = "var(--text-muted)";
+        document.getElementById("gf-confidence").textContent = "";
+        const retryBtn = document.getElementById("gfRetryBtn");
+        if (retryBtn) retryBtn.hidden = false;
+    } else if (view.kind === 'loading') {
+        const labelEl = document.getElementById("gf-estimate-label");
+        labelEl.textContent = "ESTIMATED NOW";
+        labelEl.style.color = "var(--text-muted)";
+        document.getElementById("gf-trend").style.color = "var(--text-muted)";
+    }
 }
 
 // ==================== GF ESTIMATE (compute, separated from render) ====================
@@ -75,6 +101,9 @@ export function computeGFEstimate() {
  */
 export function updateGreatFallsUI() {
     if (!document.getElementById("gf-cfs")) return; // DOM not ready
+    // v39.7 (PA-3): "Try again" shows only in the unavailable state; every render starts with it hidden.
+    const gfRetryBtn = document.getElementById("gfRetryBtn");
+    if (gfRetryBtn) gfRetryBtn.hidden = true;
     // Show loading state until GF corrections AND Edwards Ferry data are loaded
     // This prevents the GF value from "jumping" when EF arrives
     const efReady = edwardsFerryData.current !== null;
@@ -88,6 +117,10 @@ export function updateGreatFallsUI() {
         document.getElementById("gf-forecast-cfs").textContent = "--";
         document.getElementById("gf-forecast-stage").textContent = "--";
         document.getElementById("gf-forecast-hrs").textContent = "--";
+        renderGFCardGate(gfCardState({
+            learningReady: gfDataReady, efReady, fetchSettled,
+            sourceUnavailable: dataSource === "unavailable", hasEstimate: false, iceIssue: false
+        }));
         renderCapIndicator(null);
         return;
     }
@@ -120,6 +153,10 @@ export function updateGreatFallsUI() {
         document.getElementById("gf-forecast-cfs").textContent = "--";
         document.getElementById("gf-forecast-stage").textContent = "--";
         document.getElementById("gf-forecast-hrs").textContent = "--";
+        renderGFCardGate(gfCardState({
+            learningReady: gfDataReady, efReady, fetchSettled,
+            sourceUnavailable: dataSource === "unavailable", hasEstimate: false, iceIssue: !!isIceIssue
+        }));
         renderCapIndicator(null);
         return;
     }

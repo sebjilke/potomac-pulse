@@ -38,6 +38,13 @@ export let lastFetchTime = null;
 // v39.1: reading time of the data on screen ({ ms, lf, por } in ms, or null). Set by processData.
 export let lastReading = null;
 export let isFetching = false;
+// v39.7: set the first time a fetch finishes with any outcome (never goes back to false). Lets the Great Falls
+// card say "unavailable" instead of "..." once there is nothing left to wait for.
+export let fetchSettled = false;
+// v39.7: start of the last fetch attempt (ms). Used by the resume policy's 60 s gap.
+export let lastAttemptMs = null;
+// v39.7: the learning load in flight, or null. fetchData awaits it on a refresh so the card renders once.
+export let learningInFlight = null;
 
 // --- Edwards Ferry ---
 export let efHysteresis = {
@@ -100,6 +107,12 @@ export function setLastFetchTime(v) { lastFetchTime = v; }
 export function setLastReading(v) { lastReading = v; }
 /** Set the {@link isFetching} state value. @param {boolean} v - New fetch-in-progress flag. */
 export function setIsFetching(v) { isFetching = v; }
+/** Set the {@link fetchSettled} state value. @param {boolean} v - True once any fetch has finished. */
+export function setFetchSettled(v) { fetchSettled = v; }
+/** Set the {@link lastAttemptMs} state value. @param {(number|null)} v - Start time of the last fetch attempt (ms). */
+export function setLastAttemptMs(v) { lastAttemptMs = v; }
+/** Set the {@link learningInFlight} state value. @param {(Promise|null)} v - The shared learning-load promise, or null. */
+export function setLearningInFlight(v) { learningInFlight = v; }
 /** Set the {@link efHysteresis} state value. @param {Object} v - New Edwards Ferry hysteresis object. */
 export function setEfHysteresis(v) { efHysteresis = v; }
 /** Set the {@link edwardsFerryData} state value. @param {Object} v - New Edwards Ferry data object. */

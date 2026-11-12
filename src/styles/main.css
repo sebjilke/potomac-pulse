@@ -68,6 +68,8 @@ header h1 { font-size: 1.1rem; color: var(--accent-blue); }
 .btn:focus { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
 .btn.active { background: var(--focus-ring); color: white; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* v39.7: .btn sets display:flex, which beats the browser's [hidden] rule; this keeps "Try again" hidden. */
+#gfRetryBtn[hidden] { display: none; }
 .btn.loading { animation: spin 1s linear infinite; }
 
 /* Loading skeleton */
