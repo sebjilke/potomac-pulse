@@ -1,0 +1,22 @@
+A6 multi-pending validation: blind Python metric analysis (plan analysis/multipending-responsiveness-plan-2026-11-11.md, v2 frozen, incl. 16b and D-1).
+
+Files
+- a6_metrics_python.py   One script that regenerates everything. /usr/bin/python3 (3.9.6, numpy 2.0.2, pandas 2.3.3).
+                         `--assert-only` runs A0 (checksums), A1-A9, BAND, the extra checks, T80 and P-MECH, prints the
+                         check rows (P-MECH: pass flag only) and writes nothing. Without the flag it writes the CSV and
+                         then runs a self-check that lists missing/duplicate required keys (exit 3 if any).
+                         On any failed check it writes the check rows reached so far and exits 2 (STOP); no metric is computed.
+- a6_metrics_python.csv  Output, columns run,criterion,mode,subset,stat,key,value (plan section 10 + 16b REP_START).
+                         Values: Python repr of doubles, Inf for +infinity, NA for undefined.
+- ASSUMPTIONS.txt        Readings taken where the plan was not explicit, and the n_checked/n_fail unit of each check.
+- LOG.txt                Step log.
+
+Inputs read: both tick files (base rows only, pandas chunked read, all columns as text, filter arm == base; the arm column
+of all rows is kept only for A1), the event file, the all-events bootstrap index file, a6_month_list.csv,
+a6_month_block_indices.csv, netlify/functions/shared/ci-table.js (band table transcribed in the script and checked
+literal by literal against the file text at run time).
+
+Extra rows beyond section 10 (report or check only, never decide anything):
+- check SCHEMA_MASKPRED (TICK_SCHEMA rule 2 and non-blank truth/disp/unc on scored ticks), check RLCOUNT (scored GATE RL
+  ticks per event equal x3_scored_rl_ticks of the frozen event file), report EV mae_diff (multi MAE minus single MAE per event),
+  report REP_START start_lf rows carry the group as subset.

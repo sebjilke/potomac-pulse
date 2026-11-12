@@ -1,0 +1,32 @@
+{
+ "single": {
+  "n_val": 23609,
+  "n_learned": 23575,
+  "n_hard": 34,
+  "n_soft": 2313,
+  "n_dropped_missed": 11,
+  "n_stale": 6,
+  "n_stored": 23627,
+  "n_pending_at_end": 1,
+  "n_ticks_validated": 23609,
+  "n_ticks_hard": 34,
+  "n_ticks_soft": 2313,
+  "max_n_val_per_tick": 1,
+  "balance_stored_eq_val+missed+stale+pending_end": true
+ },
+ "multi": {
+  "n_val": 127714,
+  "n_learned": 127398,
+  "n_hard": 316,
+  "n_soft": 17119,
+  "n_dropped_missed": 98,
+  "n_stale": 48,
+  "n_stored": 127874,
+  "n_pending_at_end": 14,
+  "n_ticks_validated": 124118,
+  "n_ticks_hard": 279,
+  "n_ticks_soft": 16246,
+  "max_n_val_per_tick": 6,
+  "balance_stored_eq_val+missed+stale+pending_end": true
+ }
+}

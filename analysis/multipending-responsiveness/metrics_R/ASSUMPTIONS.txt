@@ -1,0 +1,23 @@
+A6 blind R analyst: readings taken where the plan was unclear (most literal reading, decided before any metric was computed).
+
+1. A1 "rows in tick order": checked on the arm column of all rows (base,A,B,C repeating over 523,948 rows) and on the base rows' tick_utc (strictly hourly from 2011-12-01T05:00Z to 2026-11-09T23:00Z, 130,987 ticks; multi base tick_utc identical to single). tick_utc of non-base rows was not read into any table.
+2. A4 slot rule ("in the multi file slot == stored on every row with has_pred == 1, '' or no_prediction otherwise") is checked on ALL base ticks, not only before the first validation. The column-equality part is checked on ticks before the first validated==1 tick of either file (5 ticks).
+3. A5 truth_tick check covers ticks with any RL/RLX/REC label (any class), in both files.
+4. A6 consistency matches each single validated tick v to the latest stored tick s < v; completeness uses v* = first tick with t >= due(s) whose lf_view is valid (blank, 0, <500, >500000 = invalid), applied when v* - due <= 9,000,000 ms.
+5. A7: a multi pending exists at each base tick with has_pred == 1; validated at the first due tick with valid LF if within 2.5 h, else dropped there. Pendings with no later valid-LF due tick (14, at the grid end) are neither validated nor dropped.
+6. A8 hard_flag equality is compared at v between the two files for each single validation (s,v).
+7. n_checked conventions: A0 files; A1 sub-checks; A2 ticks x 17 cols + ticks (mask_why rule); A3 ticks x 24 cols; A4 pre-validation ticks x 49 cols + ticks (slot rule); A5 2 file checks + labelled ticks with a truth_tick in both files; A6 validations + completeness-applicable stores; A7 ticks in the union of the two validation-tick sets; A8 2 x single validations + 21 events (corollary); A9 ticks capped in both files (whole grid); BAND (tick, mode) pairs over ticks scored under either the A5 mask or the file mask.
+8. BAND table: parsed from ci-table.js text; a flow_state other than rising/steady/falling uses `all`; flow_bin/flow_state are each mode's own columns (equal by A3). Math.round implemented as floor(x + 0.5).
+9. K_e: counts reconstructed validation PAIRS (s,v) that are event-created learned (s >= r_e, v <= tend_e, hard_flag(v)==0) with rl_event at v == e; pairs at v with s < r_e are not counted even though they are in n_val(v). No in_scoring/mask filter on v (none is stated).
+10. RESP D_t0_h: the same first event-created learned validation v as D_e, measured from event_t0 instead of r_e (can be negative). D_lf3000_h (event 53): reference tick = the tick after the last tick before t0 with lf_view < 3,000; same v.
+11. dD_e = Inf - Inf := 0; median = 11th order statistic of 21 values. K ratio = Inf if sum K single = 0 and sum K multi > 0.
+12. Event bootstrap: rows of the index file in event_t0 order (GATE, kept, event_row==1); S1 drop rule applied as for S2/D1 (n_b == 0 dropped; none arise for RL).
+13. Month blocks: month = substr(tick_utc,1,7); script asserts the month list equals the set of months holding at least one scored normal tick (A5 mask). N1 n_res_used = resamples with a positive single sum. N2 drops a resample for a cell when the cell has 0 ticks or a 0 single sum in the drawn months.
+14. Edge run (N1_edge, N2_edge): file mask as written; the cell set is the one fixed from the A5 sample (plan section 5). The edge sample yields the same cell set.
+15. U_R2 emits all R2 rows including a pass flag (report only); U_D1 emits bias per mode, point and n_ticks.
+16. F24 = scored GATE RL ticks with tick_utc >= event_t0 (RL already ends at min(t0+24h, tp)).
+17. SPLIT: v1_e = first multi event-created learned validation of event e; if none, all RL ticks are "before".
+18. BINM: for each scored RL21 tick t of event e and mode m: count of that mode's event-created learned validations of e with v <= t and (flow_bin, flow_state) at s equal to those at t; mean over the 727 ticks.
+19. REP_START: L_e = lf_view at r_e (else first non-blank later in the RL window); start_lf rows carry the subset of the event's group; mode labels: counts both, mae_single single, mae_multi multi, gain diff; `improved` = number of improved events (R3 definition) in the group.
+20. Value format: doubles via format(x, digits = 17); counts as integers; Inf as "Inf", undefined as "NA".
+21. Times in the event file ("YYYY-MM-DD HH:MM") read as UTC.

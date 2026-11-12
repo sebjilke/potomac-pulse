@@ -1,0 +1,26 @@
+Readings taken (A6 third implementation)
+
+1. Missed-window rows in multi. Production validatePendingPredictions does NOT delete a due row that is
+   past its 2.5 h window; it leaves it for the 48 h stale rule. The plan (section 9 and A7) says multi
+   drops it at the first valid-LF tick at which it is due. I followed the plan. This cannot change
+   learning (a row past its window can never validate later); it only changes the n_dropped_missed /
+   n_stale / n_pending_after split. My stale total (48) equals the run-log counter, which it would not
+   under the keep-until-48 h reading (the 98 missed rows would add to stale), so the harness made the
+   same choice.
+2. Within one valid-LF tick, rows are handled one by one in creation order (production loop): stale
+   check, then due-and-in-window -> learning gate (bins updated before the next row), else due-and-past
+   -> drop, else keep. This is the plan's "drop stale, validate due in creation order, drop missed".
+3. Tick flags in multi: validated = any validation at the tick; hard_flag = OR over validations;
+   soft_flag = OR over validations (plan A7). Per-validation counts are in the counts file.
+4. Single slot: a replacement of a missed-window row is written 'stored' (TICK_SCHEMA col 47, plan A6);
+   I count it as one n_dropped_missed and one stored. A pending that turns 48 h old at a valid-LF tick
+   is dropped (n_stale) and nothing is validated at that tick (production: stale check comes first).
+5. 'Stored' total = predictions stored in the chain (single: stored + replaced; multi: every tick with a
+   prediction). 'Learned' = validated and not hard-flagged (no bin-read failures exist in a replay).
+6. Due time: trunc(created_ms + travel*60*60*1000) evaluated left to right in double (port's dueMs).
+7. LF validity at validation: lf view truthy and 500 <= q <= 500000 (production guard).
+8. Validation inputs (LF q and stage, EF stage, water temperature) are the primary lag view at the
+   validation tick (A7 plan section 4, learning gate inputs).
+9. Event subsets: ticks from t0-71 h to tend+24 h of the event_row==1 record of ids 11, 30, 51, 53 in
+   rising_limb_events_python_v39.csv (A7 D-7 E5 wording as quoted in plan section 9).
+10. has_pred was compared in addition to the named fields (exact). It is not one of the plan's fields.

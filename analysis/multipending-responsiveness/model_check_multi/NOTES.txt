@@ -1,0 +1,38 @@
+A6 third implementation (plan multipending-responsiveness-plan-2026-11-11.md, section 9 and 16b point 2)
+Independent Python replay of the BASE single-slot chain and the BASE multi-pending chain from empty bins
+over the full grid (2011-12-01T05:00Z .. 2026-11-09T23:00Z, 130,987 ticks), compared with the base rows
+of rising_limb_ticks.csv (single) and rising_limb_ticks_multi.csv (multi). No truth column was read and
+no error against truth was computed.
+
+Files
+- a6_multi_model_check_python.py  regenerates every file below (/usr/bin/python3, about 30 s). Lines
+  marked PORT are copied from analysis/rising-limb-travel-backtest/model_check/rising_limb_model_check_python.py
+  (permitted start point); the A6 section (gate, SingleChain, MultiChain, reading, comparison) is new.
+- a6_multi_model_check.csv  one row per chain x subset x field. Columns: chain (single|multi), subset
+  (all | event_11 | event_30 | event_51 | event_53; event subsets are ticks t0-71 h .. tend+24 h),
+  field, tolerance (cfs or h; 'exact' = text equality, blank must match blank), n_compared,
+  n_both_nonblank, n_beyond_tol, max_abs_diff (numeric fields only), first_diverging_tick,
+  mine_at_first, harness_at_first, first_tick, last_tick. Fields: corr (0.5), raw (1), travel_por_gf
+  (0.01), travel_gf_lf (0.01), validated, hard_flag, soft_flag, slot, plus has_pred (extra, exact).
+- a6_multi_validation_counts.csv  per tick (multi): tick_utc, n_val, n_learned, n_hard, n_soft,
+  n_dropped_missed, n_stale, n_pending_after (pending rows held after the tick's store).
+- a6_single_validation_counts.csv  same columns for the single chain (n_dropped_missed = a
+  missed-window row replaced at the store step; n_pending_after is 0 or 1).
+- a6_totals.json  whole-grid totals per chain. n_val = validated (claimed) rows, n_learned = not
+  hard-flagged, n_hard, n_soft (per validation), n_dropped_missed, n_stale, n_stored, n_pending_at_end,
+  tick-level counts (ticks with validated/hard_flag/soft_flag = 1), max_n_val_per_tick, and a balance
+  check stored = val + missed + stale + pending_end.
+- ASSUMPTIONS.txt  readings taken where the plan or code left a choice.
+- LOG.txt  run log (append-only; also written by the script at each run).
+
+Result (run 2026-11-12, reproduced byte for byte by a second run)
+- Both chains: 0 values beyond tolerance on all 130,987 base ticks and in each report-event subset
+  (1,555 event ticks). raw and both travel times exact (max diff 0); corr max diff 2.3e-11 (single),
+  4.5e-11 (multi).
+- Totals single: validated 23,609, learned 23,575, hard 34, soft 2,313, dropped missed 11, stale 6,
+  stored 23,627, pending at end 1.
+- Totals multi: validated 127,714, learned 127,398, hard 316, soft 17,119, dropped missed 98, stale 48,
+  stored 127,874, pending at end 14; ticks with validated=1 124,118, max 6 validations at one tick.
+- Negative control (not saved; scratch run): each replay compared with the OTHER chain's file differs
+  on 127,432 corr and 100,509 validated values and on 0 raw/travel values, so the comparison
+  discriminates and raw is bin-independent.

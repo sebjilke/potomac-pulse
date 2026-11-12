@@ -1,0 +1,13 @@
+A6 multi-pending validation, blind R analysis (plan: analysis/multipending-responsiveness-plan-2026-11-11.md, sections 3-10 and 16b).
+
+a6_metrics_R.R   The only script. Regenerates everything: sha256 checks (A0), base-row reading of both tick files
+                 (readr::read_csv_chunked, all columns text, arm == base kept in the callback), assertions A1-A9,
+                 the band check, P-MECH, then all gate, edge and report metrics, and a self-check of the
+                 required section-10 rows (missing or duplicate keys stop the script with status 4).
+                 `Rscript a6_metrics_R.R --assert-only` stops after the checks and P-MECH and writes nothing.
+                 Exit 2 = assertion failure (check rows written), 3 = STOP-MECH (check + RESP rows written).
+a6_metrics_R.csv Output, columns run,criterion,mode,subset,stat,key,value (section 10 layout plus REP_START, 16b).
+ASSUMPTIONS.txt  Readings taken where the plan was unclear.
+LOG.txt          Step log of this analysis session.
+Tools: R 4.5.2, readr 2.1.6, dplyr; shasum -a 256 via system2. No sampling of its own (index files only).
+Two full runs produced byte-identical CSVs.

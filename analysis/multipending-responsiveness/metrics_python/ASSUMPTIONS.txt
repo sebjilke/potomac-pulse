@@ -1,0 +1,57 @@
+Readings taken where the plan was not explicit (most literal reading; none chosen by effect on results; all fixed before any metric was computed).
+
+Checks: unit of n_checked / n_fail
+- A0: 6 files; n_fail = sha256 mismatches.
+- A1: n_checked = data rows of both files (2 x 523,948). n_fail = rows whose arm breaks base,A,B,C order + each failed
+  file-level condition (row count, 50-column identical header, 130,987 base rows, base ticks consecutive hourly from
+  2011-12-01T05:00Z to 2026-11-09T23:00Z, 122,208 in_scoring == 1). "Four per tick ... checked on the arm column only":
+  arm order is checked on the arm column; tick order is checked on base rows (consecutive hours); tick_utc of A/B/C rows
+  is not compared.
+- A2, A3: n_checked = ticks (130,987); n_fail = ticks with any listed column unequal as text (A2 also counts multi rows
+  with mask_why == view_input_missing).
+- A4: "before the first validated == 1 tick in either file" = ticks with index below the first validated tick of either
+  file (5 ticks). The slot rule ("in the multi file slot == stored on every row with has_pred == 1, '' or no_prediction
+  otherwise") is applied to ALL base rows of the multi file, not only the pre-validation ticks. n_checked = 5 + 130,987.
+- A5: n_checked = 2 (D-8 tick, one per file) + ticks carrying any RL/RLX/REC label (any class). truth_tick_utc blank
+  on labelled ticks is not a failure (masked ticks); only non-blank values after 2026-11-09T23:00Z fail.
+- A6: n_checked = single validations (consistency) + single stores (completeness). Both run over the full grid
+  (including burn-in). A stored tick needs travel_gf_lf non-blank.
+- A7: n_checked = ticks (130,987); n_fail = ticks where "has >= 1 reconstructed validation" differs from multi validated == 1.
+  Pending created at every base tick with has_pred == 1 over the full grid; validation tick v > s.
+- A8: n_checked = single validations (pair present in multi reconstruction with equal hard_flag at v in both files)
+  + 21 GATE events (finite D single and infinite D multi).
+- A9: n_checked = ticks with ceiling_applied == 1 in both files (whole grid).
+- BAND: n_checked = scored ticks x 2 files; each file's own disp, flow_bin, flow_state.
+- Due time computed as trunc(s_ms + ((travel*60)*60)*1000) in double; first due tick = integer ceiling; LF valid iff
+  lf_view non-blank and 500 <= lf_view <= 500,000 (0 is below 500).
+
+Definitions
+- Event times in the event file ("YYYY-MM-DD HH:MM") are read as UTC.
+- GATE / STRATUM events = event_row == 1, kept == 1, by event_class (21 / 15). Bootstrap order = event_t0 ascending
+  (matches the order printed in the index sha256 file).
+- K_e: event-created learned validations (s >= r_e, v <= tend_e, hard_flag(v) == 0) with rl_event at v == e (window
+  membership from the label column, as section 4 requires).
+- D_t0_h ("D_e measured from t0"): r_e is replaced by t0 in the whole definition (s >= t0, hours from t0 to the first
+  such v), not just D_e - 12. Infinity if none. Same for D_lf3000_h with the October reference tick.
+- October LF reference tick: take the last tick before t0 whose lf_view is non-blank and < 3,000; the reference is the
+  tick right after it.
+- dD_e: inf - inf = 0; inf - finite = inf. Median = 11th order statistic of the 21 ascending values.
+- F24_21: scored ticks with rl_event in the GATE events and tick_utc >= that event's t0 (F24 = RL minus its first 12 h).
+- EV "diff | RLev | point": read as the gain 1 - MAE(multi)/MAE(single), as "point" is used everywhere else; an extra row
+  "diff | RLev | mae_diff" gives the multi-minus-single MAE change (section 5 wording) as well.
+- U_R2 carries the same rows as R2, including a pass flag computed with R2's threshold (report-only, decides nothing).
+- U_D1: bias on 100 x e_unc / truth, rows single/multi bias_pp, diff point, both n_ticks.
+- worst_pct: the minimum (most negative) of 100 x e_disp / truth over the event's scored RL ticks.
+- mean_signed_under: mean e_disp over the mode's own under-read ticks; NA if none.
+- BINM: "so far" = validations with v <= t (at tick t the validation step runs before the prediction); bins compared are
+  the mode's own flow_bin / flow_state at s and at t.
+- SPLIT: v1_e = the v giving D_e(multi); if none, all RL ticks are "before". Pooled rows (key "") pool the 21 events.
+- FLAGS and VPT are over ticks with in_scoring == 1 (no mask), as section 5 says.
+- N2_edge cell set is fixed from the edge (file-mask) sample, with the same >= 200 rule.
+- 100 x e / truth computed as (100 * (disp - truth)) / truth in double (bias and under-read alike).
+- CAP4 cells are on the 727 scored GATE RL ticks.
+- REP_START (16b): L_e from lf_view at the tick r_e, else the first non-blank lf_view at a later tick up to the last tick
+  labelled rl_event == e. start_lf rows have subset = the event's group (RL_lowstart or RL_highstart). "improved" = number
+  of events in the group improved under R3's rule. mae_multi has mode multi, mae_single mode single, gain mode diff,
+  counts mode both.
+- Bootstrap percentiles: numpy.percentile default (linear) on resamples kept after the drop rules.

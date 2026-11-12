@@ -1,0 +1,6 @@
+2026-11-12T00:06:18Z step0: read plan (incl 16b, D-1), TICK_SCHEMA, event file, ci-table.js, month-block notes/script, manifest checksums. No metric computed. Next: write a6_metrics_python.py (checks first).
+2026-11-12T00:09:33Z step1: script written (checks + metrics). Running --assert-only.
+2026-11-12T00:09:49Z step2: --assert-only passed: A0-A9, BAND, extra SCHEMA_MASKPRED and RLCOUNT, T80, P-MECH all pass. Running full metrics.
+step3: full run complete: 1074 rows (check 49, gate 301, edge 155, report 569). Self-check: 1017 required keys, 0 missing, 0 duplicate.
+step4: --assert-only made non-writing (prints checks, P-MECH pass flag only). Rerun reproduced the CSV byte for byte
+       (sha256 1888ed427b13a4eaa68ffa7ede4c13f7afd1baf7510cc2f9ea7c66e9321a2bf4). Wrote NOTES.txt and ASSUMPTIONS.txt. Done.

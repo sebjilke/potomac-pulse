@@ -1,0 +1,6 @@
+== A6 R analyst LOG ==
+2026-11-12T00:06:27Z step0: read plan (incl 16b, D-1), TICK_SCHEMA.md, event file, ci-table.js, manifest, month-block notes.
+2026-11-12T00:07:11Z step1: shasum -a 256 of the 6 inputs computed from shell; all 6 match plan section 3 / D-1 / bootstrap sha file (A0 shell pre-check). Peeked header + 3 base rows via awk filter (arm==base only).
+2026-11-12T00:10:41Z step2: wrote a6_metrics_R.R; launching --assert-only run
+2026-11-12T00:10:56Z step3: --assert-only run: A0..A9, BAND all PASS (n_checked A0 6, A1 11, A2 2357766, A3 3143688, A4 131232, A5 11934, A6 47218, A7 124118, A8 47239, A9 3640, BAND 238074); P-MECH PASS. single validations 23609, multi reconstructed validations 127714 (= run-log counters). Proceeding to full run.
+2026-11-12T00:12:08Z step4: full run complete, exit 0; 1046 rows (check 42, gate 301, edge 155, report 548); self-check: 1024 required keys, 0 missing, 0 duplicate, 21 start_lf rows. Second full run byte-identical (sha256 e84de5f3...). Wrote ASSUMPTIONS.txt, NOTES.txt. DONE.
