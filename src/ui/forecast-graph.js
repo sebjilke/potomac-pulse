@@ -3,6 +3,7 @@
 // Extracted from index.html inline script
 
 import { estimateLFStage } from '../model/shared-model.js';
+import { roundForecastCfs, isRoundedForecastPoint } from './forecast-format.js';
 import {
     forecastGraphData, setForecastGraphData,
     graphScales, setGraphScales
@@ -278,8 +279,10 @@ export function renderForecastGraph(periods, currentCFS, hasNWSForecast, history
             ? `${formatForecastTime(closest.time)} (observed)`
             : formatForecastTime(closest.time);
         document.getElementById('gf-tooltip-time').textContent = timeLabel;
+        // v39.8: forecast FLOW is rounded like the cards; history and the Now point stay exact. Stage keeps two decimals.
+        const rounded = isRoundedForecastPoint(closest);
         document.getElementById('gf-tooltip-stage').textContent = closest.stage.toFixed(2);
-        document.getElementById('gf-tooltip-cfs').textContent = closest.cfs.toLocaleString();
+        document.getElementById('gf-tooltip-cfs').textContent = (rounded ? roundForecastCfs(closest.cfs) : closest.cfs).toLocaleString();
 
         // Position tooltip
         const tooltipX = Math.min(width - 100, Math.max(10, xScale(closest.hrs) - 40));

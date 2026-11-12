@@ -23,7 +23,6 @@ export function updateGFLearningUI() {
     if (!gfLearningData?.metadata) return;
 
     const meta = gfLearningData.metadata;
-    const valLast = document.getElementById('gf-val-last');
     const learnValLast = document.getElementById('learn-val-last');
     const pendingCount = gfLearningData.pendingPredictions?.length || 0;
 
@@ -40,8 +39,7 @@ export function updateGFLearningUI() {
         statusText += 'No validations yet - collecting data';
     }
 
-    // Update both GF tab (hidden) and Learning tab elements
-    if (valLast) valLast.textContent = statusText;
+    // Update the Learning tab element
     if (learnValLast) learnValLast.textContent = statusText;
 
     // Historical accuracy badge removed (v33.2): The instantaneous GF accuracy metric

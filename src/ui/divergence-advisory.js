@@ -40,11 +40,12 @@ export function downgradeConfidence(level) {
 // under-reads) is documented in the advisory plan §0 and tech-appendix §5.9; the stats
 // sentence was removed from the DISPLAYED copy at the user's direction (2026-07-20).
 // Wording constraint from the gate verdict: the sensors DISAGREE — never claim EF is right.
-export const DIVERGENCE_ADVISORY_TITLE =
-    '⚠️ Cross-check gauge disagrees — treat this estimate with extra caution.';
-export const DIVERGENCE_ADVISORY_BODY =
-    'The Edwards Ferry gauge — an independent cross-check just upstream of Great Falls — ' +
-    'has been reading well above what the upstream gauges suggest for several hours. ' +
-    'Sometimes that’s just gauge noise at low water, but it can mean water is entering ' +
-    'the Potomac below those gauges — water this estimate may not fully see. ' +
-    'If the river looks higher than the number, believe the river.';
+// v39.8: the title and the body became one line inside the single notice box (src/ui/estimate-notice.js).
+// The lead-in is shown in the amber title style; the closing sentence ("Treat this estimate with extra caution.
+// If the river looks higher than the number, believe the river.") is shared and lives in estimate-notice.js.
+export const DIVERGENCE_LEAD = 'Cross-check gauge disagrees:';
+export const DIVERGENCE_TEXT =
+    'Edwards Ferry has read well above what the upstream gauges suggest for several hours. ' +
+    'That can be gauge noise at low water, or water entering below those gauges, ' +
+    'water this estimate may not fully see.';
+export const DIVERGENCE_LINE = DIVERGENCE_LEAD + ' ' + DIVERGENCE_TEXT;

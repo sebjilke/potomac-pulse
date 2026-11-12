@@ -2,13 +2,15 @@
 // newer one (admin reset), and emits 'learning:loaded' once per settle. fetch and timers are stubbed.
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadGFLearningData } from '../src/learning/gf-learning.js';
 import * as store from '../src/state/store.js';
 import { on, clear } from '../src/state/event-bus.js';
 
 const realFetch = globalThis.fetch, realST = globalThis.setTimeout, realCT = globalThis.clearTimeout;
 const realLog = console.log, realWarn = console.warn;
 let timers, fetchCalls, nextFetch, loaded;
+// v39.8 (TODO S6): each test loads its own copy of gf-learning.js, so the module-level in-flight slot and
+// generation counter start empty. The store and the event bus are shared, so the assertions on them still work.
+let loadGFLearningData, caseN = 0;
 
 const good = (tag) => ({ correctionBins: { tag }, pendingPredictions: [], metadata: { totalValidations: 1 }, efCorrelation: null });
 const never = () => new Promise(() => {});
@@ -19,7 +21,8 @@ const fireDeadline = () => { const t = timers.find((x) => x.ms === 10000 && !x.c
 const within = (p, ms = 1500) => Promise.race([p, new Promise((_, rej) => realST(() => rej(new Error('load did not settle: the deadline race is missing')), ms))]);
 const tick = async () => { for (let i = 0; i < 6; i++) await new Promise((r) => setImmediate(r)); };
 
-beforeEach(() => {
+beforeEach(async () => {
+    ({ loadGFLearningData } = await import('../src/learning/gf-learning.js?case=' + (++caseN)));
     timers = []; fetchCalls = []; loaded = 0;
     console.log = () => {}; console.warn = () => {};
     store.setGfLearningData(null);
@@ -91,11 +94,11 @@ describe('learning deadline', () => {
         assert.ok(EMPTY_SHAPE(store.gfLearningData));
         assert.equal(store.gfDataReady, true);
     });
-    it('failures on a later cycle keep the previous payload (timeout, 500, bad JSON)', async () => {
+    it('failures on a later cycle keep the previous payload (timeout, 500, bad JSON)', { timeout: 2000 }, async () => {
         nextFetch = async () => okResponse(good('PREV'));
         await loadGFLearningData();
         nextFetch = () => never();
-        let p = loadGFLearningData(); await tick(); fireDeadline(); await p;
+        let p = loadGFLearningData(); await tick(); fireDeadline(); await within(p);
         assert.equal(store.gfLearningData.correctionBins.tag, 'PREV');
         nextFetch = async () => ({ ok: false, status: 503, json: async () => ({}) });
         await loadGFLearningData();
@@ -155,13 +158,13 @@ describe('learning deadline', () => {
         await b;
         assert.equal(store.gfLearningData.correctionBins.tag, 'POST');
     });
-    it('learning:loaded is emitted once per settle, for each outcome', async () => {
+    it('learning:loaded is emitted once per settle, for each outcome', { timeout: 2000 }, async () => {
         nextFetch = async () => okResponse(good('A'));
         await loadGFLearningData(); assert.equal(loaded, 1);
         nextFetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
         await loadGFLearningData(); assert.equal(loaded, 2);
         nextFetch = () => never();
-        const p = loadGFLearningData(); await tick(); fireDeadline(); await p;
+        const p = loadGFLearningData(); await tick(); fireDeadline(); await within(p);
         assert.equal(loaded, 3);
     });
     it('PA-9: a throwing learning:loaded handler does not make the load fail', async () => {

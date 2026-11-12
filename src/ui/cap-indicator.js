@@ -12,11 +12,12 @@
 
 import { OLD_MIN, bandFor, clock } from './data-freshness.js';
 
-export const CAP_HEADLINE = 'Capped: the model reads higher than this.';
+export const CAP_LEAD = 'Capped:';
+export const CAP_HEADLINE = `${CAP_LEAD} the model reads higher than this.`;
 export const CAP_LAG_CLAUSE = 'The real flow may be above the number shown, especially on a rising river, where Little Falls responds later.';
 export const CAP_OLD_CLAUSE = `That Little Falls reading is over ${Math.round(OLD_MIN / 60)} h old.`;
 export const ROW_NONE = '--';
-export const ROW_EF_ONLY = 'N/A (EF only)';
+export const ROW_EF_ONLY = 'N/A (Edwards Ferry only)';
 export const ROW_NOT_ACTIVE = 'Not active';
 export const ROW_ACTIVE = 'Active';
 export const ROW_TIE = 'Active (changed it by under 1 cfs)';
@@ -52,9 +53,10 @@ export function formatClock(ms, nowMs) {
  * @param {number} i.lfCFS - The Little Falls reading used, rounded.
  * @param {(number|null)} i.lfReadMs - Time of that reading, ms.
  * @param {number} i.nowMs - Current time, ms.
- * @returns {{kind: string, headline: (string|null), detail: (string|null), rowText: string}}
+ * @returns {{kind: string, line: (string|null), rowText: string}}
  *   kind "cut" (figures shown), "unknown" (figure missing or inconsistent, no number invented)
- *   or "tie" (the model value equals the shown value after rounding; note hidden).
+ *   or "tie" (the model value equals the shown value after rounding; note hidden). `line` is the one
+ *   sentence group for the notice box (v39.8: it replaced the headline and the detail).
  */
 export function describeCap({ shownCFS, uncappedCFS, ceilingLimitCFS, lfCFS, lfReadMs, nowMs }) {
     const ok = fin(shownCFS) && fin(uncappedCFS) && fin(ceilingLimitCFS) && fin(lfCFS) && lfCFS > 0
@@ -62,30 +64,29 @@ export function describeCap({ shownCFS, uncappedCFS, ceilingLimitCFS, lfCFS, lfR
     if (!ok) {
         return {
             kind: 'unknown',
-            headline: CAP_HEADLINE,
-            detail: `The model estimates a higher value. The cfs and ft shown are held at 120% of the latest Little Falls reading. ${CAP_LAG_CLAUSE}`,
+            line: `${CAP_HEADLINE} The cfs and ft shown are held at 120% of the latest Little Falls reading. ${CAP_LAG_CLAUSE}`,
             rowText: ROW_ACTIVE
         };
     }
     if (uncappedCFS === shownCFS) {
-        return { kind: 'tie', headline: null, detail: null, rowText: ROW_TIE };
+        return { kind: 'tie', line: null, rowText: ROW_TIE };
     }
     const at = fin(lfReadMs) && fin(nowMs) ? ` at ${formatClock(lfReadMs, nowMs)}` : '';
     const old = fin(lfReadMs) && fin(nowMs) && nowMs >= lfReadMs && ['old', 'stale'].includes(bandFor((nowMs - lfReadMs) / 60000));
-    const detail = `The model estimates ${fmt(uncappedCFS)} cfs. The cfs and ft shown are held at ${fmt(shownCFS)} cfs, `
-        + `which is 120% of the latest Little Falls reading (${fmt(lfCFS)} cfs${at}). ${CAP_LAG_CLAUSE}`
+    const line = `${CAP_LEAD} the model estimates ${fmt(uncappedCFS)} cfs. The cfs and ft shown are held at ${fmt(shownCFS)} cfs, `
+        + `120% of the latest Little Falls reading (${fmt(lfCFS)} cfs${at}). ${CAP_LAG_CLAUSE}`
         + (old ? ` ${CAP_OLD_CLAUSE}` : '');
-    return { kind: 'cut', headline: CAP_HEADLINE, detail, rowText: `Active (model said ${fmt(uncappedCFS)} cfs)` };
+    return { kind: 'cut', line, rowText: `Active (model said ${fmt(uncappedCFS)} cfs)` };
 }
 
 /**
  * Everything the page writes for the cap, for every case.
  * @param {(Object|null)} estimate - The gfEstimate object, or null when there is none (loading, no data).
  * @param {number} nowMs - Current time, ms.
- * @returns {{noteHidden: boolean, headline: string, detail: string, rowText: string, ciSuffix: string}}
+ * @returns {{noteHidden: boolean, line: string, rowText: string, ciSuffix: string}}
  */
 export function capView(estimate, nowMs) {
-    const hidden = (rowText, ciSuffix = '') => ({ noteHidden: true, headline: '', detail: '', rowText, ciSuffix });
+    const hidden = (rowText, ciSuffix = '') => ({ noteHidden: true, line: '', rowText, ciSuffix });
     if (!estimate) return hidden(ROW_NONE);
     if (estimate.efOnly) return hidden(ROW_EF_ONLY);
     const inp = estimate.inputs;
@@ -95,7 +96,7 @@ export function capView(estimate, nowMs) {
         lfCFS: inp.lfCFS, lfReadMs: inp.lfReadMs ?? null, nowMs
     });
     if (d.kind === 'tie') return hidden(d.rowText, CI_SUFFIX);
-    return { noteHidden: false, headline: d.headline, detail: d.detail, rowText: d.rowText, ciSuffix: CI_SUFFIX };
+    return { noteHidden: false, line: d.line, rowText: d.rowText, ciSuffix: CI_SUFFIX };
 }
 
 /**
@@ -111,15 +112,13 @@ export function ciRowText(baseText, view) {
 }
 
 /**
- * Writes a view onto element-like objects (real DOM nodes in the page, plain objects in tests).
- * Always sets every element it is given, so no state survives from a previous render. The 90% CI
- * row is not written here: the page builds that text with ciRowText.
+ * Writes the inputs-panel row of a view onto an element-like object (a real DOM node in the page, a plain
+ * object in tests). v39.8: the cap sentence no longer has its own elements; it goes into the single notice box
+ * (estimate-notice.js). Always sets the row, so no state survives from a previous render. The 90% CI row is not
+ * written here: the page builds that text with ciRowText.
  * @param {Object} view - From capView.
- * @param {Object} els - { note, headline, detail, row }, each optional.
+ * @param {Object} els - { row }, optional.
  */
 export function applyCapView(view, els) {
-    if (els.note) els.note.hidden = view.noteHidden;
-    if (els.headline) els.headline.textContent = view.headline;
-    if (els.detail) els.detail.textContent = view.detail;
     if (els.row) els.row.textContent = view.rowText;
 }

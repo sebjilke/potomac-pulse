@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Potomac Pulse: Great Falls and Potomac River flow for paddlers</title>
     <meta name="description" content="Live Potomac River flow for paddlers: a Great Falls estimate from upstream USGS gauges, a 48 hour outlook, travel times and local creek levels.">
-    <meta name="app-version" content="v39.7">
+    <meta name="app-version" content="v39.8">
     <link rel="canonical" href="https://potomac-pulse.netlify.app/">
     <!-- Google Search Console ownership tag (added 2026-11-11). Removing it unverifies the site in Search Console. -->
     <meta name="google-site-verification" content="Io_lxJQ0_NmfkeJuOs3wMeW74CU_n4asPymhq4uTkKE" />
@@ -54,8 +54,6 @@
                 <button class="btn" id="mapToggleBtn" aria-label="Toggle map" aria-pressed="false">🗺️</button>
                 <button class="btn" id="refreshBtn" aria-label="Refresh data">↻</button>
             </div>
-            <!-- Hidden status element (not shown in header) -->
-            <span id="status" style="display:none;" aria-live="polite">Loading...</span>
         </header>
         <!-- Network error banner -->
         <div id="error-banner" role="alert" aria-live="assertive" style="display:none;background:rgba(239,68,68,0.15);border-bottom:1px solid var(--accent-red);padding:10px 16px;align-items:center;gap:10px;color:var(--accent-red-lighter);font-size:0.8rem;">
@@ -66,11 +64,11 @@
         <main id="main-content" role="main">
             <div id="map" role="application" aria-label="River gauge map"></div>
             <div id="sidebar" role="complementary" aria-label="Gauge data sidebar">
-                <div class="target" role="region" aria-label="Target gauge: Little Falls">
+                <div class="target" role="region" aria-label="Little Falls gauge, below Great Falls">
                     <div class="target-icon" aria-hidden="true">🎯</div>
                     <div class="target-info">
                         <div class="target-name">Little Falls</div>
-                        <div class="target-sub">11,560 sq mi • Target gauge</div>
+                        <div class="target-sub">11,560 sq mi • Measured gauge below Great Falls</div>
                     </div>
                     <div class="target-vals" aria-live="polite" aria-atomic="true">
                         <div>
@@ -84,7 +82,7 @@
                     </div>
                 </div>
                 <div class="flow-indicator">
-                    <span>PoR → LF: <span class="mult" id="multVal" aria-label="Current travel time from Point of Rocks to Little Falls">--</span></span>
+                    <span>Point of Rocks to Little Falls: <span class="mult" id="multVal" aria-label="travel time">--</span></span>
                 </div>
                 <div class="tabs" role="tablist" aria-label="Data views">
                     <div class="tab active" id="greatfalls-tab" data-tab="greatfalls" role="tab" aria-selected="true" aria-controls="tab-greatfalls" tabindex="0">🌊 Great Falls</div>
@@ -116,46 +114,28 @@
                             <div style="display:flex;justify-content:center;gap:30px;">
                                 <div>
                                     <div id="gf-cfs" style="font-size:1.8rem;font-weight:700;color:var(--accent-blue);">--</div>
-                                    <div style="font-size:0.55rem;color:var(--text-muted);">cfs (LF scale)</div>
+                                    <div style="font-size:0.55rem;color:var(--text-muted);">cfs</div>
                                 </div>
                                 <div>
                                     <div id="gf-stage" style="font-size:1.8rem;font-weight:700;color:var(--accent-green);">--</div>
-                                    <div style="font-size:0.55rem;color:var(--text-muted);">ft (LF scale)</div>
+                                    <div style="font-size:0.55rem;color:var(--text-muted);">ft on the Little Falls gauge scale</div>
                                 </div>
                             </div>
-                            <!-- v39.3 (A4a): shown only while the 120% cap is holding the number down (src/ui/cap-indicator.js).
-                                 Deliberately no role/aria-live: the card is already a polite atomic live region. -->
-                            <div id="gf-cap-note" hidden style="margin:8px 12px 0;font-size:0.6rem;line-height:1.5;text-align:center;color:var(--accent-amber);">
-                                <div id="gf-cap-headline" style="font-weight:600;"></div>
-                                <div id="gf-cap-detail" style="color:var(--text-tertiary);"></div>
-                            </div>
-                            <div id="gf-ci-range" style="display:none;"><span id="gf-ci-text"></span></div>
                             <div id="gf-trend" style="margin-top:10px;font-size:0.8rem;color:var(--text-muted);">--</div>
-                            <div id="gf-data-source" style="display:none;margin-top:5px;font-size:0.55rem;color:var(--text-tertiary);">Based on PoR from -- hrs ago</div>
                             <div id="gf-confidence" style="margin-top:5px;font-size:0.55rem;color:var(--accent-purple);">Confidence: --</div>
-                            <!-- v37.13 (TODO #22): EF divergence advisory — display-only honesty signal, server-authoritative
-                                 (see src/ui/divergence-advisory.js). Hidden unless the server state is active AND fresh. -->
-                            <div id="gf-divergence-advisory" hidden role="status" style="margin-top:8px;padding:8px 10px;background:rgba(180,83,9,0.15);border:1px solid #b45309;border-radius:6px;font-size:0.6rem;line-height:1.5;text-align:left;color:var(--text-body);">
-                                <div id="gf-divergence-title" style="color:#f59e0b;margin-bottom:4px;"></div>
-                                <div id="gf-divergence-body" style="color:var(--text-tertiary);"></div>
+                            <!-- v39.8: the one notice box (cap line, Edwards Ferry line, Little Falls line, closing sentence).
+                                 Pure logic in src/ui/estimate-notice.js. Hidden unless a line applies. Deliberately no role/aria-live:
+                                 the card is already a polite atomic live region, so a new notice is announced once, as part of the card. -->
+                            <div id="gf-notice" hidden style="margin-top:8px;padding:8px 10px;background:rgba(180,83,9,0.15);border:1px solid #b45309;border-radius:6px;font-size:0.6rem;line-height:1.5;text-align:left;color:var(--text-body);">
+                                <div id="gf-notice-cap" hidden><span id="gf-notice-cap-lead" style="color:#f59e0b;"></span> <span id="gf-notice-cap-text" style="color:var(--text-tertiary);"></span></div>
+                                <div id="gf-notice-ef" hidden><span id="gf-notice-ef-lead" style="color:#f59e0b;"></span> <span id="gf-notice-ef-text" style="color:var(--text-tertiary);"></span></div>
+                                <div id="gf-notice-lf" hidden><span id="gf-notice-lf-lead" style="color:#f59e0b;"></span> <span id="gf-notice-lf-text" style="color:var(--text-tertiary);"></span></div>
+                                <div id="gf-notice-closing" hidden style="font-weight:600;"></div>
                             </div>
-                            <!-- v37.15: LF-residual advisory — second display-only honesty signal, server-authoritative
-                                 (see src/ui/residual-advisory.js). Hidden unless the server state is active AND fresh. -->
-                            <div id="gf-residual-advisory" hidden role="status" style="margin-top:8px;padding:8px 10px;background:rgba(180,83,9,0.15);border:1px solid #b45309;border-radius:6px;font-size:0.6rem;line-height:1.5;text-align:left;color:var(--text-body);">
-                                <div id="gf-residual-title" style="color:#f59e0b;margin-bottom:4px;"></div>
-                                <div id="gf-residual-body" style="color:var(--text-tertiary);"></div>
-                            </div>
-                            <div id="gf-accuracy" style="display:none;"></div>
                         </div>
                         <!-- v39.7: shown only in the unavailable state (hidden by default; see #gfRetryBtn[hidden] in main.css).
                              Outside the live region on purpose, so it is not announced on every update. -->
                         <button class="btn" id="gfRetryBtn" hidden style="margin:0 auto 15px;width:fit-content;">Try again</button>
-
-                        <!-- Hidden elements for JS compatibility -->
-                        <span id="gf-forecast-cfs" style="display:none;">--</span>
-                        <span id="gf-forecast-stage" style="display:none;">--</span>
-                        <span id="gf-forecast-hrs" style="display:none;">--</span>
-                        <span id="gf-forecast-arrival" style="display:none;">--</span>
 
                         <div id="gf-forecast-timeline" style="margin-bottom:15px;">
                             <div style="font-size:0.7rem;color:var(--text-tertiary);margin-bottom:4px;text-align:center;">24H HISTORY + 48H FORECAST*</div>
@@ -174,7 +154,8 @@
                             <div id="gf-forecast-periods">
                                 <!-- Forecast periods will be populated by JS -->
                             </div>
-                            <div style="font-size:0.6rem;color:var(--text-muted);margin-top:6px;text-align:center;"><span style="color:var(--color-rising);">▲</span><span style="color:var(--color-falling);">▼</span> vs now • tap card or graph for details</div>
+                            <div id="gf-forecast-source" style="font-size:0.6rem;color:var(--text-muted);margin-top:6px;text-align:center;"></div>
+                            <div style="font-size:0.6rem;color:var(--text-muted);margin-top:2px;text-align:center;"><span style="color:var(--color-rising);">▲</span><span style="color:var(--color-falling);">▼</span> vs now • tap card or graph for details</div>
                             <div id="forecast-accuracy" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border-default);text-align:center;">
                                 <!-- Forecast accuracy stats populated by JS -->
                             </div>
@@ -204,19 +185,19 @@
                                     <span id="gf-input-seneca" style="color:var(--accent-green);">+ -- cfs</span>
                                 </div>
                                 <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
-                                    <span style="color:var(--text-tertiary);">Travel time PoR→GF</span>
+                                    <span style="color:var(--text-tertiary);">Travel time, Point of Rocks to Great Falls</span>
                                     <span id="gf-input-travel" style="color:var(--accent-amber);">-- hrs</span>
                                 </div>
                                 <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
-                                    <span style="color:var(--text-tertiary);">Travel time GF→LF</span>
+                                    <span style="color:var(--text-tertiary);">Travel time, Great Falls to Little Falls</span>
                                     <span id="gf-input-travel-gf-lf" style="color:var(--accent-amber);">-- hrs</span>
                                 </div>
                                 <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
-                                    <span style="color:var(--text-tertiary);">Flow bin</span>
+                                    <span style="color:var(--text-tertiary);">Flow band</span>
                                     <span id="gf-input-flowbin" style="color:var(--text-tertiary);">--</span>
                                 </div>
                                 <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
-                                    <span style="color:var(--text-tertiary);">Learned correction</span>
+                                    <span style="color:var(--text-tertiary);">Adjustment learned from past errors</span>
                                     <span id="gf-input-correction" style="color:var(--accent-purple);">± -- cfs</span>
                                 </div>
                                 <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
@@ -224,24 +205,18 @@
                                     <span id="gf-input-uncertainty" style="color:var(--accent-amber);">--</span>
                                 </div>
                                 <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:0.6rem;border-bottom:1px solid var(--border-default);">
-                                    <span style="color:var(--text-tertiary);">120% ceiling</span>
+                                    <span style="color:var(--text-tertiary);">Display cap (120% of Little Falls)</span>
                                     <span id="gf-input-ceiling" style="color:var(--text-tertiary);">--</span>
                                 </div>
                                 <div id="gf-ef-crosscheck" style="display:none;padding:4px 0;font-size:0.6rem;">
                                     <div style="display:flex;justify-content:space-between;">
-                                        <span style="color:var(--accent-teal);">EF Cross-check</span>
+                                        <span style="color:var(--accent-teal);">Edwards Ferry check</span>
                                         <span id="gf-ef-estimate" style="color:var(--accent-teal);">--</span>
                                     </div>
-                                    <div style="font-size:0.5rem;color:var(--text-muted);margin-top:2px;">Edwards Ferry power-law estimate</div>
+                                    <div style="font-size:0.5rem;color:var(--text-muted);margin-top:2px;">Estimate from the Edwards Ferry gauge alone</div>
                                 </div>
                             </div>
                         </details>
-
-                        <!-- Hidden validation elements for JS compatibility - moved display to Learning tab -->
-                        <div id="gf-validation" style="display:none;">
-                            <span id="gf-val-countdown">--</span>
-                            <span id="gf-val-last">No validations yet</span>
-                        </div>
                     </div>
                 </div>
                 <div id="tab-docs" class="tab-content" role="tabpanel" aria-labelledby="docs-tab" tabindex="0">
@@ -721,7 +696,7 @@
                 <img src="gs-logo.png" alt="GS" style="height:14px;opacity:0.6;" onerror="this.style.display='none'">
                 © 2026 <span id="gs-credit" style="cursor:pointer;" title="Click me!">Gordon Shumway</span>
             </span> • Licensed under <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank">CC BY-NC 4.0</a> •
-<a href="https://github.com/sebjilke/potomac-pulse" target="_blank" style="color:var(--accent-blue);">Open Source</a> • <span id="toby-egg" style="cursor:help;" title="Toby Woby is working on it...">Not for navigation or life-safety decisions</span> • <span id="app-version-text" style="opacity:0.6;">v39.7</span>
+<a href="https://github.com/sebjilke/potomac-pulse" target="_blank" style="color:var(--accent-blue);">Open Source</a> • <span id="toby-egg" style="cursor:help;" title="Toby Woby is working on it...">Not for navigation or life-safety decisions</span> • <span id="app-version-text" style="opacity:0.6;">v39.8</span>
         </footer>
     </div>
 

@@ -34,10 +34,9 @@ export function shouldShowResidualAdvisory(lfResidual, nowMs = Date.now()) {
 // (the backtest measured degradation, not cause). Confidence downgrade reuses
 // downgradeConfidence from divergence-advisory.js — stacking with the EF advisory is
 // intended (different observables; their coincidence is genuinely stronger evidence).
-export const RESIDUAL_ADVISORY_TITLE =
-    '⚠️ Recent estimates ran low — treat this one with extra caution.';
-export const RESIDUAL_ADVISORY_BODY =
-    'Recently, this model’s estimates have come in well below what the downstream ' +
-    'check gauge at Little Falls later measured. That often means rain-swollen local ' +
-    'streams are adding water the upstream gauges can’t see. The current number may ' +
-    'be low too. If the river looks higher than the number, believe the river.';
+// v39.8: one line inside the single notice box (src/ui/estimate-notice.js); the closing sentence is shared there.
+export const RESIDUAL_LEAD = 'Recent estimates ran low:';
+export const RESIDUAL_TEXT =
+    'they came in well below what Little Falls later measured. That often means rain-swollen local ' +
+    'streams are adding water the upstream gauges cannot see. The current number may be low too.';
+export const RESIDUAL_LINE = RESIDUAL_LEAD + ' ' + RESIDUAL_TEXT;

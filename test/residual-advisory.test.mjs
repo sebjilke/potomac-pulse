@@ -9,9 +9,10 @@ import { createRequire } from 'node:module';
 
 import {
     shouldShowResidualAdvisory,
-    RESIDUAL_ADVISORY_TITLE, RESIDUAL_ADVISORY_BODY
+    RESIDUAL_LEAD, RESIDUAL_TEXT, RESIDUAL_LINE
 } from '../src/ui/residual-advisory.js';
 import { downgradeConfidence } from '../src/ui/divergence-advisory.js';
+import { NOTICE_CLOSING } from '../src/ui/estimate-notice.js';
 import { LF_RESIDUAL_STALE_MS, EF_DIVERGENCE_STALE_MS } from '../src/model/constants.js';
 
 const require = createRequire(import.meta.url);
@@ -65,12 +66,16 @@ describe('client↔server staleness-constant parity (plan F8-3)', () => {
 });
 
 describe('advisory copy (audit-constrained wording)', () => {
-    it('says "Recently"/"often", never claims certainty or blames a cause definitively (plan F7)', () => {
-        assert.ok(RESIDUAL_ADVISORY_TITLE.includes('extra caution'));
-        assert.ok(RESIDUAL_ADVISORY_BODY.includes('Recently'));
-        assert.ok(RESIDUAL_ADVISORY_BODY.includes('often'));
-        assert.ok(!RESIDUAL_ADVISORY_BODY.includes('usually'));
-        assert.ok(RESIDUAL_ADVISORY_BODY.includes('may be low'));
-        assert.ok(RESIDUAL_ADVISORY_BODY.includes('believe the river'));
+    it('says "Recent"/"often", never claims certainty or blames a cause definitively (plan F7)', () => {
+        assert.equal(RESIDUAL_LINE, RESIDUAL_LEAD + ' ' + RESIDUAL_TEXT);
+        assert.ok(RESIDUAL_LINE.includes('Recent'));
+        assert.ok(RESIDUAL_LINE.includes('often'));
+        assert.ok(!RESIDUAL_LINE.includes('usually'));
+        assert.ok(RESIDUAL_LINE.includes('may be low'));
+    });
+    it('the shared closing sentence (extra caution, believe the river) lives in estimate-notice.js, once', () => {
+        assert.ok(!RESIDUAL_LINE.includes('believe the river'));
+        assert.ok(NOTICE_CLOSING.includes('extra caution'));
+        assert.ok(NOTICE_CLOSING.includes('believe the river'));
     });
 });

@@ -1,5 +1,6 @@
 // v39.7: minimal structural guards (source text). These only prove the wiring exists; the behaviour is
 // covered in refresh.test.mjs, learning-deadline.test.mjs and startup-refresh-behaviour.test.mjs.
+// (v39.8: the map outline loading moved to map-outlines-behaviour.test.mjs.)
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -33,16 +34,6 @@ describe('v39.7 wiring', () => {
         assert.match(fn, /updateGFLearningUI\(\)/);
         assert.match(fn, /updateGreatFallsUI\(\)/);
         assert.ok(fn.indexOf('updateGFLearningUI()') < fn.indexOf('if (isFetching)'), 'bin table is filled before the fetching check (N-5)');
-    });
-    it('map.js: initMap fetches no outline file; toggleMap loads them on show', () => {
-        const m = read('src/ui/map.js');
-        const start = m.indexOf('export function initMap');
-        const body = m.slice(start, m.indexOf('\n}\n', start));
-        assert.ok(body.length > 500, 'found the initMap body');
-        assert.doesNotMatch(body, /potomac-/);
-        assert.doesNotMatch(body, /ensureMapOutlines|ensureOutlines|outlineLoader/);
-        const tog = m.slice(m.indexOf('export function toggleMap'));
-        assert.match(tog, /ensureMapOutlines\(\)/);
     });
     it('main.js interval calls refreshAll and no longer imports the learning loader', () => {
         const main = read('src/main.js');

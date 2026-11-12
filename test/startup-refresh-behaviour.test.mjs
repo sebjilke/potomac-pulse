@@ -363,7 +363,7 @@ describe('source guards (PA-2 and wiring)', () => {
         assert.match(btn[0], />Try again</);
         const iDisplay = html.indexOf('id="gf-estimate-display"');
         const iBtn = html.indexOf('id="gfRetryBtn"');
-        const iNext = html.indexOf('Hidden elements for JS compatibility');
+        const iNext = html.indexOf('id="gf-forecast-timeline"'); // v39.8: the old comment anchor was removed
         assert.ok(iDisplay < iBtn && iBtn < iNext, 'button is between the card and the next block');
         // not inside the live region: the card div is closed before the button
         const between = html.slice(iDisplay, iBtn);

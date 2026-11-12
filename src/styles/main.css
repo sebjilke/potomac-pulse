@@ -70,6 +70,8 @@ header h1 { font-size: 1.1rem; color: var(--accent-blue); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 /* v39.7: .btn sets display:flex, which beats the browser's [hidden] rule; this keeps "Try again" hidden. */
 #gfRetryBtn[hidden] { display: none; }
+/* v39.8: space between the visible lines of the one notice box (#gf-notice). */
+#gf-notice > div:not([hidden]) ~ div:not([hidden]) { margin-top: 4px; }
 .btn.loading { animation: spin 1s linear infinite; }
 
 /* Loading skeleton */
@@ -144,7 +146,6 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
     .last-update { font-size: 0.7rem; padding: 3px 8px; }
     .btn { padding: 6px 10px; min-width: 40px; min-height: 40px; }
     /* Mobile minimum font sizes for readability */
-    #gf-forecast-timeline .fp-source,
     #gf-forecast-timeline .fp-subtime,
     #forecast-accuracy { font-size: 0.6rem; }
 }
@@ -350,7 +351,7 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
 /* ==================== FORECAST PERIODS ==================== */
 #gf-forecast-periods { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
 #forecast-accuracy { font-size: 0.5rem; }
-.fp-source, .fp-subtime { font-size: 0.5rem; }
+.fp-subtime { font-size: 0.5rem; }
 .forecast-period {
     background: rgba(0,0,0,0.2);
     border-radius: 6px;

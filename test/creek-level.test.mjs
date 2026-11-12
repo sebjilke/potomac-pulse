@@ -112,7 +112,6 @@ describe('PA-5: old readings', () => {
         assert.ok(!/running/i.test(v.status));
         assert.equal(v.trendText, '');
         assert.equal(v.active, false);
-        assert.notEqual(v.lastRan, 'now');
         for (const k of ['dotColor', 'cfsColor', 'borderColor', 'statusColor', 'lineColor']) {
             assert.ok(!/green|amber|red/.test(v[k]), `${k} = ${v[k]}`);
         }
@@ -294,7 +293,7 @@ describe('October 2026 peaks, keyed by creek', () => {
     }
 });
 
-describe('PA-3: nothing green at 2x or more; tab dot; Last ran', () => {
+describe('PA-3: nothing green at 2x or more; tab dot', () => {
     it('tab dot class follows the highest band', () => {
         assert.equal(creekTabDotClass(['below', 'none', 'old']), '');
         assert.equal(creekTabDotClass([]), '');
@@ -310,16 +309,14 @@ describe('PA-3: nothing green at 2x or more; tab dot; Last ran', () => {
             assert.notEqual(b.emoji, '🟢');
         }
     });
-    it('card colours at 2x or more are never green; "Last ran: now" only in the run band', () => {
+    it('card colours at 2x or more are never green', () => {
         const c = byName('Difficult Run');
         for (const q of [400, 700, 999, 1000, 1620, 5000]) {
             const v = view(q, c);
             for (const k of ['dotColor', 'cfsColor', 'borderColor', 'statusColor', 'lineColor']) assert.ok(!/green/.test(v[k]), `${q} ${k}`);
             assert.notEqual(v.chartRgb, '74,222,128');
-            assert.equal(v.lastRan, 'hidden');
         }
-        assert.equal(view(300, c).lastRan, 'now');
-        assert.equal(view(100, c).lastRan, 'history');
+        assert.ok(!('lastRan' in view(300, c)), 'the view has no lastRan field (v39.8)');
     });
     it('band colours', () => {
         const c = byName('Difficult Run');
@@ -356,7 +353,10 @@ describe('the UI renders exactly what the pure module returns (fake DOM)', () =>
             getElementById: (id) => (els[id] ??= makeEl()),
             querySelector: () => tab
         };
-        globalThis.localStorage = { getItem: () => new Date().toISOString(), setItem() {} };
+        // v39.8 (PA-3): a recording stub, not a throwing one (the old code wrapped its reads in try/catch, so a throw
+        // proved nothing). Nothing in the creeks code may touch localStorage at all.
+        const storageCalls = [];
+        globalThis.localStorage = new Proxy({}, { get: (_t, k) => (...a) => { storageCalls.push([String(k), ...a]); return new Date().toISOString(); } });
         const { creekData } = await import('../src/state/store.js');
         const { updateCreeksUI } = await import('../src/ui/creeks-ui.js');
         const now = Date.now();
@@ -377,7 +377,7 @@ describe('the UI renders exactly what the pure module returns (fake DOM)', () =>
         const b = creekBanner(bands, 4);
         assert.equal(els['creeks-status'].innerHTML, `<div class="creeks-banner ${b.tone}">${b.emoji} ${b.text}</div>`);
         assert.match(els['creeks-status'].innerHTML, /3 of 4 creeks at or above their minimum flow · 1 at 5x or more/);
-        assert.equal(els['creek-lastran-01646000'].textContent, '');
+        assert.deepEqual(Object.keys(els).filter((k) => k.startsWith('creek-lastran')), [], 'no creek-lastran-* element was requested');
         assert.ok(tab.classes.has('has-veryhigh') && tab.classes.size === 1);
         // a reading that has gone stale is marked on the next refresh, even though creekData itself did not change
         creekData['01646000'].time = new Date(now - 4 * HOUR);
@@ -385,12 +385,35 @@ describe('the UI renders exactly what the pure module returns (fake DOM)', () =>
         assert.match(els['creek-status-01646000'].textContent, /^Old reading: \d+ h ago it was 1620 cfs, 8\.1x the 200 cfs minimum\. The current level is unknown\.$/);
         assert.ok(!tab.classes.has('has-veryhigh'));
         assert.match(els['creeks-status'].innerHTML, /with old readings/);
+        assert.deepEqual(storageCalls, [], 'the creeks UI made no localStorage call');
+        delete globalThis.document; delete globalThis.localStorage;
+    });
+    it('all creeks below their minimum: the banner is exactly "Nothing running", with no suffix (v39.8)', async () => {
+        const els = {};
+        const tab = makeEl();
+        globalThis.document = { getElementById: (id) => (els[id] ??= makeEl()), querySelector: () => tab };
+        const storageCalls = [];
+        globalThis.localStorage = new Proxy({}, { get: (_t, k) => (...a) => { storageCalls.push([String(k), ...a]); return new Date(0).toISOString(); } });
+        const { creekData } = await import('../src/state/store.js');
+        const { updateCreeksUI } = await import('../src/ui/creeks-ui.js');
+        for (const k of Object.keys(creekData)) delete creekData[k];
+        for (const [id, c] of Object.entries(CREEK_RUNS)) creekData[id] = { q: 1, trend: 'steady', time: new Date(Date.now() - 60_000), running: false };
+        updateCreeksUI();
+        assert.equal(els['creeks-status'].innerHTML, '<div class="creeks-banner quiet">⚫ Nothing running</div>');
+        assert.deepEqual(storageCalls, []);
         delete globalThis.document; delete globalThis.localStorage;
     });
     it('data:unavailable re-renders the creeks from the last known readings (re-audit item 2)', () => {
         const init = readFileSync(resolve(root, 'src/init.js'), 'utf8');
         assert.match(init, /on\('data:unavailable',\s*updateCreeksUI\)/);
         assert.match(init, /on\('data:updated',\s*updateCreeksUI\)/);
+    });
+    it('source guard: no "last ran" code is left in src/ or index.html (v39.8)', () => {
+        const files = ['src/ui/creeks-ui.js', 'src/ui/creek-level.js', 'src/data/fetch.js', 'index.html'];
+        for (const f of files) {
+            const t = readFileSync(resolve(root, f), 'utf8');
+            assert.ok(!/creek_lastran|lastRan|creek-lastran|Last activity|last ran/i.test(t), `${f} still mentions last ran`);
+        }
     });
     it('source guard: creeks-ui.js imports the pure module and holds no band text or colour logic', () => {
         const src = readFileSync(resolve(root, 'src/ui/creeks-ui.js'), 'utf8');

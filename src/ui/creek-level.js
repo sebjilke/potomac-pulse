@@ -90,7 +90,7 @@ export function creekCardView(d, c, now) {
     const grey = {
         dotColor: 'var(--border-hover)', cfsColor: 'var(--text-tertiary)', borderColor: 'var(--border-default)',
         statusColor: 'var(--text-tertiary)', chartRgb: GREY.rgb, lineColor: GREY.color,
-        trendText: '', trendTitle: '', trendColor: TREND_COLOR, lastRan: 'history', active: false
+        trendText: '', trendTitle: '', trendColor: TREND_COLOR, active: false
     };
     const lvl = d ? creekLevel(d.q, c?.runnable, d.time, now) : { band: 'none' };
     if (lvl.band === 'none') {
@@ -119,8 +119,7 @@ export function creekCardView(d, c, now) {
     return {
         ...trend, band: lvl.band, cfsText, status, active: true,
         dotColor: s.color, cfsColor: s.color, borderColor: s.color, statusColor: s.text ?? s.color,
-        chartRgb: s.rgb, lineColor: s.color,
-        lastRan: lvl.band === 'run' ? 'now' : 'hidden'
+        chartRgb: s.rgb, lineColor: s.color
     };
 }
 

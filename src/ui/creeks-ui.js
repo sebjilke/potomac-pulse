@@ -28,7 +28,6 @@ export function buildCreeks() {
             </div>
             <div class="creek-meta">
                 <span>Class ${c.class}</span>
-                <span id="creek-lastran-${id}"></span>
                 <span>USGS ${id}</span>
                 ${awLink}
             </div>
@@ -222,9 +221,9 @@ function renderCreekChart(id, el) {
 
 /**
  * Refreshes all creek cards from the `creekData` store: per card updates the dot color, CFS, trend arrow,
- * status text, band-coloured border, and "last ran" label (from localStorage), or shows a no-data state.
+ * status text and band-coloured border, or shows a no-data state.
  * Re-renders any expanded chart, reorders cards (running first by CFS descending), updates the master
- * #creeks-status banner with running count / last activity, and toggles the creeks tab dot class (highest band).
+ * #creeks-status banner with running count, and toggles the creeks tab dot class (highest band).
  * @returns {void}
  */
 export function updateCreeksUI() {
@@ -238,7 +237,6 @@ export function updateCreeksUI() {
         const cfsEl = document.getElementById(`creek-cfs-${id}`);
         const trendEl = document.getElementById(`creek-trend-${id}`);
         const statusEl = document.getElementById(`creek-status-${id}`);
-        const lastranEl = document.getElementById(`creek-lastran-${id}`);
         const card = document.getElementById(`creek-${id}`);
 
         if (!dot) continue;  // Card not built yet
@@ -255,29 +253,6 @@ export function updateCreeksUI() {
         statusEl.textContent = view.status;
         statusEl.style.color = view.statusColor;
         card.style.borderColor = view.borderColor;
-
-        // Last ran (try/catch for localStorage disabled in private browsing)
-        try {
-            const lastRanStr = localStorage.getItem(`creek_lastran_${id}`);
-            if (lastRanStr) {
-                const lastRan = new Date(lastRanStr);
-                const now = new Date();
-                const daysAgo = Math.round((now - lastRan) / 86400000);
-                if (view.lastRan === 'hidden') {
-                    lastranEl.textContent = '';
-                } else if (view.lastRan === 'now') {
-                    lastranEl.textContent = 'Last ran: now';
-                } else if (daysAgo === 0) {
-                    lastranEl.textContent = 'Last ran: today';
-                } else if (daysAgo === 1) {
-                    lastranEl.textContent = 'Last ran: yesterday';
-                } else {
-                    lastranEl.textContent = `Last ran: ${daysAgo}d ago`;
-                }
-            } else {
-                lastranEl.textContent = 'Last ran: unknown';
-            }
-        } catch(e) { lastranEl.textContent = ''; }
 
         // Re-render chart if this card is currently expanded
         const chartEl = document.getElementById(`creek-chart-${id}`);
@@ -302,29 +277,7 @@ export function updateCreeksUI() {
     const statusEl = document.getElementById("creeks-status");
     const total = entries.length;
     const banner = creekBanner(bands, total);
-    if (banner.tone !== 'quiet') {  // running, high, veryhigh and unknown: no "Last activity" suffix
-        statusEl.innerHTML = `<div class="creeks-banner ${banner.tone}">${banner.emoji} ${banner.text}</div>`;
-    } else {
-        // Find most recent "last ran" across all creeks
-        let lastActivity = '';
-        try {
-            let latestStr = null;
-            let latestId = null;
-            for (const [id] of entries) {
-                const lr = localStorage.getItem(`creek_lastran_${id}`);
-                if (lr && (!latestStr || lr > latestStr)) {
-                    latestStr = lr;
-                    latestId = id;
-                }
-            }
-            if (latestStr && latestId) {
-                const daysAgo = Math.round((new Date() - new Date(latestStr)) / 86400000);
-                const name = CREEK_RUNS[latestId].name;
-                lastActivity = ` — Last activity: ${name}, ${daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : daysAgo + 'd ago'}`;
-            }
-        } catch(e) {}
-        statusEl.innerHTML = `<div class="creeks-banner quiet">${banner.emoji} ${banner.text}${lastActivity}</div>`;
-    }
+    statusEl.innerHTML = `<div class="creeks-banner ${banner.tone}">${banner.emoji} ${banner.text}</div>`;
 
     // Tab indicator dot
     const creeksTab = document.querySelector('.tab[data-tab="creeks"]');

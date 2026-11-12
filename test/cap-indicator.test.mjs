@@ -90,9 +90,8 @@ describe('A4a end to end: a real bound fixture (por 13000, lf 9000)', () => {
     it('capView on the real estimate shows the note with the model value, the shown value and the LF value', () => {
         const v = capView(c, NOW_LOCAL);
         assert.equal(v.noteHidden, false);
-        assert.equal(v.headline, 'Capped: the model reads higher than this.');
-        assert.equal(v.detail,
-            `The model estimates ${L(11999)} cfs. The cfs and ft shown are held at ${L(10800)} cfs, which is 120% of the latest Little Falls reading (${L(9000)} cfs at 14:40). `
+        assert.equal(v.line,
+            `Capped: the model estimates ${L(11999)} cfs. The cfs and ft shown are held at ${L(10800)} cfs, 120% of the latest Little Falls reading (${L(9000)} cfs at 14:40). `
             + 'The real flow may be above the number shown, especially on a rising river, where Little Falls responds later.');
         assert.equal(v.rowText, `Active (model said ${L(11999)} cfs)`);
         assert.equal(v.ciSuffix, ' (around the capped value)');
@@ -111,7 +110,7 @@ describe('A4a end to end: a real bound fixture (por 13000, lf 9000)', () => {
         assert.equal(e.inputs.ceilingApplied, undefined);
         const v = capView(e, NOW_LOCAL);
         assert.equal(v.noteHidden, true);
-        assert.equal(v.rowText, 'N/A (EF only)');
+        assert.equal(v.rowText, 'N/A (Edwards Ferry only)');
     });
 });
 
@@ -120,15 +119,16 @@ describe('A4a wording (PA-1, PA-5)', () => {
     const unk = describeCap({ shownCFS: 13200, uncappedCFS: NaN, ceilingLimitCFS: 13200, lfCFS: 11000, lfReadMs: null, nowMs: NOW_LOCAL });
     for (const [name, x] of [['cut', d], ['unknown', unk]]) {
         it(`${name}: never says "upper limit", says the real flow may be above the number shown`, () => {
-            const all = `${x.headline} ${x.detail}`;
+            const all = x.line;
             assert.ok(!/upper limit/i.test(all));
             assert.ok(!/at most|no more than|maximum/i.test(all));
             assert.ok(all.includes('may be above the number shown'));
             assert.ok(all.endsWith('The real flow may be above the number shown, especially on a rising river, where Little Falls responds later.'));
             assert.equal(CAP_LAG_CLAUSE, 'The real flow may be above the number shown, especially on a rising river, where Little Falls responds later.');
             assert.ok(!/lags a rising river/.test(all), 'the causal clause is gone: the cap also binds on steady and falling rivers');
-            assert.ok(x.detail.includes('The cfs and ft shown are held'));
-            assert.ok(x.headline.includes('the model reads higher than this'));
+            assert.ok(x.line.includes('The cfs and ft shown are held'));
+            assert.ok(x.line.startsWith('Capped:'));
+            if (name === 'unknown') assert.ok(x.line.includes('the model reads higher than this'));
         });
     }
     it('index.html How It Works does not say "upper limit" either', () => {
@@ -137,7 +137,7 @@ describe('A4a wording (PA-1, PA-5)', () => {
 });
 
 describe('A4a clock time and old-reading clause (PA-3)', () => {
-    const at = (readMs, nowMs = NOW_LOCAL) => describeCap({ shownCFS: 13200, uncappedCFS: 14300, ceilingLimitCFS: 13200, lfCFS: 11000, lfReadMs: readMs, nowMs }).detail;
+    const at = (readMs, nowMs = NOW_LOCAL) => describeCap({ shownCFS: 13200, uncappedCFS: 14300, ceilingLimitCFS: 13200, lfCFS: 11000, lfReadMs: readMs, nowMs }).line;
     it('formats an absolute clock time', () => {
         assert.ok(at(local(10, 14, 40)).includes(`(${L(11000)} cfs at 14:40)`));
         assert.equal(formatClock(local(10, 0, 5), NOW_LOCAL), '0:05');
@@ -188,19 +188,19 @@ describe('A4a rounding ties and non-integer LF (PA-7), through the real helper',
         assert.equal(view.noteHidden, true);
         assert.equal(view.rowText, 'Active (changed it by under 1 cfs)');
         assert.equal(view.ciSuffix, ' (around the capped value)');
-        assert.equal(view.headline, '');
+        assert.equal(view.line, '');
     });
     it('one above (+1): the note shows with figures', () => {
         const { r, view } = viaHelper(13201, 11000);
         assert.equal(r.ceilingApplied, true);
         assert.equal(view.noteHidden, false);
-        assert.ok(view.detail.startsWith(`The model estimates ${L(13201)} cfs. The cfs and ft shown are held at ${L(13200)} cfs`));
+        assert.ok(view.line.startsWith(`Capped: the model estimates ${L(13201)} cfs. The cfs and ft shown are held at ${L(13200)} cfs`));
     });
     it('non-integer LF (11003.4): the stated 120% arithmetic stays within 1 cfs', () => {
         const { est, view } = viaHelper(14000, 11003.4);
         assert.equal(est.inputs.lfCFS, 11003);
         assert.equal(est.cfs, 13204);
-        assert.ok(view.detail.includes(`held at ${L(13204)} cfs, which is 120% of the latest Little Falls reading (${L(11003)} cfs`));
+        assert.ok(view.line.includes(`held at ${L(13204)} cfs, 120% of the latest Little Falls reading (${L(11003)} cfs`));
         assert.ok(Math.abs(est.cfs - est.inputs.lfCFS * 1.2) < 1);
     });
 });
@@ -216,25 +216,23 @@ describe('A4a missing or inconsistent figures (PA-7)', () => {
         it(`${name}: generic text, no invented number, row just says Active`, () => {
             const d = describeCap({ ...good, ...patch });
             assert.equal(d.kind, 'unknown');
-            assert.equal(d.headline, CAP_HEADLINE);
+            assert.ok(d.line.startsWith(CAP_HEADLINE));
             assert.equal(d.rowText, ROW_ACTIVE);
-            assert.ok(!/\d/.test(d.detail.replace('120%', '')), d.detail);
+            assert.ok(!/\d/.test(d.line.replace('120%', '')), d.line);
         });
     }
 });
 
 describe('A4a reset in every branch and real assignments (PA-4, PA-6, PA-8)', () => {
     const mk = () => ({
-        note: { hidden: true }, headline: { textContent: '' }, detail: { textContent: '' },
         row: { textContent: 'stale' }, ci: { textContent: '9,000 – 12,000 cfs' }
     });
     const bound = { cfs: 10800, inputs: { ceilingApplied: true, uncappedCFS: 11999, ceilingLimitCFS: 10800, lfCFS: 9000, lfReadMs: LF_READ } };
 
-    it('a bound view fills the note, shows it, and sets the ceiling row', () => {
+    it('a bound view sets the ceiling row (v39.8: the sentence goes to the notice box, see estimate-notice.test.mjs)', () => {
         const els = mk();
         applyCapView(capView(bound, NOW_LOCAL), els);
-        assert.equal(els.note.hidden, false);
-        assert.ok(els.detail.textContent.includes(L(11999)));
+        assert.ok(capView(bound, NOW_LOCAL).line.includes(L(11999)));
         assert.equal(els.row.textContent, `Active (model said ${L(11999)} cfs)`);
         assert.equal(els.ci.textContent, '9,000 – 12,000 cfs', 'applyCapView no longer touches the CI row, so render order cannot change it');
     });
@@ -249,25 +247,26 @@ describe('A4a reset in every branch and real assignments (PA-4, PA-6, PA-8)', ()
     it('ciRowText leaves a row with no range alone', () => {
         const v = capView(bound, NOW_LOCAL);
         assert.equal(ciRowText('--', v), '--');
-        assert.equal(ciRowText('N/A \u2014 EF only', v), 'N/A \u2014 EF only');
+        assert.equal(ciRowText('N/A (Edwards Ferry only)', v), 'N/A (Edwards Ferry only)');
         assert.equal(ciRowText('', v), '');
     });
     for (const [name, est, row] of [['loading or no estimate', null, ROW_NONE], ['EF only', { efOnly: true, cfs: 5000, inputs: {} }, ROW_EF_ONLY]]) {
-        it(`${name}: after a bound render the note is hidden and cleared and the row is reset`, () => {
+        it(`${name}: after a bound render the view has no line and the row is reset`, () => {
             const els = mk();
             applyCapView(capView(bound, NOW_LOCAL), els);
-            applyCapView(capView(est, NOW_LOCAL), els);
-            assert.equal(els.note.hidden, true);
-            assert.equal(els.headline.textContent, '');
-            assert.equal(els.detail.textContent, '');
+            const v = capView(est, NOW_LOCAL);
+            applyCapView(v, els);
+            assert.equal(v.noteHidden, true);
+            assert.equal(v.line, '');
             assert.equal(els.row.textContent, row);
         });
     }
-    it('unbound after bound: note hidden, row Not active', () => {
+    it('unbound after bound: no line, row Not active', () => {
         const els = mk();
         applyCapView(capView(bound, NOW_LOCAL), els);
-        applyCapView(capView({ cfs: 5000, inputs: { ceilingApplied: false } }, NOW_LOCAL), els);
-        assert.equal(els.note.hidden, true);
+        const v = capView({ cfs: 5000, inputs: { ceilingApplied: false } }, NOW_LOCAL);
+        applyCapView(v, els);
+        assert.equal(v.line, '');
         assert.equal(els.row.textContent, ROW_NOT_ACTIVE);
     });
     it('constants are what the tests above assume', () => {
@@ -322,7 +321,7 @@ describe('A4a wiring in the page (source guard; the behaviour is tested above)',
         assert.equal((body.match(/renderCapIndicator\(gfEstimate\)/g) || []).length, 1);
         assert.equal((body.match(/renderCapIndicator\(null\)/g) || []).length, 2, 'loading and no-estimate branches');
     });
-    it('the cap note is rendered immediately after the big number is written (no stale note if later code throws)', () => {
+    it('the cap ROW is rendered immediately after the big number is written (the cap sentence is set later, in renderNotice)', () => {
         const write = body.indexOf('document.getElementById("gf-cfs").textContent = gfEstimate.cfs.toLocaleString();');
         const render = body.indexOf('renderCapIndicator(gfEstimate)');
         assert.ok(write > 0 && render > write);
@@ -334,12 +333,13 @@ describe('A4a wiring in the page (source guard; the behaviour is tested above)',
         assert.ok(/getElementById\("gf-input-uncertainty"\)\.textContent = ciRowText\([\s\S]*?, capV\);/.test(body));
         assert.ok(!/gf-input-uncertainty"\)\.textContent \+=/.test(body));
     });
-    it('index.html has the note and the row, and the note is not a nested live region', () => {
+    it('index.html has the notice box (hidden, no role) and the ceiling row; the old cap note is gone', () => {
         const html = read('index.html');
-        const tag = html.match(/<div id="gf-cap-note"[^>]*>/);
-        assert.ok(tag, 'gf-cap-note missing');
+        const tag = html.match(/<div id="gf-notice"[^>]*>/);
+        assert.ok(tag, 'gf-notice missing');
         assert.ok(/\bhidden\b/.test(tag[0]));
         assert.ok(!/role=|aria-live/.test(tag[0]));
-        assert.ok(html.includes('id="gf-cap-headline"') && html.includes('id="gf-cap-detail"') && html.includes('id="gf-input-ceiling"'));
+        assert.ok(html.includes('id="gf-input-ceiling"'));
+        // the old ids are gone from index.html, src/ and test/: test/hidden-leftovers.test.mjs
     });
 });

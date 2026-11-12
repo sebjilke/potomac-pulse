@@ -223,12 +223,12 @@ export function processData(json) {
                         break;
                     }
                 }
-                // If no valid reading in 2-day window, still mark as ice-affected
+                // If no valid reading in the 7-day window (period=P7D), still mark as ice-affected
                 if (!foundValid) {
                     data[s].iceAffected = true;
                     data[s].iceLongTerm = true;
                     if (hasIceQualifier && Number.isFinite(latestMs)) data[s].readTime = latestMs;
-                    console.log(`🧊 ${s}: Ice-flagged for >2 days, no valid readings in window`);
+                    console.log(`🧊 ${s}: Ice-flagged for the whole 7-day window, no valid readings`);
                 }
             }
         }
@@ -373,10 +373,6 @@ export async function fetchCreekData() {
                 running: q >= CREEK_RUNS[siteCode].runnable,
                 history: history
             };
-
-            if (q >= CREEK_RUNS[siteCode].runnable) {
-                try { localStorage.setItem(`creek_lastran_${siteCode}`, new Date().toISOString()); } catch(e) {}
-            }
         }
         console.log(`🏞️ Creek data: ${Object.keys(creekData).length}/${Object.keys(CREEK_RUNS).length} gauges loaded`);
     } catch(e) {
@@ -594,7 +590,6 @@ function releaseRetryButtons() {
 export function setStatus(s) {
     currentStatus = s;
     const dot = document.getElementById("dot");
-    const st = document.getElementById("status");
     const refreshBtn = document.getElementById("refreshBtn");
 
     if (refreshBtn) {
@@ -613,25 +608,20 @@ export function setStatus(s) {
     if (s === "loading") {
         dot.className = "dot loading";
         dot.title = "Fetching data from USGS...";
-        st.textContent = "Fetching data...";
     } else if (s === "ok") {
         dot.className = "dot";
         dot.title = "Live - Connected to USGS";
-        st.textContent = "Live";
         dismissErrorBanner();
     } else if (s === "cached") {
         dot.className = "dot cached";
         dot.title = "Cached - Using stored data";
-        st.textContent = "Cached";
     } else if (s === "stale") {
         dot.className = "dot error";
         dot.title = "Offline - Using old cached data";
-        st.textContent = "Offline";
         showErrorBanner("Network unavailable. Showing cached data.");
     } else if (s === "error") {
         dot.className = "dot error";
         dot.title = "No data available";
-        st.textContent = "No Data";
         showErrorBanner("Unable to connect to USGS. Check your connection.");
     }
 

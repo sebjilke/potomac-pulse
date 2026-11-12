@@ -19,37 +19,60 @@ import {
 
 import { estimateGreatFalls, getPoRFromHoursAgo, getPoRRiseRate } from '../estimation/great-falls.js';
 import { estimateGFFromEdwardsFerry } from '../estimation/edwards-ferry.js';
-import {
-    shouldShowDivergenceAdvisory, downgradeConfidence,
-    DIVERGENCE_ADVISORY_TITLE, DIVERGENCE_ADVISORY_BODY
-} from './divergence-advisory.js';
-import {
-    shouldShowResidualAdvisory,
-    RESIDUAL_ADVISORY_TITLE, RESIDUAL_ADVISORY_BODY
-} from './residual-advisory.js';
+import { shouldShowDivergenceAdvisory, downgradeConfidence } from './divergence-advisory.js';
+import { shouldShowResidualAdvisory } from './residual-advisory.js';
 import { capView, applyCapView, ciRowText } from './cap-indicator.js';
+import { noticeView, applyNoticeView } from './estimate-notice.js';
 import { gfCardState } from './gf-card-state.js';
+import {
+    roundForecastCfs, forecastTrend, forecastSourceLabel, forecastSourceLine, isRoundedForecastPoint
+} from './forecast-format.js';
 import { runShadowModels } from '../estimation/shadow-models.js';
 import { recordGFEstimate } from '../data/history.js';
-import { fmtArrival } from '../data/fetch.js';
 import { storeForecastPredictions } from '../learning/gf-learning.js';
 import { renderForecastGraph, getForecastGraphData, getGraphScales } from '../ui/forecast-graph.js';
 import { updateShadowModelUI } from '../ui/learning-ui.js';
 import { dropLocalSpikes } from '../estimation/rise-rate-robust.mjs';
 import { emit } from '../state/event-bus.js';
 
-// v39.3 (A4a): write the cap note and the inputs row for the given estimate (null, EF-only, bound or not).
-// Pure view logic lives in cap-indicator.js; this only hands it the page elements. Display only.
-// Returns the view so the 90% CI row can build its own text with ciRowText (order-independent).
+// v39.3 (A4a): write the inputs-panel cap row for the given estimate (null, EF-only, bound or not).
+// Pure view logic lives in cap-indicator.js; this only hands it the page element. Display only.
+// Returns the view so the 90% CI row can build its own text with ciRowText (order-independent) and so
+// renderNotice can put the cap sentence into the notice box.
+// v39.8: the cap sentence now lives in the one notice box (#gf-notice). With no estimate this call clears the
+// whole box; with an estimate it touches only the row and the box is set by renderNotice further down
+// (the Edwards Ferry-only branch clears it explicitly before it returns).
 function renderCapIndicator(estimate) {
     const view = capView(estimate, Date.now());
-    applyCapView(view, {
-        note: document.getElementById("gf-cap-note"),
-        headline: document.getElementById("gf-cap-headline"),
-        detail: document.getElementById("gf-cap-detail"),
-        row: document.getElementById("gf-input-ceiling")
-    });
+    applyCapView(view, { row: document.getElementById("gf-input-ceiling") });
+    if (!estimate) clearNotice();
     return view;
+}
+
+// v39.8: the one notice box. Pure logic in estimate-notice.js; this only hands it the page elements.
+// Every slot is set on every call, so nothing survives from an earlier render.
+function renderNotice(capV, divergenceShown, residualShown) {
+    applyNoticeView(
+        noticeView({ capLine: capV.noteHidden ? '' : capV.line, divergence: divergenceShown, residual: residualShown }),
+        {
+            box: document.getElementById("gf-notice"),
+            cap: document.getElementById("gf-notice-cap"),
+            capLead: document.getElementById("gf-notice-cap-lead"),
+            capText: document.getElementById("gf-notice-cap-text"),
+            ef: document.getElementById("gf-notice-ef"),
+            efLead: document.getElementById("gf-notice-ef-lead"),
+            efText: document.getElementById("gf-notice-ef-text"),
+            lf: document.getElementById("gf-notice-lf"),
+            lfLead: document.getElementById("gf-notice-lf-lead"),
+            lfText: document.getElementById("gf-notice-lf-text"),
+            closing: document.getElementById("gf-notice-closing")
+        }
+    );
+}
+
+// No cap line and no advisory: hides the box and empties every slot.
+function clearNotice() {
+    renderNotice({ noteHidden: true, line: '' }, false, false);
 }
 
 // v39.7: card state before an estimate exists (pure logic in gf-card-state.js). Display only.
@@ -95,8 +118,8 @@ export function computeGFEstimate() {
 
 /**
  * Renders the main Great Falls "ESTIMATED NOW" section: computes the estimate, fills the
- * cfs/stage/trend/confidence/data-source/forecast/inputs/CI/EF-crosscheck DOM nodes, updates the
- * map popup and validation countdown, triggers the 48h forecast periods, and emits 'gf-estimate:rendered'.
+ * cfs/stage/trend/confidence/notice/inputs/CI/EF-crosscheck DOM nodes, updates the
+ * map popup and the Learning-tab validation countdown, triggers the 48h forecast periods, and emits 'gf-estimate:rendered'.
  * Handles loading, ice-affected, EF-only, and no-history states. No-op if the GF DOM is not present.
  */
 export function updateGreatFallsUI() {
@@ -111,12 +134,7 @@ export function updateGreatFallsUI() {
         document.getElementById("gf-cfs").textContent = "...";
         document.getElementById("gf-stage").textContent = "...";
         document.getElementById("gf-trend").textContent = "";
-        document.getElementById("gf-data-source").textContent = !gfDataReady ? "Loading corrections..." : "Loading EF data...";
         document.getElementById("gf-confidence").textContent = "";
-        document.getElementById("gf-ci-range").style.display = 'none';
-        document.getElementById("gf-forecast-cfs").textContent = "--";
-        document.getElementById("gf-forecast-stage").textContent = "--";
-        document.getElementById("gf-forecast-hrs").textContent = "--";
         renderGFCardGate(gfCardState({
             learningReady: gfDataReady, efReady, fetchSettled,
             sourceUnavailable: dataSource === "unavailable", hasEstimate: false, iceIssue: false
@@ -142,17 +160,11 @@ export function updateGreatFallsUI() {
             const trendEl = document.getElementById("gf-trend");
             trendEl.textContent = "❄️ Ice conditions";
             trendEl.style.color = "var(--accent-blue)";
-            document.getElementById("gf-data-source").textContent = "Critical gauges ice-affected — estimate suspended";
         } else {
             document.getElementById("gf-trend").textContent = "Waiting for data...";
-            document.getElementById("gf-data-source").textContent = "Waiting for data...";
         }
 
         document.getElementById("gf-confidence").textContent = "Confidence: --";
-        document.getElementById("gf-ci-range").style.display = 'none';
-        document.getElementById("gf-forecast-cfs").textContent = "--";
-        document.getElementById("gf-forecast-stage").textContent = "--";
-        document.getElementById("gf-forecast-hrs").textContent = "--";
         renderGFCardGate(gfCardState({
             learningReady: gfDataReady, efReady, fetchSettled,
             sourceUnavailable: dataSource === "unavailable", hasEstimate: false, iceIssue: !!isIceIssue
@@ -170,28 +182,22 @@ export function updateGreatFallsUI() {
 
     // Main display - "ESTIMATED NOW" section
     document.getElementById("gf-cfs").textContent = gfEstimate.cfs.toLocaleString();
-    // v39.3 (A4a): the cap note is written right after the number it describes, so a later throw
-    // cannot leave the previous note next to a new number.
+    // v39.3 (A4a): the cap row is written right after the number. v39.8: the cap sentence is written with the advisories in renderNotice below; if code in between throws, the box keeps its previous render.
     const capV = renderCapIndicator(gfEstimate);
 
     // Show stage (clean number only)
     const stageEl = document.getElementById("gf-stage");
     stageEl.textContent = gfEstimate.stage.toFixed(2);
 
-    // EF-only fallback mode: PoR is ice-affected, using Edwards Ferry model only
+    // EF-only fallback mode: Point of Rocks OR Little Falls is ice-affected, using Edwards Ferry model only
     if (gfEstimate.efOnly) {
-        document.getElementById("gf-estimate-label").textContent = "❄️ EF-ONLY ESTIMATE";
+        document.getElementById("gf-estimate-label").textContent = "❄️ ESTIMATE FROM EDWARDS FERRY ONLY";
         document.getElementById("gf-estimate-label").style.color = "var(--accent-blue)";
-        document.getElementById("gf-data-source").textContent =
-            "PoR ice-affected — using Edwards Ferry model (R²=" + EF_MODEL.rSquared + ")";
         const efTrendEl = document.getElementById("gf-trend");
         const efTrendIcon = gfEstimate.flowState === 'rising' ? '▲' : gfEstimate.flowState === 'falling' ? '▼' : '●';
-        efTrendEl.textContent = efTrendIcon + " " + gfEstimate.flowState.toUpperCase() + " (EF trend)";
+        efTrendEl.textContent = efTrendIcon + " " + gfEstimate.flowState.toUpperCase() + " (Edwards Ferry trend)";
         efTrendEl.style.color = "var(--accent-blue)";
-        document.getElementById("gf-confidence").textContent = "Confidence: LOW (EF only)";
-        document.getElementById("gf-forecast-cfs").textContent = "--";
-        document.getElementById("gf-forecast-stage").textContent = "--";
-        document.getElementById("gf-forecast-hrs").textContent = "--";
+        document.getElementById("gf-confidence").textContent = "Confidence: LOW (Edwards Ferry only)";
         // v32.2: Populate estimation inputs section for EF-only mode
         document.getElementById("gf-input-por").textContent = "❄️ ice-affected";
         document.getElementById("gf-input-monocacy").textContent = "N/A";
@@ -200,36 +206,21 @@ export function updateGreatFallsUI() {
         document.getElementById("gf-input-seneca").textContent = "N/A";
         document.getElementById("gf-input-travel").textContent = "N/A";
         document.getElementById("gf-input-travel-gf-lf").textContent = "N/A";
-        document.getElementById("gf-input-flowbin").textContent = "N/A — EF only";
-        document.getElementById("gf-input-correction").textContent = "N/A — EF only";
-        document.getElementById("gf-input-uncertainty").textContent = "N/A — EF only";
+        document.getElementById("gf-input-flowbin").textContent = "N/A (Edwards Ferry only)";
+        document.getElementById("gf-input-correction").textContent = "N/A (Edwards Ferry only)";
+        document.getElementById("gf-input-uncertainty").textContent = "N/A (Edwards Ferry only)";
         document.getElementById("gf-ef-crosscheck").style.display = 'none';
-        document.getElementById("gf-ci-range").style.display = 'none';
+        clearNotice(); // v39.8: no advisory or cap sentence next to an Edwards Ferry-only number
         return;
     }
 
-    // Update label and data source based on whether we have time-shifted data
+    // Update the label based on whether we have time-shifted data
     if (gfEstimate.useTimeShifted) {
         document.getElementById("gf-estimate-label").textContent = "ESTIMATED NOW";
         document.getElementById("gf-estimate-label").style.color = "var(--accent-green)";
-        if (gfEstimate.useEfEnsemble && gfEstimate.efWeight) {
-            const porPct = Math.round((1 - gfEstimate.efWeight) * 100);
-            const efPct = Math.round(gfEstimate.efWeight * 100);
-            const delta = gfEstimate.inputs?.porDeltaCorrection;
-            const deltaLabel = delta
-                ? ` [Δ-corrected ${((delta.rawRatio-1)*100).toFixed(0)}%]`
-                : '';
-            document.getElementById("gf-data-source").textContent =
-                `${porPct}% PoR (${gfEstimate.timeShiftedHoursAgo.toFixed(0)}h ago)${deltaLabel} + ${efPct}% EF → LF in ~${gfEstimate.inputs.travelGFtoLF.toFixed(1)} hrs`;
-        } else {
-            document.getElementById("gf-data-source").textContent =
-                `PoR from ${gfEstimate.timeShiftedHoursAgo.toFixed(1)} hrs ago → arrives at LF in ~${gfEstimate.inputs.travelGFtoLF.toFixed(1)} hrs`;
-        }
     } else {
         document.getElementById("gf-estimate-label").textContent = "FORECAST (no history yet)";
         document.getElementById("gf-estimate-label").style.color = "var(--accent-amber)";
-        document.getElementById("gf-data-source").textContent =
-            `Using current PoR (need ${gfEstimate.inputs.travelPoRtoGF.toFixed(0)}+ hrs of history)`;
     }
 
     // Flow state with icon
@@ -253,29 +244,8 @@ export function updateGreatFallsUI() {
     confEl.textContent = "Confidence: " + shownConfidence.toUpperCase() + ((divergenceShown || residualShown) ? " ⚠" : "");
     confEl.style.color = confColors[shownConfidence];
 
-    const advisoryEl = document.getElementById("gf-divergence-advisory");
-    if (advisoryEl) {
-        advisoryEl.hidden = !divergenceShown;
-        if (divergenceShown) {
-            document.getElementById("gf-divergence-title").textContent = DIVERGENCE_ADVISORY_TITLE;
-            document.getElementById("gf-divergence-body").textContent = DIVERGENCE_ADVISORY_BODY;
-        }
-    }
-
-    const residualEl = document.getElementById("gf-residual-advisory");
-    if (residualEl) {
-        residualEl.hidden = !residualShown;
-        if (residualShown) {
-            document.getElementById("gf-residual-title").textContent = RESIDUAL_ADVISORY_TITLE;
-            document.getElementById("gf-residual-body").textContent = RESIDUAL_ADVISORY_BODY;
-        }
-    }
-
-    // Forecast section
-    document.getElementById("gf-forecast-cfs").textContent = gfEstimate.forecastCFS.toLocaleString();
-    document.getElementById("gf-forecast-stage").textContent = gfEstimate.forecastStage.toFixed(2);
-    document.getElementById("gf-forecast-hrs").textContent = gfEstimate.inputs.travelPoRtoGF.toFixed(1);
-    document.getElementById("gf-forecast-arrival").textContent = fmtArrival(gfEstimate.inputs.travelPoRtoGF);
+    // v39.8: one notice box instead of the cap note and the two advisory boxes.
+    renderNotice(capV, divergenceShown, residualShown);
 
     // Inputs section
     const porInputEl = document.getElementById("gf-input-por");
@@ -299,7 +269,7 @@ export function updateGreatFallsUI() {
     const binData = gfLearningData?.correctionBins?.[gfEstimate.inputs.flowBin]?.[gfEstimate.flowState];
     const binCount = binData?.count || 0;
     document.getElementById("gf-input-flowbin").textContent =
-        gfEstimate.inputs.flowBin + (binCount > 0 ? ` (${binCount} obs)` : '');
+        gfEstimate.inputs.flowBin + (binCount > 0 ? ` (${binCount} checks)` : '');
 
     document.getElementById("gf-input-correction").textContent =
         gfEstimate.inputs.correction === 0 ? "none yet" : (gfEstimate.inputs.correction > 0 ? "-" : "+") + Math.abs(Math.round(gfEstimate.inputs.correction)) + " cfs";
@@ -341,7 +311,6 @@ export function updateGreatFallsUI() {
 
     // Validation countdown
     const valCountdownText = gfEstimate.validationCountdown.toFixed(1) + " hrs";
-    document.getElementById("gf-val-countdown").textContent = valCountdownText;
     const learnValCountdown = document.getElementById("learn-val-countdown");
     if (learnValCountdown) learnValCountdown.textContent = valCountdownText;
 
@@ -598,29 +567,35 @@ export function updateForecastPeriods(gfEst) {
     // Filter periods to display
     const displayPeriods = periods.filter(p => p.isCurrent || p.isDisplayPeriod);
 
-    // Render period cards
+    // Render period cards. v39.8: future cards show rounded text (display only: p.cfs, p.stage and p.source are
+    // never assigned here, because storeForecastPredictions posts them). The Now card keeps the headline's own text.
     container.innerHTML = displayPeriods.map((p) => {
         const timeStr = p.isCurrent ? 'Now' : formatForecastTime(p.time);
-        const trendIcon = p.cfs > currentCFS ? '▲' : (p.cfs < currentCFS ? '▼' : '●');
-        const trendColor = p.cfs > currentCFS ? 'var(--color-rising)' : (p.cfs < currentCFS ? 'var(--color-falling)' : 'var(--text-tertiary)');
+        const dir = forecastTrend(p.cfs, currentCFS);
+        const trendIcon = dir === 'up' ? '▲' : (dir === 'down' ? '▼' : '●');
+        const trendColor = dir === 'up' ? 'var(--color-rising)' : (dir === 'down' ? 'var(--color-falling)' : 'var(--text-tertiary)');
         const hrs = p.isCurrent ? 0 : parseInt(p.label.replace('+', '').replace('h', ''));
-
-        let sourceIndicator = '';
-        if (p.source && !p.isCurrent) {
-            const sourceColor = 'var(--accent-blue)';
-            const sourceTitle = 'NWS upstream forecast (arrival time varies with flow)';
-            sourceIndicator = ` <span class="fp-source" style="color:${sourceColor};" title="${sourceTitle}">${p.source}</span>`;
-        }
+        const stageText = p.stage.toFixed(2); // v39.8: stage stays at two decimals, so it cannot contradict the arrow
+        const cfsText = p.isCurrent ? p.cfs.toLocaleString() : roundForecastCfs(p.cfs).toLocaleString();
+        const cardTitle = p.isCurrent ? '' : ` title="${forecastSourceLabel(p.source).title}"`;
 
         return `
-            <div class="forecast-period${p.isCurrent ? ' current' : ''}" data-hrs="${hrs}" data-stage="${p.stage.toFixed(2)}" data-cfs="${p.cfs}" style="cursor:pointer;">
-                <div class="fp-time">${p.label}${sourceIndicator}<br><span class="fp-subtime">${timeStr}</span></div>
-                <div class="fp-stage">${p.stage.toFixed(2)} ft</div>
-                <div class="fp-cfs">${p.cfs.toLocaleString()} cfs</div>
+            <div class="forecast-period${p.isCurrent ? ' current' : ''}" data-hrs="${hrs}" data-stage="${p.stage.toFixed(2)}" data-cfs="${p.cfs}"${cardTitle} style="cursor:pointer;">
+                <div class="fp-time">${p.label}<br><span class="fp-subtime">${timeStr}</span></div>
+                <div class="fp-stage">${stageText} ft</div>
+                <div class="fp-cfs">${cfsText} cfs</div>
                 ${!p.isCurrent ? `<div class="fp-trend" style="color:${trendColor}">${trendIcon}</div>` : ''}
             </div>
         `;
     }).join('');
+
+    // v39.8: one source line under the cards instead of a word on every card.
+    const sourceEl = document.getElementById("gf-forecast-source");
+    if (sourceEl) {
+        const line = forecastSourceLine(periods);
+        sourceEl.textContent = line.text;
+        sourceEl.title = line.title;
+    }
 
     // Build GF history for graph. Drop isolated local spikes from the PLOT only
     // (display filter — never deletes stored history) so a stale/glitch estimate
@@ -714,8 +689,10 @@ export function showGraphMarker(hrs) {
     marker.style.display = 'block';
 
     document.getElementById('gf-tooltip-time').textContent = formatForecastTime(dataPoint.time);
+    // v39.8: forecast FLOW is rounded like the cards; history and the Now point stay exact. Stage keeps two decimals.
+    const rounded = isRoundedForecastPoint(dataPoint);
     document.getElementById('gf-tooltip-stage').textContent = dataPoint.stage.toFixed(2);
-    document.getElementById('gf-tooltip-cfs').textContent = dataPoint.cfs.toLocaleString();
+    document.getElementById('gf-tooltip-cfs').textContent = (rounded ? roundForecastCfs(dataPoint.cfs) : dataPoint.cfs).toLocaleString();
 
     const graphContainer = document.getElementById('gf-graph-container');
     const tooltipX = Math.min(graphContainer.clientWidth - 110, Math.max(10, x - 40));

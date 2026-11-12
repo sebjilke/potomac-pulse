@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 
 import {
     shouldShowDivergenceAdvisory, downgradeConfidence,
-    DIVERGENCE_ADVISORY_TITLE, DIVERGENCE_ADVISORY_BODY
+    DIVERGENCE_LEAD, DIVERGENCE_TEXT, DIVERGENCE_LINE
 } from '../src/ui/divergence-advisory.js';
 import { EF_DIVERGENCE_STALE_MS } from '../src/model/constants.js';
 
@@ -51,10 +51,22 @@ describe('downgradeConfidence', () => {
 
 describe('advisory copy', () => {
     it('is non-empty and frames the signal as disagreement, not EF correctness', () => {
-        assert.ok(DIVERGENCE_ADVISORY_TITLE.length > 10);
-        assert.ok(DIVERGENCE_ADVISORY_BODY.length > 100);
-        assert.match(DIVERGENCE_ADVISORY_TITLE, /disagrees/i);
-        assert.doesNotMatch(DIVERGENCE_ADVISORY_BODY, /Edwards Ferry is (right|correct)/i);
-        assert.match(DIVERGENCE_ADVISORY_BODY, /gauge noise/i, 'keeps the false-positive hedge');
+        assert.ok(DIVERGENCE_LINE.length > 100);
+        assert.equal(DIVERGENCE_LINE, DIVERGENCE_LEAD + ' ' + DIVERGENCE_TEXT);
+        assert.match(DIVERGENCE_LEAD, /disagrees/i);
+        assert.match(DIVERGENCE_LINE, /disagrees/i);
+        assert.doesNotMatch(DIVERGENCE_LINE, /Edwards Ferry is (right|correct)/i);
+        assert.match(DIVERGENCE_LINE, /gauge noise/i, 'keeps the false-positive hedge');
+    });
+    it('PA-1: keeps the direction of the error (water this estimate may not fully see)', () => {
+        assert.match(DIVERGENCE_LINE, /may not fully see/);
+        assert.match(DIVERGENCE_LINE, /water entering below those gauges/);
+        assert.match(DIVERGENCE_LINE, /well above/);
+        assert.match(DIVERGENCE_LINE, /several hours/);
+    });
+    it('the closing sentence is shared, so the line itself no longer carries it or the title wording', () => {
+        assert.doesNotMatch(DIVERGENCE_LINE, /believe the river/);
+        assert.doesNotMatch(DIVERGENCE_LINE, /extra caution/);
+        assert.doesNotMatch(DIVERGENCE_LINE, /upper limit/i);
     });
 });
