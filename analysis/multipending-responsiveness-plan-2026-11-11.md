@@ -1,7 +1,7 @@
 # A6 multi-pending validation: pre-registered analysis plan (v2, 2026-11-11)
 
-Status: v2. It includes the independent plan audit (verdict approve_with_changes, PA-1 to PA-17) and the orchestrator's rulings on it. The plan is frozen on the commit that adds the owner's approval of the gate in section 7. Nothing has been computed. No tick file has been opened. After the freeze, changes may only be recorded in section 17 (Deviations).
-Owner decisions so far: "run A6" (2026-11-11), stage 1 only. There is no stage 2. Whether to build after a PASS is decided by the owner only after a written risk review.
+Status: v2. It includes the independent plan audit (verdict approve_with_changes, PA-1 to PA-17) and the orchestrator's rulings on it. FROZEN: the owner approved the gate in section 7 on 2026-11-12 (about 00:02 UTC; "approve", after the orchestrator recommended approving the rules as written), and this commit records that approval. Nothing has been computed. No tick file has been opened. After the freeze, changes may only be recorded in section 17 (Deviations).
+Owner decisions: "run A6" (2026-11-11), stage 1 only; the gate of section 7 approved as written (2026-11-12 UTC). There is no stage 2. Whether to build after a PASS is decided by the owner only after a written risk review.
 Labels: CODE = read in the repo, with the anchor text given. BRIEF = taken from the decision brief, the June findings, the A7 documents, the plan audit or an orchestrator check, and not re-derived here. INFERRED = reasoning, not tested.
 Terms used throughout:
 - "single": the production one-slot policy.
@@ -270,7 +270,7 @@ N = 21 GATE events. "Point" = the point estimate decides. "CI" = the 95 percent 
 | S1 | under-read share difference | RL, 21 events | point: 100 (U_m - U_s) <= n (integer, = +1.0 pp) AND event CI upper bound of diff_b <= +0.030 | The unsafe direction. 1 pp is about 7 of 727 RL ticks. |
 | S2 | under-read share difference | REC, 21 events | same as S1 on REC | Same on recessions. |
 
-**Owner-set criteria:** all thresholds above. They are frozen only on the owner's approval. The ones most open to judgement are R2's 5 percent, the N1 and N2 margins, D1's margins, the S1 and S2 definition (-15 percent) and margins, and the 2 pp in C2 and C3.
+**Owner-set criteria:** all thresholds above. The owner approved them as written on 2026-11-12 UTC; they are frozen. The ones most open to judgement are R2's 5 percent, the N1 and N2 margins, D1's margins, the S1 and S2 definition (-15 percent) and margins, and the 2 pp in C2 and C3.
 
 **Narrow pass.** For each condition of each passing row, the auditor computes the margin to the threshold in the row's own unit: 0.01 for fractions (1 percentage point), 1.0 pp for D1, 1 event for R3, and for N2 each cell's conditions. A margin below 1 unit marks the row "narrow". This does not change the outcome. It goes into the verdict and the risk review. D1 will almost always be marked narrow, because its whole margin is 0.5 pp.
 
