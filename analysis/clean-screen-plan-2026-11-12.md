@@ -452,3 +452,37 @@ fetch.js:226 `// If no valid reading in 2-day window, still mark as ice-affected
 - /Users/sebjilke/Desktop/PotomacPulse/src/ui/cap-indicator.js
 - /Users/sebjilke/Desktop/PotomacPulse/src/ui/creeks-ui.js
 - /Users/sebjilke/Desktop/PotomacPulse/test/cap-indicator.test.mjs
+
+---
+
+## L. Audit response (independent plan audit 2026-11-12: approve_with_changes) and final wording
+
+The audit is in `clean-screen-plan-2026-11-12.PLAN_AUDIT.md`. Orchestrator rulings, 2026-11-12. Where a ruling differs from the text above, the ruling wins. The implementer works from this section plus the audit's exact wording.
+
+| Finding | Severity | Ruling |
+|---|---|---|
+| PA-1 EF line loses "may not fully see" | must-fix | Accepted. `DIVERGENCE_LINE` ends "... or water entering below those gauges, water this estimate may not fully see." Test added. B3's claim becomes "reworded from existing sentences". |
+| PA-2 guard misses writes through a variable | must-fix | Accepted. The guard collects every static id passed to `getElementById` anywhere in `src/**/*.js` and requires it in `index.html`, with an allowlist of the eight run-time ids the audit lists. Revert check as the audit states. |
+| PA-3 creeks test cannot fail | should-fix | Accepted. Recording stub with zero calls asserted; `test/creek-level.test.mjs:115` edited too. |
+| PA-4 tooltip rounding must exclude Now and history points | should-fix | Accepted. Round only when `!d.isHistory && d.hrs > 0`; two tests. |
+| PA-5 arrow can contradict the rounded numbers | should-fix | Accepted. Show ● when the rounded card value equals Now rounded by the same rule; otherwise compare raw values as today. Test with the audit's example. |
+| PA-6 "(LF scale)" on cfs | should-fix | Option (a): the cfs label becomes "cfs". The rationale is corrected: the number is Little Falls discharge one travel time ahead (Tech Appendix 6.1), and that precision stays in How It Works and the appendix, not on the label. The owner saw "cfs" in the wording table. |
+| PA-7 "Flow range" reads as uncertainty | should-fix | Accepted. "Flow band", value "(12 checks)". |
+| PA-8 cap row label | should-fix | Accepted. "Display cap (120% of Little Falls)". |
+| PA-9 per-card source label wraps | should-fix | Accepted. No per-card source text. One line under the forecast cards, set from the periods' source: "Source: National Weather Service forecast" for `NWS` and `NWS+EF`; "No Weather Service forecast. Rough projection." for `extrapolated`. Its `title` carries the longer text (with PA-11 for the extrapolated case). The card `title` attributes follow the same per-source text. `p.source` is never changed. |
+| PA-10 legend row 6 | should-fix | Accepted. Row 6 is dropped; the legend line keeps its current text. |
+| PA-11 extrapolated tooltip untrue | should-fix | Accepted. "No National Weather Service forecast available. A rough projection from the current estimate and the upstream reading." |
+| PA-12 storage guard in the C1 test | should-fix | Accepted, all four assertions. |
+| PA-13 behaviour tests through the existing harness | should-fix | Accepted, the three tests; the source guard stays only as a backstop. |
+| PA-14 notice clearing direction | note | Accepted, in this form: `renderCapIndicator(null)` (the early returns) clears the whole box; `renderCapIndicator(gfEstimate)` on the main path updates only the inputs-panel row and returns the view WITHOUT touching the box; the Edwards-Ferry-only branch calls an explicit clear before its existing `return;`; `renderNotice(capV, divergenceShown, residualShown)` later sets all slots. If anything throws in between, the box keeps its previous state, as today. The pinned lines are not moved. |
+| PA-15 stale advisories in all early-return states | note | Accepted as a correction to B5; clearing is correct in all three. |
+| PA-16 D1 and D2 requirements | note | Accepted, all four requirements. |
+| PA-17 docs and verification | should-fix | Accepted. `tech-appendix.md` line 598 is added to the list. No browser tool exists in this session, so the browser check is an owner check and an unverified gap until done; step 7 says so. |
+| PA-18 anchors and claims | note | Accepted. Line numbers as the audit gives them; the Edwards-Ferry-only state runs when Point of Rocks OR Little Falls is ice-affected. The pre-existing `gf-input-por` text in that state is logged in TODO, not fixed. |
+| PA-19 jargon not in the table | note | Listed in TODO as seen and not changed (`#forecast-accuracy` wording; the "(observed)" label on past estimate points). |
+| PA-20 Little Falls label and aria | note | Accepted. "Measured gauge below Great Falls"; the `#multVal` aria-label becomes "travel time"; the wraps are added to the owner's phone list. |
+| PA-21 cap note look; lead-ins | note | Accepted. Each line has a lead-in span ("Capped:", "Cross-check gauge disagrees:", "Recent estimates ran low:") in the amber title style and a text span, both set with `textContent`. |
+
+Defaults (the auditor agreed with all four): (1) short lines; (2) the headline number and the "Now" card stay exact; (3) "Last ran" and the banner suffix are dropped; (4) the wrong ">2 days" ice wording in the gauge list is not changed in this release (TODO line added) unless the owner asks.
+
+Final wording, where it differs from table F: "Measured gauge below Great Falls"; "Flow band (12 checks)"; "Display cap (120% of Little Falls)"; no per-card source label, one source line under the cards; legend line unchanged; EF line ends with "water this estimate may not fully see."
