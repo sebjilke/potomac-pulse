@@ -577,7 +577,7 @@ select data from potomac_observations
 where observation_type = 'bin_snapshot' and gauge_id = '2026-10-12T03:00:00.000Z';
 ```
 
-**Tamper caveat.** The table's row-level-security policy "Allow public access" (ALL, role public, true) lets anyone holding the anon key read, delete or forge rows, including these logs. The logs are operational evidence, not a signed or tamper-evident record. Tightening that policy is a migration that could break the cron and is a separate item.
+**Tamper caveat.** Until 2026-11-13 the table's row-level-security policy "Allow public access" (ALL, role public, true) let anyone holding the anon key read, delete or forge rows, including these logs. That policy was removed on 2026-11-13: writing and deleting now need the service key. Rows, including these logs, can still be read with the anon key (policy "Allow public reads"). The logs remain operational evidence, not a signed or tamper-evident record: rows written before that date could have been altered, and a holder of the service key can alter any row.
 
 **Not logged:** scored 48 h forecast rows (need the client-posted NWS inputs; TODO), shadow-model per-tick outputs, client-side telemetry. Difficult Run, the fresh-load label and the band are logged from v39.6 (section 6.10.1).
 
