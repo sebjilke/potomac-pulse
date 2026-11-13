@@ -106,3 +106,22 @@ Reviewer findings, recorded and NOT acted on:
 
 Undo, if something breaks:
 `create policy "Allow public access" on public.potomac_observations for all to public using (true) with check (true);`
+
+## 4. Cleanup of the old job (started 2026-11-13)
+
+All times UTC, 2026-11-13. The owner gave the go-ahead at about 16:55 ("old-job clean up it is"),
+four days before the date planned in section 1 (2026-11-17). Reason it was judged safe to go early:
+0 runs and 0 pg_net responses since the pause on 2026-11-10 18:01, no call to any edge function and
+no read of the eleven rows in the previous 24 h of logs, nothing depends on the database function,
+and the app code never reads these row types. Copies of everything to be deleted were saved first:
+`BACKUP-before-cleanup-2026-11-13.md` in this folder.
+
+Step 1, scheduled job removed (done 17:02:27, by the assistant):
+
+`select cron.unschedule('potomac-learning-job');` returned true.
+
+Checked at 17:02:32: `cron.job` has 0 rows; the 28,792 history rows in `cron.job_run_details` are
+kept. This also removes the anon key that was stored in the job's command.
+
+Undo: re-create the job with `cron.schedule` (shape of the command is described in the backup
+file; it needs the anon key from the dashboard).
