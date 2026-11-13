@@ -125,3 +125,24 @@ kept. This also removes the anon key that was stored in the job's command.
 
 Undo: re-create the job with `cron.schedule` (shape of the command is described in the backup
 file; it needs the anon key from the dashboard).
+
+Steps 2 to 4, done by the owner between 17:44:00 (everything still present) and 17:52:29 (all
+gone); the owner reported "done". The assistant's own attempt at step 3 (17:03) was declined at the
+confirmation step, like the earlier destructive statements, so the owner ran them:
+
+- Step 2: edge function `potomac-learner` deleted in the Supabase dashboard.
+- Step 3: `drop function public.run_potomac_learning();`
+- Step 4: `delete from public.potomac_observations where observation_type in ('rise_event',
+  'metadata', 'snapshot') returning observation_type, gauge_id;`
+
+Checked read-only at 17:52:29:
+- `cron.job`: 0 rows. Edge functions in the project: none. Functions in schema `public`: none.
+- Rows of type `rise_event`, `metadata`, `snapshot`: 0 (were 9, 1, 1).
+- Every other row type is intact. Counts against the 17:00:55 copy: unchanged for 17 types;
+  `gf_forecast_pending` 55 to 62, `tick_log` 68 to 69, `validation_log` 4 to 5 (normal growth: the
+  17:00 run and visitor-posted forecast rows). Total 308 = 310 - 11 + 9.
+- The four policies from section 3 are unchanged.
+- Site endpoint at 17:52:31: lastPrediction 2026-11-13T17:01:00.987Z, consecutiveRuns 545,
+  missedRuns 656, binWriteFailures 0.
+
+Restore, if ever wanted: `BACKUP-before-cleanup-2026-11-13.md`.
