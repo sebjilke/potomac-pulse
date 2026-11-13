@@ -53,3 +53,56 @@ Undo, if it is ever dropped and something breaks:
 
 Check after dropping: the next hourly app tick still writes (lastPrediction advances), and the
 same anon probe now fails on insert and affects zero rows on update.
+
+## 3. Public-write access rule: REMOVED (2026-11-13)
+
+All times UTC, 2026-11-13. The owner said "drop the rule" at about 15:19.
+
+What happened:
+- 15:20:02: the five policies were recorded (the same five as on 2026-11-10: "Allow public access",
+  "Allow public reads", "Service role can delete", "Service role can insert", "Service role can
+  update").
+- API gateway log, previous 24 h: 1,081 requests, all with role `service_role` (user agent `node`:
+  812 GET, 226 POST, 43 DELETE). No request with role `anon`.
+- Two attempts by the assistant to run the statement (about 15:20 and 15:27) were declined at the
+  confirmation step. Nothing changed (checked at 15:20:27 and 15:27:42, five policies each time).
+- The owner then ran it in the Supabase SQL editor, between 15:27:42 (policy present) and 15:30:54
+  (policy absent), and reported "done. success":
+
+  `drop policy "Allow public access" on public.potomac_observations;`
+
+State after (15:30:54 and 15:31:39): four policies remain ("Allow public reads" SELECT true; three
+"Service role can ..." policies tied to `auth.role() = 'service_role'`); row-level security
+enabled, not forced; `anon` and `authenticated` do not bypass RLS, `service_role` does; no write
+policy that is not tied to `service_role`; 303 rows; no probe rows.
+
+Independent verification (fresh verifier, 16:04, read-only): PASS WITH GAPS.
+- Policy state as above. For `anon`, an INSERT fails the WITH CHECK and UPDATE or DELETE see no
+  rows.
+- The 16:00 run (first after the change) wrote as before: `tick_log` row at 16:01:02.254
+  (gauge_id 2026-11-13T16:00:59.322Z; `err` null, `out` "predicted", `aux.logFail` empty), the same
+  as the 14:00 and 15:00 runs.
+- Gateway log after the change: one run's worth of writes (POST 200 x8, DELETE 204 x2, POST 201
+  x1), no 401, 403, other 4xx or 5xx, no `anon` request.
+- Site endpoint at 16:04:16: lastPrediction 2026-11-13T16:01:01.691Z, consecutiveRuns 544 (was
+  543), missedRuns 656 and binWriteFailures 0 unchanged.
+
+Gaps (not verified):
+- No live write attempt as `anon` was made. The planned probe inside a rolled-back transaction was
+  declined at the confirmation step, like the drop itself. "anon cannot write" rests on the policy
+  list and Postgres RLS semantics, not on an observed rejection.
+- Only one hourly run has been observed since the change. The daily `bin_snapshot` (03:00) and the
+  next `validation_log` write have not run yet.
+
+Reviewer findings, recorded and NOT acted on:
+- `anon` and `authenticated` still hold table-level INSERT, UPDATE, DELETE and TRUNCATE grants
+  (Supabase defaults), so RLS is the only barrier. TRUNCATE is not subject to RLS; it has no route
+  through the REST API today and no function in `public` runs it.
+- `public.run_potomac_learning()` is SECURITY INVOKER and callable by `anon` through the API. As
+  `anon` its insert is now blocked by RLS. It also calls `net.http_get`; `anon` has USAGE on schema
+  `net` and EXECUTE on `net.http_get`. Whether `net.http_get` is directly callable by `anon`
+  through the API was not checked. The function is already on the cleanup list in section 1.
+- "Allow public reads" stays: a holder of the anon key can still read every row.
+
+Undo, if something breaks:
+`create policy "Allow public access" on public.potomac_observations for all to public using (true) with check (true);`
