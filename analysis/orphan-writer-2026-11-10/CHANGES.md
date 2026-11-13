@@ -146,3 +146,28 @@ Checked read-only at 17:52:29:
   missedRuns 656, binWriteFailures 0.
 
 Restore, if ever wanted: `BACKUP-before-cleanup-2026-11-13.md`.
+
+Independent verification of the cleanup (fresh verifier, 18:03 to 18:06, read-only): PASS WITH GAPS.
+- Removal: `cron.job` empty, no edge functions, no `run_potomac_learning` in any schema, 0 rows of
+  the three types (re-checked at 18:04:54).
+- Nothing else removed: no row type went down against the 17:00:55 copy. Total 313 = 310 - 11 + 14
+  (`gf_forecast_pending` 55 to 66, `tick_log` 68 to 70, `validation_log` 4 to 5). All single-row
+  state types and the 28 `gf_correction_bin` rows are present and were updated by the 18:00 run.
+- App unaffected: the 18:00 run's `tick_log` row (gauge_id 2026-11-13T18:00:58.210Z) has `err`
+  null, `out` "predicted", `aux.logFail` empty, like the 16:00 and 17:00 rows. Site endpoint:
+  lastPrediction 2026-11-13T18:00:59.946Z, consecutiveRuns 546, missedRuns 656, binWriteFailures 0.
+  The only non-2xx since 17:44 is a GET 406 on the `log_health` row, which does not exist yet (it is
+  written only when a log write fails); the same 406 appears six times since 2026-11-12 20:03, so
+  it predates the cleanup.
+- Not recreated: no call to `/functions/v1/` or `/rest/v1/rpc/`, no request mentioning the three
+  types, no Deno or pg_net user agent in the previous 24 h of logs; `net._http_response` has no row
+  after 2026-11-10 18:01:04.
+- Code: no `.js` file in `netlify/functions/` or `src/` refers to the removed types, functions or
+  an rpc call.
+
+Gaps (not verified): only one hourly run after the cleanup was observed; the "rows stay gone"
+evidence covers about one hour; the dashboard audit trail for the function deletion was not read.
+
+Left as is, for the record: 24 old rows in `net._http_response` (pg_net prunes them), the
+extensions pg_cron and pg_net (installed, now unused), the 28,792 history rows in
+`cron.job_run_details`.
