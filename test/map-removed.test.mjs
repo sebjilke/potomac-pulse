@@ -167,7 +167,7 @@ describe('gauge-list column info icons', () => {
         const hd = rule('.gauge-header').match(/grid-template-columns:\s*([^;]+);/)[1];
         const rw = rule('.gauge').match(/grid-template-columns:\s*([^;]+);/)[1];
         assert.equal(hd, rw);
-        assert.ok(/\.gauge,\s*\.gauge-header\s*\{[^}]*grid-template-columns:\s*8px 1fr 72px 50px 42px 38px;/.test(css));
+        assert.ok(/\.gauge,\s*\.gauge-header\s*\{[^}]*grid-template-columns:\s*8px 1fr 82px 50px 42px 38px;/.test(css));
     });
 });
 

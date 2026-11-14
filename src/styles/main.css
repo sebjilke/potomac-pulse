@@ -425,7 +425,7 @@ main { display: flex; flex: 1; overflow: hidden; }
 /* ==================== GAUGE HEADER (sticky) ==================== */
 .gauge-header {
     display: grid;
-    grid-template-columns: 8px 1fr 65px 44px 50px 46px;
+    grid-template-columns: 8px 1fr 78px 44px 50px 46px;
     align-items: center;
     gap: 8px;
     padding: 8px 10px;
@@ -512,7 +512,7 @@ main { display: flex; flex: 1; overflow: hidden; }
 /* ==================== GAUGE ROWS ==================== */
 .gauge {
     display: grid;
-    grid-template-columns: 8px 1fr 65px 44px 50px 46px;
+    grid-template-columns: 8px 1fr 78px 44px 50px 46px;
     align-items: center;
     gap: 8px;
     padding: 10px 10px;
@@ -536,7 +536,7 @@ main { display: flex; flex: 1; overflow: hidden; }
 
 @media (max-width: 768px) {
     .gauge, .gauge-header {
-        grid-template-columns: 8px 1fr 72px 50px 42px 38px;
+        grid-template-columns: 8px 1fr 82px 50px 42px 38px;
         font-size: 0.75rem;
         padding: 9px 8px;
         gap: 5px;
