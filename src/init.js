@@ -6,7 +6,6 @@ import { loadShadowModelState } from './estimation/shadow-models.js';
 import { loadEFHysteresis } from './estimation/edwards-ferry.js';
 import { loadForecastAccuracy, resetGFLearning } from './learning/gf-learning.js';
 import { dismissErrorBanner, updateStalenessDisplay } from './data/fetch.js';
-import { initMap, toggleMap } from './ui/map.js';
 import { buildBranches, updateUI } from './ui/gauges-ui.js';
 import { buildCreeks, updateCreeksUI } from './ui/creeks-ui.js';
 import { updateLearningUI, updateGFLearningUI, updateGFBinStats, resetShadowModels, downloadLearningBackup, renderAuditLog } from './ui/learning-ui.js';
@@ -76,7 +75,6 @@ export async function init() {
         window.addEventListener('online', onResume);
 
         // Bind event listeners (replaces inline onclick handlers)
-        bindButton('mapToggleBtn', toggleMap);
         // v39.7 (PA-15): arrow functions, so the click event never reaches refreshAll as an argument.
         bindButton('refreshBtn', () => refreshAll());
         bindButton('gfRetryBtn', () => refreshAll());
@@ -103,7 +101,6 @@ export async function init() {
         loadForecastAccuracy().catch(e => console.warn('Forecast accuracy load error:', e));
 
         // Initialize UI
-        initMap();
         buildBranches();
         buildCreeks();
         initTabs();
@@ -118,8 +115,6 @@ export async function init() {
         await refreshAll();
     } catch(e) {
         console.error('Init error:', e);
-        // Fallback: at least show the map
-        initMap();
         buildBranches();
         buildCreeks();
         refreshAll(); // v39.7: the fallback also loads learning, so the card cannot wait for it for ever

@@ -1,5 +1,4 @@
 // Potomac Pulse — Vite entry point
-import 'leaflet/dist/leaflet.css';
 import './styles/theme.css';
 import './styles/main.css';
 
@@ -30,7 +29,6 @@ import './ui/great-falls-ui.js';
 import './ui/forecast-graph.js';
 import './ui/gauges-ui.js';
 import './ui/creeks-ui.js';
-import './ui/map.js';
 import './ui/tabs.js';
 import './ui/learning-ui.js';
 import './ui/auth.js';

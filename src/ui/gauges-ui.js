@@ -1,17 +1,50 @@
-// Potomac Pulse — Gauges UI (branches, gauge rows, map popups)
+// Potomac Pulse — Gauges UI (branches and gauge rows)
 // Extracted from index.html inline script
 
-import L from 'leaflet';
 import { LF, GAUGES, BRANCHES } from '../model/constants.js';
 import {
-    data, markers
+    data
 } from '../state/store.js';
 
-import { fmt, fmtArrival, applyTrendToElement, getTrendData, getTrendText } from '../data/fetch.js';
+import { fmt, fmtArrival, applyTrendToElement } from '../data/fetch.js';
 import { updateGreatFallsUI } from '../ui/great-falls-ui.js';
-import { panTo } from '../ui/map.js';
 
 const BRANCH_STATE_KEY = 'potomac_branch_state';
+
+const TREND_TIP = 'Forecast change in flow over the next 24 hours';
+const BASIN_TIP = 'Share of the land draining to Little Falls that lies upstream of this gauge';
+
+/**
+ * Closes every open column-explanation bubble in the gauge header.
+ * @returns {void}
+ */
+function closeColInfos() {
+    document.querySelectorAll('.col-info.open').forEach(el => {
+        el.classList.remove('open');
+        el.setAttribute('aria-expanded', 'false');
+    });
+}
+
+let colInfoDismissBound = false;
+
+/**
+ * Binds the document-level dismiss handlers (click or touch elsewhere, Escape) once for the page.
+ * @returns {void}
+ */
+function bindColInfoDismiss() {
+    if (colInfoDismissBound) return;
+    colInfoDismissBound = true;
+    const dismissOutside = (e) => {
+        const t = e.target;
+        if (!(t && typeof t.closest === 'function' && t.closest('.col-info'))) closeColInfos();
+    };
+    document.addEventListener('click', dismissOutside);
+    // iOS Safari sends no click to the document for a tap on a non-interactive element, so the touch is heard too.
+    document.addEventListener('pointerdown', dismissOutside);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeColInfos();
+    });
+}
 
 /**
  * Persists each branch's open/closed state to localStorage, keyed by branch key.
@@ -43,7 +76,7 @@ function loadBranchState() {
 /**
  * Builds and renders the gauge sidebar into #branches: a filter input, a column header, and one
  * collapsible branch block per BRANCHES entry, each containing a gauge row per gauge id. Restores
- * saved collapse state and wires up search/filter and click delegation (gauge row → panTo, branch
+ * saved collapse state and wires up search/filter and click delegation (branch
  * header → toggle open + saveBranchState).
  * @returns {void}
  */
@@ -59,8 +92,8 @@ export function buildBranches() {
     html += `<div class="gauge-header">
         <div></div>
         <div>Gauge</div>
-        <div style="text-align:right;">24h Trend</div>
-        <div style="text-align:right;">Basin</div>
+        <div style="text-align:right;">24h Trend <button type="button" class="col-info" aria-label="${TREND_TIP}" aria-expanded="false" data-tip="${TREND_TIP}">i</button></div>
+        <div style="text-align:right;">Basin <button type="button" class="col-info" aria-label="${BASIN_TIP}" aria-expanded="false" data-tip="${BASIN_TIP}">i</button></div>
         <div style="text-align:right;">CFS</div>
         <div style="text-align:right;">Hrs→LF</div>
     </div>`;
@@ -69,7 +102,7 @@ export function buildBranches() {
         const open = isOpen ? "open" : "";
         const gaugeRows = b.ids.map(id => {
             const g = GAUGES[id];
-            return `<div class="gauge" id="gauge-${id}" data-gauge-id="${id}" data-gauge-name="${g.name.toLowerCase()}">
+            return `<div class="gauge" id="gauge-${id}" data-gauge-name="${g.name.toLowerCase()}">
                 <div class="gauge-dot" style="background:${b.color}"></div>
                 <div class="gauge-nm">${g.name}</div>
                 <div class="gauge-trend" id="trend-${id}"></div>
@@ -120,12 +153,21 @@ export function buildBranches() {
         }
     });
 
-    // Event delegation for gauge rows and branch headers
+    // Event delegation for the column info icons and branch headers
+    bindColInfoDismiss();
+    // Bound once: the fallback in init() can call buildBranches() a second time on the same container.
+    if (container.dataset.wired) return;
+    container.dataset.wired = '1';
     container.addEventListener('click', (e) => {
-        // Gauge row click → panTo
-        const gaugeRow = e.target.closest('.gauge[data-gauge-id]');
-        if (gaugeRow) {
-            panTo(gaugeRow.dataset.gaugeId);
+        // Column info icon click → toggle its bubble, close the other
+        const info = e.target.closest('.col-info');
+        if (info) {
+            const willOpen = !info.classList.contains('open');
+            closeColInfos();
+            if (willOpen) {
+                info.classList.add('open');
+                info.setAttribute('aria-expanded', 'true');
+            }
             return;
         }
         // Branch header click → toggle open/close
@@ -145,8 +187,7 @@ export function buildBranches() {
 /**
  * Refreshes all gauge UI from the current `data` store: the Little Falls headline (CFS, stage, trend),
  * the travel-time multiplier readout, every gauge row's CFS / hrs-to-LF / trend cells (with ice-affected
- * and estimated styling and tooltips), each map marker's popup and flood-category border ring, and the
- * Great Falls estimate.
+ * and estimated styling and tooltips), and the Great Falls estimate.
  * @returns {void}
  */
 export function updateUI() {
@@ -202,94 +243,6 @@ export function updateUI() {
         }
     }
 
-    // Update markers — refresh popup and flood-condition border ring
-    for (const [id, marker] of Object.entries(markers)) {
-        const g = GAUGES[id];
-        const d = data[id];
-        if (!g || !d) continue;
-
-        const bk = Object.entries(BRANCHES).find(([k,v]) => v.ids?.includes(id))?.[0];
-        const color = bk === 'target' ? '#f97316' : BRANCHES[bk]?.color || '#60a5fa';
-        marker.bindPopup(popup(id, g, color, bk));
-
-        // Update border color from flood category
-        const flood = d.floodCategory || 'no_flooding';
-        const borderColor = flood === 'major'    ? '#991b1b' :
-                            flood === 'moderate' ? '#ef4444' :
-                            flood === 'minor'    ? '#f97316' :
-                            flood === 'action'   ? '#fbbf24' : 'white';
-        const size = Math.round(4 + Math.sqrt(g.pctLF) * 0.85);
-        marker.setIcon(L.divIcon({
-            className: '',
-            html: `<div style="width:${size}px;height:${size}px;background:${color};border-radius:50%;border:2px solid ${borderColor};box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>`,
-            iconSize: [size, size],
-            iconAnchor: [size/2, size/2]
-        }));
-    }
-
     // Update Great Falls estimate
     updateGreatFallsUI();
-}
-
-// ==================== POPUP ====================
-
-/**
- * Builds the HTML string for a gauge's map popup: name, drainage area/%LF, CFS+stage, 24h trend,
- * and (for non-target gauges with travel data) travel time, %LF drainage, arrival time, calculation
- * note, below-Point-of-Rocks warning, and ice-affected/estimated status notices.
- * @param {string} id - USGS gauge id, used to look up `data[id]`.
- * @param {Object} g - Gauge config (name, area, pctLF, baseHrs).
- * @param {string} color - CSS color for the gauge name heading.
- * @param {string} bk - Branch key for this gauge (used to detect the "belowPtR" branch).
- * @returns {string} HTML markup for the Leaflet popup body.
- */
-export function popup(id, g, color, bk) {
-    const d = data[id] || {};
-    const isTarget = id === LF.id;
-    // Ice-affected takes precedence over estimated
-    let statusLabel = '';
-    if (d.iceAffected) {
-        statusLabel = ' <span style="color:#7dd3fc;font-size:0.65rem;">❄️</span>';
-    } else if (d.estimated) {
-        statusLabel = ' <span style="color:#fbbf24;font-size:0.65rem;">(est*)</span>';
-    }
-    let html = `<div class="pop-nm" style="color:${color}">${g.name}</div>
-        <div class="pop-area">${g.area?.toLocaleString()} sq mi${g.pctLF ? ' • ' + g.pctLF + '% of LF basin' : ''}</div>
-        <div class="pop-row">
-            <div class="pop-cell"><div class="pop-val blue">${d.q ? Math.round(d.q).toLocaleString() : "n/a"}${statusLabel}</div><div class="pop-lbl">cfs</div></div>
-            <div class="pop-cell"><div class="pop-val green">${d.h ? d.h.toFixed(2) : "n/a"}</div><div class="pop-lbl">ft stage</div></div>
-        </div>`;
-
-    // Trend prediction
-    const trendData = getTrendData(d.trend);
-    const trendIconHtml = trendData ? `<span style="color:${trendData.color};font-weight:bold;">${trendData.icon}</span>` : '';
-    html += `<div class="pop-trend">
-        <div class="pop-trend-title">📈 24-Hour Trend ${trendIconHtml}</div>
-        ${getTrendText(d.trend, d.q)}
-    </div>`;
-
-    if (!isTarget && d.travelHrs) {
-        html += `<div class="pop-row">
-            <div class="pop-cell"><div class="pop-val yellow">${fmt(d.travelHrs)}</div><div class="pop-lbl">travel time</div></div>
-            <div class="pop-cell"><div class="pop-val purple">${g.pctLF}%</div><div class="pop-lbl">of LF drainage</div></div>
-        </div>
-        <div class="pop-arr"><b>Arrival:</b> ${d.arrival?.toLocaleString("en-US",{weekday:"short",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}</div>`;
-
-        html += `<div class="pop-note">Calculation: ${g.baseHrs}h × ${d.mult?.toFixed(2) || "1.00"} mult</div>`;
-
-        if (bk === "belowPtR") {
-            html += `<div class="pop-warn">⚠️ Below Point of Rocks — can raise LF before upstream signal</div>`;
-        }
-    }
-    if (d.iceAffected) {
-        if (d.iceLongTerm) {
-            html += `<div class="pop-warn" style="color:#7dd3fc;">❄️ Ice-affected >2 days: estimated from drainage ratio</div>`;
-        } else {
-            const daysAgo = d.lastValidTime ? ((Date.now() - d.lastValidTime) / (24*60*60*1000)).toFixed(1) : '?';
-            html += `<div class="pop-warn" style="color:#7dd3fc;">❄️ Ice-affected: showing last valid reading from ${daysAgo} days ago</div>`;
-        }
-    } else if (d.estimated) {
-        html += `<div class="pop-warn" style="color:#fbbf24;">* Estimated from drainage area ratio — gauge data unavailable (ice/malfunction)</div>`;
-    }
-    return html;
 }

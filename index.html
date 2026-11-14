@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Potomac Pulse: Great Falls and Potomac River flow for paddlers</title>
     <meta name="description" content="Live Potomac River flow for paddlers: a Great Falls estimate from upstream USGS gauges, a 48 hour outlook, travel times and local creek levels.">
-    <meta name="app-version" content="v39.8">
+    <meta name="app-version" content="v39.9">
     <link rel="canonical" href="https://potomac-pulse.netlify.app/">
     <!-- Google Search Console ownership tag (added 2026-11-11). Removing it unverifies the site in Search Console. -->
     <meta name="google-site-verification" content="Io_lxJQ0_NmfkeJuOs3wMeW74CU_n4asPymhq4uTkKE" />
@@ -31,7 +31,7 @@
     <!-- GoatCounter Analytics -->
     <script data-goatcounter="https://potomacpulse.goatcounter.com/count" async src="https://gc.zgo.at/count.js" integrity="sha384-ibA+WLRCY3W4rrf/Qi6Z02iu3FWDJOW41oKXAKzGUka17bnDTswba03X3emshpZS" crossorigin="anonymous"></script>
 
-    <!-- CSS loaded via Vite in src/main.js (leaflet + app styles) -->
+    <!-- CSS loaded via Vite in src/main.js (app styles) -->
 </head>
 <body>
     <!-- Skip link for keyboard accessibility -->
@@ -46,12 +46,11 @@
             <h1>🌊 Potomac Pulse <button id="about-btn" style="font-size:0.7rem;cursor:pointer;opacity:0.7;vertical-align:middle;background:none;border:none;color:inherit;padding:4px;min-width:44px;min-height:44px;" title="About this app" aria-label="About this app">ⓘ</button></h1>
             <div id="about-tooltip" role="tooltip" style="display:none;position:absolute;top:45px;left:60px;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:8px;padding:14px 18px;max-width:360px;font-size:0.8rem;color:var(--text-body);line-height:1.6;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
                 <div style="margin-bottom:10px;color:var(--text-primary);">This app tracks water moving through the Potomac basin — every gauge, with travel times to Little Falls. And since Great Falls has no gauge, it estimates that too.</div>
-                <div style="color:var(--text-tertiary);">Built by Gordon Shumway for paddling the Po' with Toby Woby and Tim Slim. Toby is "working on it." Tim is already wet.</div>
+                <div style="color:var(--text-tertiary);">Built by Gordon Shumway.</div>
             </div>
             <div class="hdr-right">
                 <span class="dot loading" id="dot" role="status" aria-label="Data status" title="Loading..."></span>
                 <span id="lastUpdate" class="last-update" aria-live="polite"></span>
-                <button class="btn" id="mapToggleBtn" aria-label="Toggle map" aria-pressed="false">🗺️</button>
                 <button class="btn" id="refreshBtn" aria-label="Refresh data">↻</button>
             </div>
         </header>
@@ -62,13 +61,11 @@
             <button id="dismissErrorBtn" aria-label="Dismiss error" style="background:none;border:none;color:var(--accent-red-lighter);cursor:pointer;font-size:1rem;padding:4px 8px;min-width:44px;min-height:44px;">✕</button>
         </div>
         <main id="main-content" role="main">
-            <div id="map" role="application" aria-label="River gauge map"></div>
             <div id="sidebar" role="complementary" aria-label="Gauge data sidebar">
                 <div class="target" role="region" aria-label="Little Falls gauge, below Great Falls">
                     <div class="target-icon" aria-hidden="true">🎯</div>
                     <div class="target-info">
                         <div class="target-name">Little Falls</div>
-                        <div class="target-sub">11,560 sq mi • Measured gauge below Great Falls</div>
                     </div>
                     <div class="target-vals" aria-live="polite" aria-atomic="true">
                         <div>
@@ -83,6 +80,7 @@
                 </div>
                 <div class="flow-indicator">
                     <span>Point of Rocks to Little Falls: <span class="mult" id="multVal" aria-label="travel time">--</span></span>
+                    <span>Great Falls to Little Falls: <span class="mult" id="gfLfTravelVal">--</span></span>
                 </div>
                 <div class="tabs" role="tablist" aria-label="Data views">
                     <div class="tab active" id="greatfalls-tab" data-tab="greatfalls" role="tab" aria-selected="true" aria-controls="tab-greatfalls" tabindex="0">🌊 Great Falls</div>
@@ -694,9 +692,9 @@
         <footer>
             <span style="display:inline-flex;align-items:center;gap:6px;">
                 <img src="gs-logo.png" alt="GS" style="height:14px;opacity:0.6;" onerror="this.style.display='none'">
-                © 2026 <span id="gs-credit" style="cursor:pointer;" title="Click me!">Gordon Shumway</span>
+                © 2026 <a id="gs-credit" href="https://www.americanwhitewater.org/" target="_blank" rel="noopener" title="Click me!" style="color:inherit;text-decoration:none;">Gordon Shumway</a>
             </span> • Licensed under <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank">CC BY-NC 4.0</a> •
-<a href="https://github.com/sebjilke/potomac-pulse" target="_blank" style="color:var(--accent-blue);">Open Source</a> • <span id="toby-egg" style="cursor:help;" title="Toby Woby is working on it...">Not for navigation or life-safety decisions</span> • <span id="app-version-text" style="opacity:0.6;">v39.8</span>
+<a href="https://github.com/sebjilke/potomac-pulse" target="_blank" style="color:var(--accent-blue);">Open Source</a> • <span id="app-version-text" style="opacity:0.6;">v39.9</span>
         </footer>
     </div>
 

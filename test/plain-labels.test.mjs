@@ -19,7 +19,6 @@ describe('plain labels in index.html (before the How It Works tab)', () => {
     it('keeps "90% CI" (the wording waits for TODO A8)', () => assert.ok(app.includes('>90% CI<')));
     it('the new wording is there', () => {
         for (const t of [
-            '11,560 sq mi • Measured gauge below Great Falls',
             'aria-label="Little Falls gauge, below Great Falls"',
             'Point of Rocks to Little Falls: ',
             'id="multVal" aria-label="travel time"',

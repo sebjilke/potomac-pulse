@@ -30,9 +30,9 @@ const REMOVED_IDS = [
     'gf-divergence-advisory', 'gf-divergence-title', 'gf-divergence-body',
     'gf-residual-advisory', 'gf-residual-title', 'gf-residual-body'
 ];
-// Ids that exist only at run time (created by JS into the map, the graph SVG or a popup), so they are not in index.html.
+// Ids that exist only at run time (created by JS into the graph SVG), so they are not in index.html.
 const RUNTIME_IDS = new Set([
-    'gf-popup-cfs', 'gf-popup-stage', 'gauge-search', 'gf-graph-hover', 'gf-graph-marker',
+    'gauge-search', 'gf-graph-hover', 'gf-graph-marker',
     'gf-marker-dot', 'gf-marker-line', 'valChartHover'
 ]);
 

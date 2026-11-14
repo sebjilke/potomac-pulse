@@ -50,7 +50,6 @@ export const runtimeCaching = [
   },
   {
     // All other cross-origin live data: USGS via CORS proxies, creeks, Edwards Ferry, water temp, NWS.
-    // Map tiles (arcgisonline) are intentionally NOT matched: too heavy for the cache quota.
     urlPattern: ({ url }) =>
       /allorigins\.win|corsproxy\.io|waterservices\.usgs\.gov|api\.water\.noaa\.gov/.test(url.href),
     handler: 'NetworkFirst',

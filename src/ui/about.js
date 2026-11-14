@@ -1,8 +1,8 @@
-// Potomac Pulse — About tooltip + Easter eggs
+// Potomac Pulse — About tooltip
 // Extracted from index.html inline script
 
 /**
- * Initializes the About tooltip toggle/dismiss behavior and the Toby Woby Easter-egg interactions.
+ * Initializes the About tooltip toggle/dismiss behavior.
  */
 export function initAbout() {
     // ==================== ABOUT TOOLTIP ====================
@@ -18,34 +18,4 @@ export function initAbout() {
         }
     });
 
-    // ==================== EASTER EGGS ====================
-    // Toby Woby easter egg - hover to preview, double-click to activate
-    const tobyEgg = document.getElementById('toby-egg');
-    if (tobyEgg) {
-        const originalText = tobyEgg.textContent;
-        let isActivated = false;
-
-        // Hover: show preview
-        tobyEgg.addEventListener('mouseenter', () => {
-            if (!isActivated) {
-                tobyEgg.textContent = "Toby Woby is working on it...";
-                tobyEgg.style.color = "var(--accent-amber)";
-            }
-        });
-
-        tobyEgg.addEventListener('mouseleave', () => {
-            if (!isActivated) {
-                tobyEgg.textContent = originalText;
-                tobyEgg.style.color = "";
-            }
-        });
-
-        // Double-click: activate permanently
-        tobyEgg.addEventListener('dblclick', () => {
-            isActivated = true;
-            tobyEgg.textContent = "🐕 Toby Woby is STILL working on it";
-            tobyEgg.style.color = "var(--accent-amber)";
-            tobyEgg.title = "Legend has it, Toby has been 'working on it' since 2019...";
-        });
-    }
 }

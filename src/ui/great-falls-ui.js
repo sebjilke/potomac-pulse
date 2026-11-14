@@ -75,6 +75,15 @@ function clearNotice() {
     renderNotice({ noteHidden: true, line: '' }, false, false);
 }
 
+// v39.9: header line "Great Falls to Little Falls". Display only. Called exactly twice inside updateGreatFallsUI:
+// once at the top (reset to "--", so no early return can leave an old number) and once on the main path with
+// the model's own value, the same number the inputs panel shows. Format: whole hours rounded from the panel's
+// one-decimal value, so the two can never round differently.
+function renderGfLfTravel(hrs) {
+    const e = document.getElementById("gfLfTravelVal");
+    if (e) e.textContent = Number.isFinite(hrs) ? '~' + Math.round(Number(hrs.toFixed(1))) + ' hrs' : '--';
+}
+
 // v39.7: card state before an estimate exists (pure logic in gf-card-state.js). Display only.
 // For "unavailable" it writes the label, the reason line and shows "Try again". For "ice" it does nothing
 // (the ice branch owns its own label). For "loading" it restores the normal label. It has no early return
@@ -119,7 +128,7 @@ export function computeGFEstimate() {
 /**
  * Renders the main Great Falls "ESTIMATED NOW" section: computes the estimate, fills the
  * cfs/stage/trend/confidence/notice/inputs/CI/EF-crosscheck DOM nodes, updates the
- * map popup and the Learning-tab validation countdown, triggers the 48h forecast periods, and emits 'gf-estimate:rendered'.
+ * Learning-tab validation countdown, triggers the 48h forecast periods, and emits 'gf-estimate:rendered'.
  * Handles loading, ice-affected, EF-only, and no-history states. No-op if the GF DOM is not present.
  */
 export function updateGreatFallsUI() {
@@ -127,6 +136,7 @@ export function updateGreatFallsUI() {
     // v39.7 (PA-3): "Try again" shows only in the unavailable state; every render starts with it hidden.
     const gfRetryBtn = document.getElementById("gfRetryBtn");
     if (gfRetryBtn) gfRetryBtn.hidden = true;
+    renderGfLfTravel(null);
     // Show loading state until GF corrections AND Edwards Ferry data are loaded
     // This prevents the GF value from "jumping" when EF arrives
     const efReady = edwardsFerryData.current !== null;
@@ -264,6 +274,7 @@ export function updateGreatFallsUI() {
         (gfEstimate.inputs.senecaActual ? "+ " : "~+ ") + gfEstimate.inputs.senecaCFS.toLocaleString() + " cfs";
     document.getElementById("gf-input-travel").textContent = gfEstimate.inputs.travelPoRtoGF.toFixed(1) + " hrs";
     document.getElementById("gf-input-travel-gf-lf").textContent = gfEstimate.inputs.travelGFtoLF.toFixed(1) + " hrs";
+    renderGfLfTravel(gfEstimate.inputs.travelGFtoLF);
 
     // Display flow bin with observation count
     const binData = gfLearningData?.correctionBins?.[gfEstimate.inputs.flowBin]?.[gfEstimate.flowState];
@@ -313,14 +324,6 @@ export function updateGreatFallsUI() {
     const valCountdownText = gfEstimate.validationCountdown.toFixed(1) + " hrs";
     const learnValCountdown = document.getElementById("learn-val-countdown");
     if (learnValCountdown) learnValCountdown.textContent = valCountdownText;
-
-    // Update map popup values
-    const popupCFS = document.getElementById("gf-popup-cfs");
-    const popupStage = document.getElementById("gf-popup-stage");
-    if (popupCFS) popupCFS.textContent = gfEstimate.cfs.toLocaleString() + " cfs";
-    if (popupStage) {
-        popupStage.textContent = gfEstimate.stage.toFixed(2) + " ft";
-    }
 
     // Update 48-hour forecast periods (6-hour intervals)
     updateForecastPeriods(gfEstimate);
@@ -517,8 +520,7 @@ export function updateForecastPeriods(gfEst) {
             // external reference that survives clock alignment.
             // Persistence must come from the OBSERVED gauge, never the fallback. `observedLfCFS`
             // degrades to `currentCFS` (the GF estimate) when LF is missing — harmless when it was
-            // one of three baselines, but persistence is now the ONLY baseline and the only rendered
-            // skill delta, so an LF outage would silently score the model against itself and read
+            // one of three baselines, but persistence is now the ONLY baseline, so an LF outage would silently score the model against itself and read
             // flatteringly. Null instead: the scorer skips a falsy baseline.
             const persistenceCFS = lfData?.q != null ? Math.round(lfData.q) : null;
 
@@ -705,11 +707,8 @@ export function showGraphMarker(hrs) {
 // ==================== FORECAST ACCURACY UI ====================
 
 /**
- * Renders the forecast-accuracy summary into #forecast-accuracy: per-horizon model accuracy and,
- * when enough persistence validations exist, the model-vs-persistence accuracy delta per horizon.
- * The model-vs-NWS-LF delta was retired in v37.16 (on the model's own validation clock the NWS
- * baselines are the model plus a constant, so the delta could not carry skill information).
- * Hides the container when data is missing or there are fewer than 10 total validations.
+ * Renders the forecast-accuracy summary into #forecast-accuracy: per-horizon model accuracy and the
+ * validation count. Hides the container when data is missing or there are fewer than 10 total validations.
  */
 export function updateForecastAccuracyUI() {
     const container = document.getElementById('forecast-accuracy');
@@ -738,34 +737,7 @@ export function updateForecastAccuracyUI() {
         return `<span style="color:${color};">+${h}h: ${accuracy.toFixed(0)}%</span>`;
     }).join(' • ');
 
-    let html = `<span style="color:var(--text-muted);">Forecast accuracy:</span> ${horizonStats} <span style="color:var(--text-faint);">(${totalValidations} validations)</span>`;
-
-    // v37.16: the "vs NWS LF forecast" delta was retired — see the note in updateForecastPeriods.
-    // Persistence (observed LF, unchanged) is the one external reference left, so it is the only
-    // baseline we render a skill delta against.
-    const totalPersistenceValidations = Object.values(forecastAccuracyData.horizons)
-        .reduce((sum, h) => sum + (h.persistenceValidations || 0), 0);
-
-    if (totalPersistenceValidations >= 10) {
-        const persistenceDeltaStats = FORECAST_HORIZONS.map(h => {
-            const stats = forecastAccuracyData.horizons[h] || {};
-            const ourAccuracy = stats.validations >= 3 && stats.avgErrorPercent !== null
-                ? 100 - stats.avgErrorPercent : null;
-            const persistenceAccuracy = stats.persistenceValidations >= 3 && stats.persistenceAvgErrorPercent != null
-                ? 100 - stats.persistenceAvgErrorPercent : null;
-
-            if (ourAccuracy === null || persistenceAccuracy === null) {
-                return `<span style="color:var(--text-muted);">+${h}h: --</span>`;
-            }
-            const delta = ourAccuracy - persistenceAccuracy;
-            const sign = delta >= 0 ? '+' : '';
-            const color = delta > 0 ? 'var(--accent-green)' : (delta < -1 ? 'var(--accent-red-light)' : 'var(--accent-amber)');
-            const title = `Our model: ${ourAccuracy.toFixed(0)}% vs persistence: ${persistenceAccuracy.toFixed(0)}%`;
-            return `<span style="color:${color};" title="${title}">+${h}h: ${sign}${delta.toFixed(0)}%</span>`;
-        }).join(' • ');
-
-        html += `<br><span style="color:var(--text-muted);" title="Persistence = Little Falls holds its current flow. The NWS baselines were retired in v37.16: on the same clock as the model they are the model plus a constant.">vs persistence:</span> ${persistenceDeltaStats}`;
-    }
+    const html = `<span style="color:var(--text-muted);">Forecast accuracy:</span> ${horizonStats} <span style="color:var(--text-faint);">(${totalValidations} validations)</span>`;
 
     container.innerHTML = html;
 }

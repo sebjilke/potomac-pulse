@@ -66,7 +66,6 @@ header h1 { font-size: 1.1rem; color: var(--accent-blue); }
 }
 .btn:hover { background: var(--border-hover); }
 .btn:focus { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
-.btn.active { background: var(--focus-ring); color: white; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 /* v39.7: .btn sets display:flex, which beats the browser's [hidden] rule; this keeps "Try again" hidden. */
 #gfRetryBtn[hidden] { display: none; }
@@ -84,33 +83,12 @@ header h1 { font-size: 1.1rem; color: var(--accent-blue); }
 
 /* ==================== MAIN LAYOUT ==================== */
 main { display: flex; flex: 1; overflow: hidden; }
-#map { flex: 1; background: #e8e8e8; display: none; position: relative; }
-body.show-map #map { display: block; }
-.map-loading-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(15,23,42,0.6);
-    transition: opacity 0.3s;
-}
-.map-loading-overlay.hidden { opacity: 0; pointer-events: none; }
-.map-loading-spinner {
-    width: 32px;
-    height: 32px;
-    border: 3px solid rgba(96,165,250,0.3);
-    border-top-color: var(--accent-blue);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; border-left: none; }
-
 #sidebar {
-    width: 380px;
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
     background: var(--bg-surface);
-    border-left: 1px solid var(--border-default);
+    border-left: none;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -122,16 +100,11 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
     #sidebar {
         width: 100%;
         min-height: 45vh;
-        max-height: 60vh;
-        overflow-y: auto;
-        border-radius: 16px 16px 0 0;
-        border-left: none;
-        border-top: 1px solid var(--border-default);
-    }
-    body:not(.show-map) #sidebar {
         max-height: none;
         flex: 1;
+        overflow-y: auto;
         border-radius: 0;
+        border-left: none;
         border-top: none;
     }
     /* #20: make #sidebar the SINGLE scroll container on mobile — drop .tab-content's own
@@ -162,7 +135,6 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
 .target-icon { font-size: 1.3rem; }
 .target-info { flex: 1; }
 .target-name { font-weight: 600; color: var(--accent-orange); font-size: 0.95rem; }
-.target-sub { font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px; }
 .target-vals { display: flex; gap: 12px; text-align: right; }
 .target-num { font-size: 1.2rem; font-weight: 600; }
 .target-num.q { color: var(--accent-blue); }
@@ -178,7 +150,7 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
     font-size: 0.8rem;
     color: var(--text-tertiary);
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
 }
 .flow-indicator .mult { color: var(--accent-amber); font-weight: 600; }
 
@@ -467,6 +439,76 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
     letter-spacing: 0.02em;
 }
 
+/* v39.9: a header label and its "i" icon stay on one line; a few pixels may spill into the column gap. */
+.gauge-header > div { white-space: nowrap; }
+
+/* v39.9: "i" icon beside the 24h Trend and Basin labels. Not position:relative on purpose: the bubble is
+   anchored to the sticky .gauge-header and spans it, so it cannot run off the left edge on phones. */
+.col-info {
+    display: inline-block;
+    box-sizing: content-box;
+    margin: 0 0 0 3px;
+    padding: 0;
+    width: 1.1em;
+    height: 1.1em;
+    line-height: 1.05em;
+    background: none;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    color: inherit;
+    font-family: inherit;
+    font-size: 0.85em;
+    font-style: normal;
+    text-align: center;
+    vertical-align: baseline;
+    cursor: help;
+}
+.col-info:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 1px; }
+.col-info.open::after {
+    content: attr(data-tip);
+    position: absolute;
+    top: 100%;
+    left: 8px;
+    right: 8px;
+    margin-top: 4px;
+    padding: 6px 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    color: var(--text-body);
+    font-size: 0.75rem;
+    font-weight: normal;
+    line-height: 1.4;
+    letter-spacing: normal;
+    text-align: left;
+    white-space: normal;
+    pointer-events: none;
+}
+@media (hover: hover) {
+    .col-info:hover::after {
+        content: attr(data-tip);
+        position: absolute;
+        top: 100%;
+        left: 8px;
+        right: 8px;
+        margin-top: 4px;
+        padding: 6px 8px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-default);
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        color: var(--text-body);
+        font-size: 0.75rem;
+        font-weight: normal;
+        line-height: 1.4;
+        letter-spacing: normal;
+        text-align: left;
+        white-space: normal;
+        pointer-events: none;
+    }
+}
+
 /* ==================== GAUGE ROWS ==================== */
 .gauge {
     display: grid;
@@ -476,14 +518,11 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
     padding: 10px 10px;
     margin: 0;
     border-bottom: 1px solid rgba(51,65,85,0.4);
-    cursor: pointer;
     font-size: 0.8rem;
     min-height: 44px;
     transition: background 0.15s;
 }
 .gauge:last-child { border-bottom: none; }
-.gauge:hover { background: rgba(96,165,250,0.1); }
-.gauge:focus { outline: 2px solid var(--accent-blue); outline-offset: -2px; }
 .gauge-dot { width: 6px; height: 6px; border-radius: 50%; }
 .gauge-nm { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gauge-trend { font-size: 0.72rem; text-align: right; font-weight: 600; white-space: nowrap; }
@@ -497,7 +536,7 @@ body:not(.show-map) #sidebar { width: 100%; max-width: 600px; margin: 0 auto; bo
 
 @media (max-width: 768px) {
     .gauge, .gauge-header {
-        grid-template-columns: 8px 1fr 58px 38px 42px 38px;
+        grid-template-columns: 8px 1fr 72px 50px 42px 38px;
         font-size: 0.75rem;
         padding: 9px 8px;
         gap: 5px;
@@ -572,93 +611,3 @@ footer {
     text-align: center;
 }
 footer a { color: var(--text-tertiary); }
-
-.leaflet-popup-content-wrapper { background: var(--bg-surface); color: var(--text-primary); border-radius: 6px; border: 1px solid var(--focus-ring); }
-.leaflet-popup-tip { background: var(--bg-surface); }
-.leaflet-popup-content { margin: 10px 12px; min-width: 200px; font-size: 0.875rem; }
-.pop-nm { font-weight: 600; color: var(--accent-blue); font-size: 1rem; }
-.pop-area { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 8px; }
-.pop-row { display: flex; gap: 8px; margin-bottom: 6px; }
-.pop-cell { background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; text-align: center; flex: 1; }
-.pop-val { font-size: 1.1rem; font-weight: 600; }
-.pop-val.blue { color: var(--accent-blue); }
-.pop-val.green { color: var(--accent-green); }
-.pop-val.yellow { color: var(--accent-amber); }
-.pop-val.purple { color: var(--accent-purple); }
-.pop-lbl { font-size: 0.65rem; color: var(--text-secondary); margin-top: 2px; }
-.pop-arr { margin-top: 6px; padding: 6px 8px; background: rgba(251,191,36,0.1); border-left: 2px solid var(--accent-amber); font-size: 0.8rem; border-radius: 0 4px 4px 0; }
-.pop-trend { margin-top: 6px; padding: 6px 8px; background: rgba(96,165,250,0.1); border-radius: 4px; font-size: 0.75rem; }
-.pop-trend-title { color: var(--accent-blue); font-weight: 600; margin-bottom: 4px; font-size: 0.8rem; }
-.pop-note { margin-top: 5px; padding: 5px 6px; background: rgba(167,139,250,0.1); border-radius: 3px; font-size: 0.7rem; color: var(--accent-purple-light); }
-.pop-warn { margin-top: 5px; padding: 5px 6px; background: rgba(239,68,68,0.1); border-radius: 3px; font-size: 0.75rem; color: var(--accent-red-lighter); }
-.pop-learn { margin-top: 5px; padding: 5px 6px; background: rgba(139,92,246,0.1); border-radius: 3px; font-size: 0.7rem; color: var(--accent-purple-light); }
-
-/* Map legend - compact for mobile */
-.map-legend {
-    background: rgba(30, 41, 59, 0.9);
-    padding: 5px 8px;
-    border-radius: 4px;
-    border: 1px solid var(--border-default);
-    font-size: 0.5rem;
-    color: var(--text-primary);
-    line-height: 1.4;
-    max-width: 100px;
-}
-.map-legend-title {
-    font-weight: 600;
-    color: var(--accent-blue);
-    margin-bottom: 4px;
-    font-size: 0.55rem;
-}
-.map-legend-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin: 2px 0;
-}
-.map-legend-line {
-    width: 12px;
-    height: 2px;
-    border-radius: 1px;
-}
-.map-legend-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    border: 1px solid white;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
-}
-.map-legend-dot.target {
-    width: 8px;
-    height: 8px;
-}
-.map-legend-divider {
-    height: 1px;
-    background: rgba(255,255,255,0.15);
-    margin: 3px 0;
-}
-/* Gauge name labels — zoom-dependent, shown at zoom >= 10 */
-.gauge-label {
-    background: rgba(15, 23, 42, 0.75) !important;
-    border: none !important;
-    box-shadow: none !important;
-    border-radius: 3px !important;
-    padding: 1px 4px !important;
-    font-size: 0.6rem !important;
-    color: #f1f5f9 !important;
-    white-space: nowrap;
-    pointer-events: none;
-}
-.gauge-label::before { display: none !important; }
-@media (min-width: 768px) {
-    .map-legend {
-        padding: 6px 8px;
-        font-size: 0.58rem;
-        max-width: none;
-    }
-    .map-legend-title { display: none; }
-    .map-legend-item { gap: 5px; margin: 2px 0; }
-    .map-legend-line { width: 12px; height: 2px; }
-    .map-legend-dot { width: 6px; height: 6px; border: 1px solid white; }
-    .map-legend-dot.target { width: 7px; height: 7px; }
-}

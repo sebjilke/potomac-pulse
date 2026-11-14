@@ -20,7 +20,7 @@ export default defineConfig({
       injectRegister: null,   // we register manually in main.js, prod-only
       manifest: false,        // keep the existing public/manifest.json (no duplicate)
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,json,geojson}'], // precache build assets (.map excluded)
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,json}'], // precache build assets (.map excluded)
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,

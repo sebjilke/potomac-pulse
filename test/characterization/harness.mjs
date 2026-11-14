@@ -12,7 +12,7 @@
 //      imported via a data: URL. Bundling at test time means the snapshot always
 //      reflects current source — no committed generated artifact to drift.
 //   2. edwards-ferry.js imports `fetchWithTimeout` from data/fetch.js, which pulls
-//      in the whole UI layer + Leaflet. The estimate path never calls it, so we
+//      in the whole UI layer. The estimate path never calls it, so we
 //      stub that one module at the esbuild layer (see stubFetchPlugin).
 //   3. estimateGreatFalls -> recordPoRReading -> localStorage, absent in Node, so
 //      we install a tiny in-memory localStorage shim.

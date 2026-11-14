@@ -1,6 +1,5 @@
 // v39.7: minimal structural guards (source text). These only prove the wiring exists; the behaviour is
 // covered in refresh.test.mjs, learning-deadline.test.mjs and startup-refresh-behaviour.test.mjs.
-// (v39.8: the map outline loading moved to map-outlines-behaviour.test.mjs.)
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

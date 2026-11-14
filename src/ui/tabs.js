@@ -1,12 +1,10 @@
 // Potomac Pulse — Tab switching and keyboard navigation
 // Extracted from index.html inline script
 
-import { updateMapVisibility } from '../ui/map.js';
-
 // ==================== TAB SWITCHING ====================
 
 /**
- * Activates the given tab and its associated panel, updating ARIA state and map visibility.
+ * Activates the given tab and its associated panel, updating ARIA state.
  * @param {HTMLElement} tab - The tab element to activate; its dataset.tab identifies the panel.
  */
 export function activateTab(tab) {
@@ -22,13 +20,12 @@ export function activateTab(tab) {
     tab.setAttribute("aria-selected", "true");
     tab.setAttribute("tabindex", "0");
     document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
-    updateMapVisibility(tab.dataset.tab);
 }
 
 // ==================== TAB EVENT SETUP ====================
 
 /**
- * Wires up tab click handlers and WAI-ARIA keyboard navigation, then sets the initial map visibility.
+ * Wires up tab click handlers and WAI-ARIA keyboard navigation.
  */
 export function initTabs() {
     document.querySelectorAll(".tab").forEach(tab => {
@@ -54,7 +51,4 @@ export function initTabs() {
         target.focus();
         activateTab(target);
     });
-
-    // Initialize map visibility (map hidden by default since Great Falls is now default tab)
-    updateMapVisibility('greatfalls');
 }

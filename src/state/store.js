@@ -80,10 +80,8 @@ export let forecastAccuracyData = null;
 export let forecastGraphData = null;
 export let graphScales = null;
 
-// --- Map & UI ---
-export let map = null;
+// --- UI ---
 export let data = {};
-export let markers = {};
 
 // --- Error banner ---
 export let errorBannerTimeout = null;
@@ -137,11 +135,7 @@ export function setForecastAccuracyData(v) { forecastAccuracyData = v; }
 export function setForecastGraphData(v) { forecastGraphData = v; }
 /** Set the {@link graphScales} state value. @param {Object|null} v - New graph-scales object, or null. */
 export function setGraphScales(v) { graphScales = v; }
-/** Set the {@link map} state value. @param {Object|null} v - New Leaflet map instance, or null. */
-export function setMap(v) { map = v; }
 /** Set the {@link data} state value. @param {Object} v - New gauge-data object. */
 export function setData(v) { data = v; }
-/** Set the {@link markers} state value. @param {Object} v - New map-markers object. */
-export function setMarkers(v) { markers = v; }
 /** Set the {@link errorBannerTimeout} state value. @param {number|null} v - New error-banner timer id, or null. */
 export function setErrorBannerTimeout(v) { errorBannerTimeout = v; }
