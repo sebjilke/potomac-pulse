@@ -1,5 +1,6 @@
-// v39.9: the "i" icons beside "24h Trend" and "Basin" in the gauge-list header. A click toggles an `open`
-// class on that icon (and closes the other); a click anywhere else and Escape close both. Fake browser,
+// v39.9, v39.10: the "i" icons beside "Next 24h" and "Basin" in the gauge-list header. A click on the icon or
+// on its header cell (v39.10) toggles an `open` class on that icon (and closes the other); a click anywhere
+// else and Escape close both. Fake browser,
 // real buildBranches from src/ui/gauges-ui.js.
 import { describe, it, before, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,16 +28,26 @@ before(async () => {
     B = await import('data:text/javascript;base64,' + Buffer.from(out.outputFiles[0].text).toString('base64'));
 });
 
-const makeIcon = (name) => {
+// A header cell and its icon, as the real DOM answers closest() and querySelector().
+const makeCell = (name) => {
     const set = new Set(); const attrs = {};
-    return {
+    const icon = {
         name, attrs,
         classList: { add: (c) => set.add(c), remove: (c) => set.delete(c), contains: (c) => set.has(c), toggle: (c) => (set.has(c) ? set.delete(c) : set.add(c)) },
         setAttribute: (k, v) => { attrs[k] = String(v); },
-        closest(sel) { return sel === '.col-info' ? this : null; }
+        closest(sel) { return sel === '.col-info' ? this : sel === '.col-info-cell' ? cell : null; }
     };
+    const cell = {
+        name: name + '-label',
+        querySelector: (sel) => (sel === '.col-info' ? icon : null),
+        closest(sel) { return sel === '.col-info-cell' ? this : null; }   // a cell is not inside a .col-info
+    };
+    icon.cell = cell;
+    return icon;
 };
+const makeIcon = makeCell;
 const outside = { closest: () => null };
+const otherCell = { closest: () => null, querySelector: () => null };   // Gauge, CFS, Hrs->LF header cells
 const clickOn = (target) => {
     const e = { target };
     for (const f of containerListeners.filter((l) => l.type === 'click')) f.fn(e);   // the delegated handler first
@@ -111,5 +122,36 @@ describe('column info icons: click, outside click, Escape', () => {
         assert.equal(docListeners.filter((l) => l.type === 'click').length, 1);
         assert.equal(docListeners.filter((l) => l.type === 'pointerdown').length, 1);
         assert.equal(docListeners.filter((l) => l.type === 'keydown').length, 1);
+    });
+    it('a click on the LABEL opens that bubble; a second click closes it; the other label switches', () => {
+        B.buildBranches();
+        clickOn(icons[0].cell);
+        assert.deepEqual(open(), ['trend']);
+        assert.equal(icons[0].attrs['aria-expanded'], 'true');
+        clickOn(icons[0].cell);
+        assert.deepEqual(open(), []);
+        assert.equal(icons[0].attrs['aria-expanded'], 'false');
+        clickOn(icons[0].cell);
+        clickOn(icons[1].cell);
+        assert.deepEqual(open(), ['basin']);
+        assert.equal(icons[0].attrs['aria-expanded'], 'false');
+        assert.equal(icons[1].attrs['aria-expanded'], 'true');
+    });
+    it('a pointerdown on the label does not close an open bubble; one outside does', () => {
+        B.buildBranches();
+        clickOn(icons[1].cell);
+        touchOn(icons[1].cell);
+        touchOn(icons[0].cell);
+        assert.deepEqual(open(), ['basin']);
+        touchOn(outside);
+        assert.deepEqual(open(), []);
+    });
+    it('a click on a header cell without an icon closes an open bubble and leaves it closed', () => {
+        B.buildBranches();
+        clickOn(icons[0].cell);
+        assert.deepEqual(open(), ['trend']);
+        clickOn(otherCell);
+        assert.deepEqual(open(), []);
+        assert.equal(icons[0].attrs['aria-expanded'], 'false');
     });
 });

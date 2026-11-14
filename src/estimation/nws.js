@@ -41,31 +41,18 @@ export async function fetchSingleNWSForecast(usgsId, nwsLid) {
 }
 
 /**
- * Fetches NWS forecasts and flood categories for all gauges in NWS_LIDS in parallel and applies them to the store.
- * Mutates data[usgsId] with floodCategory, forecast, and a derived trend (direction/rate) where forecast data exists.
- * @returns {Promise<void>} Resolves when all forecasts and categories have been fetched and applied.
+ * Fetches NWS forecasts for all gauges in NWS_LIDS in parallel and applies them to the store.
+ * Mutates data[usgsId] with forecast and a derived trend (direction/rate) where forecast data exists.
+ * @returns {Promise<void>} Resolves when all forecasts have been fetched and applied.
  */
 export async function fetchNWSForecasts() {
     console.log("=== Fetching NWS forecasts (parallel) ===");
 
-    // Fetch forecasts and flood categories in parallel
+    // Fetch forecasts in parallel
     const forecastPromises = Object.entries(NWS_LIDS).map(
         ([usgsId, nwsLid]) => fetchSingleNWSForecast(usgsId, nwsLid).catch(() => null)
     );
-    const categoryPromises = Object.entries(NWS_LIDS).map(
-        ([usgsId, nwsLid]) => fetchFloodCategory(usgsId, nwsLid).catch(() => null)
-    );
-    const [forecastResults, categoryResults] = await Promise.all([
-        Promise.all(forecastPromises),
-        Promise.all(categoryPromises)
-    ]);
-
-    // Apply flood categories
-    for (const result of categoryResults) {
-        if (!result) continue;
-        const { usgsId, floodCategory } = result;
-        if (data[usgsId]) data[usgsId].floodCategory = floodCategory;
-    }
+    const forecastResults = await Promise.all(forecastPromises);
 
     // Apply forecasts to data
     let count = 0;
@@ -93,25 +80,6 @@ export async function fetchNWSForecasts() {
         }
     }
     console.log(`=== NWS forecasts: ${count}/${Object.keys(NWS_LIDS).length} gauges ===`);
-}
-
-// Fetch current flood category for a single gauge
-/**
- * Fetches the current observed flood category for a single gauge from the NWS gauge endpoint.
- * @param {string} usgsId - The USGS site identifier for the gauge.
- * @param {string} nwsLid - The NWS location identifier (LID) for the gauge.
- * @returns {Promise<{usgsId: string, floodCategory: string}|null>} The gauge id paired with its flood category (defaults to 'no_flooding'), or null on fetch failure.
- */
-async function fetchFloodCategory(usgsId, nwsLid) {
-    try {
-        const response = await fetchWithTimeout(
-            `https://api.water.noaa.gov/nwps/v1/gauges/${nwsLid}`, 5000
-        );
-        if (!response.ok) return null;
-        const json = await response.json();
-        const floodCategory = json?.status?.observed?.floodCategory || 'no_flooding';
-        return { usgsId, floodCategory };
-    } catch { return null; }
 }
 
 /**

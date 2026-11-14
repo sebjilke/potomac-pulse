@@ -36,7 +36,7 @@ function bindColInfoDismiss() {
     colInfoDismissBound = true;
     const dismissOutside = (e) => {
         const t = e.target;
-        if (!(t && typeof t.closest === 'function' && t.closest('.col-info'))) closeColInfos();
+        if (!(t && typeof t.closest === 'function' && t.closest('.col-info-cell'))) closeColInfos();
     };
     document.addEventListener('click', dismissOutside);
     // iOS Safari sends no click to the document for a tap on a non-interactive element, so the touch is heard too.
@@ -92,8 +92,8 @@ export function buildBranches() {
     html += `<div class="gauge-header">
         <div></div>
         <div>Gauge</div>
-        <div style="text-align:right;">24h Trend <button type="button" class="col-info" aria-label="${TREND_TIP}" aria-expanded="false" data-tip="${TREND_TIP}">i</button></div>
-        <div style="text-align:right;">Basin <button type="button" class="col-info" aria-label="${BASIN_TIP}" aria-expanded="false" data-tip="${BASIN_TIP}">i</button></div>
+        <div class="col-info-cell" style="text-align:right;">Next 24h <button type="button" class="col-info" aria-label="${TREND_TIP}" aria-expanded="false" data-tip="${TREND_TIP}">i</button></div>
+        <div class="col-info-cell" style="text-align:right;">Basin <button type="button" class="col-info" aria-label="${BASIN_TIP}" aria-expanded="false" data-tip="${BASIN_TIP}">i</button></div>
         <div style="text-align:right;">CFS</div>
         <div style="text-align:right;">Hrs→LF</div>
     </div>`;
@@ -159,8 +159,9 @@ export function buildBranches() {
     if (container.dataset.wired) return;
     container.dataset.wired = '1';
     container.addEventListener('click', (e) => {
-        // Column info icon click → toggle its bubble, close the other
-        const info = e.target.closest('.col-info');
+        // Click on a column header cell (label or icon) → toggle its bubble, close the other
+        const cell = e.target.closest('.col-info-cell');
+        const info = cell ? cell.querySelector('.col-info') : null;
         if (info) {
             const willOpen = !info.classList.contains('open');
             closeColInfos();

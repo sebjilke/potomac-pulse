@@ -136,11 +136,11 @@ describe('gauge-list column info icons', () => {
         assert.ok(g.includes(`const TREND_TIP = '${TREND}';`));
         assert.ok(g.includes(`const BASIN_TIP = '${BASIN}';`));
     });
-    it('the header has exactly two buttons, in the 24h Trend and Basin cells, aria-label equal to data-tip, no title', () => {
+    it('the header has exactly two buttons, in the Next 24h and Basin cells, aria-label equal to data-tip, no title', () => {
         const buttons = header.match(/<button[^>]*>i<\/button>/g) || [];
         assert.equal(buttons.length, 2);
-        assert.match(header, /24h Trend <button type="button" class="col-info" aria-label="\$\{TREND_TIP\}" aria-expanded="false" data-tip="\$\{TREND_TIP\}">i<\/button>/);
-        assert.match(header, /Basin <button type="button" class="col-info" aria-label="\$\{BASIN_TIP\}" aria-expanded="false" data-tip="\$\{BASIN_TIP\}">i<\/button>/);
+        assert.match(header, /<div class="col-info-cell" style="text-align:right;">Next 24h <button type="button" class="col-info" aria-label="\$\{TREND_TIP\}" aria-expanded="false" data-tip="\$\{TREND_TIP\}">i<\/button>/);
+        assert.match(header, /<div class="col-info-cell" style="text-align:right;">Basin <button type="button" class="col-info" aria-label="\$\{BASIN_TIP\}" aria-expanded="false" data-tip="\$\{BASIN_TIP\}">i<\/button>/);
         assert.ok(!/title=/.test(header));
     });
     it('the click handler toggles the open class; document click and Escape close', () => {

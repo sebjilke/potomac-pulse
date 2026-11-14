@@ -442,8 +442,9 @@ main { display: flex; flex: 1; overflow: hidden; }
 /* v39.9: a header label and its "i" icon stay on one line; a few pixels may spill into the column gap. */
 .gauge-header > div { white-space: nowrap; }
 
-/* v39.9: "i" icon beside the 24h Trend and Basin labels. Not position:relative on purpose: the bubble is
+/* v39.9: "i" icon beside the Next 24h and Basin labels. Not position:relative on purpose: the bubble is
    anchored to the sticky .gauge-header and spans it, so it cannot run off the left edge on phones. */
+.col-info-cell { cursor: pointer; }
 .col-info {
     display: inline-block;
     box-sizing: content-box;
