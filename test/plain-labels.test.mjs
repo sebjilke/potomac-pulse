@@ -22,7 +22,7 @@ describe('plain labels in index.html (before the How It Works tab)', () => {
             'aria-label="Little Falls gauge, below Great Falls"',
             'Point of Rocks to Little Falls: ',
             'id="multVal" aria-label="travel time"',
-            '>cfs<', '>ft on the Little Falls gauge scale<',
+            '>cfs<', '>ft<br>on the Little Falls gauge scale<',
             '>Travel time, Point of Rocks to Great Falls<', '>Travel time, Great Falls to Little Falls<',
             '>Flow band<', '>Adjustment learned from past errors<', '>Display cap (120% of Little Falls)<',
             '>Edwards Ferry check<', '>Estimate from the Edwards Ferry gauge alone<'
