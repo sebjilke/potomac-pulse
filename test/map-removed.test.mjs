@@ -36,11 +36,13 @@ describe('map and Leaflet are gone', () => {
     it('index.html has no map container, toggle button or map label', () => {
         for (const s of ['id="map"', 'id="mapToggleBtn"', 'aria-label="Toggle map"', 'River gauge map']) assert.ok(!html.includes(s), s);
     });
-    it('package.json has no leaflet; a package-lock.json, when present, has none either', () => {
+    it('package.json has no leaflet', () => {
+        // package-lock.json is deliberately NOT checked: it is gitignored, and on Netlify it is rebuilt from a
+        // cached node_modules that can still hold the old package (that failed the first v39.9 build). What
+        // ships is decided by the imports, which the first test in this file guards.
         const pkg = JSON.parse(read('package.json'));
         assert.equal(pkg.dependencies?.leaflet, undefined);
         assert.equal(pkg.devDependencies?.leaflet, undefined);
-        if (existsSync(resolve(root, 'package-lock.json'))) assert.ok(!read('package-lock.json').includes('node_modules/leaflet'));
     });
     it('public/ has no geojson and vite.config.js does not precache it', () => {
         assert.deepEqual(readdirSync(resolve(root, 'public')).filter((f) => f.endsWith('.geojson')), []);
