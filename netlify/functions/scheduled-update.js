@@ -27,6 +27,9 @@ const {
     upsertObs, insertObs, deleteObs, deleteObsById
 } = require('./shared/observations');
 
+// v39.11: adapter for USGS's new service (turns its rows into the old service's structure).
+const usgsAdapter = require('./shared/usgs-adapter');
+
 // v39.6 (A8): server copy of the 90% band table, used only by the audit log (tick_log.ci).
 const { bandFor } = require('./shared/ci-table');
 
@@ -159,12 +162,12 @@ function scoreShadowPredictions(shadowModels, actualCFS, productionErrorPercent,
  * @returns {Promise<Response>} Resolves with the fetch Response; rejects with a timeout Error on abort or rethrows other fetch errors.
  */
 // Fetch with timeout wrapper
-async function fetchWithTimeout(url, timeoutMs = 5000) {
+async function fetchWithTimeout(url, timeoutMs = 5000, headers = null) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-        const response = await fetch(url, { signal: controller.signal });
+        const response = await fetch(url, headers ? { signal: controller.signal, headers } : { signal: controller.signal });
         clearTimeout(timeoutId);
         return response;
     } catch (error) {
@@ -176,6 +179,121 @@ async function fetchWithTimeout(url, timeoutMs = 5000) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// v39.11: where the river readings come from. Server only; the app is unchanged in this step.
+// With USGS_API_KEY set (and USGS_SOURCE not 'old') the three USGS requests go to USGS's new service
+// (api.waterdata.usgs.gov) with the key in the X-Api-Key header, and the answer is converted by the
+// adapter into the old service's structure, so every parser below reads it unchanged. Without the key,
+// or with USGS_SOURCE=old, the old service is called exactly as before. There is no fallback to the old
+// service inside a run. The key is never put in an address and never logged.
+// Plan: analysis/usgs-service-move-plan-2026-11-17.md
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+const USGS_MAIN_TIMEOUTS_MS = [5000, 4000];   // new service: attempt 1, then one retry
+const USGS_SINGLE_TIMEOUT_MS = [5000];        // temperature: one attempt
+
+// Pure. Decides the source for one request. Returns {source, url, headers}.
+function usgsRequest({ sites, params, period, oldUrl }) {
+    const key = process.env.USGS_API_KEY;
+    if (!key) return { source: 'old_nokey', url: oldUrl, headers: null };
+    if (!/^[\x21-\x7e]+$/.test(key)) {
+        // A key with a space, newline or control character is unusable as a header value, and the
+        // runtime would put the value into its error message. Never log the value.
+        console.warn('USGS key malformed, using the old service');
+        return { source: 'old_nokey', url: oldUrl, headers: null };
+    }
+    if (process.env.USGS_SOURCE === 'old') return { source: 'old', url: oldUrl, headers: null };
+    return {
+        source: 'new',
+        url: usgsAdapter.buildContinuousUrl({ sites, params, period }),
+        headers: { 'X-Api-Key': key }
+    };
+}
+
+// One GET plus the body read under ONE timer (the real fetch is aborted; the race also covers test stubs).
+// Resolves {ok:true, json} | {ok:false, status} | {ok:false, parse:true}; rejects on network error or timeout.
+async function fetchJsonCapped(url, timeoutMs, headers) {
+    const controller = new AbortController();
+    let timer;
+    const work = (async () => {
+        const response = await fetch(url, { signal: controller.signal, headers });
+        if (!response.ok) return { ok: false, status: response.status };
+        let json;
+        try { json = await response.json(); } catch (e) { return { ok: false, parse: true, error: e }; }
+        return { ok: true, json };
+    })();
+    work.catch(() => {});   // a late rejection after the timer won must not be unhandled
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+            try { controller.abort(); } catch (_) { /* nothing to abort */ }
+            reject(new Error(`Request timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+    });
+    try {
+        return await Promise.race([work, timeout]);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+/**
+ * New-service request converted to the old structure. Retries only on timeout, network error or 5xx,
+ * once per extra entry of `timeouts`. HTTP 429 is never retried (meta.src = 'new_429'). A paged,
+ * malformed or unparsable answer fails without retry. Never throws.
+ * @param {{url: string, headers: Object}} req - from usgsRequest (source 'new').
+ * @param {number[]} timeouts - per-attempt time caps in ms.
+ * @param {Object|null} meta - optional log-only out-parameter: {src, att, pub, unkQ}.
+ * @returns {Promise<Object|null>} old-structure JSON, or null on failure.
+ */
+// Message text with the key (if it ever appears) removed. Defensive: the key is also format-checked.
+function redactKey(msg) {
+    let m = String(msg == null ? '' : msg);
+    const k = process.env.USGS_API_KEY;
+    if (k) m = m.split(k).join('[redacted]');
+    return m;
+}
+
+async function fetchNewIvJson(req, timeouts, meta = null) {
+    for (let i = 0; i < timeouts.length; i++) {
+        const last = i === timeouts.length - 1;
+        if (meta) meta.att = i + 1;
+        let r;
+        try {
+            r = await fetchJsonCapped(req.url, timeouts[i], req.headers);
+        } catch (e) {
+            console.warn(`USGS new service: attempt ${i + 1} failed: ${redactKey(e && e.message)}`);
+            if (last) return null;
+            continue;
+        }
+        if (!r.ok) {
+            if (r.parse) { console.error('USGS new service: JSON parse error:', redactKey(r.error && r.error.message)); return null; }
+            if (r.status === 429) {
+                if (meta) meta.src = 'new_429';
+                console.error('USGS new service: HTTP 429 (rate limited), not retrying');
+                return null;
+            }
+            console.warn(`USGS new service: attempt ${i + 1} got HTTP ${r.status}`);
+            if (r.status >= 500 && !last) continue;
+            return null;
+        }
+        try {
+            const report = {};
+            const json = usgsAdapter.toLegacyIv(r.json, report);
+            if (meta) {
+                meta.unkQ = report.unknownQualifiers || [];
+                try { meta.pub = usgsAdapter.newestPublishTimes(r.json); } catch (_) { /* log only */ }
+            }
+            if (report.unknownQualifiers && report.unknownQualifiers.length) {
+                console.warn('USGS new service: unknown qualifier codes passed through:', report.unknownQualifiers.join(','));
+            }
+            return json;
+        } catch (e) {
+            console.error('USGS new service: response rejected:', redactKey(e && e.message));
+            return null;
+        }
+    }
+    return null;
+}
+
 /**
  * Fetches the latest Point of Rocks water temperature (USGS param 00010) for cold-water EF model selection.
  * @param {{t?: number}|null} [out=null] - v39.2 (A3): optional out-parameter; `out.t` is set to the reading's time (epoch ms) when a valid reading is returned. The return value is unchanged.
@@ -185,10 +303,16 @@ async function fetchWithTimeout(url, timeoutMs = 5000) {
 async function fetchWaterTemp(out = null) {
     const url = 'https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00010&period=P1D&format=json';
     try {
-        const response = await fetchWithTimeout(url, 5000);
-        if (!response.ok) return null;
-
-        const json = await response.json();
+        let json;
+        const src = usgsRequest({ sites: ['01638500'], params: ['00010'], period: 'P1D', oldUrl: url });
+        if (src.source === 'new') {
+            json = await fetchNewIvJson(src, USGS_SINGLE_TIMEOUT_MS);
+            if (!json) return null;
+        } else {
+            const response = await fetchWithTimeout(url, 5000);
+            if (!response.ok) return null;
+            json = await response.json();
+        }
         const values = json?.value?.timeSeries?.[0]?.values?.[0]?.value;
         if (!values?.length) return null;
 
@@ -217,7 +341,7 @@ async function fetchWaterTemp(out = null) {
  * @returns {Promise<{gauges: Object, data: Object}|null>} gauges maps logical names to site IDs; data is keyed by site ID with {q, h, iceAffected, history}, where history (PoR only) is an array of {timestamp, cfs}. Returns null on fetch/parse/validation failure.
  */
 // Fetch current USGS data
-async function fetchUSGSData() {
+async function fetchUSGSData(meta = null) {
     const gauges = {
         por: '01638500',      // Point of Rocks
         lf: '01646500',       // Little Falls
@@ -232,19 +356,27 @@ async function fetchUSGSData() {
     const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${sites}&parameterCd=00060,00065&period=P2D&format=json`;
 
     try {
-        const response = await fetchWithTimeout(url, 10000); // 10 second timeout
-        if (!response.ok) {
-            console.error('USGS fetch failed:', response.status, response.statusText);
-            return null;
-        }
-
-        // Parse JSON with explicit error handling
+        // v39.11: `meta` is a log-only out-parameter ({src, att, pub, unkQ}); nothing reads it but the log builder.
         let json;
-        try {
-            json = await response.json();
-        } catch (parseError) {
-            console.error('USGS JSON parse error:', parseError.message);
-            return null;
+        const src = usgsRequest({ sites: Object.values(gauges), params: ['00060', '00065'], period: 'P2D', oldUrl: url });
+        if (meta) meta.src = src.source;
+        if (src.source === 'new') {
+            json = await fetchNewIvJson(src, USGS_MAIN_TIMEOUTS_MS, meta);
+            if (!json) return null;
+        } else {
+            const response = await fetchWithTimeout(url, 10000); // 10 second timeout
+            if (!response.ok) {
+                console.error('USGS fetch failed:', response.status, response.statusText);
+                return null;
+            }
+
+            // Parse JSON with explicit error handling
+            try {
+                json = await response.json();
+            } catch (parseError) {
+                console.error('USGS JSON parse error:', parseError.message);
+                return null;
+            }
         }
 
         // Validate response schema
@@ -2225,8 +2357,8 @@ async function updateLfResidualAdvisory(client, { runStartMs, pairs, lfCFS }) {
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 // Hand-maintained. The `commit` field on every row is the safety net if this goes stale.
-const SERVER_VERSION = 'v39.6';
-const LOG_SCHEMA = 2;
+const SERVER_VERSION = 'v39.11';
+const LOG_SCHEMA = 3;
 const OBS_TABLE = 'potomac_observations';
 // Retention in days, by type. Only these three types are ever pruned. log_health is never pruned.
 const LOG_RETENTION_DAYS = Object.freeze({ tick_log: 180, validation_log: 730, bin_snapshot: 730 });
@@ -2560,11 +2692,17 @@ async function fetchDifficultRun(tickStartMs) {
     let timer;
     try {
         const controller = new AbortController();
+        // v39.11: same source rule as the other two requests; one attempt, no retry. A 429 is an
+        // ordinary non-OK answer here: why 'http_error' with http 429.
+        const src = usgsRequest({ sites: [DR_SITE], params: ['00060'], period: 'PT6H', oldUrl: DR_URL });
         const work = (async () => {
-            const response = await fetch(DR_URL, { signal: controller.signal });
+            const response = await fetch(src.url, src.headers ? { signal: controller.signal, headers: src.headers } : { signal: controller.signal });
             if (!response.ok) return { why: 'http_error', http: response.status };
             let json;
-            try { json = await response.json(); } catch (_) { return { why: 'parse_error' }; }
+            try {
+                json = await response.json();
+                if (src.source === 'new') json = usgsAdapter.toLegacyIv(json);
+            } catch (_) { return { why: 'parse_error' }; }
             return { json };
         })().then(v => ['ok', v], e => ['err', e]);
         const timeout = new Promise(resolve => { timer = setTimeout(() => resolve(['timeout']), DR_CAP_MS); });
@@ -2608,6 +2746,19 @@ function attachDr(queue, dr, tickStartMs) {
     return n;
 }
 
+// v39.11: compact publish times for the log. pub = {'<site>': {'<param>': {time, lastModified}}} from the
+// adapter; null when absent (old service). Pure.
+function pubOf(pub) {
+    if (!pub || typeof pub !== 'object') return null;
+    const out = {};
+    for (const site of Object.keys(pub).slice(0, 12)) {
+        const p = pub[site] && (pub[site]['00060'] || pub[site]['00065']);
+        if (!p) continue;
+        out[site] = { lm: logEpoch(Date.parse(p.lastModified)), t: logEpoch(Date.parse(p.time)) };
+    }
+    return Object.keys(out).length ? out : null;
+}
+
 /**
  * Pure. Builds the tick_log record from the per-run context. Reads only; never writes to its inputs
  * (usgsData, prediction, trace and fullHistory may be frozen). Model fields are null when no
@@ -2639,6 +2790,13 @@ function buildTickRecord(ctx, tickStartMs, o = {}) {
         why: o.why ?? null,
         err: o.err == null ? null : logMsg(o.err?.message ?? o.err, 200),
         ms: logEpoch(o.ms),
+        // v39.11 (schema 3): where the main USGS request was read from ('new' | 'new_429' | 'old' | 'old_nokey')
+        // and the number of attempts. Logging only; never read by the estimate or the learning.
+        src: logTry(() => (c.usgsMeta && c.usgsMeta.src) ? logStr(c.usgsMeta.src, 12) : null),
+        att: logTry(() => (c.usgsMeta && Number.isFinite(c.usgsMeta.att)) ? c.usgsMeta.att : null),
+        // v39.11: per gauge, the publish time (`lm`, USGS last_modified) and reading time (`t`) of the newest
+        // reading in the main request (discharge, else stage), epoch ms. Null on the old service.
+        pub: logTry(() => pubOf(c.usgsMeta && c.usgsMeta.pub)),
         in: {
             lf: { q: logNum(lf?.q), qT: logEpoch(lf?.qTime), h: logNum(lf?.h, 2), hT: logEpoch(lf?.hTime) },
             por: { q: logNum(por?.q), qT: logEpoch(por?.qTime), h: logNum(por?.h, 2), hT: logEpoch(por?.hTime) },
@@ -2686,7 +2844,11 @@ function buildTickRecord(ctx, tickStartMs, o = {}) {
         adv: adv ? { dbar: logNum(adv.dbar, 3), ef: adv.ef ?? null, lfr: adv.lfr ?? null, lfe: logNum(adv.lfe) } : null,
         slot: c.slot ?? 'none',
         val: c.val ? { n: logEpoch(c.val.n), cleaned: logEpoch(c.val.cleaned) } : null,
-        aux: c.aux ? logClone(c.aux) : null
+        aux: logTry(() => {
+            const unk = c.usgsMeta && Array.isArray(c.usgsMeta.unkQ) && c.usgsMeta.unkQ.length ? c.usgsMeta.unkQ.slice(0, 10).map(x => logStr(x, 20)) : null;
+            if (!c.aux && !unk) return null;
+            return logClone(unk ? { ...(c.aux || {}), unkQ: unk } : c.aux);
+        })
     };
 }
 
@@ -2922,6 +3084,7 @@ async function finalizeTick(client, budget, ctx, tickStartMs, o) {
 }
 
 exports._test = {
+    usgsRequest, fetchNewIvJson, pubOf,
     validateUSGSResponse, fetchWithTimeout, fetchWaterTemp,
     fetchUSGSData, getPoRFromHistory, estimateLFStage, makeGFPrediction,
     scoreShadowPredictions, storePrediction, validatePendingPredictions,
@@ -2973,8 +3136,10 @@ exports.handler = async (event, context) => {
         // 1. Fetch USGS data and water temperature in parallel
         console.log('Fetching USGS data and water temperature...');
         const tempOut = {};   // A3: receives the water-temperature reading time
+        const usgsMeta = {};  // v39.11: log-only source label, publish times, unknown qualifier codes
+        tickCtx.usgsMeta = usgsMeta;
         const [usgsData, waterTempC] = await Promise.all([
-            fetchUSGSData(),
+            fetchUSGSData(usgsMeta),
             fetchWaterTemp(tempOut)
         ]);
         tickCtx.usgsData = usgsData;

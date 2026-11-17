@@ -202,8 +202,8 @@ describe('handler A/B: the Difficult Run request never changes anything that alr
             assert.equal(val.dr.why, want[name], name);
             assert.equal(val.tickAt, tick.at, 'join key');
             assert.ok(!('tail' in val.dr), 'the tail lives on the tick row only');
-            assert.equal(tick.v, 2); assert.equal(val.v, 2);
-            assert.equal(tick.ver, 'v39.6');
+            assert.equal(tick.v, 3); assert.equal(val.v, 3);
+            assert.equal(tick.ver, 'v39.11');
             if (name === 'ok') {
                 assert.equal(tick.in.dr.q, 13.1);
                 assert.equal(tick.in.dr.t, T0 - 73 * 60000);
@@ -238,7 +238,7 @@ describe('handler A/B: the Difficult Run request never changes anything that alr
         assert.equal(tick.out, 'error');
         assert.equal(tick.in.dr, null);
         assert.equal(tick.conf, null); assert.equal(tick.ci, null);
-        assert.equal(tick.v, 2);
+        assert.equal(tick.v, 3);
     });
 
     it('time: DR hangs AND every log write hangs: added time stays at or under 8.5 s', async (t) => {

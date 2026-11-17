@@ -129,13 +129,13 @@ describe('buildTickRecord: new fields survive bad inputs and keep the old shape'
         const prediction = makeGFPrediction(usgsData, hist(6000), 15, {}, {});
         return { stage: 'housekeeping', usgsData, waterTempC: 15, tempT: NOW, fullHistory: hist(6000), trace: {}, prediction, slot: 'stored', val: { n: 0, cleaned: 0 }, adv: { dbar: 1, ef: false, lfr: false, lfe: null }, ice: { lf: false, por: false, efMiss: false }, aux: {}, ...over };
     }
-    it('schema 2, v39.6; conf and ci present; ci uses pred.flowBin and the capped predictedCFS', (t) => {
+    it('schema 3, v39.11; conf and ci present; ci uses pred.flowBin and the capped predictedCFS', (t) => {
         quiet(t);
         const c = ctx();
         c.prediction = { ...c.prediction, predictedCFS: 11900, flowBin: '12000-25000', flowState: 'steady', rawFinalCFS: 13000 };   // capped: lower bin than the raw one
         const rec = buildTickRecord(c, NOW, { out: 'predicted', ms: 5 });
-        assert.equal(rec.v, 2);
-        assert.equal(rec.ver, 'v39.6');
+        assert.equal(rec.v, 3);
+        assert.equal(rec.ver, 'v39.11');
         assert.deepEqual(rec.ci, { lo: 11900 - 425, hi: 11900 + 549, q05: -549, q95: 425, bin: '12000-25000', st: 'steady' });
         assert.equal(rec.conf.st, 'steady');
         assert.equal(rec.in.efx.tr1h, 'rising');
@@ -174,7 +174,7 @@ describe('buildTickRecord: new fields survive bad inputs and keep the old shape'
         assert.equal(a.conf, null); assert.equal(a.ci, null);
         const b = buildTickRecord({ stage: 'fetch' }, NOW, { out: 'error', why: 'usgs_fetch_failed', err: new Error('x') });
         assert.equal(b.conf, null); assert.equal(b.ci, null); assert.equal(b.in.dr, null);
-        assert.equal(b.v, 2);
+        assert.equal(b.v, 3);
     });
     it('a hostile hTail and a hostile dr cannot cost the tick row', (t) => {
         quiet(t);

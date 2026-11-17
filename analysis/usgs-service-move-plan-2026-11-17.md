@@ -210,3 +210,24 @@ Saved responses for the tests (scratch, to be copied into `test/fixtures/usgs/` 
 
 Additional rule for Step 1: when `USGS_API_KEY` is not set, the job uses the old service exactly as
 today and logs that. The code can therefore be deployed safely in either order with the key.
+
+---
+
+# Step 1: build, re-audit and rulings (orchestrator, 2026-11-17)
+
+Build by a Sonnet builder; re-audit by a fresh Opus auditor (`usgs-service-move-plan-2026-11-17.REAUDIT.md`,
+verdict SHIP AFTER FIXES). Live smoke by the orchestrator with the owner's key at 16:06 UTC, read-only,
+through `buildContinuousUrl` and `toLegacyIv`: main request 906 ms (5,535 rows, 13 series, all ascending,
+no unknown codes), temperature 147 ms, Difficult Run 122 ms.
+
+| Re-audit finding | Ruling |
+|---|---|
+| 1 BLOCKER: `time_series_id` was not requested, so the duplicate-series guard could never fire | ACCEPTED. The defect came from the orchestrator's brief, which listed the properties without it. Fix: request `time_series_id`; second guard on colliding timestamps in a group; a test on a real-shaped restricted answer. Not caught by either guard: two series without ids whose timestamps never collide; with the id requested this needs USGS to stop sending the id. |
+| 2 A malformed key could be printed in an error message | ACCEPTED: a key outside printable ASCII is treated as no key; fixed log text; redaction on the new-service path. |
+| 3 TODO omitted the open items | ACCEPTED: rows added. |
+| 4 Rows present but none with `statistic_id` 00011 | ACCEPTED: throws. |
+| 5 Odd shapes dropped without trace | ACCEPTED: string qualifier accepted; other approval statuses reported in `aux.unkQ`. |
+| 6 Unknown qualifier codes are passed through and logged, not rejected | AMENDMENT to ruling 1 of the plan audit: at run time an unknown code is passed through and logged (`aux.unkQ`), because failing the hourly run over an unknown label would cost more than it protects; ice is carried by the value (`null` to `-999999`), which the server's ice test uses. |
+| 7 `validation_log` and `bin_snapshot` also become `v: 3` | ACCEPTED: one sentence in the appendix. |
+
+Owner: `USGS_API_KEY` is set in Netlify (checked read-only at 16:09 UTC: name exact, value equal to the key, all contexts).
