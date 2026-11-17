@@ -251,3 +251,37 @@ Live smoke by the orchestrator with the owner's key, function invoked locally (1
 when USGS rate-limits.
 
 Unmeasured until the function is deployed: everything in TODO D12.
+
+---
+
+# Push A live (v39.12, commit 2781168, deployed 2026-11-17 17:36 UTC)
+
+Step 1 gate: the owner pasted the job's log rows; the 17:00 UTC run shows `src: new`, `att: 1`, 4,533 ms, one row
+for the hour (started 17:01:02, late after the fresh deploy). Push A was pushed after that.
+
+Orchestrator's first timings on the live site: `set=main` 2.1 s on a miss and 0.13 s from the shared copy
+(`cache-status: "Netlify Durable"; hit; ttl=117`), 75 kB on the wire with brotli; `set=ef` 1.0 s then 0.11 s.
+
+Independent live check by a fresh verifier (Opus, public requests only, 21 requests to `/api/usgs`):
+
+| Check | Result |
+|---|---|
+| Version v39.12 live, commit agrees | PASS |
+| Four sets: structure, gauge ids (19 for main; the 4 creeks; Edwards Ferry; temperature), ascending times, newest reading at most 1.1 h old, `requestDT` 8 to 41 s old | PASS. Sizes wire / unpacked: main 125,900 / 2,710,041 bytes (gzip; 75 kB with brotli), creeks 2,793 / 57,232, ef 567 / 7,225, temp 1,207 / 21,072 |
+| Shared copy: second request served by "Netlify Durable" with the same `requestDT` | PASS |
+| Rejections | PASS except as noted: encoded, case, duplicate, empty, missing and free-form parameters and the trailing slash answer 400 with `no-store`; `/api/usgs/x` and both `--path-as-is` dot paths answer 404 at the edge; the direct function address answers 404 |
+| A client `Cache-Control: no-cache` does not bypass the shared copy | PASS |
+| The app is unchanged (service worker has no `/api/usgs`; the bundle mentions it only in changelog text) | PASS |
+| Hourly job unaffected | PASS |
+| No key material in any header or body | PASS |
+
+Three behaviours differ from the plan's wording and are ACCEPTED as they are (ruling): (1) `?set=main&x=1` is
+answered with the shared copy of `set=main` while one exists, because the copy varies only on `set`; the function
+is not invoked, no quota is spent, and on a cold cache the function rejects it (the cold-cache case was not tested
+live). This is the intended effect of the vary rule: an added parameter cannot force an upstream call. (2) HEAD is
+answered from the shared copy. (3) POST gets Netlify's own 404 page, not the function's 405, because the function
+is registered for GET only. The plan's "never data" wording is corrected to "never an upstream call".
+
+Still unmeasured (TODO D12): the 30 s grace period, whether failure answers are kept at the edge, a failure at
+revalidation replacing a good copy, the shared copy across Netlify locations, the remaining-quota header in
+production, and upstream time for `main` from Netlify's region beyond the single 2.1 s observation.
