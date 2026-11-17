@@ -249,3 +249,32 @@ validation row, so no validation was learned twice. That validation ran 66 minut
 03:00 hour had no successful run; this is inside the 2.5 hour limit. Not covered by this check: nothing else was
 examined in those hours beyond `validation_log` (the tick rows of the same hours record the second run's
 prediction slot).
+
+---
+
+# Step 1 verified live (2026-11-17, 20:47 UTC)
+
+Evidence: two exports from the job's log table made by the owner (the session's database tool was not connected),
+saved by script, and a fresh verifier (Opus; one keyless request to the new service, one to the old, one to the
+public health endpoint).
+
+| Check | Result |
+|---|---|
+| Runs at 17:01, 18:01, 19:01, 20:00 UTC: one row each, `src: new`, `att: 1`, 4,533 / 2,426 / 3,213 / 3,157 ms, `predicted` | PASS. Before the switch: 15:00 three runs (two failed), 16:00 three runs (one failed, two predicted), 10 to 17 s each |
+| All logged readings equal USGS at the exact reading time (4 runs x 9 values) | PASS, 36 of 36 |
+| Each logged reading was the newest one published when its run started | PASS |
+| `tick_log.pub`: `t` equals the reading time (28 of 28); `lm` equals USGS `last_modified` of the flow reading (stage at Edwards Ferry) | PASS |
+| The old service agrees on the Little Falls and Point of Rocks values (16 values) | PASS |
+| Health at 20:47 UTC: 9 runs in a row, 659 missed | PASS |
+
+`lastValidation` stands at 17:01:04 UTC although predictions continued: expected. One prediction is pending at a
+time and is validated when its water reaches Little Falls, about 12 hours later at these flows; the 17:00 run (the
+first on the new service) validated the prediction made at 04:01 UTC.
+
+**Publish rhythm, from the job's own log (input for Step 3).** Reading age when the run starts, and when the next
+batch arrived: Little Falls 11 min (next batch 56 to 59 min later); Seneca 11 min; Goose 16 min, but 76 min at
+20:00 (batch published 2.5 min after the run started); Broad Run 21 min; Monocacy 31 min; **Point of Rocks 66 min
+in all four runs, its next batch published 1.4 min after the run started** (18:02:27, 19:02:24, ...); Edwards Ferry
+76 min in three runs, next batch 0.3 to 0.4 min after the run started. Margins are tight on the other side too:
+Little Falls was published 32 s before the 20:00 run started. A run at about :06 would catch Point of Rocks,
+Edwards Ferry and Goose and cost about 5 min of age on Little Falls and Seneca.
