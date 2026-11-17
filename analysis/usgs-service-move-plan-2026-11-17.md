@@ -189,3 +189,24 @@ seven test files pin the old address.
 Step 0 now reads: (a) double-run check, (b) mapping table and the iced-gauge fixture, (c) request
 limits once the key exists, (d) the owner's key. Step 1 is not built before the owner approves this
 plan and the key exists.
+
+---
+
+# Step 0 results (orchestrator, 2026-11-17, about 16:00 UTC)
+
+Owner: green light for the plan, the server route for the app (option C), and the key supplied.
+The key is kept outside the repository and is never written to a file that is committed.
+
+| Check | Result |
+|---|---|
+| Request limit with the key | `x-ratelimit-limit: 1000` (the job needs 3 requests an hour). Keyless answers carry no limit headers. |
+| Same past day from both services (2026-11-15 00:00 to 2026-11-16 00:00 UTC; 8 gauges; flow, stage, temperature; 18 series) | Identical: same number of readings, same timestamps, same value strings in every series (3,666 readings, 0 differences). One series per gauge and parameter on the new service, all `statistic_id` 00011. Old qualifiers `["P"]`, new `qualifier: null` with `approval_status: "Provisional"`. |
+| Ice and equipment marking (Alaska gauges 15515500 and 15356000, iced or out of service now) | Old: value `"-999999"`, qualifiers `["P","Ice"]` / `["P","Eqp"]`, `noDataValue -999999`. New: `value: null`, `qualifier: ["ICE"]` / `["EQUIP"]` (an array, or null on normal rows). |
+| Environment switch | To be confirmed in Step 1: on Netlify a changed environment variable may need "Trigger deploy" before functions see it. If so, the ruling's "without a deploy" becomes "with one click, no code change". |
+| Double runs learned twice? | NOT CHECKED: the database connection of this session dropped and has not come back. Open. |
+
+Saved responses for the tests (scratch, to be copied into `test/fixtures/usgs/` by the builder):
+`par_new.json`, `par_old.json` (the day above), `ice_new.json`, `ice_old.json`.
+
+Additional rule for Step 1: when `USGS_API_KEY` is not set, the job uses the old service exactly as
+today and logs that. The code can therefore be deployed safely in either order with the key.
