@@ -1,0 +1,25 @@
+run: F0
+command: node ci_backtest_harness_lag.mjs --arm=F0 --gate=new --mode=hybrid
+rows read from CSV: 126916
+simulated whole-hour grid points (incl. drain): 127535
+prediction attempts (one per simulated hour up to the end): 127463
+shadow rows per status:
+  predicted: 125135
+  no_por: 984
+  no_lf: 432
+  no_truth: 912
+  other: 0
+shadow rows written: 127463
+shadow validated (truth found): 125135
+  of which truth outside production range [500, 500000]: 41
+  truth-dependent hard (Check 2 or 3 fired): 349
+  Check 1 (EF vs truth) fired: 15415   Check 2: 91   Check 3: 263
+learning track: slots stored 23441; hours a new prediction found the slot occupied 102606
+  validations (truth found, in production range): 23370
+  learned: 23335
+  hard-skipped (excluded from learning): 35
+  retries (no truth or truth out of production range at the validation hour): 213
+  dropped, missed 2.5 h window: 71
+  slot still pending at end of run: 0
+learn rows written: 23370
+bin-update rows written: 23335

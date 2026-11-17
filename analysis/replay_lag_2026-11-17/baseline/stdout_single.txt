@@ -1,0 +1,17 @@
+[harness] mode=single  in=hourly_backtest_data_v361.csv  out=ci_residuals_v361_single.csv
+[harness] loaded 126916 hourly rows: 2011-12-01 05:00 .. 2026-06-16 03:00
+[harness] DONE mode=single
+  predictions made : 23182
+  validated (kept) : 21477
+  hard-skipped     : 1615
+  soft-clamped     : 99
+  missed 2.5h window: 5
+  no-LF at horizon : 84
+  residuals written: 21477 -> ci_residuals_v361_single.csv
+  final bin counts (count | emaMeanError):
+    0-3000       rising=196/189  steady=1118/513  falling=269/75
+    3000-6000    rising=649/308  steady=1757/289  falling=1031/21
+    6000-12000   rising=1017/1156  steady=2716/-60  falling=2367/-221
+    12000-25000  rising=1024/151  steady=1538/-305  falling=3213/-139
+    25000-50000  rising=776/3872  steady=427/2179  falling=2069/-105
+    50000+       rising=542/11818  steady=128/8804  falling=640/-550

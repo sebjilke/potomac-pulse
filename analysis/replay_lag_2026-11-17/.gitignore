@@ -1,0 +1,8 @@
+# Large deterministic outputs: regenerate with run_all.sh; hashes are in README.md
+shadow_*.csv
+learn_*.csv
+bins_*.csv
+switch_*.csv
+bootstrap_indices.csv
+baseline/*.csv
+tmp_*/

@@ -1,0 +1,26 @@
+run: switch_2023-01-01
+command: node ci_backtest_harness_lag.mjs --arm=L --gate=new --mode=hybrid --switch=2023-01-01T00:00Z --until=2023-03-02T00:00Z
+rows read from CSV: 126916
+simulated whole-hour grid points (incl. drain): 98684
+prediction attempts (one per simulated hour up to the end): 98612
+shadow rows per status:
+  predicted: 96594
+  no_por: 1014
+  no_lf: 439
+  no_truth: 565
+  other: 0
+shadow rows written: 98612
+shadow validated (truth found): 96594
+  of which truth outside production range [500, 500000]: 0
+  truth-dependent hard (Check 2 or 3 fired): 131
+  Check 1 (EF vs truth) fired: 10853   Check 2: 32   Check 3: 99
+learning track: slots stored 18865; hours a new prediction found the slot occupied 78294
+  validations (truth found, in production range): 18804
+  learned: 18792
+  hard-skipped (excluded from learning): 12
+  retries (no truth or truth out of production range at the validation hour): 155
+  dropped, missed 2.5 h window: 61
+  slot still pending at end of run: 0
+NOTE: the counts above cover the whole switched run from the start of the data (L inputs before the switch); the file holds only predTs >= switch
+shadow rows written to file (predTs >= switch): 1441
+file rows per status: {"predicted":1441}

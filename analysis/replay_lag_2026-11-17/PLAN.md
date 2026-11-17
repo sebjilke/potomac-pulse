@@ -147,3 +147,34 @@ Implementation details fixed at the same time, before any code (orchestrator):
 - Branched check dates for the transient formula: 2015-01-01, 2019-01-01, 2023-01-01 (00:00 UTC), each followed for 60 days.
 - Flood events and switch anchors are computed independently by the Python and the R analyst from the data file, by the rule in ruling 8; the replay builder does not compute them.
 - The builder of the replay tool reports row counts and statuses only. It does not compute, print or look at any comparison of errors between the arms; that is done blind by the two analysts.
+
+---
+
+# After the tool audit (orchestrator, 2026-11-18 UTC, before any result was computed)
+
+The replay tool was built by a Sonnet builder and audited by a fresh Opus auditor (`TOOL_AUDIT.md`): no bug in the
+mechanics; regression, determinism, the lag operator (0 mismatches on 2,000 random rows per arm plus one full
+year), the truth rule, bin bookkeeping, gates and switch runs all check out. The builder reported three blindness
+slips (counts of fired checks, three lines of one bins file), none a comparison between arms.
+
+Rules written down now, as the auditor required before analysis (all operational in `ANALYSIS_SPEC.md`):
+- **Affected:** |raw_F - raw_L| / raw_L >= 1%, or flow state differs, or flow bin differs.
+- **Flood:** truth flow at least 50,000 cfs in either arm. **The flood quantity used by the decision rule is taken
+  over affected flood pairs**; the figure over all flood pairs is reported beside it.
+- **Excluded from scoring:** the first 72 hours; pairs with a truth-dependent hard flag in either arm; pairs whose
+  truth lies outside the range production validates (500 to 500,000 cfs) in either arm.
+- **Bootstrap:** month = UTC month of the prediction time; a drawn month without pairs contributes nothing; the
+  statistic is the pooled mean; percentiles by linear interpolation.
+- **Transient:** rise start = the earliest hour in the 168 hours before a flood event in which Point of Rocks rose
+  by at least 2% in one hour; switch anchor 24 hours before it; offset at the first rising prediction after the
+  anchor = (EMA of the lagged arm - EMA of the fresh arm) for that cell, as a percent of the raw estimate; the
+  decision rule compares the MEDIAN ABSOLUTE offset over events with 3 points.
+
+Limitations accepted without a re-run: (1) a bin updated at hour T with truth read 11 minutes before T is applied
+to the prediction at T, a look-ahead of at most one hour through the bins, identical in every arm; (2) water
+temperature is filled from up to 48 hours back where production uses 24 (27 and 28 predictions affected);
+(3) the regression test covers the original code path only; the hybrid path was verified by the auditor's
+independent recomputation; (4) ice periods are gaps in the data, not replayed as ice.
+
+The large output files (574 MB) are not stored in the repository; `README.md` holds their SHA-256 hashes and
+`run_all.sh` regenerates them byte for byte.

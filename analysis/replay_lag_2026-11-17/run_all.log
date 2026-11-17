@@ -1,0 +1,19 @@
+[lag] arm=F gate=new mode=hybrid switch=- until=-  rows=126916
+[lag] done F: shadow rows 127463; statuses {"predicted":125117,"no_por":999,"no_lf":439,"no_truth":908,"other":0}; learn validations 23343
+[lag] arm=L gate=new mode=hybrid switch=- until=-  rows=126916
+[lag] done L: shadow rows 127463; statuses {"predicted":125099,"no_por":1014,"no_lf":439,"no_truth":911,"other":0}; learn validations 23333
+[lag] arm=F0 gate=new mode=hybrid switch=- until=-  rows=126916
+[lag] done F0: shadow rows 127463; statuses {"predicted":125135,"no_por":984,"no_lf":432,"no_truth":912,"other":0}; learn validations 23370
+[lag] arm=L0 gate=new mode=hybrid switch=- until=-  rows=126916
+[lag] done L0: shadow rows 127463; statuses {"predicted":125120,"no_por":999,"no_lf":432,"no_truth":912,"other":0}; learn validations 23363
+[lag] arm=F gate=old mode=hybrid switch=- until=-  rows=126916
+[lag] done F_gateold: shadow rows 127463; statuses {"predicted":125117,"no_por":999,"no_lf":439,"no_truth":908,"other":0}; learn validations 23343
+[lag] arm=L gate=old mode=hybrid switch=- until=-  rows=126916
+[lag] done L_gateold: shadow rows 127463; statuses {"predicted":125099,"no_por":1014,"no_lf":439,"no_truth":911,"other":0}; learn validations 23333
+[lag] arm=L gate=new mode=hybrid switch=2015-01-01T00:00Z until=2015-03-02T00:00Z  rows=126916
+[lag] done switch_2015-01-01: shadow rows 1441; statuses {"predicted":27029,"no_por":740,"no_lf":365,"no_truth":350,"other":0}; learn validations 5136
+[lag] arm=L gate=new mode=hybrid switch=2019-01-01T00:00Z until=2019-03-02T00:00Z  rows=126916
+[lag] done switch_2019-01-01: shadow rows 1441; statuses {"predicted":61530,"no_por":1014,"no_lf":439,"no_truth":565,"other":0}; learn validations 12498
+[lag] arm=L gate=new mode=hybrid switch=2023-01-01T00:00Z until=2023-03-02T00:00Z  rows=126916
+[lag] done switch_2023-01-01: shadow rows 1441; statuses {"predicted":96594,"no_por":1014,"no_lf":439,"no_truth":565,"other":0}; learn validations 18804
+months: 175 (2011-12 .. 2026-06); bootstrap rows: 10000
