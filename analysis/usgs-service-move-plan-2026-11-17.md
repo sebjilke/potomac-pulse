@@ -238,3 +238,14 @@ the new path. Reproduced locally with a dummy key set (36 failures, the same tes
 script clears `USGS_API_KEY` and `USGS_SOURCE`; tests that need a key set it themselves; one test pins the
 script. With a dummy key in the environment and without: 1,477 tests, 1,475 pass, 2 opt-in skips.
 Lesson: a test run must not depend on the machine's environment (same family as the ignored-file lesson of v39.9).
+
+**Step 0, double-run check: closed (2026-11-17, about 16:40 UTC).** The database tool was not available in
+the session, so the owner ran two read-only queries in the Supabase SQL editor and pasted the results.
+`validation_log` holds exactly one row created since 2026-11-16 17:00 UTC: prediction
+`6a7d921f-dd0c-4337-bd77-37c55b3d56a8` (made 2026-11-16 14:00:57 UTC), validated once at 2026-11-17 04:01:12 UTC,
+`learned: true`, flow bin count 112 to 113, stage bin count 110 to 111. The 04:00 hour had one completed run.
+None of the hours with two completed runs (2026-11-16 20:00; 2026-11-17 01:00, 06:00, 09:00, 16:00 UTC) has a
+validation row, so no validation was learned twice. That validation ran 66 minutes after it was due, because the
+03:00 hour had no successful run; this is inside the 2.5 hour limit. Not covered by this check: nothing else was
+examined in those hours beyond `validation_log` (the tick rows of the same hours record the second run's
+prediction slot).
