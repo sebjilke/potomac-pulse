@@ -138,3 +138,12 @@ over the plan. No analysis code is written before the owner has confirmed the pr
   - MOVE WITH A SAFEGUARD if MOVE holds but the offset at the first rising validation after a switch exceeds 3 points at the median flood onset.
   - INCONCLUSIVE otherwise; the owner then decides on the other grounds (late-batch misses), and the check at the first real rise stays.
 - **Floor of 0.5 points:** a practical choice, smaller than any difference a user could notice on screen.
+
+**Owner's confirmation: 2026-11-17, 23:2x UTC ("confirm").** The pre-registration above is frozen from this point;
+it is not adjusted after results are seen.
+
+Implementation details fixed at the same time, before any code (orchestrator):
+- A paired prediction is excluded from scoring when a truth-dependent check (Check 2 or 3) fires for it in EITHER arm; the count is reported.
+- Branched check dates for the transient formula: 2015-01-01, 2019-01-01, 2023-01-01 (00:00 UTC), each followed for 60 days.
+- Flood events and switch anchors are computed independently by the Python and the R analyst from the data file, by the rule in ruling 8; the replay builder does not compute them.
+- The builder of the replay tool reports row counts and statuses only. It does not compute, print or look at any comparison of errors between the arms; that is done blind by the two analysts.
