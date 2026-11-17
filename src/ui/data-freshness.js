@@ -16,9 +16,9 @@ export const OLD_MIN = 180;
 export const STALE_MIN = 360;
 /** A live fetch older than this (minutes) is called out as a stalled refresh. */
 export const RECENT_FETCH_MIN = 20;
-/** A response generated this recently (minutes) is a live answer. A live body is seconds old (no shared cache; the service worker bypasses the HTTP cache with no-cache). The previous 15 min cycle's saved copy is about 15 min old, so 10 separates them, and still tolerates a device clock up to 10 min fast. */
+/** A response generated this recently (minutes) is a live answer. Since v39.13 the body time (requestDT) is the upstream USGS response time: seconds old on a direct answer, up to about 150 s old when /api/usgs serves its shared copy (120 s plus a 30 s grace period). The service worker bypasses the HTTP cache with no-cache. The previous 15 min cycle's saved copy is about 15 min old, so 10 separates them; with a shared copy up to 150 s old the effective tolerance for a device clock running fast is about 7.5 min (10 min minus 2.5 min). */
 export const BODY_FRESH_MIN = 10;
-/** With an unknown body time, a proxy chain that found nothing newer is not repeated for this long (minutes) unless the reading time changes. */
+/** With an unknown body time, a second-stage walk that found nothing newer is not repeated for this long (minutes) unless the reading time changes. */
 export const CHAIN_MEMO_MIN = 60;
 /** Reading times this far ahead of the device clock (minutes) trigger the clock warning in the title. */
 export const CLOCK_SKEW_MIN = 5;
@@ -73,7 +73,7 @@ export function payloadReadingMs(json, ids = [LF_ID, POR_ID]) {
 /**
  * Time the USGS server generated the response: value.queryInfo.note is an array of {title, value}
  * and the entry titled "requestDT" holds an ISO timestamp (checked against the live API 2026-11-10).
- * @param {Object} payload - Raw USGS iv response (live, or unwrapped from a CORS proxy).
+ * @param {Object} payload - Raw USGS iv response (from /api/usgs, from the direct new-service call after the adapter, or a saved copy). For /api/usgs and the direct call requestDT is the upstream response time.
  * @param {number} [now] - Current time in ms (injectable for tests).
  * @returns {(number|null)} Parsed time in ms, or null when missing, malformed, unparseable or more than 5 minutes in the future.
  */
@@ -104,11 +104,11 @@ export function classifyOldPayload({ readingMs, bodyMs, now }) {
 }
 
 // Memo for the unknown-body case (module state, deliberately not localStorage): the reading time and
-// wall-clock time of the last proxy chain that found nothing newer than the direct payload.
+// wall-clock time of the last walk to stage 2 (the direct new-service call) that found nothing newer than the /api/usgs payload.
 let chainMemo = null;
 
 /**
- * True when the proxy chain (and the early refetch) must be skipped: the last chain found nothing
+ * True when the walk to stage 2 (and the early refetch) must be skipped: the last chain found nothing
  * newer for this same direct reading time, and under 60 minutes have passed.
  * @param {(number|null)} readingMs - Reading time of the direct payload.
  * @param {number} now - Current time in ms.
@@ -121,7 +121,7 @@ export function chainSuppressed(readingMs, now) {
 }
 
 /**
- * Records that a proxy chain ran for this direct reading time and found nothing newer.
+ * Records that a walk to stage 2 ran for this stage 1 reading time and found nothing newer.
  * @param {(number|null)} readingMs - Reading time of the direct payload.
  * @param {number} now - Current time in ms.
  */
@@ -131,7 +131,7 @@ export function noteChainFoundNothing(readingMs, now) { chainMemo = { readingMs,
 export function clearChainMemo() { chainMemo = null; }
 
 /**
- * True when a payload's readings are old enough that the next source (CORS proxy) should be tried
+ * True when a payload's readings are old enough that the next source (stage 2, the direct new-service call) should be tried
  * before accepting it. A service-worker fallback to a cached copy looks like a normal 200 to the page.
  * Unknown reading time does not trigger a retry (keeps the pre-v39.1 behaviour).
  * @param {(number|null)} readingMs - From payloadReadingMs.

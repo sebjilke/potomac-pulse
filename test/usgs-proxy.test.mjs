@@ -113,6 +113,41 @@ describe('usgs-proxy: configuration', () => {
     });
 });
 
+describe('usgs-proxy: main must hold Little Falls and Point of Rocks flow (re-audit finding 3)', () => {
+    const only = (pred) => ({ ...FLOW, features: FLOW.features.filter(pred) });
+    const site = (f) => f.properties.monitoring_location_id;
+    const cases = {
+        'features: []': { ...FLOW, features: [] },
+        'Little Falls flow missing': only(f => site(f) !== 'USGS-01646500'),
+        'Point of Rocks flow missing': only(f => site(f) !== 'USGS-01638500'),
+        'neither gauge, another gauge present': only(f => site(f) === 'USGS-01643000')
+    };
+    for (const [name, flow] of Object.entries(cases)) {
+        it(`main with ${name} -> 502 upstream_bad_response, error caching (never a 200)`, async (t) => {
+            const r = await run(t, { url: `${BASE}/api/usgs?set=main`, upstream: (u) => resp(200, u.includes('parameter_code=00065') ? STAGE : flow) });
+            assert.equal(r.status, 502);
+            assert.equal(parse(r).error, 'upstream_bad_response');
+            assert.equal(r.headers['netlify-cdn-cache-control'], `public, durable, max-age=${CACHE_POLICY.errorSeconds}`);
+            assert.equal(r.headers['cache-control'], 'no-store');
+        });
+    }
+    it('main with the flow series present but every reading removed -> 502 (a series with no readings cannot exist after conversion)', async (t) => {
+        const r = await run(t, { url: `${BASE}/api/usgs?set=main`, upstream: (u) => resp(200, u.includes('parameter_code=00065') ? STAGE : only(f => site(f) !== 'USGS-01646500' && site(f) !== 'USGS-01638500')) });
+        assert.equal(r.status, 502);
+    });
+    it('main with both gauges present is still a 200', async (t) => {
+        const r = await run(t, { url: `${BASE}/api/usgs?set=main`, upstream: (u) => resp(200, u.includes('parameter_code=00065') ? STAGE : FLOW) });
+        assert.equal(r.status, 200);
+    });
+    it('small sets are NOT guarded: an empty answer is a 200 as before', async (t) => {
+        for (const set of ['creeks', 'ef', 'temp']) {
+            const r = await run(t, { url: `${BASE}/api/usgs?set=${set}`, upstream: () => resp(200, { ...FLOW, features: [] }) });
+            assert.equal(r.status, 200, set);
+            assert.deepEqual(parse(r).value.timeSeries, [], set);
+        }
+    });
+});
+
 describe('usgs-proxy: upstream requests and the key', () => {
     it('1. each set builds the exact upstream URL(s); the key is only in X-Api-Key', async (t) => {
         for (const [name, set] of Object.entries(SETS)) {

@@ -2,7 +2,7 @@
 // Extracted from index.html inline script
 
 import {
-    EDWARDS_FERRY, EF_MODEL, EF_HISTORY_MAX
+    EF_MODEL, EF_HISTORY_MAX
 } from '../model/constants.js';
 
 import {
@@ -10,7 +10,7 @@ import {
     efHysteresis
 } from '../state/store.js';
 
-import { fetchWithTimeout } from '../data/fetch.js';
+import { fetchOldShape } from '../data/usgs-source.js';
 import { isCriticalGaugeIceAffected } from '../estimation/great-falls.js';
 
 // ==================== EDWARDS FERRY DATA FETCH ====================
@@ -23,13 +23,12 @@ import { isCriticalGaugeIceAffected } from '../estimation/great-falls.js';
  * @returns {Promise<void>} Resolves when the fetch completes; silently returns on error or invalid data.
  */
 export async function fetchEdwardsFerry() {
-    const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${EDWARDS_FERRY.id}&parameterCd=00065&period=P1D&format=json`;
-
     try {
-        const r = await fetchWithTimeout(url, 5000);
-        if (!r.ok) return;
+        // v39.13: /api/usgs?set=ef first, then the new service directly (src/data/usgs-source.js).
+        const got = await fetchOldShape('ef');
+        if (!got) return;
 
-        const json = await r.json();
+        const json = got.json;
         if (!json?.value?.timeSeries?.[0]?.values?.[0]?.value) return;
 
         const values = json.value.timeSeries[0].values[0].value;
@@ -72,12 +71,11 @@ export async function fetchEdwardsFerry() {
  * @returns {Promise<void>} Resolves when the fetch completes; silently returns on error or invalid data.
  */
 export async function fetchWaterTemp() {
-    const url = 'https://waterservices.usgs.gov/nwis/iv/?sites=01638500&parameterCd=00010&period=P1D&format=json';
     try {
-        const r = await fetchWithTimeout(url, 5000);
-        if (!r.ok) return;
+        const got = await fetchOldShape('temp'); // v39.13: /api/usgs?set=temp, then the new service directly
+        if (!got) return;
 
-        const json = await r.json();
+        const json = got.json;
         if (!json?.value?.timeSeries?.[0]?.values?.[0]?.value?.length) return;
 
         const values = json.value.timeSeries[0].values[0].value;

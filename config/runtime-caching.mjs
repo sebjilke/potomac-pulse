@@ -7,13 +7,17 @@
 //
 // River data is NetworkFirst, not StaleWhileRevalidate. The cache is only a fallback when the
 // network fails or the response HEADERS take longer than networkTimeoutSeconds. The SW timeout
-// must fire before the page's own timer or the page gives up first and never sees the fallback:
-//   main call  : page timer 10 s (src/data/fetch.js fetchUSGS direct call)  -> SW 8 s
-//   everything else: page timer 5 s (proxies, creeks, Edwards Ferry, temp)   -> SW 4 s
-// Measured TTFB of the main call is about 1 s (3 runs, 0.93 to 1.02 s) with a 2.9 MB body.
+// must fire before the page's own timer or the page gives up first and never sees the fallback.
+// v39.13 numbers (src/data/usgs-source.js PAGE_TIMERS; function caps in netlify/functions/shared/usgs-sets.js):
+//   /api/usgs?set=main : function cap 5 s    -> SW 7 s -> page 8 s
+//   other sets         : function cap 3.5 s  -> SW 6 s -> page 7 s
+//   NWS (not USGS)     : no function         -> SW 4 s -> page 5 s (nws.js)
+// (cap + 1.5 s of function overhead and transit must fit strictly inside the SW timeout, which is strictly below the page timer; test/sw-runtime-caching.test.mjs.)
+// The direct calls to USGS's new service (api.waterdata.usgs.gov) have NO route here (ruling 8): the
+// browser's own saved copy (localStorage) is the fallback for them, so no 11.8 MB body is cached twice.
 //
-// fetchOptions.cache = 'no-cache': USGS sends Cache-Control max-age=900 and no validators, so
-// without it the browser HTTP cache can answer the "network" request with a body up to 15 min old.
+// fetchOptions.cache = 'no-cache': without it the browser HTTP cache could answer the "network"
+// request with an old body. The function also sends Cache-Control max-age=0.
 
 export const runtimeCaching = [
   {
@@ -32,26 +36,35 @@ export const runtimeCaching = [
     },
   },
   {
-    // Main multi-site USGS call (direct URL only; proxy URLs carry it URL-encoded and do not match).
-    // Own cache name so the 2.9 MB entry cannot be evicted by NWS URL variants in pp-data.
-    // Listed before the general route so it wins.
+    // Main multi-site USGS set from our own function. Own cache name so the 2.7 MB entry cannot be
+    // evicted by NWS URL variants in pp-data. Listed before the general route so it wins.
     urlPattern: ({ url }) =>
-      url.hostname === 'waterservices.usgs.gov' &&
-      url.search.indexOf('period=P7D') !== -1 &&
-      url.search.indexOf('parameterCd=00060,00065') !== -1,
+      url.pathname === '/api/usgs' &&
+      url.search.indexOf('set=main') !== -1,
     handler: 'NetworkFirst',
     options: {
       cacheName: 'pp-data-main',
-      networkTimeoutSeconds: 8,
+      networkTimeoutSeconds: 7,
       fetchOptions: { cache: 'no-cache' },
-      expiration: { maxEntries: 4, maxAgeSeconds: 21600 },
+      expiration: { maxEntries: 2, maxAgeSeconds: 21600 },
+      cacheableResponse: { statuses: [200] },
+    },
+  },
+  {
+    // The other /api/usgs sets (creeks, ef, temp).
+    urlPattern: ({ url }) => url.pathname === '/api/usgs',
+    handler: 'NetworkFirst',
+    options: {
+      cacheName: 'pp-data',
+      networkTimeoutSeconds: 6,
+      fetchOptions: { cache: 'no-cache' },
+      expiration: { maxEntries: 32, maxAgeSeconds: 21600 },
       cacheableResponse: { statuses: [0, 200] },
     },
   },
   {
-    // All other cross-origin live data: USGS via CORS proxies, creeks, Edwards Ferry, water temp, NWS.
-    urlPattern: ({ url }) =>
-      /allorigins\.win|corsproxy\.io|waterservices\.usgs\.gov|api\.water\.noaa\.gov/.test(url.href),
+    // NWS forecasts (page timer 5 s in nws.js, so the route waits 4 s as before v39.13).
+    urlPattern: ({ url }) => /api\.water\.noaa\.gov/.test(url.href),
     handler: 'NetworkFirst',
     options: {
       cacheName: 'pp-data',

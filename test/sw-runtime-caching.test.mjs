@@ -11,8 +11,12 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { createRequire } from 'node:module';
 import { runtimeCaching } from '../config/runtime-caching.mjs';
-import { GAUGES, CREEK_RUNS, EDWARDS_FERRY } from '../src/model/constants.js';
+import { PAGE_TIMERS, directSet } from '../src/data/usgs-source.js';
+import { buildContinuousUrl } from '../src/data/usgs-adapter.js';
+
+const { SETS } = createRequire(import.meta.url)('../netlify/functions/shared/usgs-sets.js');
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -27,18 +31,23 @@ const isolated = runtimeCaching.map((r) => {
 });
 const first = (href) => isolated.find((x) => x.match(href))?.route;
 
-// Request URLs built from the same constants and templates the app code uses
-// (src/data/fetch.js fetchData / fetchCreekData, src/estimation/edwards-ferry.js).
-const USGS = 'https://waterservices.usgs.gov/nwis/iv/';
-const MAIN = `${USGS}?sites=${Object.keys(GAUGES).join(',')}&parameterCd=00060,00065&period=P7D&format=json`;
+// v39.13: request URLs as the app builds them (src/data/usgs-source.js): same-origin /api/usgs?set=<name>
+// for stage 1; stage 2 (direct, new service) addresses come from the browser adapter and the app's own constants.
+const FN = 'https://potomacpulse.example/api/usgs?set=';
+const MAIN = `${FN}main`;
 const GENERAL = [
-    `${USGS}?sites=${Object.keys(CREEK_RUNS).join(',')}&parameterCd=00060&period=P1D&format=json`,
-    `${USGS}?sites=${EDWARDS_FERRY.id}&parameterCd=00065&period=P1D&format=json`,
-    `${USGS}?sites=01638500&parameterCd=00010&period=P1D&format=json`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(MAIN)}`,
-    `https://corsproxy.io/?${encodeURIComponent(MAIN)}`,
-    `https://corsproxy.io/?${encodeURIComponent(`${USGS}?sites=1&period=P1D`)}`,
-    'https://api.water.noaa.gov/nwps/v1/gauges/LTLM2/stageflow/forecast',
+    `${FN}creeks`,
+    `${FN}ef`,
+    `${FN}temp`,
+];
+const NWS = 'https://api.water.noaa.gov/nwps/v1/gauges/LTLM2/stageflow/forecast';
+const DIRECT = ['main', 'creeks', 'ef', 'temp'].map((n) => buildContinuousUrl(directSet(n)));
+// Gone for good: the old service and the two relays (nothing may route them any more).
+const REMOVED = [
+    'https://waterservices.usgs.gov/nwis/iv/?sites=01646500&parameterCd=00060,00065&period=P7D&format=json',
+    'https://waterservices.usgs.gov/nwis/iv/?sites=01644148&parameterCd=00065&period=P1D&format=json',
+    `https://api.allorigins.win/raw?url=${encodeURIComponent('https://waterservices.usgs.gov/nwis/iv/?sites=1&period=P7D')}`,
+    `https://corsproxy.io/?${encodeURIComponent('https://waterservices.usgs.gov/nwis/iv/?sites=1&period=P7D')}`,
 ];
 const SYNC = 'https://potomacpulse.example/.netlify/functions/sync-learning?action=x';
 
@@ -59,31 +68,52 @@ describe('runtime caching config (river data is network-first)', () => {
         }
     });
 
-    it('3. the main P7D call hits the main route; everything else river-side hits the general route', () => {
+    it('3. /api/usgs?set=main hits the main route (7 s); the other sets hit the general route (6 s); NWS keeps 4 s', () => {
         const m = first(MAIN);
         assert.equal(m.handler, 'NetworkFirst');
         assert.equal(m.options.cacheName, 'pp-data-main');
-        assert.equal(m.options.networkTimeoutSeconds, 8);
+        assert.equal(m.options.networkTimeoutSeconds, 7);
+        assert.equal(m.options.expiration.maxEntries, 2);
         for (const u of GENERAL) {
             const g = first(u);
             assert.ok(g, u);
             assert.equal(g.handler, 'NetworkFirst', u);
             assert.equal(g.options.cacheName, 'pp-data', u);
-            assert.equal(g.options.networkTimeoutSeconds, 4, u);
+            assert.equal(g.options.networkTimeoutSeconds, 6, u);
         }
+        const n = first(NWS);
+        assert.equal(n.options.cacheName, 'pp-data');
+        assert.equal(n.options.networkTimeoutSeconds, 4);
+        assert.ok(n.options.networkTimeoutSeconds * 1000 < 5000, 'NWS page timer is 5 s (src/estimation/nws.js)');
     });
 
-    it('4. SW timeouts stay below the page timers', () => {
-        // Page timers: main direct call 10 s (fetch.js fetchUSGS), every other river call 5 s
-        // (proxies, creeks, Edwards Ferry, water temp). Measured TTFB of the main call is about 1 s
-        // (0.93 to 1.02 s) with a 2.9 MB body. If the SW waits longer than the page, the page gives up first.
-        assert.ok(first(MAIN).options.networkTimeoutSeconds < 10);
-        assert.ok(first(GENERAL[0]).options.networkTimeoutSeconds < 5);
+    it('4. function cap + 1.5 s < service worker timeout < page timer, for both groups (strict)', () => {
+        // Function caps (shared/usgs-sets.js): 5 s main, 3.5 s the others. The service worker must wait for the
+        // function's headers (cap plus cold start, conversion and transit, 1.5 s), and must fire before the page
+        // timer or the page gives up first and never sees the saved copy.
+        const main = { cap: SETS.main.capMs, sw: first(MAIN).options.networkTimeoutSeconds * 1000, page: PAGE_TIMERS.main };
+        assert.ok(main.cap + 1500 < main.sw, `main: ${main.cap}+1500 < ${main.sw}`);
+        assert.ok(main.sw < main.page, `main: ${main.sw} < ${main.page}`);
+        for (const name of ['creeks', 'ef', 'temp']) {
+            const sw = first(`${FN}${name}`).options.networkTimeoutSeconds * 1000;
+            assert.ok(SETS[name].capMs + 1500 < sw, `${name}: ${SETS[name].capMs}+1500 < ${sw}`);
+            assert.ok(sw < PAGE_TIMERS[name], `${name}: ${sw} < ${PAGE_TIMERS[name]}`);
+        }
     });
 
     it('5. both river routes bypass the browser HTTP cache', () => {
         assert.equal(first(MAIN).options.fetchOptions.cache, 'no-cache');
         assert.equal(first(GENERAL[0]).options.fetchOptions.cache, 'no-cache');
+    });
+
+    it('5b. no service worker route for the direct new-service calls (ruling 8), the old host or the relays', () => {
+        for (const u of DIRECT) assert.equal(first(u), undefined, 'direct call must match no route: ' + u.slice(0, 90));
+        for (const u of REMOVED) assert.equal(first(u), undefined, 'removed host must match no route: ' + u.slice(0, 60));
+    });
+
+    it('5c. only the exact /api/usgs path is routed (no look-alike path)', () => {
+        assert.equal(first('https://potomacpulse.example/api/usgsx?set=main'), undefined);
+        assert.equal(first('https://potomacpulse.example/x/api/usgs?set=main'), undefined);
     });
 
     it('6. map tiles and /api/sync match no route', () => {
@@ -134,16 +164,23 @@ describe('built dist/sw.js', () => {
         const main = routeFor(routes, MAIN);
         assert.equal(main.h.kind, 'NetworkFirst');
         assert.equal(main.h.o.cacheName, 'pp-data-main');
-        assert.equal(main.h.o.networkTimeoutSeconds, 8);
+        assert.equal(main.h.o.networkTimeoutSeconds, 7);
         assert.equal(main.h.o.fetchOptions.cache, 'no-cache');
         for (const u of GENERAL) {
             const g = routeFor(routes, u);
             assert.ok(g, 'no built route for ' + u);
             assert.equal(g.h.kind, 'NetworkFirst', u);
             assert.equal(g.h.o.cacheName, 'pp-data', u);
-            assert.equal(g.h.o.networkTimeoutSeconds, 4, u);
+            assert.equal(g.h.o.networkTimeoutSeconds, 6, u);
             assert.equal(g.h.o.fetchOptions.cache, 'no-cache', u);
         }
+        const nws = routeFor(routes, NWS);
+        assert.equal(nws.h.o.cacheName, 'pp-data');
+        assert.equal(nws.h.o.networkTimeoutSeconds, 4);
+        for (const u of [...DIRECT, ...REMOVED]) assert.equal(routeFor(routes, u), undefined, 'built worker must not route ' + u.slice(0, 60));
+        const text = readFileSync(sw, 'utf8');
+        assert.ok(text.includes('/api/usgs'), 'built worker must name /api/usgs');
+        for (const bad of ['waterservices.usgs.gov', 'allorigins', 'corsproxy']) assert.ok(!text.includes(bad), `built worker still mentions ${bad}`);
         const api = routeFor(routes, SYNC);
         assert.equal(api.h.kind, 'StaleWhileRevalidate');
         assert.equal(api.h.o.cacheName, 'pp-api');

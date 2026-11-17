@@ -28,6 +28,7 @@ import {
 
 import { fetchNWSForecasts } from '../estimation/nws.js';
 import { fetchEdwardsFerry, fetchWaterTemp } from '../estimation/edwards-ferry.js';
+import { fetchOldShape, fetchFromFunction, fetchFromDirect } from './usgs-source.js';
 import { emit } from '../state/event-bus.js';
 import { readingFromData, describeFreshness, shouldEarlyRefetch, payloadReadingMs, isOldPayload, bodyTimeMs, classifyOldPayload, chainSuppressed, noteChainFoundNothing, clearChainMemo } from '../ui/data-freshness.js';
 
@@ -36,7 +37,7 @@ import { readingFromData, describeFreshness, shouldEarlyRefetch, payloadReadingM
 // Validate USGS API response schema
 /**
  * Validates that a parsed USGS IV API response has the expected schema (object with a value.timeSeries array, each series carrying siteCode and variableCode).
- * @param {Object} json - The parsed JSON response from the USGS waterservices API.
+ * @param {Object} json - The parsed USGS answer in the old structure (from /api/usgs, or the new service after the adapter).
  * @returns {boolean} True if the response is structurally valid, false otherwise.
  */
 export function validateUSGSResponse(json) {
@@ -318,16 +319,14 @@ export function fillMissingData() {
 // ==================== FETCH CREEK DATA ====================
 
 /**
- * Fetches discharge data for all configured creek run gauges from USGS, computing trend, runnable status, and hourly history, and writes results into the shared `creekData` object.
+ * Fetches discharge data for all configured creek run gauges from USGS (v39.13: through the helper, /api/usgs first, then the new service directly), computing trend, runnable status, and hourly history, and writes results into the shared `creekData` object.
  * @returns {Promise<void>} Resolves when the fetch and processing complete; failures are caught and logged.
  */
 export async function fetchCreekData() {
-    const sites = Object.keys(CREEK_RUNS).join(',');
-    const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${sites}&parameterCd=00060&period=P1D&format=json`;
     try {
-        const r = await fetchWithTimeout(url, 5000);
-        if (!r.ok) return;
-        const json = await r.json();
+        const got = await fetchOldShape('creeks');
+        if (!got) return;
+        const json = got.json;
         if (!json?.value?.timeSeries) return;
 
         for (const ts of json.value.timeSeries) {
@@ -389,13 +388,8 @@ function browserOnline() {
     return typeof navigator === 'undefined' || navigator.onLine !== false;
 }
 
-const PROXIES_LIST = [
-    "https://api.allorigins.win/raw?url=",
-    "https://corsproxy.io/?"
-];
-
 /**
- * Top-level data refresh: fetches USGS gauge data (direct, then proxies, then cache fallback) in parallel with Edwards Ferry, water temp, and creek data, processes it, updates status, emits render events, and kicks off the background NWS forecast fetch.
+ * Top-level data refresh: fetches USGS gauge data (our own /api/usgs function, then the new USGS service directly, then the cache fallback) in parallel with Edwards Ferry, water temp, and creek data, processes it, updates status, emits render events, and kicks off the background NWS forecast fetch.
  * @param {{early?: boolean}} [opts] - early is true only for the single follow-up fetch scheduled after old readings.
  * @returns {Promise<void>} Resolves when the synchronous fetch/process pipeline completes (NWS forecast continues in the background).
  */
@@ -405,29 +399,29 @@ export async function fetchData({ early = false } = {}) {
     setLastAttemptMs(Date.now()); // v39.7: calls blocked by the guard above do not count (resume policy gap)
     try {
     setStatus("loading");
-    const sites = Object.keys(GAUGES).join(",");
-    const url = `https://waterservices.usgs.gov/nwis/iv/?sites=${sites}&parameterCd=00060,00065&period=P7D&format=json`;
-
     let earlyOk = true; // false when the body time (or the unknown-body memo) says an early refetch cannot help
     /**
-     * Attempts to fetch and validate USGS data directly, then via each CORS proxy, falling back to cached data if all network attempts fail; updates fetch time and data source accordingly.
+     * Attempts to fetch and validate USGS data from /api/usgs (stage 1), then from the new service directly (stage 2), falling back to cached data if all network attempts fail; updates fetch time and data source accordingly.
      * @returns {Promise<Object|null>} The validated USGS JSON (live or cached), or null if no data is available.
      */
     async function fetchUSGS() {
-        // v39.1 (SW-1): when the direct call fails or is slow, the service worker answers with its saved
-        // copy as a normal 200. An old-looking direct payload therefore does not end the chain: the
-        // proxies are still tried and the payload with the newest reading wins.
-        // Amendment (body time): an old-reading direct payload is classified by the server's own response
-        // time (requestDT). A body at most 10 min old is a live answer with the gauges behind: accept it,
-        // no proxies, no early refetch. An older body is a saved copy: walk the chain. With no body time,
-        // walk the chain but not again for the same reading time within 60 min (chainSuppressed).
+        // v39.1 (SW-1): when the call fails or is slow, the service worker answers with its saved
+        // copy as a normal 200. An old-looking stage 1 payload therefore does not end the chain: stage 2
+        // is still tried and the payload with the newest reading wins.
+        // Amendment (body time): an old-reading stage 1 payload is classified by the server's own response
+        // time (requestDT: for /api/usgs the upstream time, up to about 150 s old from the shared copy). A body
+        // at most 10 min old is a live answer with the gauges behind: accept it, no stage 2, no early refetch.
+        // An older body is a saved copy: walk on. With no body time, walk on but not again for the same
+        // reading time within 60 min (chainSuppressed).
+        // v39.13: stage 1 = /api/usgs?set=main (page timer 8 s), stage 2 = the new service directly, keyless
+        // (two calls, page timer 8 s). Neither is retried. The old service and the CORS relays are gone.
         let best = null; // { json, ms }
-        let directOld = null; // { ms } when the direct payload had old readings and no live body (unknown body time, or a saved copy)
+        let directOld = null; // { ms } when the stage 1 payload had old readings and no live body (unknown body time, or a saved copy)
         const consider = (json) => {
             const ms = payloadReadingMs(json);
             const bms = bodyTimeMs(json, Date.now());
             // Newer readings win. On a tie the payload with the newer body time wins (null counts as oldest),
-            // so a live proxy body is not beaten by a saved direct copy with the same readings (review B-1).
+            // so a live stage 2 body is not beaten by a saved stage 1 copy with the same readings (review B-1).
             const better = !best
                 || (ms ?? -Infinity) > (best.ms ?? -Infinity)
                 || ((ms ?? -Infinity) === (best.ms ?? -Infinity) && (bms ?? -Infinity) > (best.bms ?? -Infinity));
@@ -441,44 +435,36 @@ export async function fetchData({ early = false } = {}) {
             return best.json;
         };
         try {
-            let r = await fetchWithTimeout(url, 10000);
-            if (r.ok) {
-                const json = await r.json();
-                if (validateUSGSResponse(json)) {
-                    const ms = consider(json);
-                    const t = Date.now();
-                    const cls = classifyOldPayload({ readingMs: ms, bodyMs: bodyTimeMs(json, t), now: t });
-                    if (cls === 'readings-fresh') return accept();
-                    if (cls === 'live-behind') { earlyOk = false; return accept(); }
-                    if (cls === 'unknown-body' || cls === 'saved-copy') {
-                        // review B-2: the 60 min memo also covers saved copies, so a fast device clock or a
-                        // permanently slow network cannot repeat the large chain every cycle.
-                        if (chainSuppressed(ms, t)) { earlyOk = false; return accept(); }
-                        directOld = { ms };
-                    }
-                    console.log('Direct USGS payload has old readings, trying proxies...');
-                } else {
-                    console.log('USGS response validation failed, trying proxies...');
+            const json = await fetchFromFunction('main');
+            if (validateUSGSResponse(json)) {
+                const ms = consider(json);
+                const t = Date.now();
+                const cls = classifyOldPayload({ readingMs: ms, bodyMs: bodyTimeMs(json, t), now: t });
+                if (cls === 'readings-fresh') return accept();
+                if (cls === 'live-behind') { earlyOk = false; return accept(); }
+                if (cls === 'unknown-body' || cls === 'saved-copy') {
+                    // review B-2: the 60 min memo also covers saved copies, so a fast device clock or a
+                    // permanently slow network cannot repeat the large chain every cycle.
+                    if (chainSuppressed(ms, t)) { earlyOk = false; return accept(); }
+                    directOld = { ms };
                 }
+                console.log('/api/usgs payload has old readings, trying the new service directly...');
+            } else {
+                console.log('USGS response validation failed (/api/usgs), trying the new service directly...');
             }
         } catch(e) {
-            console.log('Direct USGS fetch failed:', e.message || e);
+            console.log('/api/usgs fetch failed:', e.message || e);
         }
 
-        for (const p of PROXIES_LIST) {
-            try {
-                let r = await fetchWithTimeout(p + encodeURIComponent(url), 5000);
-                if (r.ok) {
-                    const json = await r.json();
-                    if (validateUSGSResponse(json)) {
-                        if (!isOldPayload(consider(json), Date.now())) return accept();
-                    } else {
-                        console.log(`Proxy ${p} returned invalid USGS response`);
-                    }
-                }
-            } catch(e) {
-                console.log('Proxy fetch failed:', e);
+        try {
+            const json = await fetchFromDirect('main');
+            if (validateUSGSResponse(json)) {
+                if (!isOldPayload(consider(json), Date.now())) return accept();
+            } else {
+                console.log('Direct new-service call returned invalid USGS response');
             }
+        } catch(e) {
+            console.log('Direct new-service fetch failed:', e.message || e);
         }
 
         if (directOld) {

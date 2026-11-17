@@ -84,8 +84,8 @@ beforeEach(() => {
     setGlobal('clearTimeout', () => {});
     setGlobal('fetch', async (u) => {
         const url = String(u);
-        if (url.startsWith('https://waterservices.usgs.gov/') && url.includes('P7D')) { mainCalls++; return net.main ? ok(net.main()) : no(); }
-        if (url.includes('01644148')) return net.ef ? ok(efBody()) : no();
+        if (url === '/api/usgs?set=main') { mainCalls++; return net.main ? ok(net.main()) : no(); }
+        if (url === '/api/usgs?set=ef') return net.ef ? ok(efBody()) : no();
         return no();
     });
     B.clear();
@@ -195,8 +195,9 @@ describe('retry button and labels (PA-3)', () => {
     });
     it('4e: an exception after setStatus("loading") releases both buttons', async () => {
         // validates (site and variable codes present) but breaks processData (no values block at all)
-        const broken = { value: { timeSeries: [{ sourceInfo: { siteCode: [{ value: LF }] }, variable: { variableCode: [{ value: '00060' }] } }] } };
-        net = { main: () => broken, ef: true };
+        // v39.13: a main answer must hold Little Falls and Point of Rocks flow (usgs-source guard), so the broken series is an extra one after them.
+        const broken = () => { const b = fresh(); b.value.timeSeries.push({ sourceInfo: { siteCode: [{ value: '01638480' }] }, variable: { variableCode: [{ value: '00060' }] } }); return b; };
+        net = { main: broken, ef: true };
         await assert.rejects(B.fetchData());
         assert.equal(el('refreshBtn').disabled, false);
         assert.equal(el('gfRetryBtn').disabled, false);

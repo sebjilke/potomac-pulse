@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { build } from 'esbuild';
+import { toNewShape, paramOf } from './helpers/usgs-new-shape.mjs';
 import {
     describeFreshness, readingFromData, shouldEarlyRefetch, formatAge, bandFor,
     payloadReadingMs, isOldPayload,
@@ -381,11 +382,15 @@ describe('fetchData wiring', () => {
         setGlobal('navigator', { get onLine() { return online; } });
         setGlobal('setTimeout', (fn, ms) => { timers.push({ fn, ms }); return timers.length; });
         setGlobal('clearTimeout', () => {});
+        // v39.13: stage 1 is /api/usgs?set=main (old structure); stage 2 is the new service called directly
+        // (new shape, one call per parameter). `directBody` = stage 1 answer, `proxyBody` = stage 2 answer (old structure, converted here).
         setGlobal('fetch', async (u) => {
             const url = String(u);
-            if (!url.includes('P7D')) return reply(null);
-            if (url.startsWith('https://waterservices.usgs.gov/')) return reply(directBody);
-            return reply(proxyBody);
+            if (url === '/api/usgs?set=main') return reply(directBody);
+            if (url.startsWith('https://api.waterdata.usgs.gov/') && url.includes('time=P7D')) {
+                return proxyBody ? { ok: true, json: async () => toNewShape(proxyBody, { param: paramOf(url) }) } : reply(null);
+            }
+            return reply(null);
         });
         F.store.setIsFetching(false);
         F.store.setLastReading(null);
@@ -406,7 +411,7 @@ describe('fetchData wiring', () => {
     const early = () => timers.filter((x) => x.ms === 60000);
     const go = async (opts) => { await F.fetchData(opts); };
 
-    it('26. SW-1: an old direct payload (SW cache fallback) still tries the proxies and the newest reading wins', async () => {
+    it('26. SW-1: an old stage 1 payload (SW cache fallback) still tries stage 2 and the newest reading wins', async () => {
         setup({ direct: bodyAged(300), proxy: bodyAged(40) });
         await go();
         const ms = F.store.lastReading.ms;
@@ -415,18 +420,19 @@ describe('fetchData wiring', () => {
         assert.equal(early().length, 0);
     });
 
-    it('27. SW-1: when the proxies are no better, the direct payload is kept and still counts as live', async () => {
+    it('27. SW-1: when stage 2 is no better, the stage 1 payload is kept and still counts as live', async () => {
         setup({ direct: bodyAged(300), proxy: null });
         await go();
         assert.ok(Date.now() - F.store.lastReading.ms > 290 * MIN);
         assert.equal(F.store.dataSource, 'live');
     });
 
-    it('28. fresh direct payload does not touch the proxies and schedules no early refetch', async () => {
+    it('28. fresh stage 1 payload does not touch stage 2 and schedules no early refetch', async () => {
         let proxyHit = false;
         setup({ direct: bodyAged(40), proxy: bodyAged(10) });
         const inner = globalThis.fetch;
-        setGlobal('fetch', async (u) => { if (!String(u).startsWith('https://waterservices.usgs.gov/')) proxyHit = proxyHit || String(u).includes('P7D'); return inner(u); });
+        // only the main set (P7D) counts: the small sets also walk to stage 2 when the stub has no answer
+        setGlobal('fetch', async (u) => { if (String(u).startsWith('https://api.waterdata.usgs.gov/') && String(u).includes('time=P7D')) proxyHit = true; return inner(u); });
         await go();
         assert.equal(proxyHit, false);
         assert.equal(early().length, 0);
@@ -614,6 +620,8 @@ describe('fetchData with body time (A2, A4)', () => {
     const realNow = Date.now;
     const clock = realNow(); // frozen clock so the 10 and 11 minute boundaries are exact
     let offset = 0;
+    // v39.13: `direct` = stage 1 (/api/usgs?set=main) answer, `proxy` = stage 2 (new service, direct) answer; proxyCalls counts
+    // stage 2 requests: one walk to stage 2 is two parallel requests (flow and stage), so 2 = one walk.
     let mainCalls = 0, proxyCalls = 0, direct, proxy;
     const reply = (b) => (b ? { ok: true, json: async () => b } : { ok: false, json: async () => ({}) });
     const early = () => timers.filter((x) => x.ms === 60000);
@@ -633,10 +641,12 @@ describe('fetchData with body time (A2, A4)', () => {
         setGlobal('clearTimeout', () => {});
         setGlobal('fetch', async (u) => {
             const url = String(u);
-            if (!url.includes('P7D')) return reply(null);
-            if (url.startsWith('https://waterservices.usgs.gov/')) { mainCalls++; return reply(direct); }
-            proxyCalls++;
-            return reply(proxy);
+            if (url === '/api/usgs?set=main') { mainCalls++; return reply(direct); }
+            if (url.startsWith('https://api.waterdata.usgs.gov/') && url.includes('time=P7D')) {
+                proxyCalls++;
+                return proxy ? { ok: true, json: async () => toNewShape(proxy, { param: paramOf(url) }) } : reply(null);
+            }
+            return reply(null);
         });
         Date.now = () => clock + offset;
         F.store.setIsFetching(false);
@@ -762,7 +772,8 @@ describe('fetchData with body time (A2, A4)', () => {
         await go();
         timers.length = 0;
         await go();
-        assert.equal(proxyCalls, 2, 'one proxy call per cycle: the second cycle tries the chain again (direct still old, first proxy fresh)');
+        // v39.13: two stage 2 requests per walk (was one relay call per cycle, because the first relay answered): both cycles walk to stage 2
+        assert.equal(proxyCalls, 4, 'the second cycle walks to stage 2 again (stage 1 still old, stage 2 fresh)');
     });
 
     it('58. review B-1/T-3: equal readings, saved direct body and live proxy body: the live body wins, normal wording, no early timer', async () => {

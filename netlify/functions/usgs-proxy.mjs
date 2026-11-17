@@ -16,6 +16,16 @@ const { SETS, CACHE_POLICY } = setsModule;
 
 export const config = { path: '/api/usgs', method: 'GET' };
 
+// A `main` answer without readings for these two gauges (flow, 00060) is refused: an empty or headless
+// answer would otherwise be shared for okSeconds. Small sets are not guarded (an out-of-service gauge is a legitimate empty answer).
+const HEADLINE = [['01646500', '00060'], ['01638500', '00060']];
+function hasHeadline(legacy) {
+    const series = (legacy && legacy.value && legacy.value.timeSeries) || [];
+    return HEADLINE.every(([site, param]) => series.some(ts => ts.sourceInfo.siteCode[0].value === site
+        && ts.variable.variableCode[0].value === param
+        && ts.values.some(b => b.value.length > 0)));
+}
+
 const KEY_RE = /^[\x21-\x7e]+$/;
 // The raw address (scheme and host removed) must equal one of these character for character.
 const CANONICAL = { '/api/usgs?set=main': 'main', '/api/usgs?set=creeks': 'creeks', '/api/usgs?set=ef': 'ef', '/api/usgs?set=temp': 'temp' };
@@ -170,6 +180,7 @@ export default async (req, context) => {
         };
         let legacy;
         try { legacy = toLegacyIv(merged); } catch (_) { return finish(errorResponse(502, 'upstream_bad_response', 'error')); }
+        if (setName === 'main' && !hasHeadline(legacy)) return finish(errorResponse(502, 'upstream_bad_response', 'error'));
         return finish(new Response(JSON.stringify(legacy), { status: 200, headers: headersFor('ok') }));
     } catch (e) {
         info.err = redact(e && e.message);

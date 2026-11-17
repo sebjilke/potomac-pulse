@@ -8,6 +8,7 @@
 // The key never appears here: it is sent by the caller as the X-Api-Key header, never in the address.
 // Plan: analysis/usgs-service-move-plan-2026-11-17.md (and its rulings and Step 0 results).
 
+// --- BEGIN SHARED ---
 const BASE = 'https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items';
 const PROPERTIES = 'monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id';
 const NO_DATA = '-999999';          // the old service's missing-value marker (its noDataValue)
@@ -147,5 +148,6 @@ function newestPublishTimes(newJson) {
     }
     return out;
 }
+// --- END SHARED ---
 
 module.exports = { buildContinuousUrl, toLegacyIv, newestPublishTimes, QUALIFIER_MAP, NO_DATA };

@@ -89,8 +89,8 @@ beforeEach(() => {
     setGlobal('fetch', async (u, opts) => {
         const url = String(u);
         if (opts && opts.method === 'POST') { posts.push({ url, body: JSON.parse(opts.body) }); return ok({}); }
-        if (url.startsWith('https://waterservices.usgs.gov/') && url.includes('P7D')) return net.main ? ok(net.main()) : no();
-        if (url.includes('01644148')) return net.ef ? ok(efBody()) : no();
+        if (url === '/api/usgs?set=main') return net.main ? ok(net.main()) : no();
+        if (url === '/api/usgs?set=ef') return net.ef ? ok(efBody()) : no();
         return no();
     });
     B.clear(); B.clearLearningMissed(); B.clearChainMemo();

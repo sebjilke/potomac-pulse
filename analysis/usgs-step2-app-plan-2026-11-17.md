@@ -285,3 +285,19 @@ is registered for GET only. The plan's "never data" wording is corrected to "nev
 Still unmeasured (TODO D12): the 30 s grace period, whether failure answers are kept at the edge, a failure at
 revalidation replacing a good copy, the shared copy across Netlify locations, the remaining-quota header in
 production, and upstream time for `main` from Netlify's region beyond the single 2.1 s observation.
+
+---
+
+# Push B: build, re-audit, rulings (orchestrator, 2026-11-17)
+
+Built by a Sonnet builder; re-audited by a fresh Opus auditor (`usgs-step2-app-plan-2026-11-17.REAUDIT-B.md`,
+verdict SHIP AFTER FIXES, no blockers, no majors). The auditor ran the four live `/api/usgs` answers and the direct
+keyless answers through both paths: the `value.timeSeries` arrays are deep-equal for all four sets.
+
+| Finding | Ruling |
+|---|---|
+| 1 Small-set timers equal, not nested (3.5 s + 1.5 s = 5 s service worker timeout) | ACCEPTED; the numbers in ruling 3 of the plan audit were the orchestrator's and could not satisfy its own rule. New numbers for creeks, Edwards Ferry and temperature: service worker 6 s, page 7 s (cap 3.5 s unchanged). The test returns to a strict "<". |
+| 2 An older service worker copy can overwrite a newer localStorage copy when stage 1 is slow and stage 2 is refused | TODO row, not in this push: the fix sits in the acceptance logic of `fetchUSGS`, and the case needs two failures at once. |
+| 3 An empty answer counts as a live success and could be shared for 120 s | ACCEPTED for the main set on both sides: a `main` answer without at least one reading for Little Falls flow (01646500, 00060) and Point of Rocks flow (01638500, 00060) is a failure of the stage in the app, and a 502 in the function. The small sets are passed through as before: a gauge that is out of service is a legitimate empty answer, and the parsers already treat it as no data. |
+| 4 Nothing pins `validateUSGSResponse` on stage 2 | ACCEPTED: test added. |
+| 5 Leftovers | The stale JSDoc line is corrected; the old cache entries in installed clients (gone within 6 hours) and the untimed body read (unchanged from before) are noted in TODO. |
