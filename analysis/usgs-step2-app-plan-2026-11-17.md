@@ -301,3 +301,33 @@ keyless answers through both paths: the `value.timeSeries` arrays are deep-equal
 | 3 An empty answer counts as a live success and could be shared for 120 s | ACCEPTED for the main set on both sides: a `main` answer without at least one reading for Little Falls flow (01646500, 00060) and Point of Rocks flow (01638500, 00060) is a failure of the stage in the app, and a 502 in the function. The small sets are passed through as before: a gauge that is out of service is a legitimate empty answer, and the parsers already treat it as no data. |
 | 4 Nothing pins `validateUSGSResponse` on stage 2 | ACCEPTED: test added. |
 | 5 Leftovers | The stale JSDoc line is corrected; the old cache entries in installed clients (gone within 6 hours) and the untimed body read (unchanged from before) are noted in TODO. |
+
+---
+
+# Push B live (v39.13, commit d015ed2, deployed 2026-11-17 18:04 UTC)
+
+Fix round after the re-audit done by the builder (timers 6 s / 7 s for the small sets with a strict ordering test;
+the main-answer guard in the app and in the function; the stage-2 validation test; the weather-service rule kept at
+4 s on its own). 1,616 tests, 1,614 pass, 2 opt-in skips. Pushed at 18:03:30 UTC, after the 18:00 hourly run, and
+deployed on the first build.
+
+Independent live check by a fresh verifier (Opus, public requests only; 9 requests to `/api/usgs`, 2 keyless to USGS):
+
+| Check | Result |
+|---|---|
+| Version v39.13 on the page and in the footer; commit agrees | PASS |
+| Live bundle (`index-ss8Z4FZR.js`, 222,483 bytes) calls `/api/usgs?set=` and `api.waterdata.usgs.gov`; no `waterservices`, `allorigins`, `corsproxy` in the bundle, `sw.js`, the page or the headers | PASS |
+| Service worker: `set=main` NetworkFirst 7 s, other sets 6 s, weather service 4 s, no route for the direct calls | PASS |
+| `connect-src` exactly as specified; every host the code calls is allowed | PASS |
+| Stage 1: four sets 200 in the old structure; first `main` call 2.69 s, then 0.12 s; `requestDT` 8 to 10 s old; newest reading at most 66 min old | PASS |
+| Stage 2 simulated (keyless, with `Origin`): 200, `access-control-allow-origin: *`, 0.49 s; same readings as stage 1 for the four creeks and for Little Falls and Point of Rocks; no preflight needed | PASS |
+| Hourly job unaffected (18:01:02 UTC, 7 runs in a row, 659 missed); page markup and visible text unchanged apart from the version | PASS |
+| No key material in any file or header | PASS |
+
+UNVERIFIED, needs a real browser on a real device: the page rendering and fetching under the new policy; installed
+clients taking over the new service worker; the direct stage in a browser (trigger, merge, timers); Safari parsing
+the direct stage's timestamps; the saved copy offline; real load time on a phone. The owner's phone check covers
+load time, the Creeks tab and the version.
+
+Noted by the verifier, older than this release: the visit counter may be blocked if it falls back to an image
+beacon (TODO D18).
