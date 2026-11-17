@@ -231,3 +231,23 @@ service worker, security policy, browser adapter, v39.13) follows, and only afte
 service are confirmed.
 
 **Owner's decision, pending:** how long a shared answer is kept (the plan proposes 120 s plus a 30 s grace period).
+
+---
+
+# Push A: build, re-audit, fix round (orchestrator, 2026-11-17)
+
+Built by a Sonnet builder; re-audited by a fresh Opus auditor (`usgs-step2-app-plan-2026-11-17.REAUDIT-A.md`,
+verdict SHIP AFTER FIXES, no blockers). Fix round done by the builder: tests now pin timer clean-up, request
+abort and partial failure of the main set; the raw request address must equal the canonical one before and after
+URL parsing; unused upstream bodies are cancelled and the sibling call of `main` is aborted on the first failure;
+a malformed key is logged as `key=malformed`. All six of the auditor's surviving mutations are now caught.
+1,561 tests, 1,559 pass, 2 opt-in skips, identical with dummy key variables in the environment.
+
+Live smoke by the orchestrator with the owner's key, function invoked locally (17:00 UTC): `main` 2.1 s, 2.59 MB
+(125 kB gzipped), 38 series, 36,176 readings, two upstream calls of 18,088 rows; `creeks` 0.16 s; `ef` 0.15 s;
+`temp` 0.15 s; two malformed addresses rejected with no upstream call.
+
+**Owner's decision (2026-11-17, "keep"):** cache policy 120 s shared, 30 s grace, 60 s for failures, 60 to 300 s
+when USGS rate-limits.
+
+Unmeasured until the function is deployed: everything in TODO D12.

@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "USGS_API_KEY= USGS_SOURCE= node --test 'test/**/*.test.js' 'test/**/*.test.mjs'"
+    "test": "USGS_API_KEY= USGS_API_KEY_APP= USGS_SOURCE= node --test 'test/**/*.test.js' 'test/**/*.test.mjs'"
   },
   "dependencies": {
     "@sentry/browser": "^10.40.0",

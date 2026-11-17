@@ -337,8 +337,8 @@ describe('a malformed key never reaches a log', () => {
 
 // The test run must not depend on the machine's environment. Netlify's build environment carries the real
 // USGS_API_KEY (the first v39.11 build failed there: 36 older tests stub the OLD response shape and took the
-// new path). The npm test script therefore clears both variables; tests that need a key set it themselves.
-require('node:test').test('npm test clears USGS_API_KEY and USGS_SOURCE so tests ignore the ambient environment', () => {
+// new path). The npm test script therefore clears the variables (v39.12 adds USGS_API_KEY_APP); tests that need a key set it themselves.
+require('node:test').test('npm test clears USGS_API_KEY, USGS_API_KEY_APP and USGS_SOURCE so tests ignore the ambient environment', () => {
     const pkg = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'package.json'), 'utf8'));
-    require('node:assert').match(pkg.scripts.test, /^USGS_API_KEY= USGS_SOURCE= node --test /);
+    require('node:assert').match(pkg.scripts.test, /^USGS_API_KEY= USGS_API_KEY_APP= USGS_SOURCE= node --test /);
 });
