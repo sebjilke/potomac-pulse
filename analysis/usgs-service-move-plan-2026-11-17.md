@@ -231,3 +231,10 @@ no unknown codes), temperature 147 ms, Difficult Run 122 ms.
 | 7 `validation_log` and `bin_snapshot` also become `v: 3` | ACCEPTED: one sentence in the appendix. |
 
 Owner: `USGS_API_KEY` is set in Netlify (checked read-only at 16:09 UTC: name exact, value equal to the key, all contexts).
+
+**First Netlify build of v39.11 failed (cd7b0c3, 16:13 UTC); the site stayed on v39.10.** Cause: Netlify's
+build environment carries the real `USGS_API_KEY`, so 36 older tests that stub the old response shape took
+the new path. Reproduced locally with a dummy key set (36 failures, the same tests). Fix: the `npm test`
+script clears `USGS_API_KEY` and `USGS_SOURCE`; tests that need a key set it themselves; one test pins the
+script. With a dummy key in the environment and without: 1,477 tests, 1,475 pass, 2 opt-in skips.
+Lesson: a test run must not depend on the machine's environment (same family as the ignored-file lesson of v39.9).

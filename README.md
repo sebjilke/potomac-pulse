@@ -158,7 +158,7 @@ git push origin main  # Netlify deploys in ~1 minute
 ## Development
 
 - **Vite build** — `npm run dev` for local dev server, `npm run build` outputs to `dist/`
-- **Tests** — `npm test` runs model + integration tests (see `npm test`; 1476 at v39.11)
+- **Tests** — `npm test` runs model + integration tests (see `npm test`; 1477 at v39.11)
 - **Keep in sync** — `src/model/constants.js` and `netlify/functions/shared/model.js` share model constants
 - **Always update README** — update this file at the end of every commit to reflect changes
 

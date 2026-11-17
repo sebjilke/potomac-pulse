@@ -4,7 +4,7 @@
 Session state is in `.claude/HANDOFF.md`; methodology provenance for shipped versions is the
 small set of cited docs in `analysis/` (see CLAUDE.md / README). Pick a tier, prioritize, go.
 
-*Last updated: 2026-11-17 (current version: v39.11; 1476 tests, 1474 pass, 2 opt-in skips). Verified against live DB + git history, not memory.*
+*Last updated: 2026-11-17 (current version: v39.11; 1477 tests, 1475 pass, 2 opt-in skips). Verified against live DB + git history, not memory.*
 
 ---
 
