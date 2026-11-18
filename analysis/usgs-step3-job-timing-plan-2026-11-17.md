@@ -124,3 +124,16 @@ wins over the audit; the audit wins over the plan. Nothing is built before the o
 | 6 Monitoring | ACCEPTED: the owner opens the check's schedule in healthchecks.io. If it is "simple" (period plus grace), a grace of at least 15 minutes is enough. If it is a cron expression at minute 0, it must be changed to minute 10 in the same window as the deploy, otherwise every run counts as late and alerts go out hourly. |
 | 7 Options B and C were dismissed for the wrong reasons | ACCEPTED, and the options table is CORRECTED: C is possible. `analysis/ci_backtest_harness.mjs` replays the production model with its learning bins over 126,916 hourly observations from 2011 to 2026, floods included; replaying with the Point of Rocks input lagged by one hour, and switching mid-replay, would measure both the steady effect and the transient on real rises. It falls under the project's Empirical Analysis Protocol (plan, independent audit, blind dual-language check). B needs no production code either: the old-schedule estimate can be rebuilt offline from the `tick_log` trace and USGS history. Recommendation now: A at minute 10 with a written commitment to the offline comparison at the first logged rise; C before the change is the more careful route and is the owner's to choose. |
 | 8 Verification | ACCEPTED: a new test pins the schedule string; the live check uses `tick_log.pub.t` and is run within the hour. |
+
+---
+
+# Outcome of option C (2026-11-18 UTC)
+
+The owner chose option C on 2026-11-17. The replay analysis is complete: `analysis/replay_lag_2026-11-17/replay_lag_FINAL.md`.
+On rising water, in the hours where the two versions of history differ, the fresher Point of Rocks reading makes
+the estimate slightly worse (0.35 points of absolute percent error, 95% interval 0.22 to 0.49), because the flow
+state flips to "rising" about an hour earlier and the rising-state corrections over-correct gentle onsets. The
+pre-registered rule returns MOVE as a non-inferiority verdict, by 0.01 point; the orchestrator's recommendation
+is not to move. The job stays at minute :00 until the owner decides (TODO D19). The first-order expectation in
+the plan audit (the fresh estimate over-predicts on rises) was not borne out after correction: both versions
+under-predict.
