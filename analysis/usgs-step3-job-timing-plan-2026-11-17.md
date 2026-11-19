@@ -137,3 +137,7 @@ pre-registered rule returns MOVE as a non-inferiority verdict, by 0.01 point; th
 is not to move. The job stays at minute :00 until the owner decides (TODO D19). The first-order expectation in
 the plan audit (the fresh estimate over-predicts on rises) was not borne out after correction: both versions
 under-predict.
+
+**Owner's decision, 2026-11-19: "leave it".** The hourly job stays at minute :00 (`netlify.toml`: `0 */1 * * *`).
+Step 3 is closed without a change. No setting at the monitoring service needs to change. Open follow-ups from the
+analysis are TODO D20 (over-correction at gentle rise onsets) and D21 (the published 90% band).

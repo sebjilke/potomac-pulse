@@ -68,3 +68,7 @@ not tested.
 2. The published 90% band (`EMPIRICAL_CI_90`) was derived with a replay that excluded its largest errors as
    outliers and read each hour about 22 minutes early, and with an older model version; it describes neither
    current production nor this replay (TODO A8).
+
+## Decision
+
+Owner, 2026-11-19: "leave it". The hourly job stays at minute :00.
