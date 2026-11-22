@@ -1,0 +1,663 @@
+{
+ "built_by": "tools/03_build_tidy.py",
+ "files": [
+  {
+   "path": "data/raw/archive_old/01638500_00010_20260612_20260712.json",
+   "bytes": 685126,
+   "sha256": "7f6f259898aa32dd7594e995a91df958492e4384fa7351046d7c58e4fe4f7129",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01638500_00010_20260612_20260712.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01638500_00010_20260712_20260811.json",
+   "bytes": 683783,
+   "sha256": "2b30f28f3e1861f75a066ea9c69a47fd9e985b4eef3defc515617a97d2756245",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01638500_00010_20260712_20260811.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01638500_00010_20260811_20260910.json",
+   "bytes": 684962,
+   "sha256": "86075875d68e18f8546ea577fa0595817795ca02e2465b42e08e2b66e7744fb1",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01638500_00010_20260811_20260910.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01638500_00010_20260910_20261010.json",
+   "bytes": 685120,
+   "sha256": "f60c84a71ef0dd048cb9c34fbee0c2a16eca39e1c9035c8b499180be4fa9916d",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01638500_00010_20260910_20261010.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01638500_00010_20261010_20261109.json",
+   "bytes": 640721,
+   "sha256": "381a59490fdce4447a01e1284457c257d60db2318d305628da4cfb023d142f3a",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01638500_00010_20261010_20261109.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01638500_00010_20261109_20261110.json",
+   "bytes": 25312,
+   "sha256": "4cb16ae62e38d851949e388399cacb3406ac1b90de0320be299a88793ce40a7a",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01638500_00010_20261109_20261110.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01638500_00060_20260612_20260712.json",
+   "bytes": 685140,
+   "sha256": "7d7e8c0e3747b49693192fa8ef524dd74465c4329b3024a61f44ff61fa54bdf8",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01638500_00060_20260612_20260712.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01638500_00060_20260712_20260811.json",
+   "bytes": 685140,
+   "sha256": "f56a61777e091d572cb61e65d772201d6968ce4b1bd665c9077d393b0c616145",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01638500_00060_20260712_20260811.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01638500_00060_20260811_20260910.json",
+   "bytes": 685277,
+   "sha256": "7569355385b7febc93d39cc1bccb2f2b320613043204d566fab28ae5ef0c0af5",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01638500_00060_20260811_20260910.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01638500_00060_20260910_20261010.json",
+   "bytes": 685111,
+   "sha256": "20c9d53445976b5ac60018a02ef1b7926c2eb34ec38132e118db6ba68fb93bf0",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01638500_00060_20260910_20261010.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01638500_00060_20261010_20261109.json",
+   "bytes": 686865,
+   "sha256": "b7d2f8ba7c82ab54061cb9749789e9e66534a9e60b353ac8dfa19bbe4467075a",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01638500_00060_20261010_20261109.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01638500_00060_20261109_20261110.json",
+   "bytes": 25303,
+   "sha256": "778dffb43cd0c54eedae3a6910a33390a5cdfbbaec0ae52193ca8b022ff2d078",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01638500_00060_20261109_20261110.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01643000_00060_20260612_20260712.json",
+   "bytes": 227331,
+   "sha256": "0818795753c864be4fc86ca77304d8651a98332638a4bda937a4d8a49d5d783c",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01643000_00060_20260612_20260712.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01643000_00060_20260712_20260811.json",
+   "bytes": 227232,
+   "sha256": "d20d69fc03238ee6d537f103060c75ccb4caf45c53f6619f0c14d09b2c89020d",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01643000_00060_20260712_20260811.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01643000_00060_20260811_20260910.json",
+   "bytes": 227266,
+   "sha256": "160d7e55941685416b6dac9243c895d98f0248f482f7fdc67729c4f72ab6a8e2",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01643000_00060_20260811_20260910.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01643000_00060_20260910_20261010.json",
+   "bytes": 228624,
+   "sha256": "cc25feb1f151dcbaeb8f6e23514c65a646c2fe8935bdc8cea9de94e47285e31b",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01643000_00060_20260910_20261010.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01643000_00060_20261010_20261109.json",
+   "bytes": 227889,
+   "sha256": "56f10a42ce2c6861a235370dde87ee95401eaba659fc48cebe1998fce33e6dfd",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01643000_00060_20261010_20261109.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01643000_00060_20261109_20261110.json",
+   "bytes": 10051,
+   "sha256": "928e04fd81da2e5ea9c88473b003d3eab25fd62b309e6815c1b39b1308b45ea8",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01643000_00060_20261109_20261110.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644000_00060_20260612_20260712.json",
+   "bytes": 229479,
+   "sha256": "14cb1bad5124c3e2f57e0f8fd177f4885f67592e435058bfaca0d9e7979c6158",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644000_00060_20260612_20260712.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644000_00060_20260712_20260811.json",
+   "bytes": 229940,
+   "sha256": "dc8addc3a16e55b06bd990ec49e6249cca3132005d5f408f94638e4776262225",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644000_00060_20260712_20260811.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644000_00060_20260811_20260910.json",
+   "bytes": 229730,
+   "sha256": "f409ab52d528870f4a2867fed5ad2b4f012aed47af14146b68251449535f1b4d",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644000_00060_20260811_20260910.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644000_00060_20260910_20261010.json",
+   "bytes": 229514,
+   "sha256": "42f5c82efdb26238d5fdfd2221142876e7c5040666a400f4d34158001edff58b",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644000_00060_20260910_20261010.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644000_00060_20261010_20261109.json",
+   "bytes": 229081,
+   "sha256": "f7f95b465348c2aab5c19ac99fb0abd5386b2dc4f98134fa2583c29f3610e6de",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644000_00060_20261010_20261109.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644000_00060_20261109_20261110.json",
+   "bytes": 10131,
+   "sha256": "611cbc0d0f060383a36cfb8f3c3b0ec108753eb4e56624342e9a82a54c2e51af",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644000_00060_20261109_20261110.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644148_00065_20260612_20260712.json",
+   "bytes": 230093,
+   "sha256": "3adbd301483c43702d4bcc2d7b5c3b361c938dfdd1fd3ce4a4ec88c0219774a0",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644148_00065_20260612_20260712.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644148_00065_20260712_20260811.json",
+   "bytes": 230236,
+   "sha256": "930b4ccc69101b270c4805c3fb5f09c16484b303904ca997249d69a4afb161ce",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644148_00065_20260712_20260811.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644148_00065_20260811_20260910.json",
+   "bytes": 230064,
+   "sha256": "4cca616f1a99ebe17eb3a1b147c83e010235abece3f285144ba76378f106e7b3",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644148_00065_20260811_20260910.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644148_00065_20260910_20261010.json",
+   "bytes": 230064,
+   "sha256": "fce0ac4f82e2f2aeda2d917d75ced1a295fc8b54d413ca235d483966ee174ab1",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644148_00065_20260910_20261010.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644148_00065_20261010_20261109.json",
+   "bytes": 230064,
+   "sha256": "bee9f76f564ddce9da76837b5a70f93e3fab791479e7abb012b0d76c41821915",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644148_00065_20261010_20261109.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644148_00065_20261109_20261110.json",
+   "bytes": 10128,
+   "sha256": "62c015f41beeb8bc0a235b5f1d705976d82f864810271bd92369b9ac2032ee05",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644148_00065_20261109_20261110.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644280_00060_20260612_20260712.json",
+   "bytes": 683233,
+   "sha256": "29670e93fbe8e63ca0c6969ffd9f9e00db2d774ab5ca162e32fdb39b47b8759d",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644280_00060_20260612_20260712.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644280_00060_20260712_20260811.json",
+   "bytes": 667419,
+   "sha256": "7b92cb3ba86c1180805b8479edf1d0d289906813624c2853bc6f1671ea7222f1",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644280_00060_20260712_20260811.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644280_00060_20260811_20260910.json",
+   "bytes": 683070,
+   "sha256": "79dac3d5ef88dc7aafe1b4769bd6b10bd5e3346c868b31beb0ea2b30fbf446ed",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644280_00060_20260811_20260910.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644280_00060_20260910_20261010.json",
+   "bytes": 683379,
+   "sha256": "72be903396b5f0da2b248327641c65f123a69fac892fca5e547c706d29a9b046",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644280_00060_20260910_20261010.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644280_00060_20261010_20261109.json",
+   "bytes": 684249,
+   "sha256": "3f94a112bdbfe154c1bb389134a969e35d6becd384ad5af84346839f78132f83",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644280_00060_20261010_20261109.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01644280_00060_20261109_20261110.json",
+   "bytes": 25298,
+   "sha256": "6a33b4aaf3c33e8f98cba487cfd9e352bb7fc363b17badb3a4b4f78fa9ddfc8c",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01644280_00060_20261109_20261110.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01645000_00060_20260612_20260712.json",
+   "bytes": 683910,
+   "sha256": "70aeb02d44853d112e778118fdf63dc83e9a492219cb3f1dc97cea7f62241e44",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01645000_00060_20260612_20260712.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01645000_00060_20260712_20260811.json",
+   "bytes": 683580,
+   "sha256": "41aed6c1eed66fe708f36bd57257ac650155c47e406fbd4672a6ac8e592b47a3",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01645000_00060_20260712_20260811.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01645000_00060_20260811_20260910.json",
+   "bytes": 683698,
+   "sha256": "2247e8ed2fd4f19b11eb97d90a8c7d69b717c1f9b4f401138bdbcfc96c852fee",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01645000_00060_20260811_20260910.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01645000_00060_20260910_20261010.json",
+   "bytes": 684663,
+   "sha256": "76e186c68d8ab7ab656356819a65ca5b15b1efd36ce2deb3b6b6b0a4e3bcef05",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01645000_00060_20260910_20261010.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01645000_00060_20261010_20261109.json",
+   "bytes": 684502,
+   "sha256": "bd876ec64e666f57de78b4e15ed6dddf270cba275dd0e5219483fb3a27d718d1",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01645000_00060_20261010_20261109.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01645000_00060_20261109_20261110.json",
+   "bytes": 25305,
+   "sha256": "97641c7532d989ed08e3fb5e0b4f0c6336f83a9d52f79ce144b1a328039c2b89",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01645000_00060_20261109_20261110.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01646500_00060_20260612_20260712.json",
+   "bytes": 684528,
+   "sha256": "71bfce6e2b87150d419912226e9e1bb05697693ea5f1edc8ba343953d70f45fa",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01646500_00060_20260612_20260712.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01646500_00060_20260712_20260811.json",
+   "bytes": 684765,
+   "sha256": "bf0d5b51a15cea3cf1e7d375ae0f5a32ee2892b577e5a091fb57f7c217acbd90",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01646500_00060_20260712_20260811.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01646500_00060_20260811_20260910.json",
+   "bytes": 685154,
+   "sha256": "639230e0d51dcf1ea8870418346da546c967a0e459b8cb8d206e2321098d3ec3",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01646500_00060_20260811_20260910.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01646500_00060_20260910_20261010.json",
+   "bytes": 685218,
+   "sha256": "405e0435e807c1dc4d6a7b6f3e58f38f5945e7eaf582a66be30299913b8e2ece",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01646500_00060_20260910_20261010.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01646500_00060_20261010_20261109.json",
+   "bytes": 686124,
+   "sha256": "03e60dd0e8d60fdf7e3c46c01950283ed36db7c44a7587a92224de8c7ce1ce57",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01646500_00060_20261010_20261109.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01646500_00060_20261109_20261110.json",
+   "bytes": 25323,
+   "sha256": "35a5d73db5d352f51657c71cf29631a9b827df031046c06bada7f99943d5acf9",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01646500_00060_20261109_20261110.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01646500_00065_20260612_20260712.json",
+   "bytes": 685056,
+   "sha256": "6ad01f3cbe9aba268669923334d7270c1be6e11611a5630e9da15707022458e7",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01646500_00065_20260612_20260712.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01646500_00065_20260712_20260811.json",
+   "bytes": 685056,
+   "sha256": "5e2392a1bf4f50203070d7ee15879a8372be87f1878d1d8489623952471265b2",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01646500_00065_20260712_20260811.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01646500_00065_20260811_20260910.json",
+   "bytes": 685129,
+   "sha256": "aba23c2b3d89d1aa361215d4f46454084618d8d69024d0b05b76d52a2e265b16",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01646500_00065_20260811_20260910.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01646500_00065_20260910_20261010.json",
+   "bytes": 685272,
+   "sha256": "589f6c0e6c1c1d0dbe9e9f5def42d14858fe5511bedc736886a5a27806c10d34",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01646500_00065_20260910_20261010.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01646500_00065_20261010_20261109.json",
+   "bytes": 684877,
+   "sha256": "e63cd875e68726fb2bc7d014905be583de64f44bc715e478d9ae90ce53b3e0a0",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01646500_00065_20261010_20261109.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/01646500_00065_20261109_20261110.json",
+   "bytes": 25298,
+   "sha256": "b741d1a9fb94bd96bb202001dfeeed0360299d44428b03943f9c503f7459e8e1",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/01646500_00065_20261109_20261110.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old/FETCH_MANIFEST.json",
+   "bytes": 19124,
+   "sha256": "f9303ef4b065d1bfab32bf677daf3cfa17bf6d30dbe7fd0ff17ad15e4cf53004",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/raw/FETCH_MANIFEST.json (old USGS service, per FETCH_MANIFEST.json)",
+   "obtained_utc": "2026-11-10 (pull date per FETCH_MANIFEST.json)"
+  },
+  {
+   "path": "data/raw/archive_old_2026-11-10.tar.gz",
+   "bytes": 1002715,
+   "sha256": "9f2e2a3402c5b077615e09366cd87de588be761803432c1a908d2facec265cf3",
+   "origin": "built by tools/01_freeze_local.py from the 54 verified archive files + FETCH_MANIFEST.json",
+   "obtained_utc": ""
+  },
+  {
+   "path": "data/raw/oct_pull/ORIGIN.txt",
+   "bytes": 258,
+   "sha256": "f308a772b5c3cb1176fcbd652e86a75914ff7ebba1e155485f13ece967a8e4fc",
+   "origin": "written by tools/01_freeze_local.py",
+   "obtained_utc": ""
+  },
+  {
+   "path": "data/raw/oct_pull/usgs_iv_2026-10-05_2026-10-22.json",
+   "bytes": 4533844,
+   "sha256": "adadec6cf3829122e4649f5be752074b96fc1f0cde43b01bc08a99acaf7e3af3",
+   "origin": "/Users/sebjilke/Desktop/PotomacPulse/analysis/pulse-audit-2026-10/audit_inputs.tar.gz member data/usgs_iv_2026-10-05_2026-10-22.json",
+   "obtained_utc": "2026-11-09 (approx., per tar member date)"
+  },
+  {
+   "path": "data/raw/supabase/QUERIES.md",
+   "bytes": 1568,
+   "sha256": "5519f4b444321299d4cdc6d4c4f5aeae736810ea51f2c17f73a739eecd5e6f4b",
+   "origin": "written by tools/01_freeze_local.py",
+   "obtained_utc": ""
+  },
+  {
+   "path": "data/raw/supabase/state_rows.json",
+   "bytes": 129467,
+   "sha256": "3f5bb077aabd2ed9148d7fdd19e41379b19e07b799a0dde1e0dce8c3d877844d",
+   "origin": "Supabase SQL, see data/raw/supabase/QUERIES.md",
+   "obtained_utc": "2026-11-22T10:51:00Z (approx.)"
+  },
+  {
+   "path": "data/raw/supabase/tick_log.json",
+   "bytes": 1103393,
+   "sha256": "b320a842173153fd5d0dfcc4a604f40119cfc57c7c4fd77c36d72f4571b867c2",
+   "origin": "Supabase SQL, see data/raw/supabase/QUERIES.md",
+   "obtained_utc": "2026-11-22T10:51:00Z (approx.)"
+  },
+  {
+   "path": "data/raw/supabase/validation_log.json",
+   "bytes": 65140,
+   "sha256": "fa157e31b2fe8ffac3431214a0c7ec4dc00c0db1fc78b2476f93af3457f42d8c",
+   "origin": "Supabase SQL, see data/raw/supabase/QUERIES.md",
+   "obtained_utc": "2026-11-22T10:51:00Z (approx.)"
+  },
+  {
+   "path": "data/raw/usgs/PULL_LOG.json",
+   "bytes": 41177,
+   "sha256": "cf5f6cc596dade93758a5cc775466fdaaf11655153a042836def3fa685e35894",
+   "origin": "written by tools/02_pull_usgs.py",
+   "obtained_utc": ""
+  },
+  {
+   "path": "data/raw/usgs/PULL_PLAN.json",
+   "bytes": 256,
+   "sha256": "ba621325ef881c257c030defb954c1cc5d5b965b72ded6a3717332a7239c8ef9",
+   "origin": "written by tools/02_pull_usgs.py",
+   "obtained_utc": ""
+  },
+  {
+   "path": "data/raw/usgs/probe_por_00060_6h_p001.json.gz",
+   "bytes": 2837,
+   "sha256": "ef98f01b424d99770a800322888ed5dfb36203d8052320a2cf4c4c6a9e094bc0",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?f=json&monitoring_location_id=USGS-01638500&parameter_code=00060&time=2026-11-22T04:00:00Z/2026-11-22T10:00:00Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id",
+   "obtained_utc": "2026-11-22T10:57:56.529714Z",
+   "uncompressed_bytes": 29743,
+   "uncompressed_sha256": "9f0e8ebb16aef1b51478c4e7d5e8a8c72d6a8543fb1f1dfd7cbf1743645b7df7",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t1_por_00060_p001.json.gz",
+   "bytes": 1309946,
+   "sha256": "0b43381a22f3d04f994c1717e8b338404dc9e23f2831fdf1ff57d5ac83f6a151",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?f=json&monitoring_location_id=USGS-01638500&parameter_code=00060&time=2026-06-12T00:00:00Z/2026-11-22T10:00:00Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id",
+   "obtained_utc": "2026-11-22T10:58:11.534974Z",
+   "uncompressed_bytes": 18069284,
+   "uncompressed_sha256": "b8e84869c5aeb444b11a805698417cc70108baf6aace4c5670c4ad7f9c0d664d",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t1_por_00065_p001.json.gz",
+   "bytes": 1330335,
+   "sha256": "16ef96860e26d33e878340051a2813aeaa60a6f5706203c9ded8cd783ed3c8b4",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?f=json&monitoring_location_id=USGS-01638500&parameter_code=00065&time=2026-06-12T00:00:00Z/2026-11-22T10:00:00Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id",
+   "obtained_utc": "2026-11-22T10:58:26.540045Z",
+   "uncompressed_bytes": 18068464,
+   "uncompressed_sha256": "49d22c4d221b6df3d60552c51cd27d715b5a125d87d6f0fdb6eecfe0f596e924",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t2_lf_00060_p001.json.gz",
+   "bytes": 1299295,
+   "sha256": "18510052efca9567e297ae11a4fd57da7427f417dadcb31f35482d1a8a53ca05",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?f=json&monitoring_location_id=USGS-01646500&parameter_code=00060&time=2026-06-12T00:00:00Z/2026-11-22T10:00:00Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id",
+   "obtained_utc": "2026-11-22T10:58:41.545111Z",
+   "uncompressed_bytes": 18008275,
+   "uncompressed_sha256": "174d009d4a0e6319314b2675bd4ecf939411ac51f45602870f026a7202780be9",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t2_lf_00065_p001.json.gz",
+   "bytes": 1298254,
+   "sha256": "43da8f8c099a38258db428ce478b3eb931e8ca47dfcac0c515609d6a3f2a4953",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?f=json&monitoring_location_id=USGS-01646500&parameter_code=00065&time=2026-06-12T00:00:00Z/2026-11-22T10:00:00Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id",
+   "obtained_utc": "2026-11-22T10:58:56.549940Z",
+   "uncompressed_bytes": 18011637,
+   "uncompressed_sha256": "6300a66d6c37b63040f4201b5189c5f6b8c7b1790364cfd9fead90b7b3995bbd",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t3_fm_por_lf_p001.json.gz",
+   "bytes": 134955,
+   "sha256": "8cf4486432ba29f79c469fda9ee2e5922fb467b93be21e58e03b7f845e4723fe",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/field-measurements/items?f=json&monitoring_location_id=USGS-01638500,USGS-01646500&limit=50000&skipGeometry=true",
+   "obtained_utc": "2026-11-22T10:59:11.555017Z",
+   "uncompressed_bytes": 1547557,
+   "uncompressed_sha256": "74886c311237e27a6eaa494a2f75f6293706b2afb5abe111c7d466b10b5b0596",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t3b_sites_all_p001.json.gz",
+   "bytes": 3434,
+   "sha256": "c05efb672de4c53e435d106a7e70c2941b1b1a2d4a4cbc058b64e2930fde1144",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/monitoring-locations/items?f=json&id=USGS-01638500,USGS-01646500,USGS-01643000,USGS-01644000,USGS-01644280,USGS-01645000,USGS-01644148,USGS-01618000,USGS-01613000,USGS-01610000,USGS-01636500,USGS-01619500,USGS-01614500,USGS-01616500,USGS-01637500&limit=100&skipGeometry=true",
+   "obtained_utc": "2026-11-22T10:59:26.560081Z",
+   "uncompressed_bytes": 27770,
+   "uncompressed_sha256": "e4def69a9843173fefc5ca078f192a180ba4dd0c15c95400c1fcc9b38c69f966",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t4_br_sen_00060_p001.json.gz",
+   "bytes": 1421254,
+   "sha256": "f372fa160865a77d471b858eb6cda82932df65fd6cffba741b9d2f3be78e7a50",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?f=json&monitoring_location_id=USGS-01644280,USGS-01645000&parameter_code=00060&time=2026-06-12T00:00:00Z/2026-11-22T10:00:00Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id",
+   "obtained_utc": "2026-11-22T10:59:56.568630Z",
+   "uncompressed_bytes": 19228824,
+   "uncompressed_sha256": "665e46aa45c41ac2b7c58cb40ad2c4771630eb808e2af9cbf140535e5281ebe0",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t4_br_sen_00060_p002.json.gz",
+   "bytes": 1268924,
+   "sha256": "67c6f37d78dcf6c31b9ef0b10b0fb978ba4ac6f9d6fb5aa2e57ca43797ea72ef",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?cursor=ZTY0MDU1ZjQ0YzQ4NDUzOTg5OGU3YmEzNmYwNjViZmZ8MjAyNi0wNi0yMiAwNDozMDowMCswMDowMA&monitoring_location_id=USGS-01644280,USGS-01645000&parameter_code=00060&time=2026-06-12T00%3A00%3A00Z%2F2026-11-22T10%3A00%3A00Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id&f=json",
+   "obtained_utc": "2026-11-22T11:00:11.774079Z",
+   "uncompressed_bytes": 16948295,
+   "uncompressed_sha256": "6348184746b42156f8c709f1afdc60302adf20d5bf96bfbbd8044289e37f62fb",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t4_ef_00065_p001.json.gz",
+   "bytes": 446748,
+   "sha256": "edd5a641181db6c7a21deff2ed5da414ccc4898e87485b40bfe7f41b42eaf201",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?f=json&monitoring_location_id=USGS-01644148&parameter_code=00065&time=2026-06-12T00:00:00Z/2026-11-22T10:00:00Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id",
+   "obtained_utc": "2026-11-22T11:00:29.150546Z",
+   "uncompressed_bytes": 6002085,
+   "uncompressed_sha256": "18e4588c1a96cc9ea42fdc7f550e9107272bcc910ca4e05cedee4f1b71e6390f",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t4_mono_goose_00060_p001.json.gz",
+   "bytes": 928581,
+   "sha256": "e5687bc1899fcd25b9687c007dd833385271ff04e9c6cdd31709e08db78ad31a",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?f=json&monitoring_location_id=USGS-01643000,USGS-01644000&parameter_code=00060&time=2026-06-12T00:00:00Z/2026-11-22T10:00:00Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id",
+   "obtained_utc": "2026-11-22T10:59:41.565395Z",
+   "uncompressed_bytes": 12031518,
+   "uncompressed_sha256": "b6bd9eb9c9677b2d811c8d190fe392366b4e35466fc7b1f80c486feaae87a265",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t4_por_00010_p001.json.gz",
+   "bytes": 1349283,
+   "sha256": "0cffd4dbc72af1995949c2cbb4037ea183bb56b06afa860da99e3d2d3a0f2a92",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?f=json&monitoring_location_id=USGS-01638500&parameter_code=00010&time=2026-06-12T00:00:00Z/2026-11-22T10:00:00Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id",
+   "obtained_utc": "2026-11-22T11:00:44.155616Z",
+   "uncompressed_bytes": 17891038,
+   "uncompressed_sha256": "7399b29ce4fc99a56fc6b1b80169e081bc24d1cfda82131bcce7639f778b30c2",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t5_upstream_p001.json.gz",
+   "bytes": 1452836,
+   "sha256": "aa0d8398c189efae187210b50993b3eb43e45a0cb9440056bd8e5b398bfe489e",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?f=json&monitoring_location_id=USGS-01618000,USGS-01613000,USGS-01610000,USGS-01636500,USGS-01619500,USGS-01614500,USGS-01616500,USGS-01637500&parameter_code=00060,00065&time=2026-09-01T00:00:00Z/2026-11-22T10:00:00Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id",
+   "obtained_utc": "2026-11-22T11:01:45.126067Z",
+   "uncompressed_bytes": 19171590,
+   "uncompressed_sha256": "d5581aa67c9fa4f293aa6847039612ffef5fdbb14647c0635a5a171c589f6a81",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t5_upstream_p002.json.gz",
+   "bytes": 1489807,
+   "sha256": "5d81916170e9ae975b8c92522b78f9b30df9fdb1497c638927711b3181cfba07",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?cursor=NTFmODE3YjVmMmZiNDA1MmI4YTU2ODM4NGI1N2E4Mjl8MjAyNi0wOS0zMCAxMjozMDowMCswMDowMA&monitoring_location_id=USGS-01618000,USGS-01613000,USGS-01610000,USGS-01636500,USGS-01619500,USGS-01614500,USGS-01616500,USGS-01637500&parameter_code=00060,00065&time=2026-09-01T00%3A00%3A00Z%2F2026-11-22T10%3A00%3A00Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id&f=json",
+   "obtained_utc": "2026-11-22T11:02:03.583105Z",
+   "uncompressed_bytes": 19193138,
+   "uncompressed_sha256": "33929da62a6eed020df8ea5c0eaefc14eb2545ec7490e5c68c5381fbeba217de",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t5_upstream_p003.json.gz",
+   "bytes": 820413,
+   "sha256": "c44190f52835393f2f406aaea3f047dcc468cb0d7fddd7b76b786b2180391dff",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?cursor=OTU4MDM1MTBmYTQxNDYxNTg2YmQ1ZGUwNjcwODM5NWR8MjAyNi0xMC0yNiAyMjozMDowMCswMDowMA&monitoring_location_id=USGS-01618000,USGS-01613000,USGS-01610000,USGS-01636500,USGS-01619500,USGS-01614500,USGS-01616500,USGS-01637500&parameter_code=00060,00065&time=2026-09-01T00%3A00%3A00Z%2F2026-11-22T10%3A00%3A00Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id&f=json",
+   "obtained_utc": "2026-11-22T11:02:18.588151Z",
+   "uncompressed_bytes": 10101714,
+   "uncompressed_sha256": "9c1eb2217a30a428ba69db9ab84eb82928847e7dccba207c099586d170224ea7",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t6_census_lf_00060_p001.json.gz",
+   "bytes": 1374802,
+   "sha256": "3ef316b6427552bf00e7fcb2aa3eb9a5d18fdd6b2a901a7c535cdc8600052cb7",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?f=json&monitoring_location_id=USGS-01646500&parameter_code=00060&time=2024-11-22T10:00:00Z/2026-06-11T23:59:59Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id",
+   "obtained_utc": "2026-11-22T11:03:05.949880Z",
+   "uncompressed_bytes": 19117022,
+   "uncompressed_sha256": "1672647b341b29b6ee2e025219ff03eb29501c102c1a8e6870c9143f8ef9302f",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t6_census_lf_00060_p002.json.gz",
+   "bytes": 1358397,
+   "sha256": "e23ad6102cadb45664dfa94838a0f6cef7bb3a96e0dce119c38bf49cdde25e1c",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?cursor=NjZhNGUzZmI4YWJlNDJmY2IwOTQyYjVjMGZlOThmNjh8MjAyNS0xMC0xMCAxNzo0MDowMCswMDowMA&monitoring_location_id=USGS-01646500&parameter_code=00060&time=2024-11-22T10%3A00%3A00Z%2F2026-06-11T23%3A59%3A59Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id&f=json",
+   "obtained_utc": "2026-11-22T11:03:21.394193Z",
+   "uncompressed_bytes": 19111368,
+   "uncompressed_sha256": "d78c2edd82f89a156235f83b951518a8891df7b342781d79a57947e67f1f4e26",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t6_census_lf_00060_p003.json.gz",
+   "bytes": 356311,
+   "sha256": "361c36c139e76466763399fde39a9ceff3b7548ed384d3053e4f9d2c732869c1",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?cursor=NjZhNGUzZmI4YWJlNDJmY2IwOTQyYjVjMGZlOThmNjh8MjAyNi0wNC0yNyAxNDo1NTowMCswMDowMA&monitoring_location_id=USGS-01646500&parameter_code=00060&time=2024-11-22T10%3A00%3A00Z%2F2026-06-11T23%3A59%3A59Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id&f=json",
+   "obtained_utc": "2026-11-22T11:03:36.399293Z",
+   "uncompressed_bytes": 4975969,
+   "uncompressed_sha256": "480177eb844b3cc03e2c350a38134ff0b4f469c654cdc67da1cab0d211d4bc98",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t6_census_por_00060_p001.json.gz",
+   "bytes": 1398090,
+   "sha256": "8608f52e0e9ed397fcdd1d5fc5569463f850c13455a3b5ae287bce12442e1a31",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?f=json&monitoring_location_id=USGS-01638500&parameter_code=00060&time=2024-11-22T10:00:00Z/2026-06-11T23:59:59Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id",
+   "obtained_utc": "2026-11-22T11:02:33.593226Z",
+   "uncompressed_bytes": 19115030,
+   "uncompressed_sha256": "87c1a2a42e0b7852aa32a139193f1929d68f8388c5affaaba994fa591bcca4ba",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t6_census_por_00060_p002.json.gz",
+   "bytes": 383171,
+   "sha256": "e85a0574f7648dc8f7dab3a2fb83e535431cb5c4b87a04e8db0849ce6aee019b",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/continuous/items?cursor=OGZiYjMyMzdlNjcxNDBjZGJmYzYxZGVjNDliMjg4ODV8MjAyNi0wNC0yNCAxNDo0MDowMCswMDowMA&monitoring_location_id=USGS-01638500&parameter_code=00060&time=2024-11-22T10%3A00%3A00Z%2F2026-06-11T23%3A59%3A59Z&limit=50000&skipGeometry=true&properties=monitoring_location_id,parameter_code,statistic_id,time,value,approval_status,qualifier,last_modified,time_series_id&f=json",
+   "obtained_utc": "2026-11-22T11:02:50.944801Z",
+   "uncompressed_bytes": 5328006,
+   "uncompressed_sha256": "95366d2c951fa2ea23dc3496f2dcbd74f35169fdd508aad26ce1370a1ccdab15",
+   "http_status": 200
+  },
+  {
+   "path": "data/raw/usgs/t7_fm_upstream_p001.json.gz",
+   "bytes": 27886,
+   "sha256": "dc857151d991fbd78698a38155477c24ceb2de278cd61b43abd0ba1701831549",
+   "origin": "https://api.waterdata.usgs.gov/ogcapi/v1/collections/field-measurements/items?f=json&monitoring_location_id=USGS-01618000,USGS-01613000,USGS-01610000,USGS-01636500,USGS-01619500,USGS-01614500,USGS-01616500,USGS-01637500&time=2025-01-01T00:00:00Z/2026-11-22T10:00:00Z&limit=50000&skipGeometry=true",
+   "obtained_utc": "2026-11-22T11:03:51.404391Z",
+   "uncompressed_bytes": 286385,
+   "uncompressed_sha256": "2692b7e50e548a8d407927a769b26337409191bc58916a535239962b896adc33",
+   "http_status": 200
+  }
+ ]
+}

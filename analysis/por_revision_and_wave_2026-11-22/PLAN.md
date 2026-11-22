@@ -293,9 +293,10 @@ An independent auditor (Opus) reviews tools 1 to 5 before the analysts start.
   leaves out a day that is an event day at either.
 - Delay: lag of the maximum cross-correlation after the same detrending, all local maxima reported; decided as
   in W3.
-- Thresholds for W5 and R8: a candidate "matters" if it accounts for at least 2 points of error (percent of
-  flow) or at least 20% of the daily error cycle's size; "does not matter" below 1 point and 10%; "small" in
-  between. Fixed here, before any result. "The daily error cycle's size" is half the range of the mean error
+- Thresholds for W5 and R8 (owner's decision of 2026-11-22, section 13; v3 as first confirmed had 2 points
+  and 20%, 1 point and 10%): a candidate "matters" if it accounts for at least 1 point of error (percent of
+  flow) or at least 10% of the daily error cycle's size; "does not matter" below 0.5 point and 5%; "small"
+  in between. Fixed here, before any result. "The daily error cycle's size" is half the range of the mean error
   by hour of day. "Accounts for" is, for each candidate, one named difference between two computations on the
   same runs (for example H6: the final estimate with the cap minus without it); the spec names the
   difference for every candidate before any result. A label is given only if the day-block interval of that
@@ -438,8 +439,53 @@ Open at confirmation, to be closed before `ANALYSIS_SPEC.md` is written (no resu
   job-timing replay (2026-11-17); the excess error to explain is about 12 points across roughly a dozen
   candidates, so a bar of 2 would label most of them "small" although together they are the whole problem;
   and every candidate is reported with its size and interval whatever its label. Cost: with about eight days
-  of data, narrower bands mean more "undetermined" labels. Awaiting the owner's word.
+  of data, narrower bands mean more "undetermined" labels.
+  **Closed 2026-11-22: the owner chose the recommendation ("go with both").** Section 5 now carries 1.0 point
+  and 10%, 0.5 point and 5%. No study result existed when the decision was made.
+- **Backup.** The owner also decided ("go with both") that the archive of pre-revision values
+  (`data/raw/archive_old_2026-11-10.tar.gz`, 1 MB) and the frozen USGS pulls of 2026-11-22 (`data/raw/usgs/`,
+  19 MB) are committed to the repository. Both are public USGS data.
 
 Data snapshot taken at confirmation: read-only exports of `tick_log` (305 rows, to the 10:00 UTC run of
 2026-11-22), `validation_log` (20 rows) and the bin and state rows (97 rows), all with
 `created_at < 2026-11-22 10:30:00+00`.
+
+## 14. Rulings during the study
+
+Each ruling is made before any study result has been seen by the orchestrator, and is reviewed by the
+independent tool auditor, who may reject it.
+
+**Ruling 1, 2026-11-22: the fidelity gate (section 4.4).** The replay builder stopped at Gate A as instructed:
+4 of 174 runs missed, against a cap of 3 (`replay/out/GATE_VERDICT.json`, `replay/GATE_ITERATIONS.md`).
+Gate B passed (106 of 106 time-shifted values exact, 106 of 106 rise rates exact). The four misses:
+
+| Run (UTC) | Fields that differ | Cause recorded by the builder |
+|---|---|---|
+| 16 Nov 12:00 | water temperature only, 8.4 logged against 8.3 in the frozen record | value rewritten by USGS after the run |
+| 16 Nov 20:01 | water temperature only, 10.3 against 10.4 | same (also a duplicate-run row) |
+| 18 Nov 13:00 | the current Point of Rocks reading (1,840 cfs at 1.13 ft logged; 1,860 at 1.14 ft in the record, last modified 2.5 minutes after the run began) and everything computed from it | same |
+| 18 Nov 18:01 | the rise rate only, through that same stored reading | same |
+
+Ruling: **Gate A is passed under the plan as confirmed, with 2 misses.** The plan's list of gated values
+(section 4.4) does not contain the current readings or the water temperature; the orchestrator's brief to the
+builder added "the current readings themselves", and the builder's spec then counted temperature. Under the
+plan's list the misses are the runs of 18 Nov 13:00 and 18:01, both in a category listed beforehand ("a value
+USGS rewrote after the run"). Under the builder's stricter list there are 4; the two extra ones are 0.1 degree
+changes of water temperature with no difference in any computed value. Both counts are reported. Nothing was
+loosened: no tolerance, no field of the plan's list and no category was changed, and no logged value was fed
+into the replay.
+
+Consequences fixed now, before any result:
+- The four runs stay in every analysis and are flagged.
+- For the as-run state of the two runs of 18 Nov, the logged values are what ran. In the three-term split the
+  difference between the log and the replay of those runs falls into term 3, as section 2 (R5) already says
+  for values rewritten after a run; the split is also reported without the two runs.
+- The builder's rule for which readings a run could have received (a reading whose `last_modified` is later
+  than the run's start was not yet available) is a reconstruction rule added after a first gate attempt. It is
+  reasoned from the code and from USGS's own stamps, but it was chosen with the mismatches in view; the tool
+  auditor is asked to judge it independently.
+
+**Ruling 2, 2026-11-22: the thresholds of section 5 while the owner's answer was open.** Labels were to be
+computed under both sets: the plan's (2 points and 20%; 1 point and 10%) and the recommended one (1 point and
+10%; 0.5 point and 5%). **Superseded the same day by the owner's decision** (section 13): one set, 1 point and
+10%; 0.5 point and 5%, fixed before any result.

@@ -1,0 +1,6 @@
+{
+ "plan_created_utc": "2026-11-22T10:57:50Z",
+ "cutoff_utc": "2026-11-22T10:00:00Z",
+ "census_start_utc": "2024-11-22T10:00:00Z",
+ "note": "cutoff = last full hour before the first pull script run; every continuous window ends at the cutoff (inclusive)"
+}

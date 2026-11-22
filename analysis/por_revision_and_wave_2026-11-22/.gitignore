@@ -1,0 +1,19 @@
+# Study folder .gitignore
+# 1. Extracted working copies (reproducible from data/raw/archive_old_2026-11-10.tar.gz and the October tar by tools/01_freeze_local.py)
+data/raw/archive_old/
+data/raw/oct_pull/
+# 2. Python caches
+__pycache__/
+*.pyc
+# 3. Every file over 5 MB (hashes of all of them are in data/MANIFEST.json; rebuild the tables with tools/03_build_tidy.py)
+# NOTE: git has no size rule: when a file over 5 MB appears (e.g. after a rerun), add its path here.
+data/tidy/readings_current_census.csv
+data/tidy/readings_current_model.csv
+data/tidy/readings_current_upstream.csv
+data/tidy/readings_old_archive.csv
+data/tidy/readings_old_octpull.csv
+# 4. Third-party pages and documents fetched by the researcher (addresses and retrieval times are in research/data/README.md; not redistributed)
+research/data/pdf/
+research/data/usgs_pages/
+research/data/wave_pages/
+research/data/coop/*.html
