@@ -427,4 +427,19 @@ accepted and worked into v3; the seven partials are closed by them.
 
 ## 13. Owner's confirmation
 
-(to be filled)
+**Confirmed by the owner on 2026-11-22:** "confirm: the full study as planned" (v3, core and extended).
+
+Open at confirmation, to be closed before `ANALYSIS_SPEC.md` is written (no result exists until then):
+
+- **The "matters" thresholds of section 5.** The owner: "I think less than 2 pp of error matters, but I have a
+  hard time determining a cut off", and asked for a recommendation from the data. Orchestrator's
+  recommendation, 2026-11-22: "matters" from 1.0 point (or 10% of the daily error cycle), "does not matter"
+  below 0.5 point (and 5%), "small" in between. Reasons: 0.5 point is the floor the owner confirmed for the
+  job-timing replay (2026-11-17); the excess error to explain is about 12 points across roughly a dozen
+  candidates, so a bar of 2 would label most of them "small" although together they are the whole problem;
+  and every candidate is reported with its size and interval whatever its label. Cost: with about eight days
+  of data, narrower bands mean more "undetermined" labels. Awaiting the owner's word.
+
+Data snapshot taken at confirmation: read-only exports of `tick_log` (305 rows, to the 10:00 UTC run of
+2026-11-22), `validation_log` (20 rows) and the bin and state rows (97 rows), all with
+`created_at < 2026-11-22 10:30:00+00`.
