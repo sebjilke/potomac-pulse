@@ -1,5 +1,6 @@
 # Analysis specification, Part R: the USGS revision of Point of Rocks flow
 
+Version 2 (works in the auditor's review of version 1; all changes are wording that removes ambiguity).
 Read `ANALYSIS_SPEC_COMMON.md` first. Written on 2026-11-23 before any result existed. Output folder: `py_R/`
 (Python) or `r_R/` (R). Each question below names its tables (exact columns, key columns first) and its single
 numbers (`metrics.csv`, `question` = the heading's code).
@@ -29,7 +30,9 @@ Shorthand: PoR = Point of Rocks `01638500`; LF = Little Falls `01646500`. "Old" 
    current - old (cfs); (iii) level shift `s`: build the old lookup `L(h)` = median old flow of REV13 pairs at
    level `h` (0.01 ft), make it non-decreasing in `h` by a running maximum, and for each pair find by linear
    interpolation the level `h*` at which `L(h*)` equals the pair's current flow (undefined if outside the
-   range of `L`; count); `s = h* - h`. Metrics: for each of r, q, s: `mean`, `sd`, `cv` (= sd / abs(mean)),
+   range of `L`; count); `h*` is the smallest level at which the interpolated, non-decreasing `L` reaches the
+   pair's current flow, and a flow equal to the maximum of `L` maps to the smallest level where that maximum
+   is reached; `s = h* - h`. Metrics: for each of r, q, s: `mean`, `sd`, `cv` (= sd / abs(mean)),
    `n`; and `n_shift_undefined`.
 7. **Does it change over time.** For REV13 pairs in the level bands `[1.00,1.10)`, `[1.10,1.20)`,
    `[1.20,1.30)` ft: table `R1_ratio_day_band`: `band_lo, day_utc, n, mean_ratio`; and per band with at least
@@ -54,11 +57,19 @@ logged_h, current_h`.
 ## R3. USGS's own account
 
 1. **Visits.** `field_measurements.csv`, gauges PoR and LF. Drop rows that duplicate another row in every
-   column except `feature_id` and `source_file` (count them). Pair the flow row (`00060`) and the level row
-   (`00065`) of the same `field_visit_id`. Table `R3_visits`: `gauge, visit_time_utc, field_visit_id,
-   level_ft, flow_cfs, control_condition, measurement_rated, observing_procedure, last_modified`.
-   Metrics per gauge: visits per calendar year for 2021 to 2026 (`visits_<gauge>_<year>`), median days between
-   consecutive visits from 2021-01-01 on.
+   column except `feature_id` and `source_file` (count them). A visit is a distinct `field_visit_id` of the
+   gauge. `flow_cfs` = `value` of its row with `parameter_code = 00060` and `reading_type = Discharge`;
+   `level_ft` = `value` of its row with `parameter_code = 00065` and `reading_type = MeanGageHeight`; ignore
+   rows of other reading types (for example `ReferencePrimary`) except to count them. If a visit has more than
+   one row of one of these two kinds, use the one with the latest `last_modified`, then the largest
+   `feature_id` in text order, and count such visits. `visit_time_utc` = that of the Discharge row if present,
+   else the earliest `visit_time_utc` of the visit; `control_condition`, `measurement_rated`,
+   `observing_procedure` and `last_modified` from the Discharge row (blank if none). Table `R3_visits`: `gauge,
+   visit_time_utc, field_visit_id, level_ft, flow_cfs, control_condition, measurement_rated,
+   observing_procedure, last_modified, n_rows, n_reference_rows`.
+   Metrics per gauge: visits per calendar year for 2021 to 2026 (`visits_<gauge>_<year>`, every visit, with or
+   without a discharge; and `visits_with_flow_<gauge>_<year>`), median days between consecutive visits from
+   2021-01-01 on (every visit; days are `(t2 - t1)` in fractional days).
 2. **Measured against published**, PoR visits from 2025-01-01 on that have a flow: the current published flow
    at the reading nearest in time within 15 minutes (earlier one on a tie), and, where the old archive has a
    reading within 15 minutes, the old published flow. Table `R3_measured_vs_published`: `visit_time_utc,
@@ -66,15 +77,19 @@ logged_h, current_h`.
    pct_current_vs_measured, pct_old_vs_measured` (pct = (published - measured) / measured * 100).
 3. **Census of rewrites.** For PoR flow and LF flow in the census table: group readings by `lm` truncated to
    the minute; a "bulk rewrite" is a group with at least 96 readings. Table `R3_bulk_rewrites`: `gauge,
-   lm_minute, n_readings, first_time_utc, last_time_utc, span_days, days_since_last_visit` (days from the most
-   recent visit of that gauge at or before `lm_minute`; blank if none). Metrics per gauge: `n_bulk`,
-   `share_of_readings_in_bulk`, `n_bulk_within_7_days_after_a_visit`, `longest_span_days`. These counts are a
+   lm_minute, n_readings, first_time_utc, last_time_utc, span_days, days_since_last_visit` (`span_days` =
+   last minus first reading time in fractional days; `days_since_last_visit` = fractional days from the most
+   recent visit WITH A DISCHARGE of that gauge at or before `lm_minute`; blank if none). Metrics per gauge:
+   `n_bulk`, `share_of_readings_in_bulk`, `n_bulk_within_7_days_after_a_visit` (`days_since_last_visit <= 7`),
+   `longest_span_days`. These counts are a
    lower bound: only the latest rewrite of each reading is visible.
 
 ## R4. Which record is closer to the river?
 
 Rating bands, fixed: a measurement rated "Excellent" +/-2%, "Good" +/-5%, "Fair" +/-8%, "Poor" +/-15%,
-anything else +/-15%.
+anything else (including blank) +/-15%. The band of a gauge "on a day" is the band of the rating of that
+gauge's latest visit with a discharge on or before that day (from `field_measurements.csv`, all gauges, by
+the visit rule of R3.1); for a set of days it is the largest of the days' bands.
 
 **(0) Hand measurements.** From `R3_measured_vs_published`, visits from 2026-06-12 on: add `band_pct` (from
 the rating), `current_inside_band`, `old_inside_band` (1/0, blank if no old value). For the visit of
@@ -89,13 +104,18 @@ band_pct, inside_band`.
 `U` = Shepherdstown + Millville + Antietam + Catoctin (current; a day is used only if all four exist). A day
 is "steady" if it is not an event day at PoR (flow, current record) nor at Shepherdstown nor at Millville.
 For lag `g` in {0, 1, 2} days: `ratio_old(D) = PoR_old(D) / U(D - g)`, `ratio_new(D) = PoR_current(D) /
-U(D - g)`. Days from 2026-09-03 to 2026-11-09. A day is "revised" if any PoR pair of that day is in REV13,
-else "unrevised". Table `R4_a_days`: `day_utc, steady, revised, por_old, por_current, u_lag0, u_lag1,
-u_lag2`. For each lag: `c` = median of `ratio_new` over steady unrevised days (if fewer than 10 such days,
-`c = 1.03`; report which); band = `[c / 1.113, c * 1.113]`; over steady revised days: `median_ratio_old`,
-`median_ratio_new`, `n_days`, `old_inside_band`, `new_inside_band`, and `verdict` = "B supported" if new
-inside and old outside, "A supported" if old inside and new outside, else "undetermined". Lag 1 is the main
-result; lags 0 and 2 are sensitivities. Metrics with `group` = `lag0`, `lag1`, `lag2`.
+U(D - g)`. Days from 2026-09-03 to 2026-11-09, both inclusive. A day is "revised" if any PoR pair of that day
+is in REV13, else "unrevised". Table `R4_a_days`: `day_utc, steady, revised, por_old, por_current, u_lag0,
+u_lag1, u_lag2`. Band: `[c / (1 + b), c * (1 + b)]` with `b = sqrt(b_PoR^2 + b_U^2)`, where `b_PoR` is the
+band of PoR for the set of steady revised days and `b_U` is the largest of the bands of the four U gauges on
+2026-11-22 (bands as fractions, for example 0.08). Centre `c`: 1.03 (fixed: the share of the drainage area
+without a gauge; the main result), and, as a sensitivity, the median of `ratio_new` over steady unrevised days
+(not computed if fewer than 10 such days). For each lag and each centre, over steady revised days:
+`median_ratio_old`, `median_ratio_new`, `n_days`, `b_por`, `b_u`, `b`, `old_inside_band`, `new_inside_band`,
+and `verdict` = "B supported" if new inside and old outside, "A supported" if old inside and new outside, else
+"undetermined"; and the same verdict with `b = 0.113` (a second sensitivity). Table `R4_a_verdicts`: `lag,
+centre_kind` (`fixed` or `empirical`), `band_kind` (`ratings` or `fixed_0113`), then the columns just listed
+plus `c`. Lag 1 with the fixed centre and the ratings band is the main result.
 
 **(b) Balance at Little Falls with withdrawals.** `data/tidy/withdrawals_coop.csv` (one row per report page;
 assert that every `withdrawal_date` occurs once and stop if not; ignore the `..._flag` columns except to count
@@ -108,10 +128,16 @@ D (blank if missing). Tributaries
 D). PoR old exists to 2026-11-09 only; later days have `resid_new` only. Table `R4_b_days`: `day_utc, lag,
 revised` (of day D - g), `lf, por_old, por_current, trib, w_cfs, resid_old, resid_new`. For each lag, over
 days where both residuals exist, separately for revised and unrevised PoR days: `n_days`, medians and means
-of `resid_old` and `resid_new` in cfs and as percent of the median LF; band = 11.3% of the median LF of those
-days; `verdict` over revised days = "B supported" if `abs(median resid_new) <= band` and `abs(median
-resid_old) > band`, mirror for A, else "undetermined". Also `median_resid_new_after_nov9` and `n` for days
-after 2026-11-09. Lag 2 is the main result.
+of `resid_old` and `resid_new` in cfs and as percent of the median LF; band = `b` times the median LF of
+those days with `b = sqrt(b_PoR^2 + b_LF^2)` from the ratings bands of PoR and of LF for that set of days;
+`verdict` over revised days = "B supported" if `abs(median resid_new) <= band` and `abs(median resid_old) >
+band`, mirror for A, else "undetermined"; and the same verdict with `b = 0.113` (sensitivity). Table
+`R4_b_verdicts`: `lag, set` (`revised`, `unrevised`), `band_kind`, `n_days, median_lf, median_resid_old,
+median_resid_new, mean_resid_old, mean_resid_new, b, band_cfs, verdict` (verdict blank for `unrevised`). Also
+`median_resid_new_after_nov9` and `n` for days after 2026-11-09. Lag 2 with the ratings band is the main
+result. Note for the record, not for you to act on: the net withdrawal already subtracts one treatment
+plant's discharge that may also be contained in the Broad Run gauge; the possible double count is about 10
+cfs.
 
 **(c) The estimate against Little Falls plus withdrawals.** Used runs with T1: `raw` = S0 logged `raw_cfs`;
 `W` of the UTC date of the run's `due_utc` (run dropped from this item if `W` is missing; count).
@@ -137,15 +163,24 @@ against the T1 of `(seq, S0)`), `set` is `all` or `without_212_217`, `phase` is 
 lo/hi are day-block intervals. Also table `R5_split_by_day`: `old_rule, day_utc, n, mean_term1, mean_term2,
 mean_term3` (`due_basis = own`, `set = all`).
 
-**Extrapolation share.** From `replay_runs.csv`, per scenario S-old-A/B/C and phase: `n_runs`, share of runs
-whose `cur_extrap_flag`, `back6_extrap_flag` or `hist_extrap_flag` is not `observed` and not blank
-(`share_any_extrapolated`), and the same for `hist_extrap_flag` alone. Table `R5_extrapolation`.
+**Extrapolation share.** From `replay_runs.csv`, per scenario S-old-A/B/C and phase: `n_runs`,
+`share_any_extrapolated` = share of runs whose `cur_extrap_flag`, `back6_extrap_flag` or `hist_extrap_flag`
+is `extrapolated_low` or `extrapolated_high`, `share_hist_extrapolated` (the same for `hist_extrap_flag`
+alone), and `share_any_oct_knot` (any of the three flags is `observed_oct_knot`; occurs under S-old-C only).
+Table `R5_extrapolation`: `scenario, phase, n_runs, share_any_extrapolated, share_hist_extrapolated,
+share_any_oct_knot`.
 
-**The chain by phase.** Table `R5_chain`: `source` (S0 logged, or a replayed scenario), `phase`, `n`, then
-the means of: `trv_t`, `trv_gf2lf`, `hist_ago`, `hist_cfs`, `pre_cfs`, `delta_ratio` (over runs where it is
-non-blank; also `n_delta_ratio`), `raw_cfs`, `corr_c`, `final_cfs`, share of `ceil_bound = 1`, share of each
-`corr_st` value (`share_rising`, `share_steady`, `share_falling`), share at the iteration limit (S0 logged:
-`trv_stop = max_iter`).
+**The chain by phase.** Table `R5_chain`: `source` (`S0_logged`, or a replayed scenario name), `phase`, `n`,
+`approx_final` (0 for `S0_logged`, 1 for scenarios), then the means of: travel time (`trv_t` in `runs.csv`,
+`trv_t_h` in `replay_runs.csv`), Great Falls to Little Falls time (`trv_gf2lf` / `trv_gf2lf_h`), `hist_ago` /
+`hist_ago_h`, `hist_cfs`, `pre_cfs`, `delta_ratio` (over runs where it is non-blank; also `n_delta_ratio`),
+`raw_cfs`, `corr_c`, `final_cfs`, share of `ceil_bound = 1`, share of each `corr_st` value (`share_rising`,
+`share_steady`, `share_falling`), share at the iteration limit (`trv_stop = max_iter` in `runs.csv`,
+`iteration_limit = 1` in `replay_runs.csv`). Column names of the table: `mean_trv_t, mean_trv_gf2lf,
+mean_hist_ago, mean_hist_cfs, mean_pre_cfs, mean_delta_ratio, n_delta_ratio, mean_raw_cfs, mean_corr_c,
+mean_final_cfs, share_ceil_bound, share_rising, share_steady, share_falling, share_iteration_limit`. The
+`corr_c` and `final_cfs` of scenarios use bins frozen before the revision and are not comparable with
+`S0_logged`; the column `approx_final` marks them.
 
 ## R6. How the learned corrections responded
 
@@ -155,8 +190,9 @@ binBefore_n, binBefore_ema, binAfter_count, binAfter_emaMeanError, ceilBound, so
 Per bin key (`bin` + `_` + `st`) table `R6_bins`: `bin_key, n_checks, n_checks_OLD, n_checks_TRANS,
 n_checks_NEW, ema_before_first_check, ema_after_last_check, mean_errRawCFS_last3_NEW` (mean over the last up
 to three checks whose run is in NEW; blank if none), `gap_open_cfs` (= that mean minus
-`ema_after_last_check`), `checks_per_day_NEW` (NEW checks divided by the days from the first NEW check to the
-cutoff), `days_to_close_90pct` (= 7 / `checks_per_day_NEW`; 7 is the number of updates at which 0.7^k falls
+`ema_after_last_check`), `checks_per_day_NEW` (NEW checks divided by the fractional days from the
+`created_at_utc` of the bin's first NEW check to the cutoff; blank if the bin has no NEW check),
+`days_to_close_90pct` (= 7 / `checks_per_day_NEW`; 7 is the number of updates at which 0.7^k falls
 below 0.1).
 
 ## R7. The other flow ranges
@@ -164,8 +200,9 @@ below 0.1).
 For REV13 pairs, by range of the OLD flow (`[0,3000)`, `[3000,6000)`, `[6000,12000)`, `[12000,25000)`,
 `[25000,50000)`, `[50000,inf)`): table `R7_ranges`: `range_lo, n, mean_ratio, min_ratio, max_ratio,
 mean_diff_cfs, min_level_ft, max_level_ft`. From `bins.csv`, rows with `source` of the live bins
-(`gf_correction_bin`; see the dictionary): table `R7_bins`: `bin_key, n, ema, mean, sd`, plus
-`last_check_in_window_utc` (latest `checks.created_at_utc` for that bin key, blank if none).
+(`gf_correction_bin`; see the dictionary), the 18 flow bins only (not the `stage_` bins): table `R7_bins`:
+`bin_key, n, ema, mean, sd` with `sd = sqrt((sum_sq - sum^2 / n) / (n - 1))` computed by you (blank if `n` is
+below 2), plus `last_check_in_window_utc` (latest `checks.created_at_utc` for that bin key, blank if none).
 
 ## R8. Other breaks inside the window
 
@@ -175,8 +212,12 @@ at its logged reading time: `in_lf_q` (LF `00060` at `in_lf_qT_utc`), `in_lf_h`,
 `R8_inputs`: `field, src_group` (`old_service` if `runs.src` is blank or not `new`, else `new_service`),
 `n, n_equal, n_different, max_abs_diff`. Error: in phase NEW, `e_raw_s0` of runs before the switch against
 runs after it: `n_before`, `n_after`, `mean_before`, `mean_after`, `diff` with a day-block interval (two
-groups), and the same for `term1` under rule B and for `e_raw_new`.
-**(b) The falling river.** Table `R8_daily`: `day_utc, n_runs, mean_term1_B, mean_e_raw_s0, lf_day_mean,
-por_level_day_mean, lf_change_24h_pct` (= LF day mean against the previous day's, percent). In phase OLD and
-in phase NEW separately: least-squares slope and Pearson correlation of the daily `mean_term1_B` on
-`lf_change_24h_pct`, with `n_days`.
+groups), and the same for `term1` under rule B (main; rules A and C as sensitivities, `group` = the rule) and
+for `e_raw_new`. "Before the switch" = `runs.src` blank or not `new`.
+**(b) The falling river.** The day of a run is the UTC day of `at_utc`. Table `R8_daily`: `day_utc, phase,
+n_runs, mean_term1_A, mean_term1_B, mean_term1_C, mean_e_raw_s0, lf_day_mean, por_level_day_mean,
+lf_change_24h_pct` (= LF day mean against the previous day's, percent; one row per day and phase with at
+least one run; day means from series prepared over the R4 window). In phase OLD and in phase NEW separately,
+over days with at least 3 runs of the phase: least-squares slope and Pearson correlation of the daily
+`mean_term1_B` on `lf_change_24h_pct`, with `n_days` (rule B main; A and C as sensitivities, `group` = phase
+and rule).

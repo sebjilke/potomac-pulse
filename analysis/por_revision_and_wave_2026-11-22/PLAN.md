@@ -452,6 +452,27 @@ Independent tool audit by a fresh Opus agent, `TOOL_AUDIT.md`: GO WITH CHANGES; 
 | 17 | NOTE | Research claims resting on search summaries only | Accepted. None is used in the report without reading the source. |
 | 18 | NOTE | What Gate B does not test | Accepted. Stated in the replay log. |
 
+### Re-check of the fix rounds and review of the analysis specification (2026-11-23)
+
+Same auditor, appended to `TOOL_AUDIT.md`. Fix rounds: 17 of the 18 findings resolved, finding 8 partial
+(closed by the specification changes below). The delivered replay outputs were reproduced byte for byte by a
+fresh rerun. Review of the specification, version 1: GO WITH CHANGES; 0 blockers, 9 major, 14 minor, 5 notes,
+all of them wording that removes ambiguity or a rule that was missing. All 28 are worked into version 2 of
+the three specification files, with these remarks:
+
+- S-7 (bands of R4): the fixed band of 11.3% and the centre calibrated on unrevised days could each tilt the
+  verdict. Version 2 takes the band from USGS's latest ratings at the gauges involved, uses the fixed centre
+  of 1.03 as the main result, and keeps the calibrated centre and the fixed band as sensitivities.
+- S-8, S-9 (delay decision; verdict rule for H1): both rules are now written out before any result.
+- S-25 (period P2 starts on 15 Sep): that boundary comes from a public document about dam operations found
+  by the researcher, not from the data. It is disclosed here and not in the analysts' files, which say only
+  that the periods were fixed from the calendar and outside information, so that the analysts stay blind to
+  the suspected cause of the wave.
+- A transient failure during the replay fix round (three incomplete runs) is explained by the orchestrator
+  having run the two fix rounds at the same time: the tidy tables were being rewritten while the replay read
+  them. The auditor's suggestion of a hash check inside `run_all.sh` is not adopted, because no further tool
+  run is planned; the delivered outputs are the ones the auditor reproduced.
+
 ## 13. Owner's confirmation
 
 **Confirmed by the owner on 2026-11-22:** "confirm: the full study as planned" (v3, core and extended).
