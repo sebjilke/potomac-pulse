@@ -473,6 +473,28 @@ the three specification files, with these remarks:
   them. The auditor's suggestion of a hash check inside `run_all.sh` is not adopted, because no further tool
   run is planned; the delivered outputs are the ones the auditor reproduced.
 
+### Results audit record (2026-11-23)
+
+Third auditor, a fresh Opus agent that took no part in planning, building or analysing: `RESULTS_AUDIT.md`.
+Verdict: the results may be reported once the changes it lists are made. Every headline number it recomputed
+with its own code matches the analysts'; both languages agree in both parts; ruling 5's account of the earlier
+differences is accurate and the addendum's conventions are neutral; 14 values checked live against USGS all
+match the freeze. Its corrections concern what the numbers mean, not the numbers. All are accepted and made in
+`REPORT.md`:
+
+- The revision's contrast between low and high flows is an effect of time (higher flows occurred only in mid
+  October, when the correction was small). The orchestrator's withdrawal of its warning about other flow
+  ranges is itself withdrawn: the size at higher flows is unknown.
+- "The revised record is closer to the river" is supported in direction and was overstated in strength; the
+  hand measurement of 10 November is not an independent check of a record that was fitted to it.
+- The daily error cycle is about 5 points before and after once the noise floor of the statistic is taken into
+  account; "no worsening detectable", with up to about 5 points not excluded.
+- The statement that the state-specific corrections add to the daily cycle is not established.
+- The wave's delay to Little Falls is 30 or 54 hours; 6 hours is excluded by the two legs via Edwards Ferry.
+- Ten weak points of the specification itself are listed in the audit (for example R1.6, which compared
+  unlike quantities, and the cycle statistic, which is biased upward with few runs per hour). They are
+  recorded there and are not repaired after the fact.
+
 ## 13. Owner's confirmation
 
 **Confirmed by the owner on 2026-11-22:** "confirm: the full study as planned" (v3, core and extended).
