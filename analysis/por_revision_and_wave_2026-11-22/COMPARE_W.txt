@@ -1,0 +1,319 @@
+Comparison of py_W (A) with r_W (B). Tolerance 0.01 (fine: 0.0001).
+tables: A 29  B 31
+tables only in B: ['boot_skipped', 'series_prep']
+
+=== W1_daily ===
+
+SUMMARY
+  DIFFERS W1_daily: beyond 0.01: 10, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  DIFFERS W1_periods: beyond 0.01: 10, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W1_weekday: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  DIFFERS W2_clock: beyond 0.01: 54, fine: 7, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  DIFFERS W2_daily: beyond 0.01: 87, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  DIFFERS W2_periods: beyond 0.01: 56, fine: 2, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W2_weekend: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W2_xcorr_upstream: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W2_xcorr_upstream_maxima: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_crests: beyond 0.01: 0, fine: 4, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_damping: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_model_times: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_onsets: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_size_lag: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_weak_days: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_weak_matches: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_xcorr: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_xcorr_maxima: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  DIFFERS W4_component_cycles: beyond 0.01: 1, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W4_components: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W4_cycle: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W4_error_by_hour: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W4_runs: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  DIFFERS W5_candidates: beyond 0.01: 40, fine: 2, text: 0, blank-one-side: 2, keys only A/B: 4/4, same columns: True
+  CLEAN   W6_by_bin: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W6_checks: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W7_error_by_wave: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W7_flow_class: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W7_year_month: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  DIFFERS metrics: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 49/88, same columns: True
+  22 of 30 compared files are clean
+rows: A 415  B 415
+key columns: ['gauge', 'parameter', 'day_utc']
+cells compared: 5395; numbers beyond 0.01: 10; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+largest difference per column (beyond 0.0001): trough_local_h=0.166667, trough_utc_h=0.166667, crest_local_h=0.0833333, crest_utc_h=0.0833333
+  number  ('1638500', '65', '2026-11-16')  crest_utc_h: A=16.416666666666668 B=16.5 diff=0.0833333
+  number  ('1638500', '65', '2026-11-16')  crest_local_h: A=11.416666666666666 B=11.5 diff=0.0833333
+  number  ('1638500', '65', '2026-11-20')  trough_utc_h: A=2.8333333333333335 B=3 diff=0.166667
+  number  ('1638500', '65', '2026-11-20')  trough_local_h: A=21.833333333333332 B=22 diff=0.166667
+  number  ('1646500', '60', '2026-09-02')  trough_utc_h: A=12.5 B=12.5833333333333 diff=0.0833333
+  number  ('1646500', '60', '2026-09-02')  trough_local_h: A=8.5 B=8.58333333333333 diff=0.0833333
+  number  ('1646500', '60', '2026-11-17')  trough_utc_h: A=12.083333333333334 B=12.25 diff=0.166667
+  number  ('1646500', '60', '2026-11-17')  trough_local_h: A=7.083333333333333 B=7.25 diff=0.166667
+  number  ('1646500', '65', '2026-09-02')  trough_utc_h: A=12.583333333333334 B=12.5 diff=0.0833333
+  number  ('1646500', '65', '2026-09-02')  trough_local_h: A=8.583333333333334 B=8.5 diff=0.0833333
+
+=== W1_periods ===
+rows: A 35  B 35
+key columns: ['gauge', 'parameter', 'period']
+cells compared: 315; numbers beyond 0.01: 10; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+largest difference per column (beyond 0.0001): trough_local_h_circmean=0.0265978, trough_utc_h_circmean=0.0265978, crest_local_h_circmean=0.010386, crest_utc_h_circmean=0.010386
+  number  ('1638500', '65', 'P7')  crest_utc_h_circmean: A=14.174625592740218 B=14.1850116269693 diff=0.010386
+  number  ('1638500', '65', 'P7')  crest_local_h_circmean: A=9.17462559274022 B=9.18501162696933 diff=0.010386
+  number  ('1638500', '65', 'P7')  trough_utc_h_circmean: A=3.000302102410618 B=3.02689987448097 diff=0.0265978
+  number  ('1638500', '65', 'P7')  trough_local_h_circmean: A=22.00030210241062 B=22.026899874481 diff=0.0265978
+  number  ('1646500', '60', 'P1')  trough_utc_h_circmean: A=11.695727820443917 B=11.7194253129407 diff=0.0236975
+  number  ('1646500', '60', 'P1')  trough_local_h_circmean: A=7.695727820443917 B=7.7194253129407 diff=0.0236975
+  number  ('1646500', '60', 'P7')  trough_utc_h_circmean: A=9.730109305123586 B=9.75495936982857 diff=0.0248501
+  number  ('1646500', '60', 'P7')  trough_local_h_circmean: A=4.730109305123586 B=4.75495936982857 diff=0.0248501
+  number  ('1646500', '65', 'P1')  trough_utc_h_circmean: A=13.675020812373761 B=13.654336554736 diff=0.0206843
+  number  ('1646500', '65', 'P1')  trough_local_h_circmean: A=9.675020812373766 B=9.65433655473596 diff=0.0206843
+
+=== W1_weekday ===
+rows: A 70  B 70
+key columns: ['gauge', 'parameter', 'window', 'weekday_utc']
+cells compared: 140; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W2_clock ===
+rows: A 13  B 13
+key columns: ['gauge', 'parameter']
+cells compared: 182; numbers beyond 0.01: 54; numbers between 0.0001 and 0.01: 7; text differences: 0; blank on one side: 0
+largest difference per column (beyond 0.0001): shift_crest=18.5523, lo=8.62526, crest_before=5.44768, lo_t=0.596816, shift_trough=0.440165, trough_after=0.440165, hi_t=0.328276, hi=0.144089, trough_before=0.116421, crest_after=0.103725
+  number  ('1610000', '65')  lo: A=-9.706226112231064 B=-9.33631605261673 diff=0.36991
+  number  ('1610000', '65')  hi: A=1.9337986036201513 B=2.07788755100193 diff=0.144089
+  number  ('1610000', '65')  lo_t: A=-7.310412005429033 B=-7.90722800751986 diff=0.596816
+  number  ('1610000', '65')  hi_t: A=5.4592689310116125 B=5.56619481575452 diff=0.106926
+  number  ('1613000', '65')  lo: A=-11.320254469387072 B=-11.4875370845177 diff=0.167283
+  number  ('1613000', '65')  hi: A=11.255260755180851 B=11.2889878332689 diff=0.0337271
+  number  ('1613000', '65')  lo_t: A=-8.581107813798875 B=-9.07191694145434 diff=0.490809
+  number  ('1613000', '65')  hi_t: A=3.7013267113959167 B=3.83301801174045 diff=0.131691
+  number  ('1614500', '65')  lo: A=1.6884238811344945 B=1.6490391583009 diff=0.0393847
+  number  ('1614500', '65')  lo_t: A=3.9114142047132683 B=3.88374597836765 diff=0.0276682
+  number  ('1614500', '65')  hi_t: A=8.790737984783634 B=8.51807607629359 diff=0.272662
+  number  ('1616500', '65')  lo: A=2.798117519626834 B=2.85065636818557 diff=0.0525388
+  number  ('1616500', '65')  hi: A=7.151876112771476 B=7.17733247806055 diff=0.0254564
+  number  ('1616500', '65')  hi_t: A=4.673297769863432 B=4.6191077628078 diff=0.05419
+  number  ('1618000', '65')  hi: A=3.18137091385905 B=3.1297135603827 diff=0.0516574
+  number  ('1618000', '65')  lo_t: A=-3.533017436677326 B=-3.39573181179818 diff=0.137286
+  number  ('1618000', '65')  hi_t: A=5.893940785388847 B=5.82528098675794 diff=0.0686598
+  number  ('1619500', '65')  crest_after: A=15.65286151876369 B=15.7565866646212 diff=0.103725
+  number  ('1619500', '65')  shift_crest: A=0.6552384857335891 B=0.758963631591138 diff=0.103725
+  number  ('1619500', '65')  lo: A=-2.173834553438926 B=-2.251431687425 diff=0.0775971
+  number  ('1619500', '65')  hi: A=3.739129635644831 B=3.80232603480325 diff=0.0631964
+  number  ('1619500', '65')  trough_before: A=0.416991913790608 B=0.533413295292092 diff=0.116421
+  number  ('1619500', '65')  trough_after: A=4.389642472339815 B=4.7325204728807 diff=0.342878
+  number  ('1619500', '65')  shift_trough: A=3.9726505585492067 B=4.19910717758861 diff=0.226457
+  number  ('1619500', '65')  lo_t: A=2.0012132647072645 B=2.17146039104697 diff=0.170247
+
+=== W2_daily ===
+rows: A 1328  B 1328
+key columns: ['gauge', 'parameter', 'day_utc']
+cells compared: 17264; numbers beyond 0.01: 87; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+largest difference per column (beyond 0.0001): trough_local_h=21.75, crest_utc_h=20.25, crest_local_h=17.5, trough_utc_h=6.75, phi_b_utc_h=6.42511
+  number  ('1614500', '60', '2026-11-19')  crest_utc_h: A=6.75 B=9.25 diff=2.5
+  number  ('1614500', '60', '2026-11-19')  crest_local_h: A=1.75 B=4.25 diff=2.5
+  number  ('1614500', '65', '2026-10-17')  crest_utc_h: A=0.0 B=19.25 diff=19.25
+  number  ('1614500', '65', '2026-10-17')  crest_local_h: A=20.0 B=15.25 diff=4.75
+  number  ('1614500', '65', '2026-11-17')  crest_utc_h: A=4.0 B=10.5 diff=6.5
+  number  ('1614500', '65', '2026-11-17')  crest_local_h: A=23.0 B=5.5 diff=17.5
+  number  ('1614500', '65', '2026-11-19')  crest_utc_h: A=6.75 B=9.75 diff=3
+  number  ('1614500', '65', '2026-11-19')  crest_local_h: A=1.75 B=4.75 diff=3
+  number  ('1616500', '60', '2026-11-13')  trough_utc_h: A=16.25 B=17.25 diff=1
+  number  ('1616500', '60', '2026-11-13')  trough_local_h: A=11.25 B=12.25 diff=1
+  number  ('1616500', '65', '2026-09-16')  crest_utc_h: A=5.0 B=5.25 diff=0.25
+  number  ('1616500', '65', '2026-09-16')  crest_local_h: A=1.0 B=1.25 diff=0.25
+  number  ('1616500', '65', '2026-09-23')  trough_utc_h: A=21.5 B=20.5 diff=1
+  number  ('1616500', '65', '2026-09-23')  trough_local_h: A=17.5 B=16.5 diff=1
+  number  ('1616500', '65', '2026-10-04')  trough_utc_h: A=13.5 B=13.75 diff=0.25
+  number  ('1616500', '65', '2026-10-04')  trough_local_h: A=9.5 B=9.75 diff=0.25
+  number  ('1616500', '65', '2026-10-09')  crest_utc_h: A=8.0 B=8.25 diff=0.25
+  number  ('1616500', '65', '2026-10-09')  crest_local_h: A=4.0 B=4.25 diff=0.25
+  number  ('1618000', '65', '2026-11-20')  crest_utc_h: A=20.0 B=20.25 diff=0.25
+  number  ('1618000', '65', '2026-11-20')  crest_local_h: A=15.0 B=15.25 diff=0.25
+  number  ('1619500', '60', '2026-10-20')  crest_utc_h: A=16.75 B=17.25 diff=0.5
+  number  ('1619500', '60', '2026-10-20')  crest_local_h: A=12.75 B=13.25 diff=0.5
+  number  ('1619500', '60', '2026-10-22')  trough_utc_h: A=0.0 B=0.25 diff=0.25
+  number  ('1619500', '60', '2026-10-22')  trough_local_h: A=20.0 B=20.25 diff=0.25
+  number  ('1619500', '60', '2026-10-27')  trough_utc_h: A=1.75 B=3.25 diff=1.5
+
+=== W2_periods ===
+rows: A 112  B 112
+key columns: ['gauge', 'parameter', 'period']
+cells compared: 1008; numbers beyond 0.01: 56; numbers between 0.0001 and 0.01: 2; text differences: 0; blank on one side: 0
+largest difference per column (beyond 0.0001): trough_local_h_circmean=21.6129, crest_local_h_circmean=18.5523, crest_utc_h_circmean=5.44768, trough_utc_h_circmean=3.07317
+  number  ('1614500', '60', 'P7')  crest_utc_h_circmean: A=5.723531359275713 B=6.18014278086188 diff=0.456611
+  number  ('1614500', '60', 'P7')  crest_local_h_circmean: A=0.7235313592757111 B=1.18014278086188 diff=0.456611
+  number  ('1614500', '65', 'P7')  crest_utc_h_circmean: A=5.723531359275713 B=7.59267135239871 diff=1.86914
+  number  ('1614500', '65', 'P7')  crest_local_h_circmean: A=0.7235313592757111 B=2.59267135239871 diff=1.86914
+  number  ('1616500', '60', 'P6')  trough_utc_h_circmean: A=16.81261766785545 B=17.0629528851909 diff=0.250335
+  number  ('1616500', '60', 'P6')  trough_local_h_circmean: A=11.812617667855452 B=12.0629528851909 diff=0.250335
+  number  ('1616500', '65', 'P2')  trough_utc_h_circmean: A=14.418040921961092 B=14.4396498418063 diff=0.0216089
+  number  ('1616500', '65', 'P2')  trough_local_h_circmean: A=10.418040921961092 B=10.4396498418063 diff=0.0216089
+  number  ('1618000', '65', 'P7')  crest_utc_h_circmean: A=20.949081949663416 B=21.0029566188759 diff=0.0538747
+  number  ('1618000', '65', 'P7')  crest_local_h_circmean: A=15.949081949663416 B=16.0029566188759 diff=0.0538747
+  number  ('1619500', '60', 'P3')  crest_utc_h_circmean: A=12.377070368358863 B=12.415809821415 diff=0.0387395
+  number  ('1619500', '60', 'P3')  crest_local_h_circmean: A=8.377070368358863 B=8.41580982141498 diff=0.0387395
+  number  ('1619500', '60', 'P4')  trough_utc_h_circmean: A=0.416991913790608 B=0.581148529925979 diff=0.164157
+  number  ('1619500', '60', 'P4')  trough_local_h_circmean: A=20.416991913790607 B=20.581148529926 diff=0.164157
+  number  ('1619500', '60', 'P5')  crest_utc_h_circmean: A=15.964855833319753 B=16.0189832270001 diff=0.0541274
+  number  ('1619500', '60', 'P5')  crest_local_h_circmean: A=10.964855833319755 B=11.0189832270001 diff=0.0541274
+  number  ('1619500', '60', 'P5')  trough_utc_h_circmean: A=3.524564711501442 B=3.88624371147861 diff=0.361679
+  number  ('1619500', '60', 'P5')  trough_local_h_circmean: A=22.653777618281634 B=23.01396772911 diff=0.36019
+  number  ('1619500', '60', 'P6')  crest_utc_h_circmean: A=15.970380921396416 B=16.816829856992 diff=0.846449
+  number  ('1619500', '60', 'P6')  crest_local_h_circmean: A=10.970380921396417 B=11.816829856992 diff=0.846449
+  number  ('1619500', '60', 'P7')  crest_utc_h_circmean: A=19.350277598738455 B=19.408561869882 diff=0.0582843
+  number  ('1619500', '60', 'P7')  crest_local_h_circmean: A=14.350277598738456 B=14.408561869882 diff=0.0582843
+  number  ('1619500', '65', 'P1')  crest_utc_h_circmean: A=15.32401411355897 B=15.5597478986485 diff=0.235734
+  number  ('1619500', '65', 'P1')  crest_local_h_circmean: A=11.324014113558972 B=11.5597478986486 diff=0.235734
+  number  ('1619500', '65', 'P2')  crest_utc_h_circmean: A=13.493788480025193 B=13.5273625040714 diff=0.033574
+
+=== W2_weekend ===
+rows: A 42  B 42
+key columns: ['gauge', 'parameter', 'window']
+cells compared: 210; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W2_xcorr_upstream ===
+rows: A 8  B 8
+key columns: ['gauge']
+cells compared: 32; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W2_xcorr_upstream_maxima ===
+rows: A 16  B 16
+key columns: ['gauge', 'lag_h']
+cells compared: 16; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_crests ===
+rows: A 3  B 3
+key columns: ['pair']
+cells compared: 9; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 4; text differences: 0; blank on one side: 0
+largest difference per column (beyond 0.0001): circ_sd_h=0.00559833, circmean_h=0.00558288
+
+=== W3_damping ===
+rows: A 4  B 4
+key columns: ['period']
+cells compared: 28; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_model_times ===
+rows: A 3  B 3
+key columns: ['phase']
+cells compared: 15; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_onsets ===
+rows: A 7  B 7
+key columns: ['por_onset_utc']
+cells compared: 35; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_size_lag ===
+rows: A 15  B 15
+key columns: ['pair', 'k_days']
+cells compared: 30; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_weak_days ===
+rows: A 8  B 8
+key columns: ['gauge', 'day_utc']
+cells compared: 16; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_weak_matches ===
+rows: A 0  B 0
+key columns: ['por_day']
+cells compared: 0; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_xcorr ===
+rows: A 9  B 9
+key columns: ['pair', 'window']
+cells compared: 36; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_xcorr_maxima ===
+rows: A 39  B 39
+key columns: ['pair', 'window', 'lag_h']
+cells compared: 39; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W4_component_cycles ===
+rows: A 14  B 14
+key columns: ['phase', 'quantity']
+cells compared: 56; numbers beyond 0.01: 1; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+largest difference per column (beyond 0.0001): cycle_size_pct_of_mean=75.5865
+  number  ('OLD', 'corr_c')  cycle_size_pct_of_mean: A=-37.79326691306445 B=37.7932669130644 diff=75.5865
+
+=== W4_components ===
+rows: A 335  B 335
+key columns: ['phase', 'quantity', 'hour']
+cells compared: 670; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W4_cycle ===
+rows: A 6  B 6
+key columns: ['phase', 'quantity']
+cells compared: 48; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W4_error_by_hour ===
+rows: A 70  B 70
+key columns: ['phase', 'hour_due']
+cells compared: 210; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W4_runs ===
+rows: A 261  B 261
+key columns: ['seq']
+cells compared: 3654; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W5_candidates ===
+rows: A 49  B 49
+key columns: ['candidate', 'variant', 'old_rule', 'quantity']
+keys only in A: 4  e.g. [('H2', 'lf_flow', '', 'median_A_a'), ('H2', 'lf_level', '', 'median_A_a'), ('H2', 'por_flow', '', 'median_A_a'), ('H2', 'por_level', '', 'median_A_a')]
+keys only in B: 4  e.g. [('H2', 'LF_flow', '', 'median_A_a'), ('H2', 'LF_level', '', 'median_A_a'), ('H2', 'PoR_flow', '', 'median_A_a'), ('H2', 'PoR_level', '', 'median_A_a')]
+cells compared: 405; numbers beyond 0.01: 40; numbers between 0.0001 and 0.01: 2; text differences: 0; blank on one side: 2
+largest difference per column (beyond 0.0001): lo=0.149907, diff=0.0937475, value_a=0.0916492, value_b=0.0830963, hi=0.0829362
+  number  ('H1', 'new_numbers', 'A', 'mean_delay_h')  value_a: A=49.16254437869822 B=49.2541935483871 diff=0.0916492
+  number  ('H1', 'new_numbers', 'A', 'mean_delay_h')  value_b: A=55.69757396449704 B=55.7206451612903 diff=0.0230712
+  number  ('H1', 'new_numbers', 'A', 'mean_delay_h')  diff: A=-6.535029585798817 B=-6.46645161290325 diff=0.068578
+  number  ('H1', 'new_numbers', 'A', 'mean_delay_h')  lo: A=-6.873602207350003 B=-6.79452969951086 diff=0.0790725
+  number  ('H1', 'new_numbers', 'A', 'mean_delay_h')  hi: A=-6.194774324324321 B=-6.14199635761595 diff=0.052778
+  number  ('H1', 'new_numbers', 'B', 'mean_delay_h')  value_a: A=49.16254437869822 B=49.2541935483871 diff=0.0916492
+  number  ('H1', 'new_numbers', 'B', 'mean_delay_h')  diff: A=-6.360414201183431 B=-6.27232258064517 diff=0.0880916
+  number  ('H1', 'new_numbers', 'B', 'mean_delay_h')  lo: A=-6.60975220229668 B=-6.46799161073825 diff=0.141761
+  number  ('H1', 'new_numbers', 'B', 'mean_delay_h')  hi: A=-6.089874340804222 B=-6.02807069148515 diff=0.0618036
+  number  ('H1', 'new_numbers', 'C', 'mean_delay_h')  value_a: A=49.16254437869822 B=49.2541935483871 diff=0.0916492
+  number  ('H1', 'new_numbers', 'C', 'mean_delay_h')  value_b: A=55.58514792899408 B=55.6056774193548 diff=0.0205295
+  number  ('H1', 'new_numbers', 'C', 'mean_delay_h')  diff: A=-6.422603550295861 B=-6.35148387096775 diff=0.0711197
+  number  ('H1', 'new_numbers', 'C', 'mean_delay_h')  lo: A=-6.720445056857742 B=-6.61987714033729 diff=0.100568
+  number  ('H1', 'new_numbers', 'C', 'mean_delay_h')  hi: A=-6.113371428571433 B=-6.0598624214495 diff=0.053509
+  number  ('H1', 'old_numbers', 'A', 'mean_delay_h')  value_a: A=51.351834319526624 B=51.3638562091503 diff=0.0120219
+  number  ('H1', 'old_numbers', 'A', 'mean_delay_h')  value_b: A=57.88686390532544 B=57.8092810457516 diff=0.0775829
+  number  ('H1', 'old_numbers', 'A', 'mean_delay_h')  diff: A=-6.535029585798817 B=-6.44542483660129 diff=0.0896047
+  number  ('H1', 'old_numbers', 'A', 'mean_delay_h')  lo: A=-6.873602207350009 B=-6.77261437908495 diff=0.100988
+  number  ('H1', 'old_numbers', 'A', 'mean_delay_h')  hi: A=-6.194774324324328 B=-6.13903225806455 diff=0.0557421
+  number  ('H1', 'old_numbers', 'B', 'mean_delay_h')  value_a: A=51.293727810650886 B=51.3043790849673 diff=0.0106513
+  number  ('H1', 'old_numbers', 'B', 'mean_delay_h')  value_b: A=57.65414201183432 B=57.571045751634 diff=0.0830963
+  number  ('H1', 'old_numbers', 'B', 'mean_delay_h')  diff: A=-6.360414201183431 B=-6.26666666666669 diff=0.0937475
+  number  ('H1', 'old_numbers', 'B', 'mean_delay_h')  lo: A=-6.609752202296687 B=-6.45984507058551 diff=0.149907
+  number  ('H1', 'old_numbers', 'B', 'mean_delay_h')  hi: A=-6.089874340804215 B=-6.02434900916891 diff=0.0655253
+  number  ('H1', 'old_numbers', 'C', 'mean_delay_h')  value_a: A=51.31485207100591 B=51.3288888888889 diff=0.0140368
+
+=== W6_by_bin ===
+rows: A 3  B 3
+key columns: ['bin_key']
+cells compared: 9; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W6_checks ===
+rows: A 20  B 20
+key columns: ['seq_check']
+cells compared: 200; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W7_error_by_wave ===
+rows: A 4  B 4
+key columns: ['class_lo']
+cells compared: 20; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W7_flow_class ===
+rows: A 4  B 4
+key columns: ['class_lo']
+cells compared: 24; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W7_year_month ===
+rows: A 180  B 180
+key columns: ['year', 'month']
+cells compared: 1260; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== metrics ===
+rows: A 88  B 127
+key columns: ['question', 'group', 'metric']
+keys only in A: 49  e.g. [('W1', '', 'lf_flow_n_distinct_values_10to22Nov'), ('W1', '', 'lf_median_A_a_cfs_10to22Nov'), ('W1', '', 'lf_n_non_event_days_10to22Nov'), ('W2', '', 'instrument_grid_step_min'), ('W2', '', 'instrument_max_abs_r_signed')]
+keys only in B: 88  e.g. [('W1', '', 'lf_flow_n_distinct_values_10_22_nov'), ('W1', '', 'lf_flow_n_raw_readings_10_22_nov'), ('W1', '', 'lf_median_A_a_cfs_10_22_nov'), ('W1', '', 'lf_n_non_event_days_10_22_nov'), ('W2', '', 'r_at_max_abs_lag')]
+cells compared: 39; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0

@@ -1,0 +1,10 @@
+Part R, R implementation (base R only).
+
+Run from the study folder (por_revision_and_wave_2026-11-22/):
+
+    Rscript r_R/run_all.R          # about 20 s; writes r_R/tables/*.csv, r_R/metrics.csv, r_R/rowcounts.csv
+    Rscript r_R/check_tables.R     # checks required columns, sort order, no NA / scientific-notation tokens
+
+Files: common.R (helpers, series preparation, bootstrap), data.R (loads inputs once), q_R1.R, q_R2.R, q_R3.R,
+runs_prep.R (phases, T1, W), q_R4.R, q_R5.R, q_R6_R7.R, q_R8.R. Deterministic (no randomness; the resampling
+uses data/tidy/boot_uniforms.csv). Reads only the files named in section 1 of ANALYSIS_SPEC_COMMON.md.

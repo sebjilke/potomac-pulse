@@ -1,0 +1,227 @@
+Comparison of py_R (A) with r_R (B). Tolerance 0.01 (fine: 0.0001).
+tables: A 31  B 31
+
+=== R1_by_day ===
+rows: A 101  B 101
+
+SUMMARY
+  CLEAN   R1_by_day: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R1_by_level: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R1_by_level_band: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R1_log_pairs: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R1_old_copies: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R1_ratio_day_band: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R1_rewrite_groups: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R2_por_level_log_mismatch: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R2_por_level_octpull: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R2_series: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R3_bulk_rewrites: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R3_measured_vs_published: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  DIFFERS R3_visits: beyond 0.01: 0, fine: 0, text: 955, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R4_0_por: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R4_0_upstream: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R4_a_days: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R4_a_verdicts: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R4_b_days: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R4_b_verdicts: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R4_c_runs: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R5_chain: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R5_extrapolation: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  DIFFERS R5_runs: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: False
+  CLEAN   R5_split: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R5_split_by_day: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R6_bins: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R6_checks: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R7_bins: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R7_ranges: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R8_daily: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   R8_inputs: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  DIFFERS metrics: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 112/198, same columns: True
+  29 of 32 compared files are clean
+key columns: ['day_utc']
+cells compared: 707; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R1_by_level ===
+rows: A 576  B 576
+key columns: ['level_ft']
+cells compared: 4032; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R1_by_level_band ===
+rows: A 25  B 25
+key columns: ['band_lo']
+cells compared: 125; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R1_log_pairs ===
+rows: A 71  B 71
+key columns: ['seq']
+cells compared: 355; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R1_old_copies ===
+rows: A 9  B 9
+key columns: ['gauge', 'parameter']
+cells compared: 36; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R1_ratio_day_band ===
+rows: A 31  B 31
+key columns: ['band_lo', 'day_utc']
+cells compared: 62; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R1_rewrite_groups ===
+rows: A 1  B 1
+key columns: ['lm_minute']
+cells compared: 6; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R2_por_level_log_mismatch ===
+rows: A 1  B 1
+key columns: ['seq']
+cells compared: 3; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R2_por_level_octpull ===
+rows: A 1  B 1
+key columns: ['gauge']
+cells compared: 8; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R2_series ===
+rows: A 8  B 8
+key columns: ['gauge', 'parameter']
+cells compared: 56; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R3_bulk_rewrites ===
+rows: A 20  B 20
+key columns: ['gauge', 'lm_minute']
+cells compared: 100; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R3_measured_vs_published ===
+rows: A 13  B 13
+key columns: ['visit_time_utc']
+cells compared: 104; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R3_visits ===
+rows: A 1000  B 1000
+key columns: ['gauge', 'visit_time_utc']
+cells compared: 9000; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 955; blank on one side: 0
+  text    ('1638500', '1895-03-25T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1895-04-05T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1895-04-13T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1895-04-23T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1895-05-01T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1895-05-07T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1895-05-17T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1895-05-28T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1895-06-03T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1895-06-17T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1895-07-10T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1895-11-06T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1896-06-23T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1896-08-04T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1896-11-16T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1897-02-09T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1897-02-23T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1897-03-08T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1897-03-27T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1897-04-12T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1897-07-23T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1897-10-29T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1898-01-25T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1898-08-19T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+  text    ('1638500', '1898-10-03T05:00:00Z')  last_modified: A='2026-11-13T20:34:53.485330Z' B='2026-11-13T20:34:53.485330+00:00'
+
+=== R4_0_por ===
+rows: A 5  B 5
+key columns: ['visit_time_utc']
+cells compared: 85; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R4_0_upstream ===
+rows: A 8  B 8
+key columns: ['gauge', 'visit_time_utc']
+cells compared: 56; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R4_a_days ===
+rows: A 68  B 68
+key columns: ['day_utc']
+cells compared: 476; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R4_a_verdicts ===
+rows: A 12  B 12
+key columns: ['lag', 'centre_kind', 'band_kind']
+cells compared: 120; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R4_b_days ===
+rows: A 74  B 74
+key columns: ['day_utc', 'lag']
+cells compared: 592; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R4_b_verdicts ===
+rows: A 12  B 12
+key columns: ['lag', 'set', 'band_kind']
+cells compared: 108; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R4_c_runs ===
+rows: A 165  B 165
+key columns: ['seq']
+cells compared: 1320; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R5_chain ===
+rows: A 15  B 15
+key columns: ['source', 'phase']
+cells compared: 255; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R5_extrapolation ===
+rows: A 9  B 9
+key columns: ['scenario', 'phase']
+cells compared: 36; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R5_runs ===
+rows: A 275  B 275
+COLUMNS DIFFER
+  only in A: []
+  only in B: ['cur_label', 'back6_label', 'hist_label', 'label_all_three']
+key columns: ['seq']
+cells compared: 8800; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R5_split ===
+rows: A 48  B 48
+key columns: ['old_rule', 'due_basis', 'set', 'phase']
+cells compared: 672; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R5_split_by_day ===
+rows: A 36  B 36
+key columns: ['old_rule', 'day_utc']
+cells compared: 144; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R6_bins ===
+rows: A 3  B 3
+key columns: ['bin_key']
+cells compared: 30; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R6_checks ===
+rows: A 20  B 20
+key columns: ['seq_check']
+cells compared: 380; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R7_bins ===
+rows: A 14  B 14
+key columns: ['bin_key']
+cells compared: 70; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R7_ranges ===
+rows: A 6  B 6
+key columns: ['range_lo']
+cells compared: 42; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R8_daily ===
+rows: A 15  B 15
+key columns: ['day_utc', 'phase']
+cells compared: 120; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== R8_inputs ===
+rows: A 18  B 18
+key columns: ['field', 'src_group']
+cells compared: 72; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== metrics ===
+rows: A 279  B 365
+key columns: ['question', 'group', 'metric']
+keys only in A: 112  e.g. [('R1', 'r', 'mean'), ('R1', 'r', 'sd'), ('R1', 'r', 'cv'), ('R1', 'r', 'n'), ('R1', 'q', 'mean')]
+keys only in B: 198  e.g. [('R1', '', 'n_pairs_all_if_archive_restricted_from_2026-06-12'), ('R1', '', 'mean_r'), ('R1', '', 'sd_r'), ('R1', '', 'cv_r'), ('R1', '', 'n_r')]
+cells compared: 167; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0

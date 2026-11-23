@@ -1,0 +1,9 @@
+Part W, Python (standard library only). Run from the study folder:
+
+    python3 -I py_W/run_all.py
+
+About 20 s, deterministic (two runs gave byte-identical CSVs). Writes only inside py_W/:
+tables/*.csv (one per named table), metrics.csv, prep_counts.csv (step and present/filled/missing per series),
+boot_skips.csv (skipped resamples per interval), run_log.txt, REPORT.md.
+Modules: ppw.py (section 3 and 4 recipes, written once), q_w12.py (W1, W2), q_w3.py (W3), rundata.py (runs, labels,
+truth loaders), q_w456.py (W4, W5, W6), q_w7.py (W7), run_all.py (driver).

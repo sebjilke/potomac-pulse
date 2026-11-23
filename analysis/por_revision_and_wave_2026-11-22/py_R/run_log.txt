@@ -1,0 +1,48 @@
+R1: 43500 pairs (old archive PoR flow x census PoR flow, both non-blank); old==0 pairs: 0
+R1_rewrite_groups rows 1
+R1: current census PoR flow readings with lm in 19:41 minute: 10306
+R1_by_day rows 101
+R1_by_level rows 576
+R1_by_level_band rows 25
+R1_ratio_day_band rows 31
+R1_old_copies rows 9
+R1_log_pairs rows 71 (with a ratio: 71)
+R2_series rows 8
+R2_por_level_octpull rows 1
+R2_por_level_log_mismatch rows 1; used runs without a comparable pair: 0
+R3: duplicate field-measurement rows dropped (all gauges): 2; by gauge {'01638500': 2}
+R3: rows kept 2472; visits with more than one Discharge or MeanGageHeight row, by gauge: {'01638500': 7, '01646500': 17}
+R3_visits rows 1000
+R3_measured_vs_published rows 13
+R3_bulk_rewrites rows 20
+R4 series por_old: step 300s, grid 24025, present 20448, filled 0, missing 3577, filled with outside neighbour 0, step tie False
+R4 series por_cur: step 300s, grid 24025, present 24024, filled 0, missing 1, filled with outside neighbour 0, step tie False
+R4 series lf: step 300s, grid 24025, present 24001, filled 13, missing 11, filled with outside neighbour 0, step tie False
+R4 series por_h: step 300s, grid 24025, present 24024, filled 0, missing 1, filled with outside neighbour 0, step tie False
+R4 series shep: step 900s, grid 8009, present 7913, filled 0, missing 96, filled with outside neighbour 0, step tie False
+R4 series mill: step 900s, grid 8009, present 7913, filled 0, missing 96, filled with outside neighbour 0, step tie False
+R4 series ant: step 900s, grid 8009, present 7913, filled 0, missing 96, filled with outside neighbour 0, step tie False
+R4 series cat: step 900s, grid 8009, present 7767, filled 1, missing 241, filled with outside neighbour 0, step tie False
+R4 series mono: step 900s, grid 8009, present 8009, filled 0, missing 0, filled with outside neighbour 0, step tie False
+R4 series goose: step 900s, grid 8009, present 8008, filled 0, missing 1, filled with outside neighbour 0, step tie False
+R4 series br: step 300s, grid 24025, present 24025, filled 0, missing 0, filled with outside neighbour 0, step tie False
+R4 series sen: step 300s, grid 24025, present 24025, filled 0, missing 0, filled with outside neighbour 0, step tie False
+R4_0_por rows 5
+R4_0_upstream rows 8 (without a current reading within 15 min: 0)
+R4_a_days rows 68; steady 38; steady revised 21; steady unrevised 17
+R4_a_verdicts rows 12
+R4_b_days rows 74
+R4_b_verdicts rows 12
+R4_c_runs rows 165; dropped for blank T1: 14; dropped for missing W: 96
+R5_runs rows 275
+R5_split rows 48
+R5_split_by_day rows 36
+R5_extrapolation rows 9
+R5_chain rows 15
+R6: check seq 1 (predTs_utc 2026-11-10T19:01:02.131Z) has no run in the log
+R6_checks rows 20
+R6_bins rows 3
+R7_ranges rows 6
+R7_bins rows 14 (spec expects 18 flow bins; rows of source gf_correction_bin without the stage_ prefix: 14)
+R8_inputs rows 18; runs/fields skipped for a blank logged or missing current value: {}
+R8_daily rows 15

@@ -1,0 +1,10 @@
+scenario,phase,n_runs,share_any_extrapolated,share_hist_extrapolated,share_any_oct_knot
+S-old-A,NEW,169,0.804733727811,0.390532544379,0
+S-old-A,OLD,71,0,0,0
+S-old-A,TRANS,35,0.4,0,0
+S-old-B,NEW,169,0.804733727811,0.384615384615,0
+S-old-B,OLD,71,0,0,0
+S-old-B,TRANS,35,0.4,0,0
+S-old-C,NEW,169,0.603550295858,0.266272189349,0.313609467456
+S-old-C,OLD,71,0,0,0
+S-old-C,TRANS,35,0.142857142857,0,0.285714285714

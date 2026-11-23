@@ -1,0 +1,6 @@
+visit_time_utc,level_ft,measured_cfs,measurement_rated,control_condition,current_cfs,old_cfs,pct_current_vs_measured,pct_old_vs_measured,band_pct,current_inside_band,old_inside_band,f_old_A,f_old_B,f_old_C,pct_f_old_A_vs_measured,pct_f_old_B_vs_measured,pct_f_old_C_vs_measured
+2026-06-12T14:34:36Z,2.02,4040,Fair,Debris - Moderate,3990,3990,-1.23762376237624,-1.23762376237624,8,1,1,,,,,,
+2026-08-12T14:40:37Z,1.65,2690,Poor,Debris - Light,2710,2710,0.743494423791822,0.743494423791822,15,1,1,,,,,,
+2026-09-03T13:40:44Z,1.34,1830,Poor,Debris - Moderate,1840,1840,0.546448087431694,0.546448087431694,15,1,1,,,,,,
+2026-10-08T17:00:10Z,1.2,1510,Poor,Debris - Moderate,1560,1560,3.3112582781457,3.3112582781457,15,1,1,,,,,,
+2026-11-10T14:31:27Z,1.2,1980,Fair,Clear,2000,,1.01010101010101,,8,1,,1560,1560,1560,-21.2121212121212,-21.2121212121212,-21.2121212121212

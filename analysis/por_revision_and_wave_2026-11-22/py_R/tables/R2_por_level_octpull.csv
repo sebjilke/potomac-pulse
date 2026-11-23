@@ -1,0 +1,2 @@
+gauge,parameter,n_pairs,n_equal,n_changed,first_changed_time_utc,last_changed_time_utc,max_abs_diff,n_distinct_lm_minutes_of_changed
+01638500,00065,4897,4897,0,,,0,0

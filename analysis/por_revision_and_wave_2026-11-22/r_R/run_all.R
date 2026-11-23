@@ -1,0 +1,11 @@
+# Part R driver. Run from the study folder:  Rscript r_R/run_all.R
+farg <- sub("^--file=", "", commandArgs(trailingOnly = FALSE)[grep("^--file=", commandArgs(trailingOnly = FALSE))])
+here <- dirname(normalizePath(farg[1]))
+t0 <- Sys.time()
+source(file.path(here, "common.R"))
+source(file.path(here, "data.R"))
+for (f in c("q_R1.R", "q_R2.R", "q_R3.R", "runs_prep.R", "q_R4.R", "q_R5.R", "q_R6_R7.R", "q_R8.R")) source(file.path(here, f))
+flush_metrics()
+rc <- data.frame(table = names(ROWCOUNTS), rows = unlist(ROWCOUNTS))
+write.csv(rc, file.path(OUT, "rowcounts.csv"), row.names = FALSE, quote = FALSE)
+cat(sprintf("done in %.0f s; %d tables; %d metrics\n", as.numeric(difftime(Sys.time(), t0, units = "secs")), nrow(rc), length(MET)))

@@ -1,0 +1,72 @@
+prep Sep1-Nov22 window 01610000 00060 15 7905 7913 7905 6 2
+prep Sep1-Nov22 window 01610000 00065 15 7905 7913 7905 6 2
+prep Sep1-Nov22 window 01613000 00060 15 7913 7913 7913 0 0
+prep Sep1-Nov22 window 01613000 00065 15 7913 7913 7913 0 0
+prep Sep1-Nov22 window 01614500 00060 15 7913 7913 7913 0 0
+prep Sep1-Nov22 window 01614500 00065 15 7913 7913 7913 0 0
+prep Sep1-Nov22 window 01616500 00060 15 7913 7913 7913 0 0
+prep Sep1-Nov22 window 01616500 00065 15 7913 7913 7913 0 0
+prep Sep1-Nov22 window 01618000 00060 15 7913 7913 7913 0 0
+prep Sep1-Nov22 window 01618000 00065 15 7913 7913 7913 0 0
+prep Sep1-Nov22 window 01619500 00060 15 7913 7913 7913 0 0
+prep Sep1-Nov22 window 01619500 00065 15 7913 7913 7913 0 0
+prep Sep1-Nov22 window 01636500 00060 15 7913 7913 7913 0 0
+prep Sep1-Nov22 window 01636500 00065 15 7913 7913 7913 0 0
+prep Sep1-Nov22 window 01637500 00060 15 7767 7913 7767 1 145
+prep Sep1-Nov22 window 01637500 00065 15 7748 7913 7748 1 164
+prep Sep1-Nov22 window 01638500 00010 5 23159 23737 23159 0 578
+prep Sep1-Nov22 window 01638500 00060 5 23736 23737 23736 0 1
+prep Sep1-Nov22 window 01638500 00065 5 23736 23737 23736 0 1
+prep Sep1-Nov22 window 01644148 00065 15 7913 7913 7913 0 0
+prep Sep1-Nov22 window 01646500 00060 5 23713 23737 23713 13 11
+prep Sep1-Nov22 window 01646500 00065 5 23714 23737 23714 12 11
+prep Jun12-Nov22 window 01638500 00065 5 47064 47065 47064 0 1
+prep Jun12-Nov22 window 01646500 00060 5 47028 47065 47028 26 11
+prep Jun12-Nov22 window 01646500 00065 5 47040 47065 47040 14 11
+W1_daily rows 415
+W1_periods rows 35
+W1_weekday rows 70
+W2_daily rows 1328
+W2_periods rows 112
+W2_clock rows 13
+W2_weekend rows 42
+W2_xcorr_upstream rows 8
+W2_xcorr_upstream_maxima rows 16
+phase OLD n=71 first=1 last=71
+phase NEW n=169 first=107 last=305
+phase TRANS n=35 first=72 last=106
+W3_xcorr rows 9
+W3_xcorr_maxima rows 39
+W3_crests rows 3
+W3_size_lag rows 15
+W3_weak_days rows 8
+W3_weak_matches rows 0
+W3_onsets rows 7
+W3_model_times rows 3
+W3_damping rows 4
+own LF interpolation vs truth.csv T1 (S0 rows, excl 212): n=260 max abs diff=0.000499999 cfs
+seq 212: truth.csv S0 due_utc=2026-11-19T00:50:32.261Z T1=1600.000 ; runs.due_utc=2026-11-19T00:54:28.766Z own T1=1600.0
+W4 runs with T1: 261; dropped (blank T1): 14 : [292, 293, 294, 295, 296, 297, 298, 299, 300, 301, 302, 303, 304, 305]
+W4_runs rows 261
+W4_error_by_hour rows 70
+W4_cycle rows 6
+W4_components rows 335
+W4_component_cycles rows 14
+scenario S-new: raw estimates with T1: 261 of 275
+scenario S-old-A: raw estimates with T1: 259 of 275
+scenario S-old-B: raw estimates with T1: 259 of 275
+scenario S-old-C: raw estimates with T1: 259 of 275
+2x2x2 cells (rule B) whose due_utc differs from truth.csv due_utc of the T1 scenario: 0
+2x2x2 rows with blank raw_cfs: 0
+W5_candidates rows 49
+W5 block universes of NEW-phase candidates that differ from the first one: 0
+W6 checks with no run in the log: ['1']
+W6_checks rows 20
+W6_by_bin rows 3
+W7 hourly file rows 130416 from 2011-12-01T05:00:00Z to 2026-11-09T23:00:00Z
+W7 series por_now: step=60 min; readings in window=127571; grid=130987; present=127571; filled=147; missing=3269
+W7 series lf_discharge: step=60 min; readings in window=128887; grid=130987; present=128887; filled=521; missing=1579
+W7_year_month rows 180
+W7_flow_class rows 4
+W7 shadow_F rows read 127463, rows kept 22632
+W7_error_by_wave rows 4

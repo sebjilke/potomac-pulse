@@ -1,0 +1,16 @@
+question,group,metric,value
+R5,phase_OLD,n_runs,71
+R5,phase_OLD,first_seq,1
+R5,phase_OLD,last_seq,71
+R5,phase_TRANS,n_runs,35
+R5,phase_TRANS,first_seq,72
+R5,phase_TRANS,last_seq,106
+R5,phase_NEW,n_runs,169
+R5,phase_NEW,first_seq,107
+R5,phase_NEW,last_seq,305
+R5,ruleA_own,n_runs_dropped_missing_t1,16
+R5,ruleA_common,n_runs_dropped_missing_t1,14
+R5,ruleB_own,n_runs_dropped_missing_t1,16
+R5,ruleB_common,n_runs_dropped_missing_t1,14
+R5,ruleC_own,n_runs_dropped_missing_t1,16
+R5,ruleC_common,n_runs_dropped_missing_t1,14

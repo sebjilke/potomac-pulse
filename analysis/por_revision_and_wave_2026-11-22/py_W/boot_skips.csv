@@ -1,0 +1,103 @@
+statistic,n_skipped_of_2000
+W2_clock 01610000 00065 crest,0
+W2_clock 01610000 00065 trough,0
+W2_clock 01613000 00065 crest,0
+W2_clock 01613000 00065 trough,0
+W2_clock 01614500 00065 crest,0
+W2_clock 01614500 00065 trough,0
+W2_clock 01616500 00065 crest,0
+W2_clock 01616500 00065 trough,0
+W2_clock 01618000 00065 crest,0
+W2_clock 01618000 00065 trough,0
+W2_clock 01619500 00065 crest,0
+W2_clock 01619500 00065 trough,0
+W2_clock 01636500 00065 crest,0
+W2_clock 01636500 00065 trough,0
+W2_clock 01637500 00065 crest,0
+W2_clock 01637500 00065 trough,0
+W2_clock 01638500 00060 crest,0
+W2_clock 01638500 00060 trough,0
+W2_clock 01638500 00065 crest,0
+W2_clock 01638500 00065 trough,0
+W2_clock 01644148 00065 crest,0
+W2_clock 01644148 00065 trough,0
+W2_clock 01646500 00060 crest,0
+W2_clock 01646500 00060 trough,0
+W2_clock 01646500 00065 crest,0
+W2_clock 01646500 00065 trough,0
+W4_cycle NEW e_raw,0
+W4_cycle NEW e_final,0
+W4_cycle OLD e_raw,0
+W4_cycle OLD e_final,0
+W4_cycle TRANS e_raw,452
+W4_cycle TRANS e_final,452
+W4 cycle diff NEW-OLD e_raw,0
+W4 cycle diff NEW-OLD e_final,0
+W5 H1 new_numbers A MAE diff,0
+W5 H1 new_numbers A cycle diff,0
+W5 H1 new_numbers A cycle share_p,0
+W5 H1 new_numbers A mean_delay_h diff,0
+W5 H1 old_numbers A MAE diff,0
+W5 H1 old_numbers A cycle diff,0
+W5 H1 old_numbers A cycle share_p,0
+W5 H1 old_numbers A mean_delay_h diff,0
+W5 H1 new_numbers B MAE diff,0
+W5 H1 new_numbers B cycle diff,0
+W5 H1 new_numbers B cycle share_p,0
+W5 H1 new_numbers B mean_delay_h diff,0
+W5 H1 old_numbers B MAE diff,0
+W5 H1 old_numbers B cycle diff,0
+W5 H1 old_numbers B cycle share_p,0
+W5 H1 old_numbers B mean_delay_h diff,0
+W5 H1 new_numbers C MAE diff,0
+W5 H1 new_numbers C cycle diff,0
+W5 H1 new_numbers C cycle share_p,0
+W5 H1 new_numbers C mean_delay_h diff,0
+W5 H1 old_numbers C MAE diff,0
+W5 H1 old_numbers C cycle diff,0
+W5 H1 old_numbers C cycle share_p,0
+W5 H1 old_numbers C mean_delay_h diff,0
+W5 H7  B MAE diff,0
+W5 H7  B cycle diff,0
+W5 H7  B cycle share_p,0
+W5 H7  A MAE diff,0
+W5 H7  A cycle diff,0
+W5 H7  A cycle share_p,0
+W5 H7  C MAE diff,0
+W5 H7  C cycle diff,0
+W5 H7  C cycle share_p,0
+W5 H3 NEW  MAE diff,0
+W5 H3 NEW  cycle diff,0
+W5 H3 NEW  cycle share_p,0
+W5 H3 OLD  MAE diff,0
+W5 H3 OLD  cycle diff,0
+W5 H3 OLD  cycle share_p,0
+W5 H4 mean_correction  MAE diff,0
+W5 H4 mean_correction  cycle diff,0
+W5 H4 mean_correction  cycle share_p,0
+W5 H4 final_vs_raw  cycle diff,0
+W5 H4 final_vs_raw  cycle share_p,0
+W5 H6   MAE diff,0
+W5 H6   cycle diff,0
+W5 H6   cycle share_p,0
+W5 H8 NEW B flips_per_day diff,0
+W5 H8 NEW A flips_per_day diff,0
+W5 H8 NEW C flips_per_day diff,0
+W5 H8 OLD B flips_per_day diff,0
+W5 H8 OLD A flips_per_day diff,0
+W5 H8 OLD C flips_per_day diff,0
+W5 H2 por_level  median_A_a diff,0
+W5 H2 por_flow  median_A_a diff,0
+W5 H2 lf_level  median_A_a diff,0
+W5 H2 lf_flow  median_A_a diff,0
+W5 H9   median_A_a diff,0
+W5 H5 S0_logged  cycle diff,0
+W5 H5 S0_logged  cycle share_p,0
+W5 H5 S-new  cycle diff,0
+W5 H5 S-new  cycle share_p,0
+W5 H5 S-old-A  cycle diff,0
+W5 H5 S-old-A  cycle share_p,0
+W5 H5 S-old-B  cycle diff,0
+W5 H5 S-old-B  cycle share_p,0
+W5 H5 S-old-C  cycle diff,0
+W5 H5 S-old-C  cycle share_p,0

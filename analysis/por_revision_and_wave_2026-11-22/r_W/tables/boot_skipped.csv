@@ -1,0 +1,103 @@
+table,key,statistic,n_skipped
+W2_clock,01610000|00065,shift_crest,0
+W2_clock,01610000|00065,shift_trough,0
+W2_clock,01613000|00065,shift_crest,0
+W2_clock,01613000|00065,shift_trough,0
+W2_clock,01614500|00065,shift_crest,0
+W2_clock,01614500|00065,shift_trough,0
+W2_clock,01616500|00065,shift_crest,0
+W2_clock,01616500|00065,shift_trough,0
+W2_clock,01618000|00065,shift_crest,0
+W2_clock,01618000|00065,shift_trough,0
+W2_clock,01619500|00065,shift_crest,0
+W2_clock,01619500|00065,shift_trough,0
+W2_clock,01636500|00065,shift_crest,0
+W2_clock,01636500|00065,shift_trough,0
+W2_clock,01637500|00065,shift_crest,0
+W2_clock,01637500|00065,shift_trough,0
+W2_clock,01638500|00060,shift_crest,0
+W2_clock,01638500|00060,shift_trough,0
+W2_clock,01638500|00065,shift_crest,0
+W2_clock,01638500|00065,shift_trough,0
+W2_clock,01644148|00065,shift_crest,0
+W2_clock,01644148|00065,shift_trough,0
+W2_clock,01646500|00060,shift_crest,0
+W2_clock,01646500|00060,shift_trough,0
+W2_clock,01646500|00065,shift_crest,0
+W2_clock,01646500|00065,shift_trough,0
+W4_cycle,NEW e_raw,cycle_size,0
+W4_cycle,NEW e_final,cycle_size,0
+W4_cycle,OLD e_raw,cycle_size,0
+W4_cycle,OLD e_final,cycle_size,0
+W4_cycle,TRANS e_raw,cycle_size,452
+W4_cycle,TRANS e_final,cycle_size,452
+W4_metrics,e_raw,cycle_diff_new_minus_old,0
+W4_metrics,e_final,cycle_diff_new_minus_old,0
+W5_candidates,H1 new_numbers A,MAE_diff,0
+W5_candidates,H1 new_numbers A,cycle_diff,0
+W5_candidates,H1 new_numbers A,cycle_share_p,0
+W5_candidates,H1 new_numbers A,mean_delay_diff,0
+W5_candidates,H1 old_numbers A,MAE_diff,0
+W5_candidates,H1 old_numbers A,cycle_diff,0
+W5_candidates,H1 old_numbers A,cycle_share_p,0
+W5_candidates,H1 old_numbers A,mean_delay_diff,0
+W5_candidates,H7  A,MAE_diff,0
+W5_candidates,H7  A,cycle_diff,0
+W5_candidates,H7  A,cycle_share_p,0
+W5_candidates,H1 new_numbers B,MAE_diff,0
+W5_candidates,H1 new_numbers B,cycle_diff,0
+W5_candidates,H1 new_numbers B,cycle_share_p,0
+W5_candidates,H1 new_numbers B,mean_delay_diff,0
+W5_candidates,H1 old_numbers B,MAE_diff,0
+W5_candidates,H1 old_numbers B,cycle_diff,0
+W5_candidates,H1 old_numbers B,cycle_share_p,0
+W5_candidates,H1 old_numbers B,mean_delay_diff,0
+W5_candidates,H7  B,MAE_diff,0
+W5_candidates,H7  B,cycle_diff,0
+W5_candidates,H7  B,cycle_share_p,0
+W5_candidates,H1 new_numbers C,MAE_diff,0
+W5_candidates,H1 new_numbers C,cycle_diff,0
+W5_candidates,H1 new_numbers C,cycle_share_p,0
+W5_candidates,H1 new_numbers C,mean_delay_diff,0
+W5_candidates,H1 old_numbers C,MAE_diff,0
+W5_candidates,H1 old_numbers C,cycle_diff,0
+W5_candidates,H1 old_numbers C,cycle_share_p,0
+W5_candidates,H1 old_numbers C,mean_delay_diff,0
+W5_candidates,H7  C,MAE_diff,0
+W5_candidates,H7  C,cycle_diff,0
+W5_candidates,H7  C,cycle_share_p,0
+W5_candidates,H3 NEW ,MAE_diff,0
+W5_candidates,H3 NEW ,cycle_diff,0
+W5_candidates,H3 NEW ,cycle_share_p,0
+W5_candidates,H3 OLD ,MAE_diff,0
+W5_candidates,H3 OLD ,cycle_diff,0
+W5_candidates,H3 OLD ,cycle_share_p,2000
+W5_candidates,H4 mean_correction ,MAE_diff,0
+W5_candidates,H4 mean_correction ,cycle_diff,0
+W5_candidates,H4 mean_correction ,cycle_share_p,0
+W5_candidates,H4 final_vs_raw ,cycle_diff,0
+W5_candidates,H4 final_vs_raw ,cycle_share_p,0
+W5_candidates,H6  ,MAE_diff,0
+W5_candidates,H6  ,cycle_diff,0
+W5_candidates,H6  ,cycle_share_p,0
+W5_candidates,H8 NEW A,diff,0
+W5_candidates,H8 NEW B,diff,0
+W5_candidates,H8 NEW C,diff,0
+W5_candidates,H8 OLD A,diff,0
+W5_candidates,H8 OLD B,diff,0
+W5_candidates,H8 OLD C,diff,0
+W5_candidates,H2 PoR_level,diff,0
+W5_candidates,H2 PoR_flow,diff,0
+W5_candidates,H2 LF_level,diff,0
+W5_candidates,H2 LF_flow,diff,0
+W5_candidates,H5 S0_logged,diff,0
+W5_candidates,H5 S0_logged,share_p,0
+W5_candidates,H5 S-new,diff,0
+W5_candidates,H5 S-new,share_p,0
+W5_candidates,H5 S-old-A,diff,0
+W5_candidates,H5 S-old-A,share_p,0
+W5_candidates,H5 S-old-B,diff,0
+W5_candidates,H5 S-old-B,share_p,0
+W5_candidates,H5 S-old-C,diff,0
+W5_candidates,H5 S-old-C,share_p,0
+W5_candidates,H9,diff,0

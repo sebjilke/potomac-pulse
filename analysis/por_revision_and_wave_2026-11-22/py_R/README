@@ -1,0 +1,7 @@
+Part R, Python (standard library only).
+Run from the study folder (S/):
+    python3 -I py_R/run_all.py
+Output: py_R/tables/<name>.csv (31 tables), py_R/metrics.csv, py_R/run_log.txt (row counts and notes).
+Optional: name questions to run only some, e.g.  python3 -I py_R/run_all.py R1 R3   (R5, R8 need R1 first only for R7/R4; list R1 first).
+Files: lib.py (times, stats, series preparation, bootstrap), data.py (loading), r1.py ... r8.py (one per question), run_all.py (driver).
+Deterministic; a full run takes about 10 s. Two full runs from scratch gave byte-identical tables and metrics.csv.

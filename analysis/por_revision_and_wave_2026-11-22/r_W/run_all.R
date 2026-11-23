@@ -1,0 +1,11 @@
+# run_all.R : whole Part W (R). Run from the study folder:  Rscript r_W/run_all.R
+source("r_W/lib.R")
+source("r_W/q_W12.R")
+source("r_W/q_runs.R")
+source("r_W/q_W3.R")
+source("r_W/q_W456.R")
+source("r_W/q_W7.R")
+wtab(do.call(rbind, PREP_LOG), "series_prep")
+wtab(BOOT_SKIPPED, "boot_skipped")
+write_metrics()
+cat("ALL DONE\n")
