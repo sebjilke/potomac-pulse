@@ -1,0 +1,914 @@
+// Potomac Pulse — Shared Server Module
+// Canonical source for constants and functions used by both scheduled-update.js and sync-learning.js.
+// Client-side copies live in src/model/shared-model.js (+ src/model/constants.js) — keep in sync for any model changes.
+
+const { createClient } = require('@supabase/supabase-js');
+
+// --- Supabase singleton ---
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+let supabase = null;
+
+/**
+ * Lazily creates and returns the singleton Supabase client from env credentials.
+ * @returns {Object|null} The Supabase client, or null if URL/key env vars are unset.
+ */
+function getSupabase() {
+    if (!supabase && supabaseUrl && supabaseKey) {
+        supabase = createClient(supabaseUrl, supabaseKey);
+    }
+    return supabase;
+}
+
+// --- Flow bins ---
+
+const GF_FLOW_BINS = ['0-3000', '3000-6000', '6000-12000', '12000-25000', '25000-50000', '50000+'];
+
+/**
+ * Maps a flow value in cfs to its discrete Great Falls flow bin key.
+ * @param {number} cfs - Flow in cubic feet per second.
+ * @returns {string} The flow bin key (one of GF_FLOW_BINS).
+ */
+function getFlowBin(cfs) {
+    if (cfs < 3000) return '0-3000';
+    if (cfs < 6000) return '3000-6000';
+    if (cfs < 12000) return '6000-12000';
+    if (cfs < 25000) return '12000-25000';
+    if (cfs < 50000) return '25000-50000';
+    return '50000+';
+}
+
+// --- LF stage-to-flow inverse rating curve ---
+// Piecewise linear interpolation from USGS field measurements at Little Falls (01646500)
+// Used for ice/anomaly detection — if actual CFS is much lower than expected from stage,
+// likely indicates frazil ice affecting ADVM velocity measurement.
+// SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
+
+/**
+ * Estimates Little Falls flow (cfs) from gauge stage via the inverse piecewise-linear rating curve.
+ * @param {number} stage - Gauge stage in feet.
+ * @returns {number} Estimated flow in cubic feet per second (0 below the 2.40 ft floor).
+ */
+function estimateLFFlowFromStage(stage) {
+    if (stage < 2.40) return 0;
+    if (stage < 2.46) return ((stage - 2.40) / 0.06) * 600;
+    if (stage < 2.69) return 600 + ((stage - 2.46) / 0.23) * 700;
+    if (stage < 2.83) return 1300 + ((stage - 2.69) / 0.14) * 700;
+    if (stage < 2.96) return 2000 + ((stage - 2.83) / 0.13) * 600;
+    if (stage < 3.09) return 2600 + ((stage - 2.96) / 0.13) * 600;
+    if (stage < 3.16) return 3200 + ((stage - 3.09) / 0.07) * 400;
+    if (stage < 3.23) return 3600 + ((stage - 3.16) / 0.07) * 600;
+    if (stage < 3.35) return 4200 + ((stage - 3.23) / 0.12) * 800;
+    if (stage < 3.46) return 5000 + ((stage - 3.35) / 0.11) * 700;
+    if (stage < 3.67) return 5700 + ((stage - 3.46) / 0.21) * 1800;
+    if (stage < 3.95) return 7500 + ((stage - 3.67) / 0.28) * 2500;
+    if (stage < 4.29) return 10000 + ((stage - 3.95) / 0.34) * 3000;
+    if (stage < 5.50) return 13000 + ((stage - 4.29) / 1.21) * 15000;
+    if (stage < 6.79) return 28000 + ((stage - 5.50) / 1.29) * 22000;
+    if (stage < 8.36) return 50000 + ((stage - 6.79) / 1.57) * 30000;
+    if (stage < 10.93) return 80000 + ((stage - 8.36) / 2.57) * 70000;
+    return 150000 + ((stage - 10.93) / 2.5) * 100000;
+}
+
+// --- Travel time constants ---
+// Searcy & Davis (1961) dye-tracer model × 0.80 empirical correction
+// Investigated via cross-correlation on 117k obs (travel_time_audit.md).
+// SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
+
+const TRAVEL_COEF = 4139;        // Adjusted (5174 × 0.80)
+const TRAVEL_EXP = -0.5963;      // Searcy exponent (unchanged)
+const MEDIAN_TRAVEL = 25.8;      // Adjusted (32.3 × 0.80)
+const TRAVEL_POR_GF_BASELINE = 19.4;  // Adjusted (24.3 × 0.80)
+const TRAVEL_GF_LF_BASELINE = 6.5;    // Adjusted (8.1 × 0.80)
+
+// PoR-history retention (server). 72h > max PoR→GF travel (~50.6h at the 1,000-cfs
+// floor) so the time-shift lookup is covered at every flow (C16, v36.4).
+// SYNC WARNING: Client copy is src/model/constants.js:11 POR_HISTORY_MAX_AGE — keep in sync!
+const POR_HISTORY_MAX_AGE = 72 * 60 * 60 * 1000; // 72 hours
+
+// --- Edwards Ferry power-law model ---
+// Updated 2026-02-18: Deduped dataset (v24.16)
+// Cold water (≤10°C): 160 × EF^2.36 (deduped fit, R²=0.96)
+// Default (>10°C): 126 × EF^2.46 (deduped fit, R²=0.91)
+// SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
+
+const EF_MODEL = {
+    coef: 126,
+    exp: 2.46,
+    coldCoef: 160,
+    coldExp: 2.36,
+    coldMaxTemp: 10,
+    minStage: 2.5,
+    maxStage: 20.0
+};
+
+// --- Flow-dependent EF weight ---
+// v30.0: Logistic EF weight ramp — smooth 0% → 40%, midpoint 10k cfs.
+// Calibrated via Approach 5 horse race on 117,704 hourly obs (2011-2026).
+// SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
+
+/**
+ * Computes the logistic blend weight for the Edwards Ferry power-law estimate (0 below 1000 cfs, ramping to 0.40 max, midpoint 10k cfs).
+ * @param {number} estimatedFlow - Estimated flow in cfs.
+ * @returns {number} EF blend weight in [0, 0.40].
+ */
+function getEFWeight(estimatedFlow) {
+    if (estimatedFlow < 1000) return 0.0;
+    const W_MAX = 0.40;
+    const K = 5.0;
+    const MIDPOINT = Math.log(10000);
+    return W_MAX / (1 + Math.exp(-K * (Math.log(estimatedFlow) - MIDPOINT)));
+}
+
+// --- EF divergence advisory (v37.13) ---
+// Display-only honesty signal: sustained bare-EF-above-PoR-estimate divergence marks hours
+// that are historically ~2.4x less accurate (analysis/ef-divergence-advisory-plan-2026-07-20.md
+// §0). Detector thresholds reuse the v38-gate-reviewed rules; the v38 ESTIMATOR change failed
+// its gate and is NOT implemented (analysis/v38_gate_verdict_2026-07-20.md) — this state must
+// never feed the estimate, the weights, or learning. Server-only; the client renders the
+// persisted state (staleMs is mirrored as EF_DIVERGENCE_STALE_MS in src/model/constants.js).
+const EF_DIVERGENCE = {
+    on: 1.20,                            // D̄ >= on activates (most conservative gate-reviewed T_LO)
+    off: 1.15,                           // once active, D̄ < off deactivates (deadband)
+    windowMs: 5 * 60 * 60 * 1000,        // D̄ = median over trailing 5h
+    sampleRetentionMs: 6 * 60 * 60 * 1000,
+    minSamples: 3,                       // fail-closed below this
+    efMaxAgeMs: 2 * 60 * 60 * 1000,      // EF stage reading older than this is invalid (F7/F11)
+    staleMs: 2 * 60 * 60 * 1000,         // client hides state older than this (cron stall)
+    coldLockC: 10,                       // temp <= this locks eligibility out (ice/backwater regime)
+    coldUnlockC: 11,                     // re-eligible only above this (1°C hysteresis, F12)
+    coldMonths: [10, 11, 0, 1, 2],       // UTC Nov–Mar: month proxy when temp is unknown
+    minCFS: 500, maxCFS: 500000          // strict EF-estimate validity range
+};
+
+// --- Ice plausibility gate for anomaly Check 3 (v37.21) ---
+// UTC Nov–Mar proxy, same months as EF_DIVERGENCE.coldMonths. 5 °C: ice needs water near 0 °C,
+// and the temperature is measured at Point of Rocks, not Little Falls. Deliberately not
+// EF_MODEL.coldMaxTemp (10 °C, selects an EF rating) or EF_DIVERGENCE.coldLockC (10 °C, a different question).
+const ICE_CHECK = { maxTempC: 5, coldMonths: [10, 11, 0, 1, 2] };
+
+/**
+ * Whether ice is physically plausible at the gauge (gates anomaly Check 3, LOW_FLOW_HIGH_STAGE). Pure.
+ * Finite temperature decides on its own; otherwise falls back to the UTC month proxy.
+ * @param {number|null|undefined} waterTempC - Water temperature in Celsius, or a non-finite value if unknown.
+ * @param {number} nowMs - Current time in epoch ms (used for the month proxy only).
+ * @returns {{plausible: boolean, basis: 'temp'|'month'}} Plausibility and which input decided it.
+ */
+function isIcePlausible(waterTempC, nowMs) {
+    if (Number.isFinite(waterTempC)) {
+        return { plausible: waterTempC <= ICE_CHECK.maxTempC, basis: 'temp' };
+    }
+    return { plausible: ICE_CHECK.coldMonths.includes(new Date(nowMs).getUTCMonth()), basis: 'month' };
+}
+
+/**
+ * Advances the EF divergence advisory state by one cron cycle (pure; caller persists).
+ * Fail-closed: any missing/invalid input this cycle contributes no sample, and activation
+ * requires eligibility, a strictly valid current-cycle sample, and >=3 samples in the 5h window.
+ * @param {Object|null} prevState - Previously persisted state ({samples, active, activeSince, coldLockout, ...}) or null.
+ * @param {Object} cycle - Current-cycle inputs.
+ * @param {number} cycle.nowMs - Current epoch ms.
+ * @param {number|null} cycle.efEstimateCFS - Bare EF power-law estimate (null when no prediction/invalid stage).
+ * @param {number|null} cycle.porEstimateCFS - PoR-side estimate pre-ensemble (null when no prediction).
+ * @param {number|null} cycle.efReadingMs - Epoch ms of the EF stage reading (null if unknown -> invalid).
+ * @param {number|null} cycle.waterTempC - Water temp (°C) or null (month proxy applies).
+ * @param {number|null} [cycle.lfCFS] - Observed LF discharge (cfs) this cycle, for episode flow-regime documentation.
+ * @returns {{samples: Array<{t: number, d: number}>, dbar: (number|null), active: boolean, activeSince: (string|null), coldLockout: boolean, updatedAt: string, episode: (Object|null)}}
+ *   While active, `episode` accumulates the firing's actual numbers (v37.14: start, per-cycle
+ *   {t, dbar, lf} trail capped at 336 entries, peak/sum D̄, LF range) so deactivation can emit an
+ *   append-only `ef_divergence_episode` row — duty-cycle and flow-regime documentation, since the
+ *   validation-history stamps only live in a 7-day window.
+ */
+function updateEfDivergenceState(prevState, { nowMs, efEstimateCFS, porEstimateCFS, efReadingMs, waterTempC, lfCFS = null }) {
+    const prev = prevState || {};
+    const samples = (Array.isArray(prev.samples) ? prev.samples : [])
+        .filter(s => s && Number.isFinite(s.t) && Number.isFinite(s.d)
+            && s.t > nowMs - EF_DIVERGENCE.sampleRetentionMs && s.t <= nowMs);
+
+    const efValid = Number.isFinite(efEstimateCFS)
+        && efEstimateCFS > EF_DIVERGENCE.minCFS && efEstimateCFS < EF_DIVERGENCE.maxCFS
+        && Number.isFinite(porEstimateCFS) && porEstimateCFS > 0
+        && Number.isFinite(efReadingMs) && (nowMs - efReadingMs) <= EF_DIVERGENCE.efMaxAgeMs;
+    if (efValid) {
+        samples.push({ t: nowMs, d: Math.round((efEstimateCFS / porEstimateCFS) * 10000) / 10000 });
+    }
+
+    // Cold lockout with 1°C hysteresis; month proxy (lockout unchanged) when temp unknown.
+    let coldLockout = !!prev.coldLockout;
+    const tempKnown = Number.isFinite(waterTempC);
+    if (tempKnown) {
+        if (waterTempC <= EF_DIVERGENCE.coldLockC) coldLockout = true;
+        else if (waterTempC > EF_DIVERGENCE.coldUnlockC) coldLockout = false;
+    }
+    const eligible = tempKnown
+        ? !coldLockout
+        : !EF_DIVERGENCE.coldMonths.includes(new Date(nowMs).getUTCMonth());
+
+    const windowVals = samples.filter(s => s.t > nowMs - EF_DIVERGENCE.windowMs).map(s => s.d);
+    let dbar = null;
+    if (windowVals.length >= EF_DIVERGENCE.minSamples) {
+        const sorted = [...windowVals].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        dbar = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+        dbar = Math.round(dbar * 10000) / 10000;
+    }
+
+    let active = false;
+    if (eligible && efValid && dbar !== null) {
+        active = prev.active ? dbar >= EF_DIVERGENCE.off : dbar >= EF_DIVERGENCE.on;
+    }
+
+    // Episode documentation (v37.14): while active, accumulate the firing's actual numbers.
+    // The caller emits prev.episode as an append-only ef_divergence_episode row when it
+    // observes the active -> inactive transition (incl. decay-to-inactive on missing data).
+    let episode = null;
+    if (active) {
+        episode = (prev.active && prev.episode) ? prev.episode : {
+            startedAt: new Date(nowMs).toISOString(),
+            cycles: 0, peakDbar: 0, sumDbar: 0,
+            minLF: null, maxLF: null, lfAtPeak: null,
+            trail: [], trailDropped: 0
+        };
+        episode.cycles += 1;
+        episode.sumDbar = Math.round((episode.sumDbar + dbar) * 10000) / 10000;
+        if (dbar > episode.peakDbar) {
+            episode.peakDbar = dbar;
+            episode.lfAtPeak = Number.isFinite(lfCFS) ? Math.round(lfCFS) : episode.lfAtPeak;
+        }
+        if (Number.isFinite(lfCFS)) {
+            episode.minLF = episode.minLF === null ? Math.round(lfCFS) : Math.min(episode.minLF, Math.round(lfCFS));
+            episode.maxLF = episode.maxLF === null ? Math.round(lfCFS) : Math.max(episode.maxLF, Math.round(lfCFS));
+        }
+        if (episode.trail.length < 336) {   // ~2 weeks hourly; beyond that keep aggregates only
+            episode.trail.push({ t: nowMs, dbar, lf: Number.isFinite(lfCFS) ? Math.round(lfCFS) : null });
+        } else {
+            episode.trailDropped += 1;
+        }
+    }
+
+    return {
+        samples,
+        dbar,
+        active,
+        activeSince: active ? (prev.active && prev.activeSince ? prev.activeSince : new Date(nowMs).toISOString()) : null,
+        coldLockout,
+        updatedAt: new Date(nowMs).toISOString(),
+        episode
+    };
+}
+
+// --- LF-residual advisory (v37.15) ---
+// Second display-only honesty signal, sibling of EF_DIVERGENCE above: the model's own
+// validated LF residual. LF sits below ALL the ungauged PoR→LF inflow, so this is the one
+// observable that catches below-EF events the divergence detector is structurally blind to
+// (v38 gate central finding). Rule R2 was chosen by decision-gated backtest
+// (analysis/lf-residual-advisory-plan-2026-07-23.md §0; blind Python/R dual-verified):
+// banner-up predictions scored median |err| 10.6% vs 1.8% baseline, ~21x the big-miss rate.
+// Display-only — must never feed the estimate, the weights, or learning.
+// (clientStaleMs is mirrored as LF_RESIDUAL_STALE_MS in src/model/constants.js.)
+const LF_RESIDUAL = {
+    onPct: -15,                          // validated err <= this latches ON (PERCENT, not fraction)
+    offPct: -7.5,                        // validated err > this clears; between: hold (deadband)
+    signalStaleMs: 12 * 60 * 60 * 1000,  // no validated pair for this long -> effective inactive
+    clientStaleMs: 2 * 60 * 60 * 1000    // client hides state older than this (cron stall)
+};
+
+/**
+ * Advances the LF-residual advisory state by one cron cycle (pure; caller persists).
+ * Backtest-faithful semantics (plan §1): pairs latch/clear a persistent latch; the
+ * EFFECTIVE active state additionally requires the newest pair to be within signalStaleMs —
+ * the latch itself SURVIVES staleness suppression, so a mid-deadband pair after a gap
+ * resumes the advisory without re-crossing onPct.
+ * @param {Object|null} prevState - Previously persisted state or null.
+ * @param {Object} cycle - Current-cycle inputs.
+ * @param {number} cycle.nowMs - Current epoch ms.
+ * @param {Array<{at: number, errPct: number, hardFlagged?: boolean}>} [cycle.pairs] - Validations
+ *   completed this cycle (errPct = errorPercentCorrected, PERCENT units, negative = under-read).
+ *   Production is single-pending so length <= 1; sorted by `at` internally regardless.
+ * @param {number|null} [cycle.lfCFS] - Observed LF discharge (cfs), for episode documentation.
+ * @returns {{latched: boolean, active: boolean, lastPairAt: (number|null), lastErrPct: (number|null),
+ *   activeSince: (string|null), updatedAt: string, episode: (Object|null)}}
+ */
+function updateLfResidualState(prevState, { nowMs, pairs = [], lfCFS = null }) {
+    const prev = prevState || {};
+    let latched = !!prev.latched;
+    let lastPairAt = Number.isFinite(prev.lastPairAt) ? prev.lastPairAt : null;
+    let lastErrPct = Number.isFinite(prev.lastErrPct) ? prev.lastErrPct : null;
+
+    const applied = pairs
+        .filter(p => p && Number.isFinite(p.at) && Number.isFinite(p.errPct))
+        .sort((a, b) => a.at - b.at);
+    for (const p of applied) {
+        if (p.errPct <= LF_RESIDUAL.onPct) latched = true;
+        else if (p.errPct > LF_RESIDUAL.offPct) latched = false;
+        // between offPct and onPct: hold
+        lastPairAt = p.at;
+        lastErrPct = Math.round(p.errPct * 10) / 10;
+    }
+
+    const fresh = lastPairAt !== null && (nowMs - lastPairAt) <= LF_RESIDUAL.signalStaleMs;
+    const active = latched && fresh;
+
+    // Episode documentation (v37.14 pattern): while active, accumulate the firing's actual
+    // numbers; the caller emits prev.episode as an append-only lf_residual_episode row when
+    // it observes the active -> inactive transition. Trail entries are per validated PAIR
+    // (sparse, 3-6h apart), not per cycle; cycles counts cron cycles active (duty).
+    let episode = null;
+    if (active) {
+        episode = (prev.active && prev.episode) ? prev.episode : {
+            startedAt: new Date(nowMs).toISOString(),
+            cycles: 0, pairCount: 0, worstErrPct: null, sumErrPct: 0,
+            minLF: null, maxLF: null,
+            trail: [], trailDropped: 0
+        };
+        episode.cycles += 1;
+        for (const p of applied) {
+            episode.pairCount += 1;
+            episode.sumErrPct = Math.round((episode.sumErrPct + p.errPct) * 10) / 10;
+            if (episode.worstErrPct === null || p.errPct < episode.worstErrPct) {
+                episode.worstErrPct = Math.round(p.errPct * 10) / 10;
+            }
+            if (episode.trail.length < 336) {
+                episode.trail.push({
+                    t: p.at,
+                    errPct: Math.round(p.errPct * 10) / 10,
+                    lf: Number.isFinite(lfCFS) ? Math.round(lfCFS) : null
+                });
+            } else {
+                episode.trailDropped += 1;
+            }
+        }
+        if (Number.isFinite(lfCFS)) {
+            episode.minLF = episode.minLF === null ? Math.round(lfCFS) : Math.min(episode.minLF, Math.round(lfCFS));
+            episode.maxLF = episode.maxLF === null ? Math.round(lfCFS) : Math.max(episode.maxLF, Math.round(lfCFS));
+        }
+    }
+
+    return {
+        latched,
+        active,
+        lastPairAt,
+        lastErrPct,
+        activeSince: active ? (prev.active && prev.activeSince ? prev.activeSince : new Date(nowMs).toISOString()) : null,
+        updatedAt: new Date(nowMs).toISOString(),
+        episode
+    };
+}
+
+// --- Flow multiplier for travel time scaling ---
+// SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
+
+/**
+ * Computes the flow-dependent travel-time scaling multiplier (travel hours relative to median travel) for a given LF flow.
+ * @param {number} lfFlow - Little Falls flow in cfs (floored to 1000 internally).
+ * @returns {number} The travel-time multiplier (server returns the scalar only; the client copy returns an object).
+ */
+function getFlowMultiplier(lfFlow) {
+    const flow = Math.max(lfFlow, 1000);
+    const travelHrs = TRAVEL_COEF * Math.pow(flow, TRAVEL_EXP);
+    return travelHrs / MEDIAN_TRAVEL;
+}
+
+// --- Travel-time helpers (wave-celerity adjusted) ---
+// SYNC WARNING: byte-identical LOGIC to the client copies in src/model/shared-model.js
+// (re-exported by src/estimation/great-falls.js). console.log intentionally dropped — the
+// server runs these up to 3× per cron inside the iteration loop. Rising rivers propagate
+// waves faster, so travel time is reduced (capped at 30%).
+/**
+ * Computes Point of Rocks → Great Falls travel time, reducing it (capped 30%) when the river is rising.
+ * @param {number} mult - Scalar flow-dependent travel multiplier (from getFlowMultiplier).
+ * @param {{flowState: string, ratePerHour: number}|null} [riseRate=null] - Optional rise-rate; reduction applies only when flowState is 'rising' and ratePerHour > 0.
+ * @returns {number} Travel time in hours.
+ */
+function getPoRtoGFTravelTime(mult, riseRate = null) {
+    const baseTravelTime = TRAVEL_POR_GF_BASELINE * mult;
+    if (riseRate && riseRate.flowState === 'rising' && riseRate.ratePerHour > 0) {
+        const reductionFactor = Math.min(0.30, riseRate.ratePerHour * 0.02);
+        return baseTravelTime * (1 - reductionFactor);
+    }
+    return baseTravelTime;
+}
+
+/**
+ * Computes Great Falls → Little Falls travel time, reducing it (capped 30%) when the river is rising.
+ * @param {number} mult - Scalar flow-dependent travel multiplier (from getFlowMultiplier).
+ * @param {{flowState: string, ratePerHour: number}|null} [riseRate=null] - Optional rise-rate; reduction applies only when flowState is 'rising' and ratePerHour > 0.
+ * @returns {number} Travel time in hours.
+ */
+function getGFtoLFTravelTime(mult, riseRate = null) {
+    const baseTravelTime = TRAVEL_GF_LF_BASELINE * mult;
+    if (riseRate && riseRate.flowState === 'rising' && riseRate.ratePerHour > 0) {
+        const reductionFactor = Math.min(0.30, riseRate.ratePerHour * 0.02);
+        return baseTravelTime * (1 - reductionFactor);
+    }
+    return baseTravelTime;
+}
+
+// --- Outlier-robust historic-reading selection ---
+// SYNC WARNING: byte-identical LOGIC to src/estimation/rise-rate-robust.mjs
+// (medianCfs lines 15-20, selectHistoricReading lines 71-88). Server history is clean
+// USGS data, so the outlier filter is effectively a no-op here; ported so the server's
+// time-shift lookup matches the client's on identical input (C8, v36.4) + future-proofing.
+/**
+ * Computes the median cfs value over a set of reading entries.
+ * @param {Array<{cfs: number}>} entries - Reading entries (only the cfs field is used).
+ * @returns {number|null} The median cfs, or null if entries is empty/falsy.
+ */
+function medianCfs(entries) {
+    if (!entries || entries.length === 0) return null;
+    const vals = entries.map(e => e.cfs).sort((a, b) => a - b);
+    const mid = Math.floor(vals.length / 2);
+    return vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+}
+
+/**
+ * Selects the historic reading closest to a target time, after a median-based outlier filter on candidates within the match window.
+ * @param {Array<{timestamp: number, cfs: number}>} history - Candidate readings (epoch ms + cfs).
+ * @param {number} targetTime - Target timestamp in epoch ms.
+ * @param {Object} [opts={}] - Tuning options.
+ * @param {number} [opts.matchMs=3600000] - Max time distance (ms) for a candidate to qualify.
+ * @param {number} [opts.outlierFrac=0.40] - Max fractional deviation from the median cfs to survive the filter.
+ * @param {number} [opts.minForFilter=3] - Min candidate count before the outlier filter is applied.
+ * @returns {{timestamp: number, cfs: number}|null} The closest qualifying reading, or null if none.
+ */
+function selectHistoricReading(history, targetTime, opts = {}) {
+    const matchMs = opts.matchMs ?? 60 * 60 * 1000;
+    const outlierFrac = opts.outlierFrac ?? 0.40;
+    const minForFilter = opts.minForFilter ?? 3;
+    const candidates = history.filter(e =>
+        e && e.cfs > 0 && Math.abs(e.timestamp - targetTime) < matchMs);
+    if (candidates.length === 0) return null;
+    let pool = candidates;
+    if (candidates.length >= minForFilter) {
+        const med = medianCfs(candidates);
+        if (med > 0) {
+            const filtered = candidates.filter(e => Math.abs(e.cfs - med) / med <= outlierFrac);
+            if (filtered.length > 0) pool = filtered;
+        }
+    }
+    return pool.reduce((best, e) =>
+        Math.abs(e.timestamp - targetTime) < Math.abs(best.timestamp - targetTime) ? e : best, pool[0]);
+}
+
+// --- Flow state classification ---
+// Threshold scales with flow: max(100 cfs, 2% of flow)
+// SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
+
+/**
+ * Classifies the flow trend ('rising' | 'falling' | 'steady') by comparing the current flow to the reading ~6h ago.
+ * Requires ≥8 history entries; the change must exceed max(100 cfs, 2% of current) to be non-steady.
+ * @param {Array<{timestamp: number, cfs: number}>} history - Chronological readings (epoch ms + cfs).
+ * @param {number} currentCFS - The current flow in cfs.
+ * @returns {string} 'rising', 'falling', or 'steady'.
+ */
+function getFlowState(history, currentCFS) {
+    if (!history?.length || history.length < 8) return 'steady';
+
+    const sixHoursAgo = Date.now() - (6 * 60 * 60 * 1000);
+    let pastReading = null;
+
+    for (const r of history) {
+        if (r.timestamp <= sixHoursAgo) {
+            pastReading = r;
+        }
+    }
+
+    if (!pastReading) return 'steady';
+
+    const change = currentCFS - pastReading.cfs;
+    const absChange = Math.abs(change);
+
+    const minAbsChange = 100;
+    const minPctChange = 0.02;
+    const threshold = Math.max(minAbsChange, currentCFS * minPctChange);
+
+    if (absChange >= threshold) {
+        if (change > 0) return 'rising';
+        if (change < 0) return 'falling';
+    }
+    return 'steady';
+}
+
+// --- EMA learning alpha ---
+// Shared between scheduled-update.js and any other server-side learners.
+// Client copy: src/model/constants.js GF_EMA_ALPHA = 0.3
+const GF_EMA_ALPHA = 0.3;
+
+// --- Soft ceiling ratio ---
+// v28.0: Cap GF estimate at 120% of LF actual.
+// Validated in 25-config grid search on 117k hourly obs (backtest_117k_audit.md).
+const CEILING_RATIO = 1.20;
+
+// --- PoR-delta decay cap ---
+// v28.0: Lowered from 0.75 to 0.50 based on validation.
+const DECAY_CAP = 0.50;
+
+// --- PoR rise rate from server-side history ---
+// Server equivalent of client's getPoRRiseRate() in great-falls.js.
+// Used by makeGFPrediction() to apply wave celerity travel time reduction.
+// history: array of { timestamp, cfs } sorted ascending (oldest first)
+//
+// DELIBERATE DIVERGENCE (do NOT "resync" by reverting): the client copy uses
+// median-of-record selection for current/past readings because it merges noisy
+// localStorage. This server copy keeps the simple last-entry / closest-to-6h
+// selection because its `history` is rebuilt fresh from USGS and pre-sorted each
+// cron — clean by construction. Only the rising/falling/steady THRESHOLDS must
+// stay identical across the two (they do).
+
+/**
+ * Computes the Point of Rocks rise rate from server-side history (last entry vs. closest entry at/before 6h ago).
+ * @param {Array<{timestamp: number, cfs: number}>} history - Readings sorted ascending (oldest first); needs ≥4 entries.
+ * @returns {{ratePerHour: number, flowState: string}|null} Percent-change-per-hour and the flow state, or null if insufficient/invalid data.
+ */
+function getPoRRiseRateFromHistory(history) {
+    if (!history || history.length < 4) return null;
+    const sixHoursAgo = Date.now() - (6 * 60 * 60 * 1000);
+    const current = history[history.length - 1];
+    // Find most recent entry at or before the 6-hour mark
+    let past = null;
+    for (const r of history) {
+        if (r.timestamp <= sixHoursAgo) past = r;
+    }
+    if (!past || !current) return null;
+    const hoursDiff = (current.timestamp - past.timestamp) / 3600000;
+    if (hoursDiff <= 0) return null;
+    const pctChange = ((current.cfs - past.cfs) / past.cfs) * 100;
+    const ratePerHour = pctChange / hoursDiff;
+    return { ratePerHour, flowState: getFlowState(history, current.cfs) };
+}
+
+// --- Hierarchical correction fallback (v35.1) ---
+// Pure helpers for getGFCorrection(). When a specific flow-bin × flow-state
+// has <5 observations, fall back through: same-bin pooled → adjacent-bin same-state → 0.
+// Linear blending eliminates discontinuity at the 5-obs threshold.
+
+/**
+ * Returns a correction bin's scalar correction value, preferring the EMA-smoothed mean over the raw mean.
+ * @param {Object} stateData - One (flowBin × flowState) bin's stats; may have {number} emaMeanError and/or {number} meanError.
+ * @returns {number} The EMA mean error if present, else the raw mean error, else 0.
+ */
+function getBinCorrection(stateData) {
+    if (stateData.emaMeanError !== undefined) return stateData.emaMeanError;
+    return stateData.meanError || 0;
+}
+
+/**
+ * Computes a hierarchical fallback correction when a (flowBin × flowState) bin has too few observations.
+ * Falls back through: same-bin count-weighted average of states with ≥5 obs → adjacent-bin same-state (or steady) with ≥5 obs → 0.
+ * @param {Object} correctionBins - Map of flowBin → { rising, falling, steady } stats objects.
+ * @param {string} flowBin - The target flow bin key (e.g. '3000-6000').
+ * @param {string} flowState - The flow state ('rising' | 'falling' | 'steady').
+ * @returns {number} The fallback correction value, or 0 if none qualifies.
+ */
+function getFallbackCorrection(correctionBins, flowBin, flowState) {
+    const bin = correctionBins[flowBin];
+    if (bin) {
+        const states = ['rising', 'falling', 'steady'];
+        let totalWeight = 0;
+        let weightedSum = 0;
+        for (const s of states) {
+            const sd = bin[s];
+            if (sd && sd.count >= 5) {
+                weightedSum += sd.count * getBinCorrection(sd);
+                totalWeight += sd.count;
+            }
+        }
+        if (totalWeight > 0) return weightedSum / totalWeight;
+    }
+
+    const idx = GF_FLOW_BINS.indexOf(flowBin);
+    const neighbors = [idx - 1, idx + 1].filter(i => i >= 0 && i < GF_FLOW_BINS.length);
+    for (const ni of neighbors) {
+        const neighbor = correctionBins[GF_FLOW_BINS[ni]];
+        if (!neighbor) continue;
+        const sd = neighbor[flowState] || neighbor['steady'];
+        if (sd && sd.count >= 5) return getBinCorrection(sd);
+    }
+
+    return 0;
+}
+
+// Pure hierarchical correction lookup for a (flowBin, flowState).
+// Blends the bin's own EMA with the hierarchical fallback while the bin has <5 obs,
+// crossing smoothly to the bin value at the 5-obs threshold. Pure: correctionBins is
+// passed in (no globals), so the client mirror in src/model/shared-model.js is byte-identical.
+/**
+ * Pure hierarchical correction lookup for a (flowBin, flowState); blends the bin's own EMA with the
+ * hierarchical fallback while the bin has <5 obs, crossing smoothly to the bin value at 5 obs.
+ * @param {Object|null} correctionBins - Map of flowBin → { rising, falling, steady } stats; returns 0 if falsy.
+ * @param {string} flowBin - The target flow bin key (e.g. '3000-6000').
+ * @param {string} flowState - The flow state ('rising' | 'falling' | 'steady').
+ * @returns {number} The blended correction value.
+ */
+function getGFCorrection(correctionBins, flowBin, flowState) {
+    if (!correctionBins) return 0;
+
+    const bin = correctionBins[flowBin];
+    const stateData = bin?.[flowState] || bin?.['steady'];
+    const count = stateData?.count || 0;
+
+    if (count >= 5) return getBinCorrection(stateData);
+
+    const fallback = getFallbackCorrection(correctionBins, flowBin, flowState);
+    const weight = count / 5;
+    const binVal = count > 0 ? getBinCorrection(stateData) : 0;
+    return weight * binVal + (1 - weight) * fallback;
+}
+
+// --- C45 (v37.0): flow-edge transition smoothing of the APPLIED correction ---
+// SYNC WARNING: byte-identical LOGIC to src/model/shared-model.js getGFCorrectionInterpolated — keep in
+// sync (the correction-parity test asserts equality). Ramps the correction linearly (in log flow) within a
+// ±CORR_SMOOTH_BAND band around the LOW/MID boundaries (3k/6k/12k) only; flows away from a boundary keep
+// their exact binned correction; the 25000/50000 boundaries are LEFT as steps (genuine high-flow regime
+// structure — backtest showed smoothing them degraded accuracy). Learning is unchanged (bins still keyed by
+// getFlowBin(rawFinal)); only the APPLICATION is continuous, so there is no learn↔apply feedback.
+const CORR_SMOOTH_BAND = 0.12;   // ±12% flow around each smoothed boundary (gated value)
+const CORR_SMOOTH_BOUNDARIES = [
+    { B: 3000,  below: '0-3000',     above: '3000-6000' },
+    { B: 6000,  below: '3000-6000',  above: '6000-12000' },
+    { B: 12000, below: '6000-12000', above: '12000-25000' },
+];
+/**
+ * Flow-continuous correction lookup: ramps linearly (in log flow) between adjacent bins' corrections within
+ * a ±CORR_SMOOTH_BAND band around the low/mid boundaries (3k/6k/12k); away from a boundary returns the exact binned value.
+ * @param {Object|null} correctionBins - Map of flowBin → { rising, falling, steady } stats; returns 0 if falsy.
+ * @param {number} flowCFS - Flow in cfs (floored to 1 internally for the log).
+ * @param {string} flowState - The flow state ('rising' | 'falling' | 'steady').
+ * @returns {number} The flow-continuous correction value.
+ */
+function getGFCorrectionInterpolated(correctionBins, flowCFS, flowState) {
+    if (!correctionBins) return 0;
+    const f = Math.max(flowCFS, 1);
+    const lnf = Math.log(f);
+    for (const bd of CORR_SMOOTH_BOUNDARIES) {
+        const lnLo = Math.log(bd.B / (1 + CORR_SMOOTH_BAND));
+        const lnHi = Math.log(bd.B * (1 + CORR_SMOOTH_BAND));
+        if (lnf > lnLo && lnf < lnHi) {                 // inside a smoothed boundary's band → ramp
+            const t = (lnf - lnLo) / (lnHi - lnLo);
+            const cLo = getGFCorrection(correctionBins, bd.below, flowState);
+            const cHi = getGFCorrection(correctionBins, bd.above, flowState);
+            return (1 - t) * cLo + t * cHi;
+        }
+    }
+    return getGFCorrection(correctionBins, getFlowBin(f), flowState);  // away from a smoothed boundary → own bin (exact)
+}
+
+// Assemble the 18-bin correction structure from raw DB rows (observation_type
+// 'gf_correction_bin'). Seeds every (bin × state) empty, then overlays matching rows.
+// Skips stage_* keys (a separate rating-curve series) explicitly. Shared by the cron
+// (scheduled-update.js) and the API read path (sync-learning.js) so both build bins identically.
+/**
+ * Assembles the 18-bin (6 flow bins × 3 states) correction structure from raw DB rows, seeding every
+ * (bin × state) empty and overlaying matching rows; skips stage_* keys (a separate rating-curve series).
+ * @param {Array<Object>} rows - DB rows, each with {string} gauge_id ('<flowBin>_<flowState>') and {Object} data; non-array yields empty bins.
+ * @returns {Object} Map of flowBin → { rising, falling, steady } stats objects.
+ */
+function buildCorrectionBins(rows) {
+    const correctionBins = {};
+    GF_FLOW_BINS.forEach(bin => {
+        correctionBins[bin] = {
+            rising:  { count: 0, sumError: 0, sumErrorSq: 0, meanError: 0 },
+            falling: { count: 0, sumError: 0, sumErrorSq: 0, meanError: 0 },
+            steady:  { count: 0, sumError: 0, sumErrorSq: 0, meanError: 0 }
+        };
+    });
+    if (Array.isArray(rows)) {
+        rows.forEach(b => {
+            if (!b || typeof b.gauge_id !== 'string') return;
+            if (b.gauge_id.startsWith('stage_')) return;  // separate stage-error series
+            const [flowBin, flowState] = b.gauge_id.split('_');
+            if (correctionBins[flowBin] && correctionBins[flowBin][flowState]) {
+                correctionBins[flowBin][flowState] = b.data;
+            }
+        });
+    }
+    return correctionBins;
+}
+
+// End-apply, unit gain (v36.0). The single point client and server both call to turn a
+// raw final estimate into the displayed/corrected estimate, so the two cannot drift.
+//   correctedFinal = rawFinalUnclipped − correction, then a display-only 120%-LF ceiling guard.
+// The correction is looked up off the bin of the UNCLIPPED raw final, which is also the bin
+// the EMA learns into — so apply-bin == learn-bin by construction. Pure (no rounding; callers round).
+/**
+ * Turns a raw final estimate into the corrected/displayed estimate: subtracts the flow-continuous correction,
+ * then applies a display-only 120%-of-LF ceiling guard. The correction is looked up off the unclipped raw's bin (== the learn-bin).
+ * @param {Object} params - Destructured input.
+ * @param {number} params.rawFinalUnclipped - Raw final GF estimate in cfs (also the learn-bin source).
+ * @param {number} params.lfCFS - Observed Little Falls flow in cfs; ceiling applied only when > 0.
+ * @param {Object|null} params.correctionBins - Map of flowBin → { rising, falling, steady } stats.
+ * @param {string} params.flowState - The flow state ('rising' | 'falling' | 'steady').
+ * @returns {{flowBin: string, correction: number, correctedFinalUnclipped: number, correctedFinal: number, ceilingApplied: boolean}} Correction telemetry and the corrected estimate.
+ */
+function applyGFCorrection({ rawFinalUnclipped, lfCFS, correctionBins, flowState }) {
+    const flowBin = getFlowBin(rawFinalUnclipped);   // still the discrete learn-bin (telemetry + CI lookup)
+    const correction = getGFCorrectionInterpolated(correctionBins, rawFinalUnclipped, flowState);  // C45 v37.0: continuous in flow
+    const correctedFinalUnclipped = rawFinalUnclipped - correction;
+
+    let correctedFinal = correctedFinalUnclipped;
+    let ceilingApplied = false;
+    if (lfCFS > 0) {
+        const maxEstimate = lfCFS * CEILING_RATIO;
+        if (correctedFinal > maxEstimate) {
+            correctedFinal = maxEstimate;
+            ceilingApplied = true;
+        }
+    }
+
+    return { flowBin, correction, correctedFinalUnclipped, correctedFinal, ceilingApplied };
+}
+
+// --- EMA correction-bin update (v36.1; clamp rule rewritten v39.0) ---
+// Pure, in-place update of a single correction bin's running stats from one RAW residual
+// (errorCFS = rawFinalCFS − actualLF). Extracted verbatim from validatePendingPredictions
+// (scheduled-update.js) so the cron AND the offline CI backtest harness learn through the
+// SAME code — no drift (the v36.0 shared-helper philosophy, applied to learning).
+//
+// Contract:
+//  - HARD-flagged observations must be filtered by the CALLER; they never reach this function.
+//  - SOFT-flagged observations are clamped to ±2σ around the EMA centre, but ONLY when the bin
+//    ALREADY held ≥10 observations BEFORE this one (so σ is meaningful).
+//  - v39.0: σ and the centre are the PRE-observation values. Through v37.x the clamp width was
+//    computed AFTER the raw error had entered sumErrorSq, so an extreme observation widened its own
+//    clamp (had a −4,275 cfs miss in a bin with σ≈436 been admitted through it, it would have moved the
+//    EMA by about 603 cfs, ≈0.6·|e|/√(n+1), i.e. proportional to the error and not bounded; in fact
+//    that miss was hard-flagged and never learned). Now the guaranteed bound is
+//    |emaAfter − centre| ≤ α·2·σ_pre = 0.6·σ_pre per clamped observation.
+//    The gate moved from post-increment count ≥10 (pre ≥ 9) to PRE count ≥10 — a one-observation
+//    shift for the EF_DISCREPANCY soft path (TODO #34 tracks the n=5 / n=10 mismatch).
+//  - No clamp when σ_pre is zero or non-finite (a zero-width clamp would freeze the bin; NaN must
+//    never reach the EMA) or when the centre is non-finite.
+//  - Lifetime sums (count, sumError, sumErrorSq, meanError) still take the RAW error, so the
+//    bin's lifetime σ still jumps once a raw extreme enters the sums.
+//  - EMA: first observation (pre-count 0) seeds emaMeanError = learningError; afterwards
+//    ema = α·learningError + (1−α)·centre with centre = emaMeanError ?? preMean (pre-state). This
+//    replaces `emaMeanError || meanError`: an EMA of exactly 0 is honoured and the post-update mean
+//    is never mixed in. For a bin with a numeric non-zero EMA and no clamp it is numerically identical.
+// Mutates `binData` and returns the telemetry object below for the caller to log.
+/**
+ * In-place EMA update of one correction bin from a single raw residual; soft-flagged residuals are clamped
+ * to ±2σ_pre around the pre-observation EMA centre once the bin already held ≥10 obs. Mutates binData
+ * (count, sums, meanError, emaMeanError).
+ * @param {Object} binData - The bin's mutable stats { count, sumError, sumErrorSq, meanError, emaMeanError? }.
+ * @param {number} errorCFS - The raw residual (rawFinalCFS − actualLF) in cfs.
+ * @param {boolean} isSoftFlagged - Whether this observation is soft-flagged; enables ±2σ_pre clamping.
+ * @returns {{learningError: number, clamped: boolean, maxDelta: number|null, sdPre: number|null, center: number|null, emaBefore: number|null, emaAfter: number}} The value actually learned, whether it was clamped, the clamp half-width (null when not applied), the pre-observation σ and EMA centre (null when the bin was empty / no finite value), the pre-update emaMeanError (null if absent) and the new emaMeanError.
+ */
+function updateCorrectionBin(binData, errorCFS, isSoftFlagged) {
+    // 1. Pre-observation snapshot.
+    const preCount = binData.count;
+    const preMean = binData.meanError;
+    const emaBefore = (binData.emaMeanError === undefined || binData.emaMeanError === null) ? null : binData.emaMeanError;
+    const center = binData.emaMeanError ?? preMean;
+    let sdPre = null;
+    if (preCount > 0) {
+        const variance = (binData.sumErrorSq / preCount) - (preMean * preMean);
+        sdPre = Math.sqrt(Math.max(0, variance));   // NaN if stats are missing — guarded below
+    }
+
+    // 2. Clamp from the PRE stats.
+    let learningError = errorCFS;
+    let clamped = false;
+    let maxDelta = null;
+    if (isSoftFlagged && preCount >= 10 && Number.isFinite(sdPre) && sdPre > 0 && Number.isFinite(center)) {
+        maxDelta = 2 * sdPre;
+        learningError = Math.max(center - maxDelta, Math.min(center + maxDelta, errorCFS));
+        clamped = (learningError !== errorCFS);
+    }
+
+    // 3. Lifetime sums take the RAW error.
+    binData.count += 1;
+    binData.sumError += errorCFS;
+    binData.sumErrorSq += errorCFS * errorCFS;
+    binData.meanError = binData.sumError / binData.count;
+
+    // 4. EMA recurrence from the pre-state centre.
+    // Documented deviation from FINAL SPEC section 1.4 (defensive; not reachable with bins as stored
+    // today): a non-finite pre-state centre seeds the EMA with the learning error instead of NaN.
+    if (preCount === 0 || !Number.isFinite(center)) {
+        binData.emaMeanError = learningError;
+    } else {
+        binData.emaMeanError = GF_EMA_ALPHA * learningError + (1 - GF_EMA_ALPHA) * center;
+    }
+
+    return {
+        learningError, clamped, maxDelta,
+        sdPre: Number.isFinite(sdPre) ? sdPre : null,
+        center: Number.isFinite(center) ? center : null,
+        emaBefore, emaAfter: binData.emaMeanError
+    };
+}
+
+// --- Statistical-outlier classifier for anomaly Check 5 (v39.0) ---
+// Check 5 no longer hard-flags: z > OUTLIER.zThreshold takes the SOFT path (learned through the
+// pre-stat ±2σ clamp in updateCorrectionBin, counted in accuracy). Pure.
+const OUTLIER = { zThreshold: 3 };
+
+/**
+ * Classifies one raw residual against the bin's PRE-observation stats (call BEFORE updateCorrectionBin mutates the bin).
+ * Gate: count ≥ 10 and a finite, positive lifetime σ. Centre is `emaMeanError ?? meanError` — the same
+ * expression updateCorrectionBin clamps around (was the lifetime mean through v37.x). Note z therefore mixes an
+ * EMA centre with a σ taken around the lifetime mean, which inflates z when the two diverge; this is
+ * consistent with the clamp. Strict `>` (z exactly 3 is not an outlier). Non-finite inputs → no outlier.
+ * @param {Object} binData - Bin stats { count, sumError, sumErrorSq, meanError, emaMeanError? }.
+ * @param {number} errorCFS - The raw residual (rawFinalCFS − actualLF) in cfs.
+ * @returns {{zScore: number|null, isOutlier: boolean}} z-score (null when not computable) and the outlier verdict.
+ */
+function classifyOutlier(binData, errorCFS) {
+    if (!binData || !(binData.count >= 10)) return { zScore: null, isOutlier: false };
+    const variance = (binData.sumErrorSq / binData.count) - (binData.meanError * binData.meanError);
+    const sd = Math.sqrt(Math.max(0, variance));
+    if (!Number.isFinite(sd) || !(sd > 0)) return { zScore: null, isOutlier: false };
+    const center = binData.emaMeanError ?? binData.meanError;
+    if (!Number.isFinite(errorCFS) || !Number.isFinite(center)) return { zScore: null, isOutlier: false };
+    const zScore = Math.abs(errorCFS - center) / sd;
+    return { zScore, isOutlier: zScore > OUTLIER.zThreshold };
+}
+
+// --- Tributary drainage-area fallback ratios ---
+// Used only when real-time gauge data is unavailable.
+const TRIB_FALLBACK = {
+    monocacy: 0.071,
+    goose: 0.030,
+    broadRun: 0.0066,
+    seneca: 0.0087
+};
+
+// --- LF stage from flow (inverse rating curve) ---
+// Based on USGS field measurements at Little Falls (01646500), 2015-2025
+// SYNC WARNING: Client copy is src/model/shared-model.js — keep in sync!
+/**
+ * Estimates Little Falls gauge stage (feet) from flow via the piecewise-linear rating curve.
+ * @param {number} cfs - Flow in cubic feet per second.
+ * @returns {number} Estimated stage in feet.
+ */
+function estimateLFStage(cfs) {
+    if (cfs < 600) return 2.40 + (cfs / 600) * 0.06;
+    if (cfs < 1300) return 2.46 + ((cfs - 600) / 700) * 0.23;
+    if (cfs < 2000) return 2.69 + ((cfs - 1300) / 700) * 0.14;
+    if (cfs < 2600) return 2.83 + ((cfs - 2000) / 600) * 0.13;
+    if (cfs < 3200) return 2.96 + ((cfs - 2600) / 600) * 0.13;
+    if (cfs < 3600) return 3.09 + ((cfs - 3200) / 400) * 0.07;
+    if (cfs < 4200) return 3.16 + ((cfs - 3600) / 600) * 0.07;
+    if (cfs < 5000) return 3.23 + ((cfs - 4200) / 800) * 0.12;
+    if (cfs < 5700) return 3.35 + ((cfs - 5000) / 700) * 0.11;
+    if (cfs < 7500) return 3.46 + ((cfs - 5700) / 1800) * 0.21;
+    if (cfs < 10000) return 3.67 + ((cfs - 7500) / 2500) * 0.28;
+    if (cfs < 13000) return 3.95 + ((cfs - 10000) / 3000) * 0.34;
+    if (cfs < 28000) return 4.29 + ((cfs - 13000) / 15000) * 1.21;
+    if (cfs < 50000) return 5.50 + ((cfs - 28000) / 22000) * 1.29;
+    if (cfs < 80000) return 6.79 + ((cfs - 50000) / 30000) * 1.57;
+    if (cfs < 150000) return 8.36 + ((cfs - 80000) / 70000) * 2.57;
+    return 10.93 + ((cfs - 150000) / 100000) * 2.5;
+}
+
+// --- Pending-prediction validation window ---
+
+// A validated prediction is accepted only within this delay after its due time.
+// With a 1h cron, normal delay is 0-1h; beyond this, flow conditions have changed
+// too much to learn from. Shared by the cron validator and the API write path.
+const VALIDATION_MAX_DELAY_MS = 2.5 * 60 * 60 * 1000;
+
+// Should an EXISTING pending prediction be replaced by a newly computed one?
+// True if it has missed its validation window, OR if its validationDue is missing
+// or unparseable. An Invalid Date is truthy and `now - InvalidDate` is NaN, so the
+// old `!validationDue || (now - validationDue) > MAX` guard treated a bad-date row
+// as still-in-window forever — deadlocking the single pending slot (C12).
+/**
+ * Decides whether an existing pending prediction may be overwritten by a new one — true if it has missed
+ * its validation window or its validationDue is missing/unparseable.
+ * @param {Object} existingData - The existing pending row; reads its {string} validationDue (ISO date).
+ * @param {number} nowMs - Current time in epoch ms.
+ * @returns {boolean} True if the prediction is replaceable.
+ */
+function isExistingPredictionReplaceable(existingData, nowMs) {
+    const dueMs = Date.parse(existingData?.validationDue);
+    return isNaN(dueMs) || (nowMs - dueMs) > VALIDATION_MAX_DELAY_MS;
+}
+
+module.exports = {
+    getSupabase,
+    VALIDATION_MAX_DELAY_MS, isExistingPredictionReplaceable,
+    GF_FLOW_BINS, getFlowBin,
+    estimateLFFlowFromStage,
+    TRAVEL_COEF, TRAVEL_EXP, MEDIAN_TRAVEL, TRAVEL_POR_GF_BASELINE, TRAVEL_GF_LF_BASELINE,
+    POR_HISTORY_MAX_AGE,
+    EF_MODEL,
+    getEFWeight, getFlowMultiplier, getFlowState,
+    EF_DIVERGENCE, updateEfDivergenceState,
+    ICE_CHECK, isIcePlausible,
+    LF_RESIDUAL, updateLfResidualState,
+    getPoRtoGFTravelTime, getGFtoLFTravelTime,
+    medianCfs, selectHistoricReading,
+    GF_EMA_ALPHA,
+    getPoRRiseRateFromHistory,
+    CEILING_RATIO, DECAY_CAP,
+    TRIB_FALLBACK,
+    getBinCorrection, getFallbackCorrection,
+    getGFCorrection, getGFCorrectionInterpolated, buildCorrectionBins, applyGFCorrection,
+    updateCorrectionBin,
+    OUTLIER, classifyOutlier,
+    estimateLFStage
+};

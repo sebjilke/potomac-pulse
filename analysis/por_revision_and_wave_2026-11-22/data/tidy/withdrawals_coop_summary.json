@@ -1,0 +1,36 @@
+{
+ "rows": 50,
+ "columns": 29,
+ "pages_in": 50,
+ "manifest_entries_added": 61,
+ "blank_values_not_available_or_missing_by_column": {
+  "lf_prev_day_cfs": 1,
+  "por_prev_day_cfs": 3,
+  "coop_flow_below_gf_intake_cfs": 1,
+  "coop_flow_below_gf_intake_mgd": 1,
+  "wssc_potomac_mgd": 4,
+  "total_potomac_withdrawal_mgd": 4,
+  "total_net_potomac_withdrawal_mgd": 4
+ },
+ "of_which_printed_as_not_available": {
+  "lf_prev_day_cfs": 1,
+  "por_prev_day_cfs": 3,
+  "coop_flow_below_gf_intake_cfs": 1,
+  "wssc_potomac_mgd": 4,
+  "total_potomac_withdrawal_mgd": 4,
+  "total_net_potomac_withdrawal_mgd": 4
+ },
+ "lines_absent_from_page_by_column": {},
+ "nonblank_flags_by_column": {
+  "wash_aqueduct_great_falls_flag": 1,
+  "lf_prev_day_flag(not available text)": 1,
+  "por_prev_day_flag(not available text)": 3,
+  "coop_flow_below_gf_intake_flag(not available text)": 1,
+  "por_prev_day_flag": 1,
+  "lf_prev_day_flag": 1,
+  "coop_flow_below_gf_intake_flag": 1
+ },
+ "rows_with_nonblank_special_conditions_text": 50,
+ "special_conditions_none_or_blank": 5,
+ "notes": []
+}

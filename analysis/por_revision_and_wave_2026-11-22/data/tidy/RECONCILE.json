@@ -1,0 +1,560 @@
+{
+ "readings_old_archive rows (raw values count)": {
+  "raw_side": 303659,
+  "tidy_side": 303659,
+  "ok": true
+ },
+ "readings_old_archive sentinel blanks (raw)": 5,
+ "readings_old_octpull rows": {
+  "raw_side": 57135,
+  "tidy_side": 57135,
+  "ok": true
+ },
+ "readings_current_model rows (+dups 0)": {
+  "raw_side": 375865,
+  "tidy_side": 375865,
+  "ok": true
+ },
+ "readings_current_upstream rows": {
+  "raw_side": 126281,
+  "tidy_side": 126281,
+  "ok": true
+ },
+ "readings_current_census rows": {
+  "raw_side": 271042,
+  "tidy_side": 271042,
+  "ok": true
+ },
+ "dropped_not_00011_total": 0,
+ "runs rows": {
+  "raw_side": 305,
+  "tidy_side": 305,
+  "ok": true
+ },
+ "runs_tails rows": {
+  "raw_side": 9803,
+  "tidy_side": 9803,
+  "ok": true
+ },
+ "checks rows": {
+  "raw_side": 20,
+  "tidy_side": 20,
+  "ok": true
+ },
+ "bins rows": {
+  "raw_side": 364,
+  "tidy_side": 364,
+  "ok": true
+ },
+ "state_other rows (gf_metadata+gf_prediction+validation_failure)": {
+  "raw_side": 57,
+  "tidy_side": 57,
+  "ok": true
+ },
+ "field_measurements rows (+exact dups)": {
+  "raw_side": 2474,
+  "tidy_side": 2474,
+  "ok": true
+ },
+ "sites rows": {
+  "raw_side": 15,
+  "tidy_side": 15,
+  "ok": true
+ },
+ "traced_cells": [
+  {
+   "table": "readings_old_archive.csv",
+   "gauge": "01646500",
+   "param": "00065",
+   "time_utc": "2026-10-23T17:25:00Z",
+   "tidy_value": "3.15",
+   "raw_dateTime": "2026-10-23T13:25:00.000-04:00",
+   "raw_value": "3.15",
+   "ok": true
+  },
+  {
+   "table": "readings_old_archive.csv",
+   "gauge": "01646500",
+   "param": "00065",
+   "time_utc": "2026-06-27T18:05:00Z",
+   "tidy_value": "2.91",
+   "raw_dateTime": "2026-06-27T14:05:00.000-04:00",
+   "raw_value": "2.91",
+   "ok": true
+  },
+  {
+   "table": "readings_old_archive.csv",
+   "gauge": "01644148",
+   "param": "00065",
+   "time_utc": "2026-09-17T09:00:00Z",
+   "tidy_value": "3.78",
+   "raw_dateTime": "2026-09-17T05:00:00.000-04:00",
+   "raw_value": "3.78",
+   "ok": true
+  },
+  {
+   "table": "readings_old_archive.csv",
+   "gauge": "01645000",
+   "param": "00060",
+   "time_utc": "2026-09-18T17:05:00Z",
+   "tidy_value": "60.5",
+   "raw_dateTime": "2026-09-18T13:05:00.000-04:00",
+   "raw_value": "60.5",
+   "ok": true
+  },
+  {
+   "table": "readings_old_archive.csv",
+   "gauge": "01638500",
+   "param": "00010",
+   "time_utc": "2026-08-16T22:20:00Z",
+   "tidy_value": "26.7",
+   "raw_dateTime": "2026-08-16T18:20:00.000-04:00",
+   "raw_value": "26.7",
+   "ok": true
+  },
+  {
+   "table": "readings_old_archive.csv",
+   "gauge": "01638500",
+   "param": "00010",
+   "time_utc": "2026-10-03T15:00:00Z",
+   "tidy_value": "21.5",
+   "raw_dateTime": "2026-10-03T11:00:00.000-04:00",
+   "raw_value": "21.5",
+   "ok": true
+  },
+  {
+   "table": "readings_old_octpull.csv",
+   "gauge": "01645000",
+   "param": "00065",
+   "time_utc": "2026-10-17T11:50:00Z",
+   "tidy_value": "2.33",
+   "raw_dateTime": "2026-10-17T07:50:00.000-04:00",
+   "raw_value": "2.33",
+   "ok": true
+  },
+  {
+   "table": "readings_old_octpull.csv",
+   "gauge": "01644280",
+   "param": "00060",
+   "time_utc": "2026-10-13T14:25:00Z",
+   "tidy_value": "378",
+   "raw_dateTime": "2026-10-13T10:25:00.000-04:00",
+   "raw_value": "378",
+   "ok": true
+  },
+  {
+   "table": "readings_old_octpull.csv",
+   "gauge": "01646500",
+   "param": "00065",
+   "time_utc": "2026-10-06T13:40:00Z",
+   "tidy_value": "2.74",
+   "raw_dateTime": "2026-10-06T09:40:00.000-04:00",
+   "raw_value": "2.74",
+   "ok": true
+  },
+  {
+   "table": "readings_old_octpull.csv",
+   "gauge": "01638500",
+   "param": "00010",
+   "time_utc": "2026-10-08T22:30:00Z",
+   "tidy_value": "20.6",
+   "raw_dateTime": "2026-10-08T18:30:00.000-04:00",
+   "raw_value": "20.6",
+   "ok": true
+  },
+  {
+   "table": "readings_old_octpull.csv",
+   "gauge": "01638500",
+   "param": "00065",
+   "time_utc": "2026-10-09T22:10:00Z",
+   "tidy_value": "1.05",
+   "raw_dateTime": "2026-10-09T18:10:00.000-04:00",
+   "raw_value": "1.05",
+   "ok": true
+  },
+  {
+   "table": "readings_old_octpull.csv",
+   "gauge": "01644280",
+   "param": "00065",
+   "time_utc": "2026-10-07T23:25:00Z",
+   "tidy_value": "1.72",
+   "raw_dateTime": "2026-10-07T19:25:00.000-04:00",
+   "raw_value": "1.72",
+   "ok": true
+  },
+  {
+   "table": "readings_current_model.csv",
+   "gauge": "01644280",
+   "param": "00060",
+   "time_utc": "2026-11-02T23:35:00Z",
+   "tidy_value": "33.3",
+   "raw_time": "2026-11-02T23:35:00+00:00",
+   "raw_value": "33.3",
+   "ok": true
+  },
+  {
+   "table": "readings_current_model.csv",
+   "gauge": "01644280",
+   "param": "00060",
+   "time_utc": "2026-10-23T15:50:00Z",
+   "tidy_value": "54.4",
+   "raw_time": "2026-10-23T15:50:00+00:00",
+   "raw_value": "54.4",
+   "ok": true
+  },
+  {
+   "table": "readings_current_model.csv",
+   "gauge": "01646500",
+   "param": "00060",
+   "time_utc": "2026-09-06T03:55:00Z",
+   "tidy_value": "2160",
+   "raw_time": "2026-09-06T03:55:00+00:00",
+   "raw_value": "2160",
+   "ok": true
+  },
+  {
+   "table": "readings_current_model.csv",
+   "gauge": "01638500",
+   "param": "00010",
+   "time_utc": "2026-06-17T18:45:00Z",
+   "tidy_value": "26.3",
+   "raw_time": "2026-06-17T18:45:00+00:00",
+   "raw_value": "26.3",
+   "ok": true
+  },
+  {
+   "table": "readings_current_model.csv",
+   "gauge": "01643000",
+   "param": "00060",
+   "time_utc": "2026-06-30T00:00:00Z",
+   "tidy_value": "154",
+   "raw_time": "2026-06-30T00:00:00+00:00",
+   "raw_value": "154",
+   "ok": true
+  },
+  {
+   "table": "readings_current_model.csv",
+   "gauge": "01646500",
+   "param": "00065",
+   "time_utc": "2026-08-05T12:10:00Z",
+   "tidy_value": "2.78",
+   "raw_time": "2026-08-05T12:10:00+00:00",
+   "raw_value": "2.78",
+   "ok": true
+  },
+  {
+   "table": "readings_current_upstream.csv",
+   "gauge": "01610000",
+   "param": "00060",
+   "time_utc": "2026-10-23T21:30:00Z",
+   "tidy_value": "1350",
+   "raw_time": "2026-10-23T21:30:00+00:00",
+   "raw_value": "1350",
+   "ok": true
+  },
+  {
+   "table": "readings_current_upstream.csv",
+   "gauge": "01616500",
+   "param": "00060",
+   "time_utc": "2026-11-05T05:30:00Z",
+   "tidy_value": "74.2",
+   "raw_time": "2026-11-05T05:30:00+00:00",
+   "raw_value": "74.2",
+   "ok": true
+  },
+  {
+   "table": "readings_current_upstream.csv",
+   "gauge": "01618000",
+   "param": "00065",
+   "time_utc": "2026-09-29T20:45:00Z",
+   "tidy_value": "2.70",
+   "raw_time": "2026-09-29T20:45:00+00:00",
+   "raw_value": "2.70",
+   "ok": true
+  },
+  {
+   "table": "readings_current_upstream.csv",
+   "gauge": "01613000",
+   "param": "00065",
+   "time_utc": "2026-10-21T21:45:00Z",
+   "tidy_value": "4.08",
+   "raw_time": "2026-10-21T21:45:00+00:00",
+   "raw_value": "4.08",
+   "ok": true
+  },
+  {
+   "table": "readings_current_upstream.csv",
+   "gauge": "01614500",
+   "param": "00065",
+   "time_utc": "2026-10-12T09:15:00Z",
+   "tidy_value": "5.32",
+   "raw_time": "2026-10-12T09:15:00+00:00",
+   "raw_value": "5.32",
+   "ok": true
+  },
+  {
+   "table": "readings_current_upstream.csv",
+   "gauge": "01614500",
+   "param": "00065",
+   "time_utc": "2026-10-28T23:00:00Z",
+   "tidy_value": "1.57",
+   "raw_time": "2026-10-28T23:00:00+00:00",
+   "raw_value": "1.57",
+   "ok": true
+  },
+  {
+   "table": "readings_current_census.csv",
+   "gauge": "01646500",
+   "param": "00060",
+   "time_utc": "2026-08-31T15:55:00Z",
+   "tidy_value": "2960",
+   "raw_time": "2026-08-31T15:55:00+00:00",
+   "raw_value": "2960",
+   "ok": true
+  },
+  {
+   "table": "readings_current_census.csv",
+   "gauge": "01646500",
+   "param": "00060",
+   "time_utc": "2026-03-03T18:05:00Z",
+   "tidy_value": "7740",
+   "raw_time": "2026-03-03T18:05:00+00:00",
+   "raw_value": "7740",
+   "ok": true
+  },
+  {
+   "table": "readings_current_census.csv",
+   "gauge": "01646500",
+   "param": "00060",
+   "time_utc": "2026-06-10T08:05:00Z",
+   "tidy_value": "4230",
+   "raw_time": "2026-06-10T08:05:00+00:00",
+   "raw_value": "4230",
+   "ok": true
+  },
+  {
+   "table": "readings_current_census.csv",
+   "gauge": "01646500",
+   "param": "00060",
+   "time_utc": "2025-02-22T19:45:00Z",
+   "tidy_value": "13700",
+   "raw_time": "2025-02-22T19:45:00+00:00",
+   "raw_value": "13700",
+   "ok": true
+  },
+  {
+   "table": "readings_current_census.csv",
+   "gauge": "01638500",
+   "param": "00060",
+   "time_utc": "2026-09-17T17:10:00Z",
+   "tidy_value": "1780",
+   "raw_time": "2026-09-17T17:10:00+00:00",
+   "raw_value": "1780",
+   "ok": true
+  },
+  {
+   "table": "readings_current_census.csv",
+   "gauge": "01638500",
+   "param": "00060",
+   "time_utc": "2026-08-08T09:10:00Z",
+   "tidy_value": "1710",
+   "raw_time": "2026-08-08T09:10:00+00:00",
+   "raw_value": "1710",
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "dfadb296-0e0e-420f-b847-f67b1dbd986d",
+   "col": "in_por_q",
+   "tidy": "1520",
+   "raw": 1520,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "dfadb296-0e0e-420f-b847-f67b1dbd986d",
+   "col": "raw_cfs",
+   "tidy": "1943",
+   "raw": 1943,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "dfadb296-0e0e-420f-b847-f67b1dbd986d",
+   "col": "trv_t",
+   "tidy": "35.88",
+   "raw": 35.88,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "dfadb296-0e0e-420f-b847-f67b1dbd986d",
+   "col": "final_cfs",
+   "tidy": "1920",
+   "raw": 1920,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "f5d649fa-37c0-4118-aa4e-1a8615a3520f",
+   "col": "in_por_q",
+   "tidy": "1720",
+   "raw": 1720,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "f5d649fa-37c0-4118-aa4e-1a8615a3520f",
+   "col": "raw_cfs",
+   "tidy": "1985",
+   "raw": 1985,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "f5d649fa-37c0-4118-aa4e-1a8615a3520f",
+   "col": "trv_t",
+   "tidy": "37.14",
+   "raw": 37.14,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "f5d649fa-37c0-4118-aa4e-1a8615a3520f",
+   "col": "final_cfs",
+   "tidy": "1987",
+   "raw": 1987,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "5ff33d7a-34f6-4c56-bc82-8f63ac866ab7",
+   "col": "in_por_q",
+   "tidy": "1820",
+   "raw": 1820,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "5ff33d7a-34f6-4c56-bc82-8f63ac866ab7",
+   "col": "raw_cfs",
+   "tidy": "1982",
+   "raw": 1982,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "5ff33d7a-34f6-4c56-bc82-8f63ac866ab7",
+   "col": "trv_t",
+   "tidy": "36.17",
+   "raw": 36.17,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "5ff33d7a-34f6-4c56-bc82-8f63ac866ab7",
+   "col": "final_cfs",
+   "tidy": "1824",
+   "raw": 1824,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "5a42e36b-c533-497d-a99b-2b5dd55517c9",
+   "col": "in_por_q",
+   "tidy": "1760",
+   "raw": 1760,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "5a42e36b-c533-497d-a99b-2b5dd55517c9",
+   "col": "raw_cfs",
+   "tidy": "1983",
+   "raw": 1983,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "5a42e36b-c533-497d-a99b-2b5dd55517c9",
+   "col": "trv_t",
+   "tidy": "38.23",
+   "raw": 38.23,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "5a42e36b-c533-497d-a99b-2b5dd55517c9",
+   "col": "final_cfs",
+   "tidy": "1833",
+   "raw": 1833,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "eceaba08-ffbd-497e-ab11-acf8926f10dc",
+   "col": "in_por_q",
+   "tidy": "1440",
+   "raw": 1440,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "eceaba08-ffbd-497e-ab11-acf8926f10dc",
+   "col": "raw_cfs",
+   "tidy": "1895",
+   "raw": 1895,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "eceaba08-ffbd-497e-ab11-acf8926f10dc",
+   "col": "trv_t",
+   "tidy": "34.95",
+   "raw": 34.95,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "eceaba08-ffbd-497e-ab11-acf8926f10dc",
+   "col": "final_cfs",
+   "tidy": "1592",
+   "raw": 1592,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "696d3c35-a048-436a-bc01-e5803b08c494",
+   "col": "in_por_q",
+   "tidy": "1740",
+   "raw": 1740,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "696d3c35-a048-436a-bc01-e5803b08c494",
+   "col": "raw_cfs",
+   "tidy": "1971.9",
+   "raw": 1971.9,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "696d3c35-a048-436a-bc01-e5803b08c494",
+   "col": "trv_t",
+   "tidy": "37.08",
+   "raw": 37.08,
+   "ok": true
+  },
+  {
+   "table": "runs.csv",
+   "row_id": "696d3c35-a048-436a-bc01-e5803b08c494",
+   "col": "final_cfs",
+   "tidy": "1920",
+   "raw": 1920,
+   "ok": true
+  }
+ ],
+ "traced_all_ok": true,
+ "n_traced": 54
+}

@@ -1,0 +1,420 @@
+{
+ "across_days": {
+  "examples_in_window": [],
+  "levels_seen_on_more_than_one_day_all": 377,
+  "levels_seen_on_more_than_one_day_in_window": 18,
+  "levels_with_different_flow_across_days_all": 156,
+  "levels_with_different_flow_across_days_in_window": 0
+ },
+ "curve": {
+  "knots": [
+   {
+    "flow": 1230,
+    "level_ft": 1.03
+   },
+   {
+    "flow": 1250,
+    "level_ft": 1.04
+   },
+   {
+    "flow": 1270,
+    "level_ft": 1.05
+   },
+   {
+    "flow": 1290,
+    "level_ft": 1.06
+   },
+   {
+    "flow": 1310,
+    "level_ft": 1.07
+   },
+   {
+    "flow": 1330,
+    "level_ft": 1.08
+   },
+   {
+    "flow": 1350,
+    "level_ft": 1.09
+   },
+   {
+    "flow": 1360,
+    "level_ft": 1.1
+   },
+   {
+    "flow": 1380,
+    "level_ft": 1.11
+   },
+   {
+    "flow": 1400,
+    "level_ft": 1.12
+   },
+   {
+    "flow": 1420,
+    "level_ft": 1.13
+   },
+   {
+    "flow": 1440,
+    "level_ft": 1.14
+   },
+   {
+    "flow": 1460,
+    "level_ft": 1.15
+   },
+   {
+    "flow": 1480,
+    "level_ft": 1.16
+   },
+   {
+    "flow": 1500,
+    "level_ft": 1.17
+   },
+   {
+    "flow": 1520,
+    "level_ft": 1.18
+   },
+   {
+    "flow": 1540,
+    "level_ft": 1.19
+   },
+   {
+    "flow": 1560,
+    "level_ft": 1.2
+   },
+   {
+    "flow": 1580,
+    "level_ft": 1.21
+   },
+   {
+    "flow": 1600,
+    "level_ft": 1.22
+   },
+   {
+    "flow": 1620,
+    "level_ft": 1.23
+   },
+   {
+    "flow": 1640,
+    "level_ft": 1.24
+   }
+  ],
+  "level_max_ft": 1.24,
+  "level_min_ft": 1.03,
+  "n_knots": 22,
+  "non_monotone_adjacent_knots": 0,
+  "ratio_high_end": {
+   "levels_ft": [
+    1.24,
+    1.23
+   ],
+   "n_pairs": 55,
+   "ratio_current_over_old": 1.2472527472527473
+  },
+  "ratio_low_end": {
+   "levels_ft": [
+    1.03,
+    1.04
+   ],
+   "n_pairs": 8,
+   "ratio_current_over_old": 1.3286573146292586
+  }
+ },
+ "diagnostic_archive_below_knot_range": [
+  {
+   "archive_pairs": 0,
+   "level_ft": 0.91
+  },
+  {
+   "archive_pairs": 0,
+   "level_ft": 0.92
+  },
+  {
+   "archive_pairs": 0,
+   "level_ft": 0.93
+  },
+  {
+   "archive_pairs": 0,
+   "level_ft": 0.94
+  },
+  {
+   "archive_pairs": 0,
+   "level_ft": 0.95
+  },
+  {
+   "archive_pairs": 0,
+   "level_ft": 0.96
+  },
+  {
+   "archive_pairs": 0,
+   "level_ft": 0.97
+  },
+  {
+   "archive_pairs": 0,
+   "level_ft": 0.98
+  },
+  {
+   "archive_pairs": 0,
+   "level_ft": 0.99
+  },
+  {
+   "archive_pairs": 0,
+   "level_ft": 1.0
+  },
+  {
+   "archive_pairs": 85,
+   "distinct_flows": 1,
+   "flow_max": 1200,
+   "flow_min": 1200,
+   "latest_pair_flow": 1200,
+   "latest_pair_time": "2026-10-11T04:15:00Z",
+   "level_ft": 1.01,
+   "most_common_flow": 1200,
+   "rule_A_value": 1190
+  },
+  {
+   "archive_pairs": 67,
+   "distinct_flows": 1,
+   "flow_max": 1220,
+   "flow_min": 1220,
+   "latest_pair_flow": 1220,
+   "latest_pair_time": "2026-10-11T05:10:00Z",
+   "level_ft": 1.02,
+   "most_common_flow": 1220,
+   "rule_A_value": 1210
+  }
+ ],
+ "extrapolated_levels_counts": {
+  "0.92": 15,
+  "0.93": 106,
+  "0.94": 98,
+  "0.95": 63,
+  "0.96": 65,
+  "0.97": 73,
+  "0.98": 61,
+  "0.99": 87,
+  "1.00": 87,
+  "1.01": 60,
+  "1.02": 208
+ },
+ "f_old_values": {
+  "by_flag": {
+   "extrapolated_low": 923,
+   "observed": 2653
+  },
+  "by_flag_after_old_period": {
+   "extrapolated_low": 923,
+   "observed": 1573
+  },
+  "by_flag_to_cutoff_of_old_period": {
+   "observed": 1080
+  },
+  "first": "2026-11-10T00:00:00Z",
+  "last": "2026-11-22T09:55:00Z",
+  "rows": 3576
+ },
+ "first_new_reading_run_at": "2026-11-13T20:00:56.220Z",
+ "fit_level_range_all_pairs": {
+  "archive_pairs_min_max_ft": [
+   1.01,
+   7.04
+  ],
+  "log_pairs_min_max_ft": [
+   1.03,
+   1.21
+  ],
+  "window_pairs_min_max_ft": [
+   1.03,
+   1.24
+  ]
+ },
+ "insample_old_current_readings": {
+  "exact_A": 71,
+  "exact_B": 71,
+  "misses": [],
+  "n": 71
+ },
+ "level_test": {
+  "equal": 279,
+  "missing_today": 0,
+  "n": 280,
+  "unequal": [
+   {
+    "hT": "2026-11-18T12:00:00Z",
+    "logged": "1.13",
+    "run_at": "2026-11-18T13:00:59.418Z",
+    "today": 1.14
+   }
+  ]
+ },
+ "level_test_old_runs": {
+  "equal": 71,
+  "n": 71
+ },
+ "lowest_level_after_old_period_ft": 0.92,
+ "lowest_level_in_f_old_values_ft": 0.92,
+ "n_old_reading_runs": 71,
+ "n_runs_predicted": 280,
+ "old_runs_after_first_new": 0,
+ "old_runs_first_at": "2026-11-10T21:00:56.805Z",
+ "old_runs_last_at": "2026-11-13T19:00:56.571Z",
+ "pairs": {
+  "archive": 43488,
+  "in_window": 935,
+  "last_old_pair_time": "2026-11-13T17:55:00Z",
+  "log": 71
+ },
+ "per_day": {
+  "cells_with_more_than_one_flow_within_day": 103,
+  "conflict_cells_in_window": 0,
+  "conflict_examples": [],
+  "day_level_cells": 3485
+ },
+ "rule_C_bands": {
+  "after_13Nov_17_55": {
+   "1.01_to_1.02": 268,
+   "below_1.01": 655,
+   "inside_knots_1.03_to_1.24": 1573
+  },
+  "all": {
+   "1.01_to_1.02": 268,
+   "below_1.01": 655,
+   "inside_knots_1.03_to_1.24": 2653
+  },
+  "flag_rule_C_all": {
+   "extrapolated_low": 655,
+   "observed": 2653,
+   "observed_oct_knot": 268
+  },
+  "rule_values_by_level_below_1.03": {
+   "0.92": [
+    1010,
+    1070,
+    1020
+   ],
+   "0.93": [
+    1030,
+    1080,
+    1040
+   ],
+   "0.94": [
+    1050,
+    1100,
+    1060
+   ],
+   "0.95": [
+    1070,
+    1110,
+    1080
+   ],
+   "0.96": [
+    1090,
+    1130,
+    1100
+   ],
+   "0.97": [
+    1110,
+    1140,
+    1120
+   ],
+   "0.98": [
+    1130,
+    1160,
+    1140
+   ],
+   "0.99": [
+    1150,
+    1170,
+    1160
+   ],
+   "1.00": [
+    1170,
+    1190,
+    1180
+   ],
+   "1.01": [
+    1190,
+    1200,
+    1200
+   ],
+   "1.02": [
+    1210,
+    1220,
+    1220
+   ]
+  },
+  "to_13Nov_17_55": {
+   "inside_knots_1.03_to_1.24": 1080
+  }
+ },
+ "rule_C_october_knots": {
+  "1.01": {
+   "days": [
+    "2026-10-10",
+    "2026-10-11"
+   ],
+   "flows": [
+    1200
+   ],
+   "pairs": 60
+  },
+  "1.02": {
+   "days": [
+    "2026-10-09",
+    "2026-10-10",
+    "2026-10-11"
+   ],
+   "flows": [
+    1220
+   ],
+   "pairs": 41
+  }
+ },
+ "runs_logged_flow_differs_from_today_after_revision": [
+  {
+   "logged": 1840.0,
+   "qT": "2026-11-18T12:00:00Z",
+   "run_at": "2026-11-18T13:00:59.418Z",
+   "today": 1860.0
+  }
+ ],
+ "test_set": {
+  "conflicting_logged_values_same_timestamp": 0,
+  "flags": {
+   "observed": 77
+  },
+  "misses_A": [],
+  "misses_B": [],
+  "n_unique_timestamps": 77,
+  "needed_extrapolation_rule_A": [],
+  "needed_extrapolation_rule_B": [],
+  "no_level_today": 0,
+  "rule_A": {
+   "abs_diff_bins": {
+    "10": 0,
+    "20": 0,
+    "30-40": 0,
+    "50+": 0,
+    "exact": 77
+   },
+   "exact": 77,
+   "exact_share": 1.0,
+   "max_abs_diff": 0,
+   "n": 77,
+   "within_20": 77
+  },
+  "rule_B": {
+   "abs_diff_bins": {
+    "10": 0,
+    "20": 0,
+    "30-40": 0,
+    "50+": 0,
+    "exact": 77
+   },
+   "exact": 77,
+   "exact_share": 1.0,
+   "max_abs_diff": 0,
+   "n": 77,
+   "within_20": 77
+  },
+  "timestamps_excluded_because_in_fit": 7
+ }
+}

@@ -1,0 +1,346 @@
+{
+ "columns": {
+  "f_old/f_old_values.csv": [
+   "time_utc",
+   "level_ft_today",
+   "f_old_rule_A_cfs",
+   "f_old_rule_B_cfs",
+   "flag",
+   "is_fit_pair",
+   "current_record_cfs",
+   "old_archive_cfs"
+  ],
+  "f_old/lookup_by_day.csv": [
+   "day_utc",
+   "level_ft",
+   "n_pairs",
+   "n_distinct_flows",
+   "flows",
+   "flow_min",
+   "flow_max",
+   "flow_latest",
+   "sources"
+  ],
+  "f_old/pairs_fit.csv": [
+   "time_utc",
+   "day_utc",
+   "level_ft_today",
+   "old_flow_cfs",
+   "current_flow_cfs",
+   "source",
+   "run_at",
+   "in_curve_window"
+  ],
+  "f_old/pairs_test.csv": [
+   "hist_ts_utc",
+   "first_run_at",
+   "n_runs_using_it",
+   "logged_hist_cfs",
+   "level_ft_today",
+   "flag",
+   "f_old_rule_A_cfs",
+   "f_old_rule_B_cfs",
+   "diff_A_cfs",
+   "diff_B_cfs",
+   "exact_A",
+   "exact_B"
+  ],
+  "out/cell_identity_test.csv": [
+   "seq",
+   "old_rule",
+   "used",
+   "old_raw_copy",
+   "old_raw_production",
+   "old_equal",
+   "new_raw_copy",
+   "new_raw_production",
+   "new_equal",
+   "old_due_equal",
+   "new_due_equal"
+  ],
+  "out/fidelity_summary.csv": [
+   "section",
+   "item",
+   "counted",
+   "runs",
+   "passes",
+   "rate",
+   "gateA_runs",
+   "gateA_passes",
+   "gateA_rate",
+   "gateB_runs",
+   "gateB_passes",
+   "gateB_rate",
+   "note"
+  ],
+  "out/fidelity_table.csv": [
+   "seq",
+   "at_utc",
+   "used",
+   "gate",
+   "ver",
+   "field",
+   "counted",
+   "logged",
+   "replayed",
+   "difference",
+   "pass"
+  ],
+  "out/iteration_limit_share.csv": [
+   "scenario",
+   "group_type",
+   "group",
+   "n_runs",
+   "n_max_iter",
+   "share"
+  ],
+  "out/labels.csv": [
+   "seq",
+   "at_utc",
+   "gate",
+   "cur_q",
+   "cur_qT_utc",
+   "cur_prov",
+   "cur_label",
+   "back6_ts_utc",
+   "back6_prov",
+   "back6_label",
+   "hist_ts_utc",
+   "hist_prov",
+   "hist_label",
+   "label_flow_state_rise_rate",
+   "label_time_shift",
+   "label_delta_correction",
+   "label_all_three"
+  ],
+  "out/replay_2x2x2.csv": [
+   "seq",
+   "at_utc",
+   "old_rule",
+   "flow_numbers",
+   "reading_pick_from",
+   "due_from",
+   "pure_cell",
+   "empty",
+   "raw_cfs",
+   "raw_cfs_unrounded",
+   "hist_ts_utc",
+   "hist_cfs",
+   "exact_stamp_in_history",
+   "match_window_used",
+   "pick_scenario_iteration_limit",
+   "por_q_used",
+   "trv_t_of_pick_h",
+   "delta_pct",
+   "delta_ratio",
+   "gf2lf_h",
+   "due_utc"
+  ],
+  "out/replay_runs.csv": [
+   "seq",
+   "at_utc",
+   "used",
+   "ver",
+   "scenario",
+   "cur_q",
+   "cur_qT_utc",
+   "cur_prov",
+   "cur_extrap_flag",
+   "back6_ts_utc",
+   "back6_cfs",
+   "back6_prov",
+   "back6_extrap_flag",
+   "hist_ts_utc",
+   "hist_cfs",
+   "hist_ago_h",
+   "hist_prov",
+   "hist_extrap_flag",
+   "rise_r_pct_per_h",
+   "rise_rst",
+   "trv_t0_h",
+   "trv_t_h",
+   "trv_it",
+   "trv_stop",
+   "iteration_limit",
+   "trv_mult",
+   "trv_gf2lf_h",
+   "trv_nohist",
+   "lf_q",
+   "trib_sum_cfs",
+   "pre_cfs",
+   "delta_pct",
+   "delta_on",
+   "delta_decay",
+   "delta_ratio",
+   "por_est_cfs",
+   "ef_w",
+   "ef_used",
+   "raw_cfs",
+   "raw_cfs_unrounded",
+   "raw_stage_ft",
+   "corr_bin",
+   "corr_st",
+   "corr_c",
+   "corr_unc",
+   "ceil_lim",
+   "ceil_bound",
+   "final_cfs",
+   "final_stage_ft",
+   "due_utc",
+   "bins_basis",
+   "approx_final",
+   "approx_replay",
+   "s0_run_missed_a_counted_field"
+  ],
+  "out/truth.csv": [
+   "seq",
+   "at_utc",
+   "scenario",
+   "due_utc",
+   "t1_lf_cfs_interpolated",
+   "t1_neighbour_gap_min",
+   "t2_lf_cfs_first_run_at_or_after_due",
+   "t2_run_at_utc",
+   "t2_run_seq",
+   "t2_reading_time_utc",
+   "t2_delay_min",
+   "t2_within_2p5h_window",
+   "t2_ambiguous_within_3s"
+  ],
+  "out/truth_gate.csv": [
+   "check_seq",
+   "pred_ts_utc",
+   "pred_run_seq",
+   "traceable_in_log",
+   "due_logged_utc",
+   "due_replayed_utc",
+   "tick_at_utc",
+   "t2_run_at_utc",
+   "t2_equals_check_tick",
+   "t2_lf_cfs",
+   "actual_cfs_logged",
+   "t2_equals_actual",
+   "note"
+  ]
+ },
+ "files": {
+  "f_old/CURVE_DEFINITION.md": "d783113661013c6f88f2437bb8eba30d241dcd1adac3865b6d983f9bdf2d64ff",
+  "f_old/F_OLD_REPORT.md": "0dbc913691d94300aae18ec4a3fc104401910a976a31f30e3b11b70d239fc448",
+  "f_old/build_f_old.py": "70021870264570439b8ea4d93eb351de829521b891246a10d34351c75bdea79f",
+  "f_old/f_old_summary.json": "c5d6d8603f43da769d49490222940d0652061ee600effd1e3838e78c8f89f355",
+  "f_old/f_old_values.csv": "a13a7acbacb736a84c89b9bd389076863c356bf52701a746d5cad4f493b81b7f",
+  "f_old/lookup_by_day.csv": "5caa00c419626af9bf9245b85f3cf34bb3fb981c7bf83dd0109e32036c46f4c4",
+  "f_old/pairs_fit.csv": "15dfa1b4a49c62750ab06ea2fc720f445f6528df9c7bac49e4999819b221bb5d",
+  "f_old/pairs_test.csv": "98dfc9eaa3f0d38d84b004e103df98740510d4445d30d8daf28300fec75b1989",
+  "out/GATE_VERDICT.json": "dea015d760fb1e67d149508be4df8e3ef3488369010bc443cc26ecef8a0301b7",
+  "out/OUT_DICTIONARY.md": "1e40ed192d168a49975b6f5eb122098080b80cda116b164a1591c0dbb6f3cecf",
+  "out/cell_identity_test.csv": "2b5d931a2bcad430f9941454b758c99704e0eb4283d61283520aaecd49baace0",
+  "out/facts.json": "75dec5211444c77097ce2c61253b390b974e55ff348cff7c6d83259f559fa6e9",
+  "out/fidelity_summary.csv": "9fdfe8ae78be75fae61a9e6a44843d7885528178a8a46540143706465528b6f3",
+  "out/fidelity_table.csv": "11f53e61c7b4708d8d521f7441868b7fa6568742200d597c6dfb864d89632cfd",
+  "out/iteration_limit_share.csv": "8e8d3c74dbf7c9f088f4293ee41c72bf2d2a24fc050545f8dcfd0df405e70301",
+  "out/labels.csv": "056918b890c2b8543ba3f79dc68ce987876a8eaccac2d01da13a47e544106bc5",
+  "out/replay_2x2x2.csv": "7136c1900663adf41db85b9c5d49423c436981428a7430e84e89e475411545ab",
+  "out/replay_runs.csv": "22116a47375288c9aa3663611d5f54be0ed14cfe1dbd5cf5fafe6eea1f699ecf",
+  "out/truth.csv": "cbd9e07912aa0e9484ecf64dc1c533fba4aed53ed3443d2238790d7f3f3ac862",
+  "out/truth_gate.csv": "5f7768312972c8ca3707a42bf764a2a4e10cb67bb464a46f72ad6129fea93509"
+ },
+ "groups": {
+  "f_old/f_old_values.csv|all": [
+   3576,
+   "3d3d2234eb791daae9f49eb4dad8aa4349c818b0550129047267d71cdcff39cb"
+  ],
+  "f_old/lookup_by_day.csv|all": [
+   3485,
+   "6addb9516a759162bc47c8b5f0acceacf5a0d3943a6874b4a5d66b19a7a15595"
+  ],
+  "f_old/pairs_fit.csv|all": [
+   43559,
+   "b0ef7fc29ef4482130313ea5ef803adb7be5510a059ce845c8ed88560c46bb94"
+  ],
+  "f_old/pairs_test.csv|all": [
+   77,
+   "cb413bf59726aab9ce0a7e47d81153005c6312ca182f447a4c7f87b3f3bd7350"
+  ],
+  "out/cell_identity_test.csv|old_rule=A": [
+   280,
+   "a867f12db23fc25db3373c525093a1d23ab88d78514fe4b5fe59f3ca68ffdbd3"
+  ],
+  "out/cell_identity_test.csv|old_rule=B": [
+   280,
+   "a753ba041eabafe2191059f50811a3516c407542afcb1d40c5e6e772919cade7"
+  ],
+  "out/fidelity_summary.csv|all": [
+   49,
+   "421e4e6e39ed97b30c0cd4fc2827a0c487c9db719decc7a6f01b9b18f4c8d0d4"
+  ],
+  "out/fidelity_table.csv|all": [
+   12880,
+   "cb1f7d1e5e66869acec4898b8c22364428f57d2d43465d3c9ae357f321a748d1"
+  ],
+  "out/iteration_limit_share.csv|scenario=S-new": [
+   19,
+   "f1c79988b1d809144b7aad79995625fbfb7ec2dc545e5958f0eb75319a2efbbd"
+  ],
+  "out/iteration_limit_share.csv|scenario=S-old-A": [
+   19,
+   "9851e3377507628ecaa5ce096feaa453271a56516157fc826c442efc70aee255"
+  ],
+  "out/iteration_limit_share.csv|scenario=S-old-B": [
+   19,
+   "fb3b71d50957a3fa2f947552b38e61758291e29e3e889c6a351bbd48cf7e4aca"
+  ],
+  "out/iteration_limit_share.csv|scenario=S0": [
+   19,
+   "f22313aa1459ce3d6d15b80546c833ad19636b316a0ecf79a63752c956349fa9"
+  ],
+  "out/labels.csv|all": [
+   275,
+   "3a939408df45f0660007ffd949ec7d43307b64759c4452a75dc26524b56c4a0d"
+  ],
+  "out/replay_2x2x2.csv|old_rule=A": [
+   2200,
+   "2d03511463d70ba67a9aed97c45ea82b8608ad5a4065c6d0296de30bcf9a2059"
+  ],
+  "out/replay_2x2x2.csv|old_rule=B": [
+   2200,
+   "06850811821f121cb62157d1490f9e6228aaa1a88dd85f77b5269eed314a3515"
+  ],
+  "out/replay_runs.csv|scenario=S-new": [
+   275,
+   "5f0758ef02be6a3d1208f491e3eb27fe3df0b374e4ab5809841800a26f43b503"
+  ],
+  "out/replay_runs.csv|scenario=S-old-A": [
+   275,
+   "a77aa572f2d9f8bdbbc670443e2b6f016e5439702cc7accec7817d4a5b8e8f20"
+  ],
+  "out/replay_runs.csv|scenario=S-old-B": [
+   275,
+   "649d388d41cbfd6114c3371c801dc4aac35d6d389893b9b96ae4b4288b48f97b"
+  ],
+  "out/replay_runs.csv|scenario=S0": [
+   275,
+   "433c22899121fd68beab27ec78ea6602cbd4d36aace32f6db2e1a86d8ad59060"
+  ],
+  "out/truth.csv|scenario=S-new": [
+   275,
+   "d15b364144f12a88ba06c449c8896c2f85c1127dcdad7e17d4d4182c8f82500a"
+  ],
+  "out/truth.csv|scenario=S-old-A": [
+   275,
+   "9fad4cf4f955a62f7393c6315ea7512ad9cc334781a8b7ab24aa0394fa5bb7d4"
+  ],
+  "out/truth.csv|scenario=S-old-B": [
+   275,
+   "314e0b09cc99028ace0814fe09060e8a8f06c0aed0623b63529e46cfd946e0bb"
+  ],
+  "out/truth.csv|scenario=S0": [
+   275,
+   "767aca90fef99c686acb3d4ee0ffa2cb495235b61a17de0837f1e539692ae383"
+  ],
+  "out/truth_gate.csv|all": [
+   20,
+   "d879e923e41a8124b9d8924daf087eadc6f9b119661843c9555087c4776de28b"
+  ]
+ }
+}

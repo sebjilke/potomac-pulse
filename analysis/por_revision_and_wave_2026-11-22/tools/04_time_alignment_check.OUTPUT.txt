@@ -1,0 +1,8 @@
+Little Falls level (01646500 00065), old files stamped -04:00 (12 Jun to 31 Oct): shift -60 min: 20519/40933 equal (50.1%) | shift +0 min: 40950/40950 equal (100.0%) | shift +60 min: 20526/40945 equal (50.1%)
+Little Falls level (01646500 00065), old files stamped -05:00 (1 to 9 Nov): shift -60 min: 1259/2478 equal (50.8%) | shift +0 min: 2493/2493 equal (100.0%) | shift +60 min: 1258/2478 equal (50.8%)
+Little Falls flow (01646500 00060), old files stamped -04:00 (12 Jun to 31 Oct): shift -60 min: 20527/40920 equal (50.2%) | shift +0 min: 40938/40938 equal (100.0%) | shift +60 min: 20528/40922 equal (50.2%)
+Little Falls flow (01646500 00060), old files stamped -05:00 (1 to 9 Nov): shift -60 min: 1259/2478 equal (50.8%) | shift +0 min: 2493/2493 equal (100.0%) | shift +60 min: 1258/2478 equal (50.8%)
+Monocacy flow (01643000 00060), old files stamped -04:00 (12 Jun to 31 Oct): shift -60 min: 5373/13648 equal (39.4%) | shift +0 min: 13652/13652 equal (100.0%) | shift +60 min: 5376/13652 equal (39.4%)
+Monocacy flow (01643000 00060), old files stamped -05:00 (1 to 9 Nov): shift -60 min: 625/836 equal (74.8%) | shift +0 min: 836/836 equal (100.0%) | shift +60 min: 624/836 equal (74.6%)
+Edwards Ferry level (01644148 00065), old files stamped -04:00 (12 Jun to 31 Oct): shift -60 min: 5164/13648 equal (37.8%) | shift +0 min: 13652/13652 equal (100.0%) | shift +60 min: 5164/13652 equal (37.8%)
+Edwards Ferry level (01644148 00065), old files stamped -05:00 (1 to 9 Nov): shift -60 min: 297/832 equal (35.7%) | shift +0 min: 832/832 equal (100.0%) | shift +60 min: 300/832 equal (36.1%)

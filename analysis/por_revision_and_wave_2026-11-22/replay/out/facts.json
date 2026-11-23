@@ -1,0 +1,71 @@
+{
+ "gateVerdict": {
+  "gateA": "FAIL",
+  "gateB": "PASS",
+  "gateA_misses": 4,
+  "gateA_runs": 174,
+  "gateB_runs": 106,
+  "gateA_after_ruling": "ACCEPTED_DEVIATION"
+ },
+ "revIdx": 71,
+ "revRunAt": "2026-11-13T20:00:56.220Z",
+ "predictedRuns": 280,
+ "usedRuns": 275,
+ "errorRows": 25,
+ "binTimelineConsistency": {
+  "snapshots_checked": 11,
+  "max_count_diff": 0,
+  "max_ema_diff": 0.00048109877397450873,
+  "bins_compared": 154
+ },
+ "inputCountersS0": {
+  "late_stamps_excluded": 119
+ },
+ "ruling": "Orchestrator ruling 1 of 2026-11-22, reworded 2026-11-23 after the tool audit (PLAN.md section 14): accepted deviation. Gate A exceeds its cap by one under the pre-registered spec (4 of 174); all four misses are in a pre-listed category and are independently evidenced input rewrites by USGS; under the plan's own list of gated values there are 2. Runs kept and flagged.",
+ "inputCounters_S-old-A": {
+  "late_stamps_excluded": 119
+ },
+ "inputCounters_S-old-B": {
+  "late_stamps_excluded": 119
+ },
+ "inputCounters_S-new": {
+  "late_stamps_excluded": 119
+ },
+ "inputCounters_S-old-C": {
+  "late_stamps_excluded": 119
+ },
+ "other_inputs_not_identical_across_scenarios": 0,
+ "cell_identity_test": {
+  "runs": 280,
+  "rules": 3,
+  "comparisons_per_rule": 560,
+  "failures": 0
+ },
+ "cells": {
+  "rows": 6600,
+  "empty": 0,
+  "match_window_used": 0
+ },
+ "truth_gate": {
+  "checks": 20,
+  "traceable": 19,
+  "t2_equals_actual": 19,
+  "t2_run_equals_check_tick": 19,
+  "not_traceable": [
+   "1"
+  ]
+ },
+ "truth": {
+  "rows": 1375,
+  "t2_missing": 76,
+  "t1_missing": 76,
+  "t2_outside_2p5h": 0,
+  "t2_ambiguous": 1
+ },
+ "rows": {
+  "replay_runs": 1375,
+  "labels": 275,
+  "iteration_limit_share": 95,
+  "truth": 1375
+ }
+}

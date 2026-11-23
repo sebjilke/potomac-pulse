@@ -426,6 +426,32 @@ accepted and worked into v3; the seven partials are closed by them.
 | N12 | MINOR | Source of the replay's other inputs not stated | Accepted. Frozen record at logged reading times (section 4.4). |
 | N13 | MINOR | The 24-month census is large for keyless requests | Accepted. Paging, pause, narrowing and stop rule (section 3). |
 
+### Tool audit record (2026-11-23)
+
+Independent tool audit by a fresh Opus agent, `TOOL_AUDIT.md`: GO WITH CHANGES; 0 blockers, 1 major, 9 minor,
+8 notes. All 18 findings are accepted.
+
+| # | Severity | Finding | Ruling |
+|---|---|---|---|
+| 1 | MAJOR | Rules A and B are not shown to bracket the old curve below 1.03 ft | Accepted. Rule C and scenario `S-old-C` added (section 14, ruling 3). |
+| 2 | MINOR | The gate ruling is right on the facts, but "nothing was loosened" is inaccurate | Accepted. Ruling 1 reworded as an accepted deviation; `GATE_VERDICT.json` keeps the mechanical FAIL and adds the ruling. |
+| 3 | MINOR | As-run values of the two rewritten runs in the replay table are the replay's | Accepted. The spec names `runs.csv` as the source of what ran; a `gate_miss` flag is carried everywhere; every split is also reported without the two runs. |
+| 4 | MINOR | The builder's availability rule is legitimate; two edges should be stated | Accepted. Stated in `FIDELITY_SPEC.md`. |
+| 5 | MINOR | The old-curve test is a constancy test only; one script edit is undocumented | Accepted. Builder documents the edit; the report says what the test shows. |
+| 6 | MINOR | Times of the live-bin rows can mislead | Accepted. Dictionary corrected. |
+| 7 | MINOR | Withdrawal table: small gaps, no generating script, a misleading column name | Accepted. Re-parsed by a script into `data/tidy/withdrawals_coop.csv`. |
+| 8 | MINOR | The analysis specification must pin 17 points | Accepted. All 17 are in the three specification files. |
+| 9 | MINOR | Blind analysts could read expectations in the plan | Accepted. The specification is self-contained and forbids the plan, both audits and the research notes. |
+| 10 | MINOR | Two small dictionary errors | Accepted. Corrected. |
+| 11 | NOTE | The time-alignment check is sound and already disclosed part of R2 | Accepted. Disclosed in the common specification. |
+| 12 | NOTE | The revision boundary is found from a logged value | Accepted. Derived from the stamp as well, with an assertion. |
+| 13 | NOTE | The replay drops USGS qualifier codes | Accepted. Stated in the replay log. |
+| 14 | NOTE | Code versions identical; adapter differs by two comments | Accepted. One line added to the diff record. |
+| 15 | NOTE | The 2 x 2 x 2 means what the plan says | Noted. The due-time factor only moves the truth; the spec treats it so. |
+| 16 | NOTE | Truth series T2: one flag is over-cautious | Accepted. Documented. |
+| 17 | NOTE | Research claims resting on search summaries only | Accepted. None is used in the report without reading the source. |
+| 18 | NOTE | What Gate B does not test | Accepted. Stated in the replay log. |
+
 ## 13. Owner's confirmation
 
 **Confirmed by the owner on 2026-11-22:** "confirm: the full study as planned" (v3, core and extended).
@@ -466,14 +492,20 @@ Gate B passed (106 of 106 time-shifted values exact, 106 of 106 rise rates exact
 | 18 Nov 13:00 | the current Point of Rocks reading (1,840 cfs at 1.13 ft logged; 1,860 at 1.14 ft in the record, last modified 2.5 minutes after the run began) and everything computed from it | same |
 | 18 Nov 18:01 | the rise rate only, through that same stored reading | same |
 
-Ruling: **Gate A is passed under the plan as confirmed, with 2 misses.** The plan's list of gated values
-(section 4.4) does not contain the current readings or the water temperature; the orchestrator's brief to the
-builder added "the current readings themselves", and the builder's spec then counted temperature. Under the
-plan's list the misses are the runs of 18 Nov 13:00 and 18:01, both in a category listed beforehand ("a value
-USGS rewrote after the run"). Under the builder's stricter list there are 4; the two extra ones are 0.1 degree
-changes of water temperature with no difference in any computed value. Both counts are reported. Nothing was
-loosened: no tolerance, no field of the plan's list and no category was changed, and no logged value was fed
-into the replay.
+Ruling, as reworded on 2026-11-23 after the independent tool audit (`TOOL_AUDIT.md`, finding 2):
+**an accepted deviation.** Gate A exceeds its cap by one under the specification that was written before the
+gate was run (`replay/FIDELITY_SPEC.md`: 4 misses of 174, cap 3). All four misses are in a category listed
+beforehand ("a value USGS rewrote after the run") and are independently evidenced: the auditor found, with
+evidence the builder had not used, that the job's own log recorded the publication stamp of the 18 Nov 12:00
+Point of Rocks reading as 12:04:24 UTC while USGS's record now carries 13:03:30, and that the two temperature
+values were rewritten 1 to 1.5 minutes after their runs. No computed value differs on any run whose inputs
+were not rewritten. Under the plan's own list of gated values (section 4.4, which does not contain the current
+readings or the water temperature) there are 2 misses; the orchestrator's brief to the builder had added "the
+current readings themselves", and the builder's specification then counted temperature.
+The first wording of this ruling ("passed ... nothing was loosened") was not accurate: counting by the plan's
+list after seeing the result narrows the specification the gate was actually run under. The outcome is the
+same; the deviation is accepted and reported as one. The auditor would have ruled the same way. No tolerance
+and no category was changed, and no logged value was fed into the replay.
 
 Consequences fixed now, before any result:
 - The four runs stay in every analysis and are flagged.
@@ -484,6 +516,20 @@ Consequences fixed now, before any result:
   than the run's start was not yet available) is a reconstruction rule added after a first gate attempt. It is
   reasoned from the code and from USGS's own stamps, but it was chosen with the mismatches in view; the tool
   auditor is asked to judge it independently.
+
+**Ruling 3, 2026-11-23: a third extrapolation rule for the old curve (tool audit, finding 1).** The plan
+carried two rules (A, B) for the old curve below the lowest level observed in November (1.03 ft) and read
+their results as a range. The auditor showed that the only old values that exist below that level (9 to 12
+October: 1,200 cfs at 1.01 ft, 1,220 cfs at 1.02 ft) lie on rule B, one step above rule A, so the two rules
+are not shown to bracket the old curve. A rule C, anchored on those two October values, is added as a third
+scenario (`S-old-C`). Results of "revision never happened" are reported as the range over A, B and C, with the
+number of readings per level band, and the report states that below 1.01 ft no rule is demonstrated to bound
+the old curve. Decided before any study result existed.
+
+**Ruling 4, 2026-11-23: the analysis is split into two parts,** each with its own pair of blind analysts
+(Python and R): Part R, the revision (`ANALYSIS_SPEC_R.md`), and Part W, the wave (`ANALYSIS_SPEC_W.md`), with
+shared rules in `ANALYSIS_SPEC_COMMON.md`. Four analyst runs instead of two; the questions, methods and
+verification of the plan are unchanged. Reason: one analyst could not hold both parts.
 
 **Ruling 2, 2026-11-22: the thresholds of section 5 while the owner's answer was open.** Labels were to be
 computed under both sets: the plan's (2 points and 20%; 1 point and 10%) and the recommended one (1 point and

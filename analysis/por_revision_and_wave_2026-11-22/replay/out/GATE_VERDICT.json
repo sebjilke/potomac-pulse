@@ -1,0 +1,70 @@
+{
+ "verdict": {
+  "gateA": "FAIL",
+  "gateB": "PASS",
+  "gateA_misses": 4,
+  "gateA_runs": 174,
+  "gateB_runs": 106,
+  "gateA_after_ruling": "ACCEPTED_DEVIATION"
+ },
+ "summary": {
+  "gateA": {
+   "runs": 174,
+   "misses": 4,
+   "byCategory": {
+    "value_rewritten_after_run": [
+     {
+      "at": "2026-11-16T12:00:54.299Z",
+      "failed": [
+       "cur.temp.c"
+      ]
+     },
+     {
+      "at": "2026-11-18T13:00:59.418Z",
+      "failed": [
+       "hist.ts",
+       "hist.cfs",
+       "hist.ago",
+       "rise.r",
+       "trv.t0",
+       "trv.t",
+       "trv.gf2lf",
+       "delta.pct",
+       "delta.ratio",
+       "pre.cfs",
+       "raw.cfs",
+       "due",
+       "cur.por.q",
+       "cur.por.h"
+      ]
+     },
+     {
+      "at": "2026-11-18T18:01:02.105Z",
+      "failed": [
+       "rise.r"
+      ]
+     }
+    ],
+    "value_rewritten_after_run+duplicate_run_row": [
+     {
+      "at": "2026-11-16T20:01:21.553Z",
+      "failed": [
+       "cur.temp.c"
+      ]
+     }
+    ]
+   }
+  },
+  "gateB": {
+   "runs": 106,
+   "misses": 8,
+   "histCfsRuns": 106,
+   "histCfsExact": 106,
+   "histCfsWithin20": 106,
+   "histCfsMaxAbsDiff": 0,
+   "riseRRuns": 106,
+   "riseRExact": 106
+  }
+ },
+ "ruling": "Orchestrator ruling 1 of 2026-11-22, reworded 2026-11-23 after the tool audit (PLAN.md section 14): accepted deviation. Gate A exceeds its cap by one under the pre-registered spec (4 of 174); all four misses are in a pre-listed category and are independently evidenced input rewrites by USGS; under the plan's own list of gated values there are 2. Runs kept and flagged."
+}

@@ -658,6 +658,434 @@
    "uncompressed_bytes": 286385,
    "uncompressed_sha256": "2692b7e50e548a8d407927a769b26337409191bc58916a535239962b896adc33",
    "http_status": 200
+  },
+  {
+   "path": "research/data/coop/list_p0.html",
+   "bytes": 31684,
+   "sha256": "3a23c4d26c8f5e11755fff7f08572c4cfd502c547ab681d84a3fb842aed14fc1",
+   "origin": "https://icprbcoop.org/products/monitoring-reports?page=0",
+   "obtained_utc": "2026-11-22, between 10:56 and 10:58 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/list_p1.html",
+   "bytes": 32277,
+   "sha256": "087baed88b19f340e1685aa160164d323426e60d5f49cdc77ad22449218d220c",
+   "origin": "https://icprbcoop.org/products/monitoring-reports?page=1",
+   "obtained_utc": "2026-11-22, between 10:56 and 10:58 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/list_p10.html",
+   "bytes": 32821,
+   "sha256": "2507646add03b9ab38304fc26d38e673d6c9b727c17fcf1d5857640ba9460725",
+   "origin": "https://icprbcoop.org/products/monitoring-reports?page=10",
+   "obtained_utc": "2026-11-22, between 10:56 and 10:58 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/list_p2.html",
+   "bytes": 33461,
+   "sha256": "a85290dba54e7fef28b9c7eae3f31a31a9c90dd50b50d9b54530a5b6dee12e99",
+   "origin": "https://icprbcoop.org/products/monitoring-reports?page=2",
+   "obtained_utc": "2026-11-22, between 10:56 and 10:58 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/list_p3.html",
+   "bytes": 32936,
+   "sha256": "473318599dac93b41e41d6b7fc30debcf082c77327c33bf51bb8afc580ae4960",
+   "origin": "https://icprbcoop.org/products/monitoring-reports?page=3",
+   "obtained_utc": "2026-11-22, between 10:56 and 10:58 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/list_p4.html",
+   "bytes": 32166,
+   "sha256": "afdd10844e2615e235e6540d5112810d81d79308868987278612ddd3f48fd017",
+   "origin": "https://icprbcoop.org/products/monitoring-reports?page=4",
+   "obtained_utc": "2026-11-22, between 10:56 and 10:58 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/list_p5.html",
+   "bytes": 32383,
+   "sha256": "0960eb954dcf3c57a586578975e61995f442a5196b752b5ab018dd0dc7b6a725",
+   "origin": "https://icprbcoop.org/products/monitoring-reports?page=5",
+   "obtained_utc": "2026-11-22, between 10:56 and 10:58 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/list_p6.html",
+   "bytes": 32676,
+   "sha256": "5ca6f3fb81ae198323fce951ba7769fd8be9490805b1921a7611508426523f9b",
+   "origin": "https://icprbcoop.org/products/monitoring-reports?page=6",
+   "obtained_utc": "2026-11-22, between 10:56 and 10:58 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/list_p7.html",
+   "bytes": 31824,
+   "sha256": "ac0b9bd6b9151f4cec4786db667634b0fb2b1f45b456cf24b1c170c102b58855",
+   "origin": "https://icprbcoop.org/products/monitoring-reports?page=7",
+   "obtained_utc": "2026-11-22, between 10:56 and 10:58 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/list_p8.html",
+   "bytes": 32721,
+   "sha256": "17f48c312f4355bf3f5c13021a1d21613b96356014731cc71461d5d8e7aa60dd",
+   "origin": "https://icprbcoop.org/products/monitoring-reports?page=8",
+   "obtained_utc": "2026-11-22, between 10:56 and 10:58 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/list_p9.html",
+   "bytes": 32940,
+   "sha256": "5bc2aada2245c0075ef3d0e6b76d061a095c8f6488d06afdd6a830ad3341770a",
+   "origin": "https://icprbcoop.org/products/monitoring-reports?page=9",
+   "obtained_utc": "2026-11-22, between 10:56 and 10:58 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node797.html",
+   "bytes": 12122,
+   "sha256": "db7882d67702c4911620b7dd9441f2b3150685ff1cff485a2b08875482469239",
+   "origin": "https://icprbcoop.org/node/797",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node798.html",
+   "bytes": 11993,
+   "sha256": "146148995e4890f3eb20c32fc7c95040c1885184b29e84bfb3f3f951d5cc3797",
+   "origin": "https://icprbcoop.org/node/798",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node799.html",
+   "bytes": 11286,
+   "sha256": "697be6e0dd2dcfdec54c05275831a2b06b8e9b468edae417d24a7e23ca0c3314",
+   "origin": "https://icprbcoop.org/node/799",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node800.html",
+   "bytes": 11842,
+   "sha256": "83cc43e068955fdf58c9b5e84ae20954c2f431e1a37b75510059d2b89c63ba12",
+   "origin": "https://icprbcoop.org/node/800",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node801.html",
+   "bytes": 11223,
+   "sha256": "7c747d58aad6271cf9d862b3e8675d82fa823d93642bc760b7b9cef061e928f4",
+   "origin": "https://icprbcoop.org/node/801",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node802.html",
+   "bytes": 12818,
+   "sha256": "35512be67c2181b0ce55aadb4cac9f31397e2601c3827fea25ebbd9ddffe2425",
+   "origin": "https://icprbcoop.org/node/802",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node803.html",
+   "bytes": 12132,
+   "sha256": "0f754418f418fd02c27fd5c3586627cd731584d2cbe4668caf8273da13a0b1f1",
+   "origin": "https://icprbcoop.org/node/803",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node804.html",
+   "bytes": 12410,
+   "sha256": "2ccc7f22eb7503852cab247ef8fdfafd869d82843119bb2b70bd665be3fa31ff",
+   "origin": "https://icprbcoop.org/node/804",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node805.html",
+   "bytes": 11355,
+   "sha256": "c79ba555fc491b8bea2211f30bb5a1db2784db724ccf30d6a9284f2b220943c9",
+   "origin": "https://icprbcoop.org/node/805",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node806.html",
+   "bytes": 12353,
+   "sha256": "0d4a637cead437b63c708ad095d05139c6c7b7084661f05fe338f1123e06f706",
+   "origin": "https://icprbcoop.org/node/806",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node807.html",
+   "bytes": 12567,
+   "sha256": "33f4597c77927d8ed1ad95d2c48fb3800e5037d641672452aa6cdb92c402f631",
+   "origin": "https://icprbcoop.org/node/807",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node808.html",
+   "bytes": 11855,
+   "sha256": "f964b1d6097500e542d0b3dd5e49fbfcbd9b9736f8aaa22a4fbbf45089923d05",
+   "origin": "https://icprbcoop.org/node/808",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node809.html",
+   "bytes": 12138,
+   "sha256": "a1a6be1e6ea868bc5aa6bcd653fc313762eb898f747e98fa0d68b81668518e27",
+   "origin": "https://icprbcoop.org/node/809",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node810.html",
+   "bytes": 12728,
+   "sha256": "b11643b60494089bff7c738393234e33951c2ac229771a269896cb83b616bc2a",
+   "origin": "https://icprbcoop.org/node/810",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node811.html",
+   "bytes": 14629,
+   "sha256": "183f84ce9e1eefc32f5b0574285319d86b2b9565c18b9a6906d7e97f04daad05",
+   "origin": "https://icprbcoop.org/node/811",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node812.html",
+   "bytes": 12324,
+   "sha256": "c0c4cf62a454fc676afac8373fa0e722a4def36fb0702cd4d25f3082bc20a902",
+   "origin": "https://icprbcoop.org/node/812",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node813.html",
+   "bytes": 11074,
+   "sha256": "36343eefa26a71f2df4fdd8d6e05faf58910889ddba6e02dc1c8b48d898c431b",
+   "origin": "https://icprbcoop.org/node/813",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node814.html",
+   "bytes": 13392,
+   "sha256": "b9ed22a659632229b1b69cc267883990fd9748a9cfe03ead24da3cbaa94ca0d2",
+   "origin": "https://icprbcoop.org/node/814",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node815.html",
+   "bytes": 12357,
+   "sha256": "90a67861d70cfbe159dfd4b7779b6fa3ffbe844a554977ec4676d7d6fa429cf6",
+   "origin": "https://icprbcoop.org/node/815",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node816.html",
+   "bytes": 12477,
+   "sha256": "e2ccbd17c33b745b5459c2d0c3a92395c53ec5ef23d845f94ee708ecc9c993fe",
+   "origin": "https://icprbcoop.org/node/816",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node817.html",
+   "bytes": 13439,
+   "sha256": "71f7275050acc0ad39289d8c183d48befa93f2a9bbfbe8d14d30320849870746",
+   "origin": "https://icprbcoop.org/node/817",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node818.html",
+   "bytes": 12666,
+   "sha256": "0f623c6c93831f5fce551391c6f555f3aac6529e56ac4b3476882b813cf6e251",
+   "origin": "https://icprbcoop.org/node/818",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node819.html",
+   "bytes": 12399,
+   "sha256": "f17397cdc713d9dcd050f62020f6d33f3e329e08af1abae6de16cd0c49add7f5",
+   "origin": "https://icprbcoop.org/node/819",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node820.html",
+   "bytes": 13568,
+   "sha256": "597b495e565352c76c41b2f7ac190059936b68c47cbcde3f10f39ce26868ed86",
+   "origin": "https://icprbcoop.org/node/820",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node821.html",
+   "bytes": 13464,
+   "sha256": "83d0444ea1dca4c1a5a5d99575f990665fec26ad8d4e1294c41d2760fb8895c6",
+   "origin": "https://icprbcoop.org/node/821",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node822.html",
+   "bytes": 13914,
+   "sha256": "9705ea9d1e9e9fdc656f458dfeb0616d3965c410f4ffb2765c0baffe2a858318",
+   "origin": "https://icprbcoop.org/node/822",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node823.html",
+   "bytes": 13644,
+   "sha256": "88913d74ca0c2bd6c1e049ecd38cb798a7f4b56cfa57b2a8068443403ef8597c",
+   "origin": "https://icprbcoop.org/node/823",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node824.html",
+   "bytes": 14128,
+   "sha256": "914aff891163b16bfd9f6f1e183cdd0a7d330cafb927412f42851aebb4defcff",
+   "origin": "https://icprbcoop.org/node/824",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node825.html",
+   "bytes": 14493,
+   "sha256": "7f49897cba51fade374a1d16cebede6ba34b682bf7ba8a33501eeb5f0d8b1a75",
+   "origin": "https://icprbcoop.org/node/825",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node826.html",
+   "bytes": 12770,
+   "sha256": "845ff8b31924577b1efdfd8a3e58aa3148d9d7bec46ccc75e049526920db3eaf",
+   "origin": "https://icprbcoop.org/node/826",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node827.html",
+   "bytes": 13846,
+   "sha256": "381c4146176458ec383e01d8d8c955dcb1b996dee0ee224e629c76cd945ad577",
+   "origin": "https://icprbcoop.org/node/827",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node828.html",
+   "bytes": 13039,
+   "sha256": "d741e55ec5e34f3258c523f2b6c6858be8671db8cb80c99544e8e278e2e5b51b",
+   "origin": "https://icprbcoop.org/node/828",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node829.html",
+   "bytes": 13860,
+   "sha256": "ed2f0f15aca296008daa3c5797c42745caafe58c224034dd0fcaac7569cbc9ce",
+   "origin": "https://icprbcoop.org/node/829",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node830.html",
+   "bytes": 13754,
+   "sha256": "fea57057cdab8285c395829307be4025dc1463ac378d76120ae4737f4554ee2b",
+   "origin": "https://icprbcoop.org/node/830",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node831.html",
+   "bytes": 12692,
+   "sha256": "ed189639da78bf27dd9513403340695722c6d7a5e08dd86b19c5a238101e35f8",
+   "origin": "https://icprbcoop.org/node/831",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node832.html",
+   "bytes": 12456,
+   "sha256": "743491d714db2079fe9f638b58fab51be28d067c69b76d692f2fb035c0c9f5ce",
+   "origin": "https://icprbcoop.org/node/832",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node833.html",
+   "bytes": 13570,
+   "sha256": "72757ba0337136cef3d91f2e9b961e2ff17ef50f7404907556b6bdde2ca33ab8",
+   "origin": "https://icprbcoop.org/node/833",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node834.html",
+   "bytes": 11220,
+   "sha256": "7b664b3d2826a63c9a9dc8c162e9d2d3866368d7b5222c8092048c715c3469ff",
+   "origin": "https://icprbcoop.org/node/834",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node835.html",
+   "bytes": 13870,
+   "sha256": "b61010b9f3dc58adb0283acd755d6f0bcd73f86c760d9b6f58087ee839fd9be6",
+   "origin": "https://icprbcoop.org/node/835",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node836.html",
+   "bytes": 12575,
+   "sha256": "ce1ef46bd46e48a4eeecca01b1f62140f0c41df8844045e68ec747c6d36db4f2",
+   "origin": "https://icprbcoop.org/node/836",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node837.html",
+   "bytes": 11067,
+   "sha256": "0d06b1c436544ff3bc89b61e529a9bdf7bbd1e1ee85ba2fe595c0c039a9abcb0",
+   "origin": "https://icprbcoop.org/node/837",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node838.html",
+   "bytes": 14101,
+   "sha256": "247af3d4d3555564ffe4c3e0bc07c9f957b54c293c572df2b60323bd7ab4e2f0",
+   "origin": "https://icprbcoop.org/node/838",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node839.html",
+   "bytes": 12305,
+   "sha256": "4ea23fad3b8f9f4ad638ad82ba3b1d362985075a885490105047896a5bc3d8db",
+   "origin": "https://icprbcoop.org/node/839",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node840.html",
+   "bytes": 12216,
+   "sha256": "3eac2ec742bb63dbb29851af5119a3bc5eae7f8ddad04af79da67aa4bd508638",
+   "origin": "https://icprbcoop.org/node/840",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node841.html",
+   "bytes": 10949,
+   "sha256": "5b04ba590a2184430ef1348fefa6a7ab5cfc416e8b1ed178e1000612eeee37de",
+   "origin": "https://icprbcoop.org/node/841",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node842.html",
+   "bytes": 12040,
+   "sha256": "8f109c815e6d065e6032103713886d04337bb3eb252b4e7f7ed22cea73f49d35",
+   "origin": "https://icprbcoop.org/node/842",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node843.html",
+   "bytes": 12059,
+   "sha256": "639ff406316c5d467f58f90b9df3e661d1d1196423b0079cf0354da26995a6ab",
+   "origin": "https://icprbcoop.org/node/843",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node844.html",
+   "bytes": 13735,
+   "sha256": "2e0019584c60162a51c2f182dc5125f5d9c3e8d124551c5da6d055f64fb9b753",
+   "origin": "https://icprbcoop.org/node/844",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node845.html",
+   "bytes": 11051,
+   "sha256": "66982ebe7daf576b852d006999de13190a231c09de18852b385a42fa6348c2bc",
+   "origin": "https://icprbcoop.org/node/845",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
+  },
+  {
+   "path": "research/data/coop/node846.html",
+   "bytes": 13812,
+   "sha256": "93ed9fbc8666a1eb726f6b2669ac24f1db82e41772ba87240d50c599c141fe56",
+   "origin": "https://icprbcoop.org/node/846",
+   "obtained_utc": "2026-11-22, between 10:58 and 11:00 UTC (range recorded in research/data/README.md; per-file time not recorded)"
   }
- ]
+ ],
+ "coop_pages_added_by": "tools/coop_common.py (called by 06_parse_coop_reports.py and 03_build_tidy.py): 61 saved pages (50 reports + listing pages), research/data/coop/"
 }

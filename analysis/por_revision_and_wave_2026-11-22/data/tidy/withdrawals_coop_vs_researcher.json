@@ -1,0 +1,105 @@
+{
+ "cells_compared": 800,
+ "rows_mine": 50,
+ "rows_researcher": 50,
+ "differences": [
+  {
+   "node": "810",
+   "column_mine": "wash_aqueduct_great_falls_flag",
+   "column_researcher": "wash_aqueduct_great_falls_flag",
+   "mine": "(estimate)",
+   "researcher": "estimate"
+  },
+  {
+   "node": "825",
+   "column_mine": "por_prev_day_cfs",
+   "column_researcher": "por_prev_day_cfs",
+   "mine": "1727",
+   "researcher": ""
+  },
+  {
+   "node": "836",
+   "column_mine": "wssc_potomac_mgd",
+   "column_researcher": "wssc_potomac_MGD",
+   "mine": "",
+   "researcher": "Not available"
+  },
+  {
+   "node": "836",
+   "column_mine": "total_potomac_withdrawal_mgd",
+   "column_researcher": "total_potomac_withdrawal_MGD",
+   "mine": "",
+   "researcher": "Not available"
+  },
+  {
+   "node": "836",
+   "column_mine": "total_net_potomac_withdrawal_mgd",
+   "column_researcher": "total_net_withdrawal_MGD",
+   "mine": "",
+   "researcher": "Not available"
+  },
+  {
+   "node": "837",
+   "column_mine": "wssc_potomac_mgd",
+   "column_researcher": "wssc_potomac_MGD",
+   "mine": "",
+   "researcher": "Not available"
+  },
+  {
+   "node": "837",
+   "column_mine": "total_potomac_withdrawal_mgd",
+   "column_researcher": "total_potomac_withdrawal_MGD",
+   "mine": "",
+   "researcher": "Not available"
+  },
+  {
+   "node": "837",
+   "column_mine": "total_net_potomac_withdrawal_mgd",
+   "column_researcher": "total_net_withdrawal_MGD",
+   "mine": "",
+   "researcher": "Not available"
+  },
+  {
+   "node": "838",
+   "column_mine": "wssc_potomac_mgd",
+   "column_researcher": "wssc_potomac_MGD",
+   "mine": "",
+   "researcher": "Not Available"
+  },
+  {
+   "node": "838",
+   "column_mine": "total_potomac_withdrawal_mgd",
+   "column_researcher": "total_potomac_withdrawal_MGD",
+   "mine": "",
+   "researcher": "Not Available"
+  },
+  {
+   "node": "838",
+   "column_mine": "total_net_potomac_withdrawal_mgd",
+   "column_researcher": "total_net_withdrawal_MGD",
+   "mine": "",
+   "researcher": "Not Available"
+  },
+  {
+   "node": "839",
+   "column_mine": "wssc_potomac_mgd",
+   "column_researcher": "wssc_potomac_MGD",
+   "mine": "",
+   "researcher": "Not Available"
+  },
+  {
+   "node": "839",
+   "column_mine": "total_potomac_withdrawal_mgd",
+   "column_researcher": "total_potomac_withdrawal_MGD",
+   "mine": "",
+   "researcher": "Not Available"
+  },
+  {
+   "node": "839",
+   "column_mine": "total_net_potomac_withdrawal_mgd",
+   "column_researcher": "total_net_withdrawal_MGD",
+   "mine": "",
+   "researcher": "Not Available"
+  }
+ ]
+}
