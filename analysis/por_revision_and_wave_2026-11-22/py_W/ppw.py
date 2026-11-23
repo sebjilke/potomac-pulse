@@ -131,6 +131,9 @@ def wrap12(x):
     if y > 12: y -= 24.0
     return y
 
+def rnd9(x):
+    return math.copysign(math.floor(abs(x) * 1e9 + 0.5), x) / 1e9
+
 def round_half_away(x):
     return int(math.copysign(math.floor(abs(x) + 0.5), x))
 
@@ -264,7 +267,7 @@ class Series:
                 if i - w < 0 or i + w >= self.N: continue
                 seg = self.d[i - w:i + w + 1]
                 if any(x is None for x in seg): continue
-                m = sum(seg) / len(seg)
+                m = rnd9(sum(seg) / len(seg))
                 if best is None or m > best: best = m; bi = i
                 if worst is None or m < worst: worst = m; wi = i
             if bi is not None:
@@ -411,6 +414,6 @@ def cycle_of(rows, minn=3):
 def crest_hour_of(rows, minn=3):
     hm = hourly_means(rows); best = None; bh = None
     for h in sorted(hm):
-        n, m = hm[h]
+        n, m = hm[h]; m = rnd9(m)
         if n >= minn and (best is None or m > best): best = m; bh = h
     return bh

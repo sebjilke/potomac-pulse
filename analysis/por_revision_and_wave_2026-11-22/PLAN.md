@@ -552,6 +552,27 @@ the old curve. Decided before any study result existed.
 shared rules in `ANALYSIS_SPEC_COMMON.md`. Four analyst runs instead of two; the questions, methods and
 verification of the plan are unchanged. Reason: one analyst could not hold both parts.
 
+**Ruling 5, 2026-11-23: the two Part W analysts disagreed; the study stopped, the causes were found, and
+both reran.** First comparison (`COMPARE_W.txt`): 22 of 30 files identical; differences in 8. Part R
+(`COMPARE_R.txt`): every number identical in all 31 tables; three files differ in form only (a timestamp
+written `Z` or `+00:00`, four extra label columns, names of single numbers). The Part W differences were
+traced, by the orchestrator, to places the specification had left open, none of them a disagreement about the
+data: (1) ties between equal smoothed values on flat stretches (levels are published in steps of 0.01 ft),
+broken differently by floating-point noise; (2) which of two groups uses which resampling columns; (3) a
+percentage taken of a mean or of its absolute value; (4) whether a paired comparison uses one set of runs;
+(5) how the reference cycle is resampled for a row computed on the early phase only; (6) capital or small
+letters in four labels. `ANALYSIS_SPEC_W_ADDENDUM.md` (version 2.1) fixes one convention for each; the
+conventions were chosen on principle, both analysts received the identical text, and neither was told the
+other's numbers. Both kept their first results (`tables_v2/`). Second comparison (`COMPARE_W_v21.txt`): 28 of
+30 files identical. The two that remain are explained and need no rerun: one cell is the timing of a fitted
+wave on a day when the gauge was perfectly flat (Catoctin Creek, 26 Oct: level 1.56 ft all day, fitted wave
+size zero, so its timing is numerical noise in both languages; it is treated as undefined); and a bookkeeping
+count for one row that one analyst gave in days and the other in runs. The names of single numbers still
+differ between the analysts; the third auditor matches them by meaning.
+The orchestrator had seen the Part R results before writing the addendum, and the list of differing cells of
+Part W, but no Part W result table; the third auditor is asked whether any convention of the addendum could
+have favoured a result.
+
 **Ruling 2, 2026-11-22: the thresholds of section 5 while the owner's answer was open.** Labels were to be
 computed under both sets: the plan's (2 points and 20%; 1 point and 10%) and the recommended one (1 point and
 10%; 0.5 point and 5%). **Superseded the same day by the owner's decision** (section 13): one set, 1 point and

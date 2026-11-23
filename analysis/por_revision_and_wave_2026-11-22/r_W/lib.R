@@ -83,6 +83,7 @@ write_metrics <- function() {
 BOOT_SKIPPED <- data.frame(table = character(), key = character(), statistic = character(),
                            n_skipped = integer(), stringsAsFactors = FALSE)
 
+round9 <- function(x) sign(x) * floor(abs(x) * 1e9 + 0.5) / 1e9   # round half away from zero (A1)
 omedian <- function(x) { x <- x[!is.na(x)]; if (length(x) == 0) NA_real_ else median(x) }
 omean   <- function(x) { x <- x[!is.na(x)]; if (length(x) == 0) NA_real_ else mean(x) }
 rhaz <- function(x) ifelse(is.na(x), NA, sign(x) * floor(abs(x) + 0.5))   # round half away from zero
@@ -217,7 +218,7 @@ daily_table <- function(s, gauge, param, flag, is_flow) {
     if (sum(!is.na(dv)) >= 0.95 * npd) {
       res$A_a[k] <- (max(dv, na.rm = TRUE) - min(dv, na.rm = TRUE)) / 2
       if (is_flow && !is.na(res$day_mean[k])) res$A_a_rel[k] <- res$A_a[k] / res$day_mean[k]
-      sv <- sm[idx]
+      sv <- round9(sm[idx])
       if (any(!is.na(sv))) {
         ic <- which.max(sv); it <- which.min(sv)
         tc <- s$g[idx[ic]]; tt <- s$g[idx[it]]
@@ -303,7 +304,7 @@ local_maxima <- function(res, step_min, thr = 0.3) {
 }
 max_lag <- function(res) {   # largest r, ties -> smallest lag
   if (all(is.na(res$r))) return(NULL)
-  j <- which.max(res$r)
+  j <- which.max(round9(res$r))
   list(lag_min = res$lags[j], r = res$r[j], n = res$n[j])
 }
 
@@ -361,6 +362,6 @@ cycle_stats <- function(e, H, w, minrun = 3) {
   mu <- ifelse(cnt > 0, sm / pmax(cnt, 1), NA_real_)
   nv <- sum(valid)
   cyc <- if (nv >= 2) (max(mu[valid]) - min(mu[valid])) / 2 else NA_real_
-  crest <- if (nv >= 1) { hv <- which(valid); hv[which.max(mu[hv])] - 1 } else NA_real_
+  crest <- if (nv >= 1) { hv <- which(valid); hv[which.max(round9(mu[hv]))] - 1 } else NA_real_
   list(cycle = cyc, crest = crest, mu = mu, cnt = cnt, valid = valid)
 }

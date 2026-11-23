@@ -199,7 +199,7 @@ lags <- seq(-720, 720, by = 15)
 res <- lagcorr(master_d(kl), master_d(kt), ok_mask("01638500", P57[1], P57[2]), ok_mask("01638500", P57[1], P57[2]), lags, 5)
 j0 <- which(lags == 0)
 ord <- order(abs(lags), lags < 0)
-jm <- ord[which.max(abs(res$r[ord]))]
+jm <- ord[which.max(round9(abs(res$r[ord])))]
 M("W2", "", "r_lag0", res$r[j0])
 M("W2", "", "lag_of_max_abs_r_h", lags[jm] / 60)
 M("W2", "", "max_abs_r", abs(res$r[jm]))

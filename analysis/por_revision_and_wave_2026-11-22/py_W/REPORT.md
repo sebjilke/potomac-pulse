@@ -76,3 +76,23 @@ Metrics file: 88 rows. Series preparation counts (step, readings, grid, present,
 22. W6: join on all rows of runs.csv (each matched exactly one used run); `bin_key` = bin + "_" + st (as in bins.csv); hours lists sorted ascending joined with "|"; phase NEW metrics also give counts of checks in the mean and skipped (0 skipped).
 23. W7: n_days counts the UTC days of the file's grid in the month (first and last days partial); n_non_event counts non-event days regardless of whether A_a_rel is defined; share_wave_por = n_wave_por / n_non_event_por. shadow_F has one arm only (F); truthFlow must be non-blank and < 3000; all rows with predTs >= the stated bound; filters compared as strings ('0', '1').
 24. Extra metric rows beyond those the spec names are context counts (names contain n_ or similar).
+
+## Addendum 2.1
+
+Applied A1 to A6 in `ppw.py` (rnd9, crest/trough, crest_hour_of) and in `q_w12.py`, `q_w456.py`. Previous results are kept in `tables_v2/` and `metrics_v2.csv`. Two reruns of `python3 -I py_W/run_all.py` gave byte-identical tables and metrics. This addendum supersedes the earlier ambiguity items 8 (clock groups), 16 (pct of mean), 18 and 19 where they differ.
+
+Applied: A1 smoothed values, hourly means (W4 `crest_hour`, W4 component `crest_hour`) and lagged-correlation r (for the maximum, rounded key then the tie rule) rounded to 9 decimals half away from zero. A2 clock test now has a = after (u1 onward), b = before (u61 onward); the other two-group statistics already had a on u1. A3 uses abs(mean). A4 paired rows (H1, H3, H4, H6, H7) use the intersection of runs with non-blank estimate and truth for both; H1 `mean_delay_h` uses the runs of the MAE row of the same variant and rule. A5 was already as written (H3 OLD draws c_ref as second group on the NEW days from u61; H5 from group a). A6 names already as written. Nothing in A1 to A6 could not be applied.
+
+Cells changed against `tables_v2/` (tables not listed: 0 changed; metrics.csv: no value changed, only the `w5_n_runs` rows were added):
+- W1_daily 2 cells (trough_utc_h, trough_local_h)
+- W1_periods 2 (trough_utc_h_circmean, trough_local_h_circmean)
+- W2_daily 22 (crest_utc_h, crest_local_h, trough_utc_h, trough_local_h)
+- W2_periods 16 (crest and trough circmeans, utc and local)
+- W2_clock 58 (crest_before, shift_crest, lo, hi, trough_before, trough_after, shift_trough, lo_t, hi_t)
+- W4_component_cycles 1 (cycle_size_pct_of_mean)
+- W5_candidates 42 cells in 9 of 49 rows (value_a, value_b, diff, lo, hi)
+- All other tables 0.
+
+`w5_n_runs` (group candidate|variant|old_rule|quantity; in metrics.csv): H1 new_numbers 155 (all rules and quantities), H1 old_numbers 153; H7 153; H3 NEW 155, H3 OLD 71; H4 mean_correction 155, final_vs_raw 155; H6 155; H8 8 days (NEW) and 4 days (OLD); H2 por_level 20, por_flow 20, lf_level 18, lf_flow 18 (days of both groups together); H9 7 days; H5 S0_logged 226, S-new 226, S-old-A/B/C 224 (NEW plus OLD runs). Counts for H2, H8, H9 are days, not runs.
+
+A7 diagnostic, Catoctin 01637500 level 00065, 2026-10-26: step 15 min; 288 grid points in the window 2026-10-25T00:00Z to 2026-10-28T00:00Z (exclusive); 288 non-missing. Fitted a = 1.56, b = -4.35593987948e-18, c = -7.87737571652e-17, s = -1.67170282204e-16; A_b = 1.84800454735e-16; phi_b_utc_h = 16.3179540954. Method: normal equations (4x4) accumulated in floating point and solved by Gaussian elimination with partial pivoting, no library; tau = hours since the window start (2026-10-25T00:00Z) for the cosine and sine terms; the linear regressor is (tau - 36) and the reported a is the intercept converted back to tau (a = a_centred - 36 b), which changes neither b, c nor s. This is the recipe of the common part, point 6; no departure found, method unchanged. (The W2_daily row shows A_b 1.8480045473452726e-16 and a day mean 1.5599999999999998.)

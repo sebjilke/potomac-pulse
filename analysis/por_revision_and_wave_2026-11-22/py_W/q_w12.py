@@ -140,7 +140,7 @@ def best_lag(res, lags, cs, absmode=False):
     for L in lags:
         r = res[L][0]
         if r is None: continue
-        key = abs(r) if absmode else r
+        key = rnd9(abs(r) if absmode else r)
         if best is None or key > best[0] or (key == best[0] and (abs(L), L < 0) < (abs(best[1]), best[1] < 0)):
             best = (key, L, r)
     return best
@@ -198,9 +198,9 @@ def run(ctx):
             if shift is not None and cb and ca:
                 D1, D2 = len(cb), len(ca)
                 def f(d1, d2, cb=cb, ca=ca):
-                    r1 = [cb[i] for i in d1]; r2 = [ca[i] for i in d2]
+                    r2 = [ca[i] for i in d1]; r1 = [cb[i] for i in d2]
                     return wrap12(circ_mean(r2) - circ_mean(r1))
-                vals_ = boot_vec(D1, D2, f)
+                vals_ = boot_vec(D2, D1, f)
                 lo, hi, sk = interval(vals_, 'W2_clock %s %s %s' % (k[0], k[1], field))
             if shift is None or len(nb) < 4 or len(na) < 4 or lo is None: lab = 'undetermined'
             elif lo >= 0.5 and hi <= 1.5: lab = 'follows the clock'

@@ -137,7 +137,7 @@ def run(ctx):
             hm = hourly_means(items)
             for h in sorted(hm): comp_rows.append([p, qn, h, hm[h][0], hm[h][1]])
             cyc = cycle_of(items); mm = mean_([v for h, v in items])
-            cc_rows.append([p, qn, mm, cyc, (cyc / mm * 100) if (cyc is not None and mm) else None, crest_hour_of(items) if cyc is not None else None])
+            cc_rows.append([p, qn, mm, cyc, (cyc / abs(mm) * 100) if (cyc is not None and mm) else None, crest_hour_of(items) if cyc is not None else None])
     log('W4_components rows %d' % write_table('W4_components', ['phase', 'quantity', 'hour', 'n', 'mean'], sorted(comp_rows, key=lambda r: (r[0], r[1], r[2]))))
     log('W4_component_cycles rows %d' % write_table('W4_component_cycles', ['phase', 'quantity', 'mean', 'cycle_size', 'cycle_size_pct_of_mean', 'crest_hour'], sorted(cc_rows, key=lambda r: (r[0], r[1]))))
     run_w5(ctx)
@@ -145,6 +145,7 @@ def run(ctx):
 
 # ======================================================================= W5
 UNIVERSES = []
+NRUNS = {}
 
 def run_w5(ctx):
     W4 = ctx['W4']; runs = ctx['runs']; phase = ctx['phase']; truth = ctx['truth']; replay = ctx['replay']; cells = ctx['cells']
@@ -176,6 +177,7 @@ def run_w5(ctx):
         if not label: lab = ''
         elif qty == 'MAE': lab = label_from(lo, hi, 'mae')
         else: lab = label_from(lop, hip, 'cycle')
+        M('W5', '%s|%s|%s|%s' % (cand, variant, old_rule, qty), 'w5_n_runs', NRUNS.get((cand, variant, old_rule)))
         W5.append([cand, variant, old_rule, qty, va, vb, diff, lo, hi, p if qty == 'cycle' else None, lop, hip, lab])
         return va, vb
 
@@ -243,7 +245,10 @@ def run_w5(ctx):
         return closure(B, 'cycle', group)
 
     def two_sets(cand, variant, old_rule, sa, sb, p='NEW', qtys=('MAE', 'cycle'), label=True):
+        common = set(sa) & set(sb)
+        sa = {k: v for k, v in sa.items() if k in common}; sb = {k: v for k, v in sb.items() if k in common}
         ra = phase_rows(sa, p); rb = phase_rows(sb, p)
+        NRUNS[(cand, variant, old_rule)] = len(ra)
         U = sets_universe(ra, rb)
         UNIVERSES.append((cand, variant, old_rule, tuple(U)))
         Ba = blk(ra, U, lambda r: (r['hour'], r['e'])); Bb = blk(rb, U, lambda r: (r['hour'], r['e']))
@@ -263,12 +268,13 @@ def run_w5(ctx):
         for variant, ca, cb in (('new_numbers', ('new', 'new', 'new'), ('new', 'old', 'new')), ('old_numbers', ('old', 'new', 'old'), ('old', 'old', 'old'))):
             sa = cell_set(rule, *ca); sb = cell_set(rule, *cb)
             r = two_sets('H1', variant, rule, sa, sb)
+            used = set(q for q in sa if q in sb and phase[q] == 'NEW')
             if variant == 'new_numbers': h1[rule] = r['MAE']
             # mean delay (all NEW-phase runs of the cell; trv_t_of_pick_h + gf2lf_h)
             def delay_rows(c):
                 out = []
                 for q in range(1, 306):
-                    if (q, rule) not in cells or phase.get(q) != 'NEW': continue
+                    if (q, rule) not in cells or phase.get(q) != 'NEW' or q not in used: continue
                     rr = cells[(q, rule)][c]
                     a_, b_ = f_(rr['trv_t_of_pick_h']), f_(rr['gf2lf_h'])
                     if a_ is None or b_ is None: continue
@@ -322,6 +328,7 @@ def run_w5(ctx):
             if cl is not None: est = min(est, cl)
             es.append((h, (est - t1) / t1 * 100))
         return mae_([e for h, e in es]) if qty == 'MAE' else cycle_of(es)
+    NRUNS[('H4', 'mean_correction', '')] = len(N_); NRUNS[('H4', 'final_vs_raw', '')] = len(N_)
     cref = cref_closure(U, 1)
     for qty in ('MAE', 'cycle'):
         compare('H4', 'mean_correction', '', qty, closure(Ba, qty), (lambda d1, d2, qty=qty: stat_b(cat(Bb, d1), qty)), len(U), None, cref)
@@ -359,6 +366,7 @@ def run_w5(ctx):
             U = sorted(set(fn) | set(fo))
             Ba = [[fn[d]] if d in fn else [] for d in U]; Bb = [[fo[d]] if d in fo else [] for d in U]
             UNIVERSES.append(('H8', p, rule, tuple(U)))
+            NRUNS[('H8', p, rule)] = len(U)
             compare('H8', p, rule, 'flips_per_day', lambda d1, d2: mean_(cat(Ba, d1)), lambda d1, d2: mean_(cat(Bb, d1)), len(U), None, None, False)
     # ---------- H2 and H9
     days = ctx['days']
@@ -366,6 +374,7 @@ def run_w5(ctx):
     for variant, k in (('por_level', (POR, '00065')), ('por_flow', (POR, '00060')), ('lf_level', (LF, '00065')), ('lf_flow', (LF, '00060'))):
         da = nonevent_days(ctx, k, *P7); db = [x for x in nonevent_days(ctx, k, *P56)]
         va_ = [days[k][x]['A_a'] for x in da]; vb_ = [days[k][x]['A_a'] for x in db]
+        NRUNS[('H2', variant, '')] = len(va_) + len(vb_)
         compare('H2', variant, '', 'median_A_a', lambda d1, d2, v=va_: median([v[i] for i in d1]), lambda d1, d2, v=vb_: median([v[i] for i in d2]), len(va_), len(vb_), None, False)
         ma_, mb_ = median(va_), median(vb_)
         M('W5', variant, 'h2_ratio_a_over_b', (ma_ / mb_) if (ma_ is not None and mb_) else None)
@@ -373,6 +382,7 @@ def run_w5(ctx):
     dd = [dn for dn in range(*[P7[0], P7[1] + 1]) if (not days[(EF, '00065')][dn]['event']) and (not days[(LF, '00065')][dn]['event'])
           and days[(EF, '00065')][dn]['A_a'] is not None and days[(LF, '00065')][dn]['A_a'] is not None]
     ve = [days[(EF, '00065')][dn]['A_a'] for dn in dd]; vl = [days[(LF, '00065')][dn]['A_a'] for dn in dd]
+    NRUNS[('H9', '', '')] = len(dd)
     compare('H9', '', '', 'median_A_a', lambda d1, d2: median([ve[i] for i in d1]), lambda d1, d2: median([vl[i] for i in d1]), len(dd), None, None, False)
     M('W5', '', 'h9_ratio_a_over_b', median(ve) / median(vl) if (dd and median(vl)) else None); M('W5', '', 'h9_n_days', len(dd))
     # ---------- H5
@@ -384,6 +394,7 @@ def run_w5(ctx):
         UNIVERSES.append(('H5', name, '', tuple(UN), tuple(UO)))
         Bn = blk(rn, UN, lambda r: (r['hour'], r['e'])); Bo = blk(ro, UO, lambda r: (r['hour'], r['e']))
         cref = cref_closure(UN, 1)
+        NRUNS[('H5', name, '')] = len(rn) + len(ro)
         compare('H5', name, '', 'cycle', lambda d1, d2: cycle_of(cat(Bn, d1)), lambda d1, d2: cycle_of(cat(Bo, d2)), len(UN), len(UO), cref)
     n = write_table('W5_candidates', ['candidate', 'variant', 'old_rule', 'quantity', 'value_a', 'value_b', 'diff', 'lo', 'hi', 'share_p', 'lo_p', 'hi_p', 'label'],
                     sorted(W5, key=lambda r: (r[0], r[1], r[2], r[3])))

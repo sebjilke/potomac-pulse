@@ -1,0 +1,197 @@
+Comparison of py_W (A) with r_W (B). Tolerance 0.01 (fine: 0.0001).
+tables: A 29  B 31
+tables only in B: ['boot_skipped', 'series_prep']
+
+=== W1_daily ===
+
+SUMMARY
+  CLEAN   W1_daily: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W1_periods: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W1_weekday: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W2_clock: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  DIFFERS W2_daily: beyond 0.01: 1, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W2_periods: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W2_weekend: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W2_xcorr_upstream: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W2_xcorr_upstream_maxima: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_crests: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_damping: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_model_times: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_onsets: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_size_lag: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_weak_days: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_weak_matches: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_xcorr: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W3_xcorr_maxima: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W4_component_cycles: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W4_components: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W4_cycle: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W4_error_by_hour: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W4_runs: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W5_candidates: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W6_by_bin: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W6_checks: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W7_error_by_wave: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W7_flow_class: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  CLEAN   W7_year_month: beyond 0.01: 0, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 0/0, same columns: True
+  DIFFERS metrics: beyond 0.01: 6, fine: 0, text: 0, blank-one-side: 0, keys only A/B: 45/84, same columns: True
+  28 of 30 compared files are clean
+rows: A 415  B 415
+key columns: ['gauge', 'parameter', 'day_utc']
+cells compared: 5395; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W1_periods ===
+rows: A 35  B 35
+key columns: ['gauge', 'parameter', 'period']
+cells compared: 315; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W1_weekday ===
+rows: A 70  B 70
+key columns: ['gauge', 'parameter', 'window', 'weekday_utc']
+cells compared: 140; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W2_clock ===
+rows: A 13  B 13
+key columns: ['gauge', 'parameter']
+cells compared: 182; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W2_daily ===
+rows: A 1328  B 1328
+key columns: ['gauge', 'parameter', 'day_utc']
+cells compared: 17264; numbers beyond 0.01: 1; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+largest difference per column (beyond 0.0001): phi_b_utc_h=6.42511
+  number  ('1637500', '65', '2026-10-26')  phi_b_utc_h: A=16.317954095429343 B=22.743065293783 diff=6.42511
+
+=== W2_periods ===
+rows: A 112  B 112
+key columns: ['gauge', 'parameter', 'period']
+cells compared: 1008; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W2_weekend ===
+rows: A 42  B 42
+key columns: ['gauge', 'parameter', 'window']
+cells compared: 210; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W2_xcorr_upstream ===
+rows: A 8  B 8
+key columns: ['gauge']
+cells compared: 32; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W2_xcorr_upstream_maxima ===
+rows: A 16  B 16
+key columns: ['gauge', 'lag_h']
+cells compared: 16; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_crests ===
+rows: A 3  B 3
+key columns: ['pair']
+cells compared: 9; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_damping ===
+rows: A 4  B 4
+key columns: ['period']
+cells compared: 28; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_model_times ===
+rows: A 3  B 3
+key columns: ['phase']
+cells compared: 15; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_onsets ===
+rows: A 7  B 7
+key columns: ['por_onset_utc']
+cells compared: 35; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_size_lag ===
+rows: A 15  B 15
+key columns: ['pair', 'k_days']
+cells compared: 30; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_weak_days ===
+rows: A 8  B 8
+key columns: ['gauge', 'day_utc']
+cells compared: 16; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_weak_matches ===
+rows: A 0  B 0
+key columns: ['por_day']
+cells compared: 0; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_xcorr ===
+rows: A 9  B 9
+key columns: ['pair', 'window']
+cells compared: 36; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W3_xcorr_maxima ===
+rows: A 39  B 39
+key columns: ['pair', 'window', 'lag_h']
+cells compared: 39; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W4_component_cycles ===
+rows: A 14  B 14
+key columns: ['phase', 'quantity']
+cells compared: 56; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W4_components ===
+rows: A 335  B 335
+key columns: ['phase', 'quantity', 'hour']
+cells compared: 670; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W4_cycle ===
+rows: A 6  B 6
+key columns: ['phase', 'quantity']
+cells compared: 48; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W4_error_by_hour ===
+rows: A 70  B 70
+key columns: ['phase', 'hour_due']
+cells compared: 210; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W4_runs ===
+rows: A 261  B 261
+key columns: ['seq']
+cells compared: 3654; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W5_candidates ===
+rows: A 49  B 49
+key columns: ['candidate', 'variant', 'old_rule', 'quantity']
+cells compared: 441; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W6_by_bin ===
+rows: A 3  B 3
+key columns: ['bin_key']
+cells compared: 9; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W6_checks ===
+rows: A 20  B 20
+key columns: ['seq_check']
+cells compared: 200; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W7_error_by_wave ===
+rows: A 4  B 4
+key columns: ['class_lo']
+cells compared: 20; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W7_flow_class ===
+rows: A 4  B 4
+key columns: ['class_lo']
+cells compared: 24; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== W7_year_month ===
+rows: A 180  B 180
+key columns: ['year', 'month']
+cells compared: 1260; numbers beyond 0.01: 0; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+
+=== metrics ===
+rows: A 137  B 176
+key columns: ['question', 'group', 'metric']
+keys only in A: 45  e.g. [('W1', '', 'lf_flow_n_distinct_values_10to22Nov'), ('W1', '', 'lf_median_A_a_cfs_10to22Nov'), ('W1', '', 'lf_n_non_event_days_10to22Nov'), ('W2', '', 'instrument_grid_step_min'), ('W2', '', 'instrument_max_abs_r_signed')]
+keys only in B: 84  e.g. [('W1', '', 'lf_flow_n_distinct_values_10_22_nov'), ('W1', '', 'lf_flow_n_raw_readings_10_22_nov'), ('W1', '', 'lf_median_A_a_cfs_10_22_nov'), ('W1', '', 'lf_n_non_event_days_10_22_nov'), ('W2', '', 'r_at_max_abs_lag')]
+cells compared: 92; numbers beyond 0.01: 6; numbers between 0.0001 and 0.01: 0; text differences: 0; blank on one side: 0
+largest difference per column (beyond 0.0001): value=161
+  number  ('W5', 'H8|NEW|B|flips_per_day', 'w5_n_runs')  value: A=8 B=169 diff=161
+  number  ('W5', 'H8|NEW|A|flips_per_day', 'w5_n_runs')  value: A=8 B=169 diff=161
+  number  ('W5', 'H8|NEW|C|flips_per_day', 'w5_n_runs')  value: A=8 B=169 diff=161
+  number  ('W5', 'H8|OLD|B|flips_per_day', 'w5_n_runs')  value: A=4 B=71 diff=67
+  number  ('W5', 'H8|OLD|A|flips_per_day', 'w5_n_runs')  value: A=4 B=71 diff=67
+  number  ('W5', 'H8|OLD|C|flips_per_day', 'w5_n_runs')  value: A=4 B=71 diff=67

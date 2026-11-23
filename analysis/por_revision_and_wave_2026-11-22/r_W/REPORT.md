@@ -115,3 +115,103 @@
     - `n_non_event_*` counts days with event flag 0 whether or not `A_a_rel` is defined.
     - A wave day is non-event with `A_a_rel >= 0.03`.
     - The shadow filters are applied in the order given, with counts in metrics.
+
+
+<!-- Appended by the orchestrator on 2026-11-23 from the R analyst's final message after the addendum, by script, unedited. -->
+
+## Addendum 2.1 (Part W, R)
+
+The addendum is applied, with nothing that could not be applied as written. The rerun is done and two consecutive full runs from scratch gave byte-identical tables and metrics.
+
+**Run command:** `Rscript r_W/run_all.R`. `r_W/check_tables.R` reports all 29 headers OK.
+
+**Previous results.** They are kept unedited in `r_W/tables_v2/` and `r_W/metrics_v2.csv`.
+
+### How A1 to A6 were applied
+- **A1.**
+  - `round9(x) = sign(x) * floor(abs(x) * 1e9 + 0.5) / 1e9` is in `lib.R`.
+  - It is used on the smoothed series before the daily crest and trough (earliest grid time equal to the extreme).
+  - It is used on hourly means before `crest_hour`, which covers W4 and the W4 component cycles.
+  - It is used on `r` before the largest-r choice (W2, W3) and on `abs(r)` in the instrument test, with the existing tie order (smallest absolute lag, then non-negative).
+- **A2.** My version-2 assignment already matched. The first-named minuend group uses `u1` onward and the second group uses `u61` onward. This covers the clock test (a = after), W4 NEW minus OLD, H2 (a = P7) and H5 (a = NEW).
+- **A3.** Already `100 * cycle_size / abs(mean)`. It is blank when the mean is 0 or undefined.
+- **A4.**
+  - A run is used only if the estimates and truths of both a and b are non-blank.
+  - `mean_delay_h` uses the same runs as the MAE row.
+  - Ceilings of the earlier rule gave the same run sets, so no W5 value moved because of A4.
+  - The `w5_n_runs` metric is written for every W5 row, with `group` = `candidate|variant|old_rule|quantity`.
+- **A5.**
+  - H3 `OLD` now draws `c_ref` as a separate group over the phase NEW days, using columns `u61` onward.
+  - NEW rows recompute `c_ref` on the same drawn blocks.
+  - H5 uses the NEW group's draw.
+  - The point `share_p` uses the full-sample `c_ref`.
+- **A6.** H2 variants are `por_level`, `por_flow`, `lf_level`, `lf_flow`. The H2 metric groups were renamed to match.
+
+### Cells changed against `tables_v2/`
+Cells differing by less than 1e-9 relative were not counted. Row counts are unchanged in every table. Tables not listed had 0 changed cells.
+
+| table | cells changed | columns (count) |
+|---|---|---|
+| W1_daily | 8 | crest_utc_h 1, crest_local_h 1, trough_utc_h 3, trough_local_h 3 |
+| W1_periods | 8 | crest_utc_h_circmean 1, crest_local_h_circmean 1, trough_utc_h_circmean 3, trough_local_h_circmean 3 |
+| W2_daily | 90 | crest_utc_h 27, crest_local_h 27, trough_utc_h 18, trough_local_h 18 |
+| W2_periods | 66 | crest_utc_h_circmean 17, crest_local_h_circmean 17, trough_utc_h_circmean 16, trough_local_h_circmean 16 |
+| W2_clock | 24 | crest_before 1, crest_after 1, shift_crest 2, lo 2, hi 2, trough_before 2, trough_after 3, shift_trough 4, lo_t 3, hi_t 4 |
+| W3_crests | 4 | circmean_h 2, circ_sd_h 2 |
+| W5_candidates | 6 | variant 4 (H2 renamed), lo_p 1, hi_p 1 (H3 OLD cycle) |
+| boot_skipped (extra) | 5 | key 4, n_skipped 1 |
+
+- **W5 H3 OLD cycle, `lo_p` and `hi_p`.** They went from blank to a defined interval. Both are now defined: lo_p -0.504641328784989 and hi_p 0.762666474585818, with label "undetermined". That removes the earlier W5 item in "could not do".
+- **boot_skipped.** The row for H3 OLD `cycle_share_p` went from 2000 skipped to 0, and the four H2 keys were renamed.
+- **W4_cycle.** Unchanged. W4 `crest_hour` is the same under the rounding.
+- **W3_xcorr.** Unchanged, so the largest-r lags are unchanged.
+- **W2_xcorr.** `W2_xcorr_upstream` is unchanged, and the instrument metrics are unchanged.
+- **Metrics.** Metrics went from 127 to 175 rows (176 lines with the header). The change is the 36 new `w5_n_runs` rows plus the renamed H2 metric groups; no other metric value changed.
+
+Still blank after the rerun:
+- W4_cycle TRANS `lo` and `hi`.
+- The W3 decision values `n1`, `n4`, `whole_days` and `total_delay_h`.
+- `W3_weak_matches` still has 0 rows.
+
+### `w5_n_runs` per W5 row
+| row | `w5_n_runs` |
+|---|---|
+| H1 new_numbers, A, B, C (each of MAE, cycle, mean_delay_h) | 155 |
+| H1 old_numbers, A, B, C (each of MAE, cycle, mean_delay_h) | 153 |
+| H2 por_level | 20 |
+| H2 por_flow | 20 |
+| H2 lf_level | 18 |
+| H2 lf_flow | 18 |
+| H3 NEW (MAE, cycle) | 155 |
+| H3 OLD (MAE, cycle) | 71 |
+| H4 mean_correction (MAE, cycle) | 155 |
+| H4 final_vs_raw cycle | 155 |
+| H5 S0_logged | 226 |
+| H5 S-new | 226 |
+| H5 S-old-A | 224 |
+| H5 S-old-B | 224 |
+| H5 S-old-C | 224 |
+| H6 (MAE, cycle) | 155 |
+| H7 A, B, C (each of MAE, cycle) | 153 |
+| H8 NEW (A, B, C) | 169 |
+| H8 OLD (A, B, C) | 71 |
+| H9 | 7 |
+
+For the rows outside A4 the count is of different units:
+- H2: the days of group a plus the days of group b.
+- H5: the runs of the NEW group plus the OLD group.
+- H8: the runs of the days with at least 3 runs of the phase.
+- H9: days.
+
+### A7 diagnostic: Catoctin 01637500, level 00065, UTC day 2026-10-26
+- **Window.** The 72-hour window is `[2026-10-25T00:00Z, 2026-10-28T00:00Z)`. It has 288 grid points at the 15-minute step, and 288 are non-missing.
+- **Data.** Every non-missing value in the window is 1.56 (`W2_daily` has `A_a` = 0 and `day_mean` = 1.56 for the day).
+- **Fitted coefficients (QR, as used by the code).**
+  - `a` = 1.56000000000000
+  - `b` = -1.79659092062e-18
+  - `c` = 4.01781521441e-17
+  - `s` = -1.37200438436e-17
+- **`A_b` and `phi_b_utc_h`.** `A_b` = 4.24561363384e-17 and `phi_b_utc_h` = 22.7430652938.
+- **Normal equations for comparison.** `solve(X'X, X'y)` gives `a` = 1.56000000000000, `b` = -6.2087e-17, `c` = -9.7036e-17 and `s` = -5.4709e-16. Both methods return noise-level values for `b`, `c` and `s` on this constant series, so `A_b` and `phi_b_utc_h` are noise.
+- **Method.** The code uses `lm.fit(X, y)` (Householder QR, no normal equations) with the four columns 1, tau, cos(2*pi*tau/24) and sin(2*pi*tau/24).
+- **tau.** `tau` is hours since the window start, `(grid time - window start)/60`. The window start is `D-1 00:00 UTC`, and only non-missing points are used. This matches common part point 6, and no change was needed.

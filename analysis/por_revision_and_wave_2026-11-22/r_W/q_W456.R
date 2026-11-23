@@ -109,12 +109,13 @@ add_row <- function(candidate, variant, old_rule, quantity, a, b, d, lo, hi, sp,
 }
 
 # generic one-group paired comparison. ea_f, eb_f: function(row weights) -> error vector (NA allowed -> row dropped by caller)
-paired_rows <- function(candidate, variant, old_rule, day, ea_f, hra, eb_f, hrb, quantities = c("MAE", "cycle"), delay = NULL) {
+paired_rows <- function(candidate, variant, old_rule, day, ea_f, hra, eb_f, hrb, quantities = c("MAE", "cycle"), delay = NULL, cref_g2 = FALSE) {
   blocks <- sort(unique(day)); blk <- match(day, blocks); D <- length(blocks)
   Ha <- make_H(hra); Hb <- make_H(hrb)
-  blk_c <- match(CREF_DAY, blocks)
+  blocks_c <- sort(unique(CREF_DAY))
+  blk_c <- if (cref_g2) match(CREF_DAY, blocks_c) else match(CREF_DAY, blocks)
   stat <- function(w1, w2) {
-    wr <- w1[blk]; wc <- w1[blk_c]; wc[is.na(wc)] <- 0
+    wr <- w1[blk]; wc <- if (cref_g2) w2[blk_c] else w1[blk_c]; wc[is.na(wc)] <- 0
     ea <- ea_f(wr); eb <- eb_f(wr)
     ma <- wmae(ea, wr); mb <- wmae(eb, wr)
     ca <- cycle_stats(ea, Ha, wr)$cycle; cb <- cycle_stats(eb, Hb, wr)$cycle
@@ -122,10 +123,11 @@ paired_rows <- function(candidate, variant, old_rule, day, ea_f, hra, eb_f, hrb,
     dl <- if (!is.null(delay)) c(wmean(delay$a, wr), wmean(delay$b, wr)) else c(NA_real_, NA_real_)
     c(ma, mb, ma - mb, ca, cb, ca - cb, cref, if (is.na(cref) || cref == 0) NA_real_ else (ca - cb) / cref, dl, dl[1] - dl[2])
   }
-  pt <- stat(rep(1L, D), NULL)
+  pt <- stat(rep(1L, D), if (cref_g2) rep(1L, length(blocks_c)) else NULL)
   pt_cref <- CREF_FULL; pt_p <- if (is.na(pt_cref) || pt_cref == 0) NA_real_ else pt[6] / pt_cref
-  bm <- boot_matrix(D, stat)
+  bm <- if (cref_g2) boot_matrix(D, stat, length(blocks_c)) else boot_matrix(D, stat)
   key_ <- paste(candidate, variant, old_rule)
+  for (qq in c(quantities, if (!is.null(delay)) "mean_delay_h")) M("W5", paste(candidate, variant, old_rule, qq, sep = "|"), "w5_n_runs", length(day))
   if ("MAE" %in% quantities) {
     ci <- boot_ci(bm[, 3]); note_skips("W5_candidates", key_, "MAE_diff", ci[3])
     add_row(candidate, variant, old_rule, "MAE", pt[1], pt[2], pt[3], ci[1], ci[2], NA, NA, NA, label_interval(ci[1], ci[2], 0.5, 1.0))
@@ -190,7 +192,7 @@ for (rule in c("A", "B", "C")) {
 for (ph in c("NEW", "OLD")) {
   z <- RW[RW$phase == ph, ]
   eb <- pct_err(ifelse(is.na(z$delta_ratio), z$raw_cfs, z$raw_cfs / z$delta_ratio), z$t1)
-  paired_rows("H3", ph, "", z$day, const_f(z$e_raw), z$hour_due, const_f(eb), z$hour_due)
+  paired_rows("H3", ph, "", z$day, const_f(z$e_raw), z$hour_due, const_f(eb), z$hour_due, cref_g2 = (ph == "OLD"))
 }
 mm <- sum(abs(RU$final_cfs - pmin(RU$raw_cfs - RU$corr_c, RU$ceil_lim)) > 1)
 M("W5", "", "h4_formula_mismatches", mm)
@@ -224,13 +226,13 @@ for (ph in c("NEW", "OLD")) {
     D <- nrow(fa)
     stat <- function(w1, w2) { a <- sum(w1 * fa$flips) / sum(w1); b <- sum(w1 * fb$flips) / sum(w1); c(a, b, a - b) }
     pt <- stat(rep(1L, D), NULL); ci <- boot_ci(boot_matrix(D, stat)[, 3]); note_skips("W5_candidates", paste("H8", ph, rule), "diff", ci[3])
-    add_row("H8", ph, rule, "flips_per_day", pt[1], pt[2], pt[3], ci[1], ci[2], NA, NA, NA, "")
+    M("W5", paste("H8", ph, rule, "flips_per_day", sep = "|"), "w5_n_runs", sum(fa$n)); add_row("H8", ph, rule, "flips_per_day", pt[1], pt[2], pt[3], ci[1], ci[2], NA, NA, NA, "")
   }
 }
 
 ## ---- H2 the wave itself
-H2S <- list(PoR_level = key("01638500", "00065"), PoR_flow = key("01638500", "00060"),
-            LF_level = key("01646500", "00065"), LF_flow = key("01646500", "00060"))
+H2S <- list(por_level = key("01638500", "00065"), por_flow = key("01638500", "00060"),
+            lf_level = key("01646500", "00065"), lf_flow = key("01646500", "00060"))
 P7r <- perd("P7"); P5r <- perd("P5"); P6r <- perd("P6")
 for (vn in names(H2S)) {
   dd <- DAILY[[H2S[[vn]]]]
@@ -240,7 +242,7 @@ for (vn in names(H2S)) {
   stat <- function(w1, w2) { a <- wmedian(xa, w1); b <- wmedian(xb, w2); c(a, b, a - b) }
   pt <- stat(rep(1L, length(xa)), rep(1L, length(xb)))
   ci <- boot_ci(boot_matrix(length(xa), stat, length(xb))[, 3]); note_skips("W5_candidates", paste("H2", vn), "diff", ci[3])
-  add_row("H2", vn, "", "median_A_a", pt[1], pt[2], pt[3], ci[1], ci[2], NA, NA, NA, "")
+  M("W5", paste("H2", vn, "", "median_A_a", sep = "|"), "w5_n_runs", length(xa) + length(xb)); add_row("H2", vn, "", "median_A_a", pt[1], pt[2], pt[3], ci[1], ci[2], NA, NA, NA, "")
   M("W5", vn, "h2_ratio_a_over_b", pt[1] / pt[2]); M("W5", vn, "h2_n_days_a", length(xa)); M("W5", vn, "h2_n_days_b", length(xb))
 }
 
@@ -261,6 +263,7 @@ h5 <- function(variant, df_) {   # df_: data frame with columns day, phase, e, h
   bm <- boot_matrix(length(bn), stat, length(bo))
   ci <- boot_ci(bm[, 3]); cp <- boot_ci(bm[, 5]); note_skips("W5_candidates", paste("H5", variant), "diff", ci[3]); note_skips("W5_candidates", paste("H5", variant), "share_p", cp[3])
   sp <- if (is.na(CREF_FULL) || CREF_FULL == 0) NA_real_ else pt[3] / CREF_FULL
+  M("W5", paste("H5", variant, "", "cycle", sep = "|"), "w5_n_runs", nrow(zn) + nrow(zo))
   add_row("H5", variant, "", "cycle", pt[1], pt[2], pt[3], ci[1], ci[2], sp, cp[1], cp[2], label_interval(cp[1], cp[2], 0.05, 0.10))
 }
 h5("S0_logged", data.frame(day = RW$day, phase = RW$phase, e = RW$e_raw, hr = RW$hour_due))
@@ -277,7 +280,7 @@ ok <- dE$event_day[iE] == 0 & dL$event_day[iL] == 0 & !is.na(dE$A_a[iE]) & !is.n
 xe <- dE$A_a[iE][ok]; xl <- dL$A_a[iL][ok]
 stat <- function(w1, w2) { a <- wmedian(xe, w1); b <- wmedian(xl, w1); c(a, b, a - b) }
 pt <- stat(rep(1L, length(xe)), NULL); ci <- boot_ci(boot_matrix(length(xe), stat)[, 3]); note_skips("W5_candidates", "H9", "diff", ci[3])
-add_row("H9", "", "", "median_A_a", pt[1], pt[2], pt[3], ci[1], ci[2], NA, NA, NA, "")
+M("W5", "H9|||median_A_a", "w5_n_runs", length(xe)); add_row("H9", "", "", "median_A_a", pt[1], pt[2], pt[3], ci[1], ci[2], NA, NA, NA, "")
 M("W5", "", "h9_ratio_a_over_b", pt[1] / pt[2]); M("W5", "", "h9_n_days", length(xe))
 
 W5T <- do.call(rbind, W5)

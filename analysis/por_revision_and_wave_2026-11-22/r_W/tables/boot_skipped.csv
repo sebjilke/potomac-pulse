@@ -71,7 +71,7 @@ W5_candidates,H3 NEW ,cycle_diff,0
 W5_candidates,H3 NEW ,cycle_share_p,0
 W5_candidates,H3 OLD ,MAE_diff,0
 W5_candidates,H3 OLD ,cycle_diff,0
-W5_candidates,H3 OLD ,cycle_share_p,2000
+W5_candidates,H3 OLD ,cycle_share_p,0
 W5_candidates,H4 mean_correction ,MAE_diff,0
 W5_candidates,H4 mean_correction ,cycle_diff,0
 W5_candidates,H4 mean_correction ,cycle_share_p,0
@@ -86,10 +86,10 @@ W5_candidates,H8 NEW C,diff,0
 W5_candidates,H8 OLD A,diff,0
 W5_candidates,H8 OLD B,diff,0
 W5_candidates,H8 OLD C,diff,0
-W5_candidates,H2 PoR_level,diff,0
-W5_candidates,H2 PoR_flow,diff,0
-W5_candidates,H2 LF_level,diff,0
-W5_candidates,H2 LF_flow,diff,0
+W5_candidates,H2 por_level,diff,0
+W5_candidates,H2 por_flow,diff,0
+W5_candidates,H2 lf_level,diff,0
+W5_candidates,H2 lf_flow,diff,0
 W5_candidates,H5 S0_logged,diff,0
 W5_candidates,H5 S0_logged,share_p,0
 W5_candidates,H5 S-new,diff,0
