@@ -1,0 +1,84 @@
+{
+  "pedts": "HGIFF",
+  "issuedTime": "2026-11-24T13:59:00Z",
+  "wfo": "LWX",
+  "timeZone": "EST5EDT",
+  "primaryName": "Stage",
+  "primaryUnits": "ft",
+  "secondaryName": "Flow",
+  "secondaryUnits": "kcfs",
+  "data": [
+    {
+      "validTime": "2026-11-24T18:00:00Z",
+      "generatedTime": "2026-11-24T14:09:20Z",
+      "primary": 2.7,
+      "secondary": 1.48
+    },
+    {
+      "validTime": "2026-11-25T00:00:00Z",
+      "generatedTime": "2026-11-24T14:09:20Z",
+      "primary": 2.7,
+      "secondary": 1.48
+    },
+    {
+      "validTime": "2026-11-25T06:00:00Z",
+      "generatedTime": "2026-11-24T14:09:20Z",
+      "primary": 2.7,
+      "secondary": 1.48
+    },
+    {
+      "validTime": "2026-11-25T12:00:00Z",
+      "generatedTime": "2026-11-24T14:09:20Z",
+      "primary": 2.7,
+      "secondary": 1.48
+    },
+    {
+      "validTime": "2026-11-25T18:00:00Z",
+      "generatedTime": "2026-11-24T14:09:20Z",
+      "primary": 2.8,
+      "secondary": 1.9
+    },
+    {
+      "validTime": "2026-11-26T00:00:00Z",
+      "generatedTime": "2026-11-24T14:09:20Z",
+      "primary": 2.8,
+      "secondary": 1.9
+    },
+    {
+      "validTime": "2026-11-26T06:00:00Z",
+      "generatedTime": "2026-11-24T14:09:20Z",
+      "primary": 2.7,
+      "secondary": 1.48
+    },
+    {
+      "validTime": "2026-11-26T12:00:00Z",
+      "generatedTime": "2026-11-24T14:09:20Z",
+      "primary": 2.7,
+      "secondary": 1.48
+    },
+    {
+      "validTime": "2026-11-26T18:00:00Z",
+      "generatedTime": "2026-11-24T14:09:20Z",
+      "primary": 2.7,
+      "secondary": 1.48
+    },
+    {
+      "validTime": "2026-11-27T00:00:00Z",
+      "generatedTime": "2026-11-24T14:09:20Z",
+      "primary": 3,
+      "secondary": 2.85
+    },
+    {
+      "validTime": "2026-11-27T06:00:00Z",
+      "generatedTime": "2026-11-24T14:09:20Z",
+      "primary": 3.4,
+      "secondary": 5.29
+    },
+    {
+      "validTime": "2026-11-27T12:00:00Z",
+      "generatedTime": "2026-11-24T14:09:20Z",
+      "primary": 3.6,
+      "secondary": 6.77
+    }
+  ]
+}

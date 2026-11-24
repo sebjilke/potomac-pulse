@@ -30,6 +30,9 @@ const {
 // v39.11: adapter for USGS's new service (turns its rows into the old service's structure).
 const usgsAdapter = require('./shared/usgs-adapter');
 
+// v39.15: SHA-1 fingerprint of the archived forecast points (log only).
+const nodeCrypto = require('crypto');
+
 // v39.6 (A8): server copy of the 90% band table, used only by the audit log (tick_log.ci).
 const { bandFor } = require('./shared/ci-table');
 
@@ -2357,17 +2360,29 @@ async function updateLfResidualAdvisory(client, { runStartMs, pairs, lfCFS }) {
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 // Hand-maintained. The `commit` field on every row is the safety net if this goes stale.
-const SERVER_VERSION = 'v39.11';
+const SERVER_VERSION = 'v39.15';
 const LOG_SCHEMA = 3;
 const OBS_TABLE = 'potomac_observations';
-// Retention in days, by type. Only these three types are ever pruned. log_health is never pruned.
-const LOG_RETENTION_DAYS = Object.freeze({ tick_log: 180, validation_log: 730, bin_snapshot: 730 });
+// Retention in days, by type. Only these four types are ever pruned. log_health is never pruned.
+// v39.15: nws_fc (the archived Weather Service forecast) is the fourth. Its prune runs in its own block
+// after the tick row (see the handler), NOT in runLogHousekeeping, so an hour-3 tick row stays as before.
+const LOG_RETENTION_DAYS = Object.freeze({ tick_log: 180, validation_log: 730, bin_snapshot: 730, nws_fc: 730 });
 const LOG_POOL_MS = 3000;          // time budget per pool (general, tick)
 const LOG_WRITE_CAP_MS = 2000;     // longest one log call may hold the run
 const PRUNE_BATCH = 100;           // ids per delete (about 4 KB of URL)
 const PRUNE_FLOOR_DAYS = 30;       // a prune can never reach back less than this
 const SNAPSHOT_HOURS_UTC = [3, 4, 5];
 const LOG_FAIL_LIST_MAX = 10;
+// v39.15: the forecast archive. One absolute deadline for every new call: tick start + 25 s.
+const FC_LOG_SCHEMA = 1;
+const NEW_LOG_DEADLINE_MS = 25000;
+const NWS_CALL_CAP_MS = 2000;      // one timer over both requests and both body reads
+const NWS_BODY_MAX = 262144;       // bytes; a normal answer is about 2 KB
+const NWS_ARCH_POOL_MS = 4000;     // time budget of the `arch` pool (the nws_fc write and the extra health flush; the nws_fc prune uses the `general` pool)
+const NWS_PTS_MAX = 200;           // points stored per gauge (a normal answer has 12)
+const NWS_BASE_URL = 'https://api.water.noaa.gov/nwps/v1/gauges/';
+// The two series the 48 h forecast on the page really uses. Must equal the matching NWS_LIDS entries (tested).
+const NWS_ARCHIVE_GAUGES = Object.freeze({ '01646500': 'BRKM2', '01638500': 'PORM2' });
 
 // Rounds to `d` decimals; null for anything that is not a finite number.
 function logNum(x, d = 1) {
@@ -2410,8 +2425,8 @@ function binStatsOf(b) {
  * cannot stop the tick row from being attempted. Also collects this run's failures.
  */
 class LogBudget {
-    constructor(generalMs = LOG_POOL_MS, tickMs = LOG_POOL_MS) {
-        this.left = { general: generalMs, tick: tickMs };
+    constructor(generalMs = LOG_POOL_MS, tickMs = LOG_POOL_MS, archMs = NWS_ARCH_POOL_MS) {
+        this.left = { general: generalMs, tick: tickMs, arch: archMs };
         this.fails = [];           // {type, reason, predTs?} for every log call that did not land this run
         this.pending = { errors: 0, timeouts: 0, skipped: 0, byType: {}, lastError: null };
     }
@@ -2431,11 +2446,19 @@ class LogBudget {
 
 // Runs fn() under a pool: refuses when the pool is spent, abandons the call after min(2000, left) ms,
 // charges the elapsed time to the pool. Never throws. {ok, value} or {ok:false, reason, error?}.
-async function timedLogCall(budget, pool, fn) {
+// v39.15: an optional absolute `deadline` (epoch ms). With none (every call that existed before v39.15) the
+// behaviour is exactly as before. With one, the call is refused ('budget') when the deadline has passed and
+// its cap is also limited to the time left before it.
+async function timedLogCall(budget, pool, fn, deadline) {
     const rem = budget.remaining(pool);
     if (!(rem > 0)) return { ok: false, reason: 'budget' };
-    const cap = Math.min(LOG_WRITE_CAP_MS, rem);
+    let cap = Math.min(LOG_WRITE_CAP_MS, rem);
     const started = Date.now();
+    if (deadline !== undefined) {
+        const left = deadline - started;
+        if (!(left > 0)) return { ok: false, reason: 'budget' };
+        cap = Math.min(cap, left);
+    }
     let timer;
     try {
         const work = (async () => fn())().then(v => ['ok', v], e => ['err', e]);
@@ -2456,13 +2479,13 @@ async function timedLogCall(budget, pool, fn) {
  * Inserts one log row. NEVER throws and is time-bounded. Failures are recorded on the budget.
  * @returns {Promise<{ok: boolean, reason: 'ok'|'dup'|'timeout'|'error'|'budget'|'no_client_method'}>}
  */
-async function writeLogRow(client, type, gaugeId, data, budget, pool, meta = {}) {
+async function writeLogRow(client, type, gaugeId, data, budget, pool, meta = {}, deadline) {
     try {
         if (!client || typeof client.from !== 'function') {
             budget.noteFailure(type, 'no_client_method', meta);
             return { ok: false, reason: 'no_client_method' };
         }
-        const r = await timedLogCall(budget, pool, () => insertObs(client, type, gaugeId, data));
+        const r = await timedLogCall(budget, pool, () => insertObs(client, type, gaugeId, data), deadline);
         if (!r.ok) {
             budget.noteFailure(type, r.reason, { ...meta, msg: logStr(r.error?.message, 100) });
             if (r.reason !== 'budget') console.warn(`⚠️ ${type} log write ${r.reason} (non-fatal)`, r.error?.message || '');
@@ -2484,10 +2507,13 @@ async function writeLogRow(client, type, gaugeId, data, budget, pool, meta = {})
  * Adds this run's failure counts to the single `log_health/system` row. Draws from the general pool and
  * is skipped (counters kept for a later try) when the pool is spent. Never throws.
  */
-async function flushLogHealth(client, budget) {
+// v39.15: optional third argument {pool, deadline}; the default (pool 'general', no deadline) is unchanged.
+async function flushLogHealth(client, budget, opts) {
     try {
+        const pool = (opts && opts.pool) || 'general';
+        const deadline = opts ? opts.deadline : undefined;
         if (!budget.hasPending()) return { status: 'none' };
-        const read = await timedLogCall(budget, 'general', () => getObsRaw(client, 'log_health', 'system'));
+        const read = await timedLogCall(budget, pool, () => getObsRaw(client, 'log_health', 'system'), deadline);
         if (!read.ok) return { status: 'skipped', reason: read.reason };
         const { data: row, error: readErr } = read.value || {};
         if (readErr && readErr.code !== 'PGRST116') return { status: 'skipped', reason: 'read_error' };
@@ -2503,7 +2529,7 @@ async function flushLogHealth(client, budget) {
             lastError: p.lastError ?? prev.lastError ?? null,
             lastAt: new Date().toISOString()
         };
-        const write = await timedLogCall(budget, 'general', () => upsertObs(client, 'log_health', 'system', next));
+        const write = await timedLogCall(budget, pool, () => upsertObs(client, 'log_health', 'system', next), deadline);
         if (!write.ok) return { status: 'skipped', reason: write.reason };
         if (write.value && write.value.error) return { status: 'skipped', reason: 'write_error' };
         budget.pending = { errors: 0, timeouts: 0, skipped: 0, byType: {}, lastError: null };
@@ -3011,7 +3037,7 @@ async function runBinSnapshot(client, budget, nowMs) {
  * other observation_type. Never throws.
  * @param {Object} client
  * @param {string} type - must be a key of LOG_RETENTION_DAYS.
- * @param {{nowMs?: number, days?: number, budget?: LogBudget}} [opts]
+ * @param {{nowMs?: number, days?: number, budget?: LogBudget, pool?: string, deadline?: number}} [opts]
  * @returns {Promise<{cand: number, deleted: number, error?: string}>}
  */
 async function pruneLogType(client, type, opts = {}) {
@@ -3020,19 +3046,21 @@ async function pruneLogType(client, type, opts = {}) {
         const nowMs = opts.nowMs ?? Date.now();
         const days = opts.days ?? LOG_RETENTION_DAYS[type];
         const budget = opts.budget || new LogBudget();
+        const pool = opts.pool || 'general';       // v39.15: optional pool and deadline; defaults unchanged
+        const deadline = opts.deadline;
         const cutoffMs = nowMs - days * 86400000;
         if (!Number.isFinite(cutoffMs) || cutoffMs > nowMs - PRUNE_FLOOR_DAYS * 86400000) {
             return { cand: 0, deleted: 0, error: 'cutoff_refused' };
         }
         const cutoff = new Date(cutoffMs).toISOString();
-        const sel = await timedLogCall(budget, 'general', () => client.from(OBS_TABLE).select('id')
-            .eq('observation_type', type).lt('gauge_id', cutoff).order('gauge_id').limit(PRUNE_BATCH));
+        const sel = await timedLogCall(budget, pool, () => client.from(OBS_TABLE).select('id')
+            .eq('observation_type', type).lt('gauge_id', cutoff).order('gauge_id').limit(PRUNE_BATCH), deadline);
         if (!sel.ok) { budget.noteFailure(`prune_${type}`, sel.reason); return { cand: 0, deleted: 0, error: `select_${sel.reason}` }; }
         if (sel.value?.error) { budget.noteFailure(`prune_${type}`, 'error', { msg: logStr(sel.value.error.message, 100) }); return { cand: 0, deleted: 0, error: 'select_error' }; }
         const ids = (sel.value?.data || []).map(r => r.id).filter(id => id != null).slice(0, PRUNE_BATCH);
         if (ids.length === 0) return { cand: 0, deleted: 0 };
-        const del = await timedLogCall(budget, 'general', () => client.from(OBS_TABLE).delete()
-            .eq('observation_type', type).in('id', ids).select('id'));
+        const del = await timedLogCall(budget, pool, () => client.from(OBS_TABLE).delete()
+            .eq('observation_type', type).in('id', ids).select('id'), deadline);
         if (!del.ok) { budget.noteFailure(`prune_${type}`, del.reason); return { cand: ids.length, deleted: 0, error: `delete_${del.reason}` }; }
         if (del.value?.error) { budget.noteFailure(`prune_${type}`, 'error', { msg: logStr(del.value.error.message, 100) }); return { cand: ids.length, deleted: 0, error: 'delete_error' }; }
         // FM-2: report what the server says it removed, not what was requested.
@@ -3083,6 +3111,228 @@ async function finalizeTick(client, budget, ctx, tickStartMs, o) {
     }
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// v39.15: the Weather Service forecast archive (`nws_fc`). OBSERVATION ONLY. Once an hour, after the
+// success ping, the job asks the Weather Service for its river forecast at Little Falls (BRKM2) and
+// Point of Rocks (PORM2) and keeps the answer as one row. Nothing here is read by the estimate, the
+// learning or the scoring. Every new call ends by tickStart + 25 s or is not made. NWS_ARCHIVE=off
+// turns off the request, the write, the extra health flush and the nws_fc prune.
+// Plan: analysis/forecast-archive-plan-2026-11-24.md (version 2) and its PLAN_AUDIT.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+// Same path list as the browser (src/estimation/nws.js parseNWSForecast), so a shape change hits both alike.
+function nwsArrayOf(json) {
+    const paths = [
+        json?.forecast?.data,
+        json?.data,
+        json?.forecast,
+        json?.data?.forecast?.data,
+        json?.data?.forecast,
+        json?.stageflow?.forecast?.data,
+        json?.stageflow?.forecast
+    ];
+    for (const p of paths) {
+        if (Array.isArray(p) && p.length > 0) return p;
+    }
+    return null;
+}
+
+function nwsEpoch(v) {
+    if (!v) return null;
+    const t = new Date(v).getTime();
+    return Number.isFinite(t) ? t : null;
+}
+function nwsVal(v) {
+    if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+    if (typeof v === 'string') return v.slice(0, 24);
+    return null;
+}
+
+/**
+ * Pure. Reads one parsed answer into the archive fields. Every point is kept in order as
+ * [validTime epoch ms or null, primary, secondary]; the time is `validTime` only (the rule the page's
+ * forecast code uses), null when absent or unparseable. Returns {why:'shape'} when there is no array.
+ */
+function parseNwsForecastBody(json) {
+    try {
+        const arr = nwsArrayOf(json);
+        if (!arr) return { why: 'shape' };
+        let gen = null;
+        const pts = [];
+        for (const p of arr.slice(0, NWS_PTS_MAX)) {
+            if (p === null || typeof p !== 'object') { pts.push([null, null, null]); continue; }
+            pts.push([nwsEpoch(p.validTime), nwsVal(p.primary), nwsVal(p.secondary)]);
+        }
+        for (const p of arr) {
+            const g = (p && typeof p === 'object') ? nwsEpoch(p.generatedTime) : null;
+            if (g !== null && (gen === null || g > gen)) gen = g;
+        }
+        const out = {
+            why: null,
+            iss: nwsEpoch(json?.issuedTime ?? json?.forecast?.issuedTime),
+            gen,
+            u: logStr(json?.secondaryUnits || json?.forecast?.secondaryUnits, 16),
+            pu: logStr(json?.primaryUnits || json?.forecast?.primaryUnits, 16),
+            pedts: logStr(json?.pedts || json?.forecast?.pedts, 16),
+            n: pts.length,
+            pts
+        };
+        if (arr.length > pts.length) out.nAll = arr.length;
+        return out;
+    } catch (_) {
+        return { why: 'shape' };
+    }
+}
+
+// Result shape the row builder accepts, with both gauges carrying `why`. Calls no clock.
+function nwsFallback(why) {
+    const g = {};
+    for (const [site, lid] of Object.entries(NWS_ARCHIVE_GAUGES)) g[lid] = { site, http: null, why, ms: null };
+    return { ft: null, ms: null, g };
+}
+
+/**
+ * One GET and one bounded body read for one gauge. Writes into `rec` as it learns things. Never rejects
+ * (the caller also attaches a catch). Body bound: a stream reader with a byte counter; content-length is
+ * only a hint.
+ */
+async function nwsFetchOne(lid, signal, rec) {
+    const response = await fetch(NWS_BASE_URL + lid + '/stageflow/forecast', { signal });
+    rec.http = response.status;
+    if (!response.ok) { rec.why = 'http_error'; return; }
+    const reader = response.body && typeof response.body.getReader === 'function' ? response.body.getReader() : null;
+    if (!reader) { rec.why = 'shape'; return; }
+    const cancel = () => { try { const c = reader.cancel(); if (c && c.catch) c.catch(() => {}); } catch (_) { /* nothing to cancel */ } };
+    let hint = NaN;
+    try { hint = Number(response.headers && response.headers.get && response.headers.get('content-length')); } catch (_) { /* hint only */ }
+    if (Number.isFinite(hint) && hint > NWS_BODY_MAX) { cancel(); rec.why = 'shape'; return; }
+    const chunks = [];
+    let total = 0;
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += (value && value.byteLength) || 0;
+        if (total > NWS_BODY_MAX) {
+            cancel();
+            rec.why = 'shape';
+            rec.rawHead = logMsg(Buffer.concat(chunks).subarray(0, 1000).toString('utf8'), 1000);
+            return;
+        }
+        chunks.push(Buffer.from(value));
+    }
+    const text = Buffer.concat(chunks).toString('utf8');
+    let json;
+    try { json = JSON.parse(text); } catch (_) {
+        rec.why = 'parse_error';
+        rec.rawHead = logMsg(text, 1000);
+        return;
+    }
+    const parsed = parseNwsForecastBody(json);
+    if (parsed.why) { rec.why = parsed.why; rec.rawHead = logMsg(text, 1000); return; }
+    rec.parsed = parsed;
+}
+
+/**
+ * Starts both requests together, under ONE real timer and ONE abort controller, capped at
+ * min(2000 ms, time left before tickStart + 25 s). `async`, so any throw becomes a rejection.
+ * A gauge that finished before the timer keeps its result; the other gets why 'timeout'.
+ * @returns {Promise<{ft:number, ms:number, g:Object}>}
+ */
+async function fetchNwsArchive(tickStartMs, callAt) {
+    const ft = (typeof callAt === 'number') ? callAt : Date.now();
+    const out = { ft, ms: null, g: {} };
+    const recs = {};
+    for (const [site, lid] of Object.entries(NWS_ARCHIVE_GAUGES)) recs[lid] = { site, http: null, why: null, ms: null };
+    const cap = Math.min(NWS_CALL_CAP_MS, tickStartMs + NEW_LOG_DEADLINE_MS - ft);
+    if (!(cap > 0)) {
+        for (const lid of Object.keys(recs)) { recs[lid].why = 'late_skip'; recs[lid].ms = 0; }
+        out.ms = 0; out.g = recs;
+        return out;
+    }
+    const controller = new AbortController();
+    let timer;
+    const finished = {};
+    const work = Promise.all(Object.keys(recs).map(lid => {
+        const rec = { ...recs[lid] };
+        recs[lid] = rec;
+        const t0 = Date.now();
+        return nwsFetchOne(lid, controller.signal, rec)
+            .catch(() => { rec.why = 'fetch_error'; })
+            .then(() => { rec.ms = Date.now() - t0; finished[lid] = true; });
+    }));
+    const timeout = new Promise(resolve => { timer = setTimeout(() => resolve('timeout'), cap); });
+    try {
+        const r = await Promise.race([work, timeout]);
+        if (r === 'timeout') { try { controller.abort(); } catch (_) { /* nothing to abort */ } }
+    } finally {
+        clearTimeout(timer);
+    }
+    // Snapshot now: a late worker must not change what is stored.
+    for (const [lid, rec] of Object.entries(recs)) {
+        if (finished[lid]) {
+            const c = { ...rec };
+            if (c.parsed) c.parsed = { ...c.parsed };
+            out.g[lid] = c;
+        } else {
+            out.g[lid] = { site: rec.site, http: rec.http ?? null, why: 'timeout', ms: cap };
+        }
+    }
+    out.ms = Date.now() - ft;
+    return out;
+}
+
+// Primitive copies of the tick's own numbers, rounded exactly as tick_log rounds them. Reads only.
+function nwsFcInputs(usgsData, prediction) {
+    const d = usgsData?.data, gg = usgsData?.gauges;
+    const lf = d?.[gg?.lf], por = d?.[gg?.por];
+    return {
+        lfq: logNum(lf?.q), lfT: logEpoch(lf?.qTime),
+        porq: logNum(por?.q), porT: logEpoch(por?.qTime),
+        fin: logNum(prediction?.predictedCFS, 0),
+        out: prediction ? 'predicted' : 'no_prediction'
+    };
+}
+
+/** Pure. Builds the nws_fc row. Never mutates its inputs. */
+function buildNwsFcRecord(nws, inp, tickStartMs) {
+    const n = nws || nwsFallback('internal_error');
+    const i = inp || {};
+    const g = {};
+    for (const [site, lid] of Object.entries(NWS_ARCHIVE_GAUGES)) {
+        const r = (n.g && n.g[lid]) || { site, http: null, why: 'internal_error', ms: null };
+        const p = r.parsed || null;
+        const e = {
+            site, http: logEpoch(r.http), why: r.why ?? null, ms: logEpoch(r.ms)
+        };
+        if (p) {
+            e.iss = p.iss ?? null; e.gen = p.gen ?? null;
+            e.u = p.u ?? null; e.pu = p.pu ?? null; e.pedts = p.pedts ?? null;
+            e.n = p.n;
+            if (p.nAll !== undefined) e.nAll = p.nAll;
+            e.sig = nodeCrypto.createHash('sha1').update(JSON.stringify(p.pts)).digest('hex').slice(0, 8);
+            e.pts = p.pts.map(x => x.slice());
+        }
+        if ((r.why === 'shape' || r.why === 'parse_error') && r.rawHead != null) e.rawHead = logMsg(r.rawHead, 1000);
+        g[lid] = e;
+    }
+    return {
+        v: FC_LOG_SCHEMA,
+        ver: SERVER_VERSION,
+        at: new Date(tickStartMs).toISOString(),
+        ft: logEpoch(n.ft),
+        ms: logEpoch(n.ms),
+        in: {
+            lfq: logNum(i.lfq), lfT: logEpoch(i.lfT), porq: logNum(i.porq), porT: logEpoch(i.porT),
+            fin: logNum(i.fin, 0), out: i.out === 'predicted' ? 'predicted' : 'no_prediction'
+        },
+        g
+    };
+}
+
+// Test seam: the handler calls these through this object so a test can make them throw.
+const nwsHooks = { fetchNwsArchive, buildNwsFcRecord };
+
 exports._test = {
     usgsRequest, fetchNewIvJson, pubOf,
     validateUSGSResponse, fetchWithTimeout, fetchWaterTemp,
@@ -3102,6 +3352,9 @@ exports._test = {
     // v39.6 (A5, A8)
     fetchDifficultRun, parseDifficultRun, attachDr, compactSeries, efTrendOfTail,
     confidenceLabel, downgradeLabel, shownLabel, buildConf, cleanDr, DR_URL, DR_CAP_MS, DR_LATE_SKIP_MS,
+    // v39.15 forecast archive
+    FC_LOG_SCHEMA, NWS_ARCHIVE_GAUGES, NEW_LOG_DEADLINE_MS, NWS_CALL_CAP_MS, NWS_BODY_MAX, NWS_ARCH_POOL_MS,
+    parseNwsForecastBody, fetchNwsArchive, buildNwsFcRecord, nwsFcInputs, nwsFallback, nwsHooks,
 };
 
 /**
@@ -3353,6 +3606,21 @@ exports.handler = async (event, context) => {
             }
         }
 
+        // v39.15: start the Weather Service forecast archive request. After the ping, in its own try/catch.
+        // The switch, the clock and the call are all inside the try; a synchronous throw, a rejection or
+        // anything else gives a result with both gauges 'internal_error'. Awaited only after finalizeTick.
+        let nwsOn = false;
+        let nwsP = null;
+        try {
+            nwsOn = process.env.NWS_ARCHIVE !== 'off';
+            if (nwsOn) {
+                const callAt = Date.now();
+                nwsP = Promise.resolve(nwsHooks.fetchNwsArchive(tickStartMs, callAt)).catch(() => nwsFallback('internal_error'));
+            }
+        } catch (_) {
+            if (nwsOn) nwsP = Promise.resolve(nwsFallback('internal_error'));
+        }
+
         // v39.6 (A5): the Difficult Run reading for the audit log. After the ping, in its OWN try/catch
         // (fetch and attach), so nothing here can reach the catch below, send a /fail ping or change the
         // status. Time-bounded (2 s) and skipped on a late tick. Never read by estimation or learning.
@@ -3375,6 +3643,35 @@ exports.handler = async (event, context) => {
             out: prediction ? 'predicted' : 'no_prediction',
             why: prediction ? null : noPredictionWhy(criticalIce, usgsData)
         });
+
+        // v39.15: the archive row, AFTER the tick row, in its OWN try/catch so nothing here can reach the
+        // catch below, send a /fail ping or change the status. Every call ends by tickStart + 25 s or is
+        // skipped. A skipped write is NOT counted in log_health (the flush obeys the same deadline); it
+        // shows only as a missing nws_fc key. Never read by estimation, learning or scoring.
+        if (nwsOn) {
+            try {
+                const deadline = tickStartMs + NEW_LOG_DEADLINE_MS;
+                const nws = await (nwsP || Promise.resolve(nwsFallback('internal_error')));
+                let failed = false;
+                let rec = null;
+                try {
+                    rec = nwsHooks.buildNwsFcRecord(nws, nwsFcInputs(usgsData, prediction), tickStartMs);
+                } catch (e) {
+                    failed = true;
+                    try { logBudget.noteFailure('nws_fc', 'error', { msg: e?.message }); } catch (_) { /* log-only */ }
+                }
+                if (rec) {
+                    const w = await writeLogRow(client, 'nws_fc', rec.at, rec, logBudget, 'arch', {}, deadline);
+                    if (!w.ok) failed = true;
+                }
+                if (new Date(tickStartMs).getUTCHours() === SNAPSHOT_HOURS_UTC[0]) {
+                    const pr = await pruneLogType(client, 'nws_fc', { nowMs: tickStartMs, budget: logBudget, deadline });
+                    // A prune skipped only because the general pool is spent is not worth a health write.
+                    if (pr && pr.error && !/_budget$/.test(pr.error)) failed = true;
+                }
+                if (failed) await flushLogHealth(client, logBudget, { pool: 'arch', deadline });
+            } catch (_) { /* log-only: nothing here may change the run */ }
+        }
 
         return {
             statusCode: 200,

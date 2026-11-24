@@ -21,6 +21,8 @@ const { iso, usgsPayload, tempPayload, drPayload } = require('./helpers/usgs-moc
 const HOUR = 3600000;
 const PING = process.env.HEALTHCHECKS_PING_URL;
 const T0 = Date.UTC(2023, 10, 14, 16, 5, 0);
+// v39.15: the two exact Weather Service requests of the forecast archive (not any api.water.noaa.gov address).
+const NWPS_URLS = ['https://api.water.noaa.gov/nwps/v1/gauges/BRKM2/stageflow/forecast', 'https://api.water.noaa.gov/nwps/v1/gauges/PORM2/stageflow/forecast'];
 const MAIN_URL = 'https://waterservices.usgs.gov/nwis/iv/?sites=01638500,01646500,01643000,01644000,01644280,01645000,01644148&parameterCd=00060,00065&period=P2D&format=json';
 
 const flush = () => new Promise(r => setImmediate(r));
@@ -68,7 +70,9 @@ const BEHAVIORS = {
 };
 
 // One full run. `dr` names a behavior; `lateSkip` moves the clock 25 s after the ping (before the DR request);
-// `dateThrowAfterPing` makes the first Date.now() after the ping throw (to reach the call site's own catch).
+// `dateThrowAfterPing` makes a Date.now() throw to reach a call site's own catch: true or 'dr' = the Difficult Run
+// request's own Date.now() (v39.15: it is no longer the first one after the ping); 'nws' = the first Date.now()
+// after the ping, which is the Weather Service call site's.
 async function runArm(t, { dr = 'ok', lateSkip = false, dateThrowAfterPing = false, usgsFails = false, insertMode = {}, usgs = {}, rows = seeds(T0) } = {}) {
     t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
     t.mock.timers.setTime(T0);
@@ -89,7 +93,11 @@ async function runArm(t, { dr = 'ok', lateSkip = false, dateThrowAfterPing = fal
     const realNow = Date.now;
     let throwNext = false;
     if (dateThrowAfterPing) {
-        Date.now = () => { if (throwNext) { throwNext = false; throw new Error('Date.now exploded (test)'); } return realNow(); };
+        Date.now = () => {
+            if (dateThrowAfterPing === 'nws') { if (throwNext) { throwNext = false; throw new Error('Date.now exploded (test)'); } }
+            else if (throwNext && new Error().stack.includes('fetchDifficultRun')) { throwNext = false; throw new Error('Date.now exploded (test)'); }
+            return realNow();
+        };
     }
     t.mock.method(global, 'fetch', async (url) => {
         const u = String(url);
@@ -125,7 +133,8 @@ const nonLogWrites = (mem) => mem.ops.filter(o => !LOG_TYPES.includes(o.type) &&
     .map(o => JSON.stringify([o.op, o.type, o.filters, o.payload]));
 // Log rows with every v39.6 field removed (and the wall-clock ms, which includes the DR wait).
 function strippedLogs(mem) {
-    return mem.rows.filter(r => LOG_TYPES.includes(r.observation_type)).map(r => {
+    // v39.15: the archive row is a new log type; the late-skip baseline writes none (deadline), the other arms write one.
+    return mem.rows.filter(r => LOG_TYPES.includes(r.observation_type) && r.observation_type !== 'nws_fc').map(r => {
         const d = JSON.parse(JSON.stringify(r.data));
         delete d.ms;
         if (r.observation_type === 'tick_log') {
@@ -152,7 +161,8 @@ describe('handler A/B: the Difficult Run request never changes anything that alr
         ['throwing getters', { dr: 'getters' }],
         ['HTML body with 200', { dr: 'html' }],
         ['DR value 5000 cfs', { dr: 'huge' }],
-        ['throw at the call site itself', { dr: 'ok', dateThrowAfterPing: true }],
+        ['throw at the Difficult Run call site itself', { dr: 'ok', dateThrowAfterPing: 'dr' }],
+        ['throw at the Weather Service call site itself', { dr: 'ok', dateThrowAfterPing: 'nws' }],
     ];
 
     it('every arm equals the late-skip baseline (no request made): stored rows, writes, body, pings', async (t) => {
@@ -176,7 +186,7 @@ describe('handler A/B: the Difficult Run request never changes anything that alr
             const iPing = idx(a.events, e => e[0] === 'ping');
             const iDr = idx(a.events, e => e[0] === 'dr');
             const iLog = idx(a.events, isLogWrite);
-            if (!opts.dateThrowAfterPing) {
+            if (opts.dateThrowAfterPing !== 'dr') {
                 assert.equal(a.events.filter(e => e[0] === 'dr').length, 1, `${name}: at most one DR request`);
                 assert.ok(iPing >= 0 && iDr > iPing && iLog > iDr, `${name}: ping < DR GET < first log write (${JSON.stringify(a.events)})`);
             } else {
@@ -203,7 +213,7 @@ describe('handler A/B: the Difficult Run request never changes anything that alr
             assert.equal(val.tickAt, tick.at, 'join key');
             assert.ok(!('tail' in val.dr), 'the tail lives on the tick row only');
             assert.equal(tick.v, 3); assert.equal(val.v, 3);
-            assert.equal(tick.ver, 'v39.11');
+            assert.equal(tick.ver, _test.SERVER_VERSION);
             if (name === 'ok') {
                 assert.equal(tick.in.dr.q, 13.1);
                 assert.equal(tick.in.dr.t, T0 - 73 * 60000);
@@ -262,7 +272,7 @@ describe('handler A/B: the Difficult Run request never changes anything that alr
 
     it('the existing "unexpected fetch throws" rule still holds: only the four known URLs are requested', async (t) => {
         const a = await runArm(t, { dr: 'ok' });
-        const known = a.urls.filter(u => u.startsWith(PING) || u.includes('sites=01646000') || u.includes('parameterCd=00010') || u === MAIN_URL);
+        const known = a.urls.filter(u => u.startsWith(PING) || u.includes('sites=01646000') || u.includes('parameterCd=00010') || u === MAIN_URL || NWPS_URLS.includes(u));
         assert.equal(known.length, a.urls.length);
     });
 });

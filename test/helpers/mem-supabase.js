@@ -7,7 +7,7 @@
 
 // `faults`: { claim: 'error' | 'lost', readFail: [gauge_id...], upsertFail: [gauge_id...] } injects the
 // failures the validation tests need (a failed claim delete, a lost claim, a failing single-row read,
-// a failing upsert for one gauge_id).
+// a failing upsert for one gauge_id). `selectHang: [type...]` makes every select on those types never settle (v39.15).
 function createMemClient({ rows: seedRows = [], insertMode = {}, faults = {} } = {}) {
     const rows = [];
     const ops = [];
@@ -61,6 +61,7 @@ function createMemClient({ rows: seedRows = [], insertMode = {}, faults = {} } =
             const op = { op: q.op, type, filters: q.filters.map(f => ({ ...f })), payload: q.payload, limit: q.limit };
             ops.push(op);
             if (q.op === 'select') {
+                if ((faults.selectHang || []).includes(type)) return new Promise(() => {});
                 let m = rows.filter(r => matches(r, q.filters));
                 if (q.order) m.sort((a, z) => (a[q.order.c] < z[q.order.c] ? -1 : a[q.order.c] > z[q.order.c] ? 1 : 0) * (q.order.asc ? 1 : -1));
                 if (q.limit != null) m = m.slice(0, q.limit);
@@ -115,6 +116,6 @@ function createMemClient({ rows: seedRows = [], insertMode = {}, faults = {} } =
     };
 }
 
-const LOG_TYPES = ['tick_log', 'validation_log', 'bin_snapshot', 'log_health'];
+const LOG_TYPES = ['tick_log', 'validation_log', 'bin_snapshot', 'log_health', 'nws_fc'];
 
 module.exports = { createMemClient, LOG_TYPES };

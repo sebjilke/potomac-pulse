@@ -133,6 +133,8 @@ function tempPayloadFull() {
 }
 
 const mainCalls = (a) => a.calls.filter(c => c.url.includes('parameter_code=00060,00065') || c.url.includes('parameterCd=00060,00065'));
+// v39.15: the forecast archive's two Weather Service requests are not USGS requests; they are checked in forecast-archive-handler.test.js.
+const NWPS_HOST = 'https://api.water.noaa.gov/';
 const pingKinds = (a) => a.calls.filter(c => c.url.startsWith(PING)).map(c => (c.url === PING ? 'ok' : 'fail'));
 const tickOf = (a) => a.mem.of('tick_log')[0].data;
 const noKeyAnywhere = (a) => {
@@ -145,7 +147,7 @@ describe('key set: the new service', () => {
     it('main, temperature and Difficult Run all go to the new host with X-Api-Key; the old host is never called', async (t) => {
         const a = await runArm(t);
         assert.equal(a.res.statusCode, 200);
-        const usgs = a.calls.filter(c => !c.url.startsWith(PING));
+        const usgs = a.calls.filter(c => !c.url.startsWith(PING) && !c.url.startsWith(NWPS_HOST));
         assert.equal(usgs.length, 3, 'main, temperature, Difficult Run: one request each');
         for (const c of usgs) {
             assert.ok(c.url.startsWith(NEW_HOST), c.url);
@@ -257,7 +259,7 @@ describe('key set: the new service', () => {
 describe('no key, or USGS_SOURCE=old: the old service exactly as before', () => {
     it('no key: the three old addresses byte for byte, no header, source old_nokey', async (t) => {
         const a = await runArm(t, { key: null });
-        const usgs = a.calls.filter(c => !c.url.startsWith(PING));
+        const usgs = a.calls.filter(c => !c.url.startsWith(PING) && !c.url.startsWith(NWPS_HOST));
         assert.deepEqual(usgs.map(c => c.url).sort(), [OLD_DR_URL, OLD_MAIN_URL, OLD_TEMP_URL].sort());
         for (const c of usgs) assert.equal(c.headers, null);
         assert.equal(tickOf(a).src, 'old_nokey');
@@ -266,7 +268,7 @@ describe('no key, or USGS_SOURCE=old: the old service exactly as before', () => 
     });
     it('key set and USGS_SOURCE=old: old addresses, no key sent, source old', async (t) => {
         const a = await runArm(t, { usgsSource: 'old' });
-        const usgs = a.calls.filter(c => !c.url.startsWith(PING));
+        const usgs = a.calls.filter(c => !c.url.startsWith(PING) && !c.url.startsWith(NWPS_HOST));
         assert.deepEqual(usgs.map(c => c.url).sort(), [OLD_DR_URL, OLD_MAIN_URL, OLD_TEMP_URL].sort());
         for (const c of usgs) assert.equal(c.headers, null);
         assert.equal(tickOf(a).src, 'old');
@@ -305,7 +307,7 @@ describe('a malformed key never reaches a log', () => {
     it('a key with a newline: the old URL is used, source old_nokey, the key text is in no logged string', async (t) => {
         const bad = 'SECRETSECRET\nabc';
         const a = await runArm(t, { key: bad });
-        const usgs = a.calls.filter(c => !c.url.startsWith(PING));
+        const usgs = a.calls.filter(c => !c.url.startsWith(PING) && !c.url.startsWith(NWPS_HOST));
         assert.deepEqual(usgs.map(c => c.url).sort(), [OLD_DR_URL, OLD_MAIN_URL, OLD_TEMP_URL].sort());
         for (const c of usgs) assert.equal(c.headers, null);
         assert.equal(tickOf(a).src, 'old_nokey');

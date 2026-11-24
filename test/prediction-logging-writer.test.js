@@ -446,15 +446,16 @@ describe('T7: pruning only touches old rows of the three log types', () => {
         rows.push({ observation_type: 'gf_prediction', gauge_id: 'pending', data: {} });
         rows.push({ observation_type: 'gf_prediction', gauge_id: '1999-01-01T00:00:00.000Z', data: { ancient: true } });   // TD-6
         rows.push({ observation_type: 'audit_log', gauge_id: '1999-01-01T00:00:00.000Z', data: {} });
+        rows.push({ observation_type: 'gf_forecast_pending', gauge_id: '1999-01-01T00:00:00.000Z_x', data: { ancient: true } });   // v39.15: a similar non-log type is never pruned
         return createMemClient({ rows });
     }
-    const keepers = ['log_health', 'por_history', 'gf_correction_bin', 'validation_failure', 'gf_prediction', 'audit_log'];
+    const keepers = ['log_health', 'por_history', 'gf_correction_bin', 'validation_failure', 'gf_prediction', 'audit_log', 'gf_forecast_pending'];
 
     it('unknown type issues zero queries', async (t) => {
         quiet(t);
         const mem = seeded();
         const before = mem.ops.length;
-        for (const bad of ['gf_prediction', 'validation_failure', 'gf_correction_bin', 'log_health', 'por_history', '', undefined, null, '__proto__', 'constructor', 'toString']) {
+        for (const bad of ['gf_forecast_pending', 'gf_prediction', 'validation_failure', 'gf_correction_bin', 'log_health', 'por_history', '', undefined, null, '__proto__', 'constructor', 'toString']) {
             const r = await pruneLogType(mem.client, bad, { nowMs: NOW });
             assert.equal(r.error, 'type_not_allowed', String(bad));
         }
@@ -527,8 +528,8 @@ describe('T7: pruning only touches old rows of the three log types', () => {
         assert.equal((await pruneLogType(mem.client, 'tick_log', { nowMs: NOW, days: 30 })).error, undefined);
     });
 
-    it('retention table is frozen and has exactly the three types', () => {
-        assert.deepEqual(LOG_RETENTION_DAYS, { tick_log: 180, validation_log: 730, bin_snapshot: 730 });
+    it('retention table is frozen and has exactly the four types (v39.15 added nws_fc)', () => {
+        assert.deepEqual(LOG_RETENTION_DAYS, { tick_log: 180, validation_log: 730, bin_snapshot: 730, nws_fc: 730 });
         assert.ok(Object.isFrozen(LOG_RETENTION_DAYS));
     });
 

@@ -1,7 +1,7 @@
 # Plan (version 2): archive the Weather Service forecast every hour (v39.15, MINOR, server only, logging only)
 
 Status: VERSION 2, revised after the independent plan audit (`forecast-archive-plan-2026-11-24.PLAN_AUDIT.md`, verdict GO WITH CHANGES) and the orchestrator's rulings. Not implemented. Version 1 is kept unchanged as `forecast-archive-plan-2026-11-24.v1.md`. CLAUDE.md protocol step 5 applies: a fresh auditor re-checks this version before code is written, and again after.
-Date: 2026-11-24. Owner decision of the same day: "store forecasts" (TODO A3f).
+Date: 2026-11-24. Owner decision of the same day: "store forecasts" (TODO A3f). **Owner's go for this version, 2026-11-24: "built it"** (his reply to "say 'build it' and I have it built, re-audited, tested, pushed and checked live"). Retention stays at the recommended 730 days: he was asked to confirm or name another length and named none. Part B-lite stays out, as he was told.
 Line numbers: `netlify/functions/scheduled-update.js` is "S", `src/ui/great-falls-ui.js` is "UI", `src/estimation/nws.js` is "N". Re-read on 2026-11-24 for this version. The implementer must re-check them, the file drifts.
 
 ## 0. What the release does (for the owner)
@@ -193,6 +193,7 @@ Existing tests that must change (read from the code by the auditor; to be confir
 | `test/helpers/mem-supabase.js:118` (`LOG_TYPES`) | the existing handler tests count unknown types as non-log writes (`prediction-logging-handler.test.js:116, 361, 414`, `truth-dr-handler.test.js:122-141`) | add `'nws_fc'` |
 | `test/prediction-logging-writer.test.js:531` | asserts `LOG_RETENTION_DAYS` deep-equals three types | four types |
 | `test/prediction-logging-writer.test.js:451-461` | `keepers` and `type_not_allowed` lists | add a negative case for a similar non-log type, `gf_forecast_pending` (audit 11) |
+| `test/usgs-step1-handler.test.js:149, 261, 270, 309` (added after implementation, found in the dry run) | four tests count every non-ping request as a USGS request; the two Weather Service GETs are not USGS requests | the USGS call filter also excludes the host `https://api.water.noaa.gov/`; the `length === 3`, URL, header and source assertions are unchanged. The two exact addresses are pinned in `truth-dr-handler` and the new handler test |
 | any others found by the dry run | unknown | each listed here with line and reason before it is edited |
 
 STEP 0, before writing any other code: do a dry run of `npm test` with only the version bump and a stub `fetchNwsArchive` (the fetch in place, the row built from fixtures) and list EVERY failing assertion, with file and line. Add them to the table above. Rule R1 then reads: no existing test is edited beyond this list. This also catches tests that count log rows or hour-3 queries (the prune list change) or stub `fetch` and fail on an unknown URL.

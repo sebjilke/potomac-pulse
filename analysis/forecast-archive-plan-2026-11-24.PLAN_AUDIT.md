@@ -111,3 +111,155 @@ Agree with hourly. On-change needs a read every tick and adds a failure mode. Th
 - I did not run `npm test` or any page. The list of breaking tests in finding 5 comes from reading the code, not from running it.
 - That `gf_forecast_metadata.validations` counts only rows scored since 2026-08-28. The rows' `created_at` is 2026-08-29/30; earlier resets could change the rate a little. The order of magnitude (about 2 rows a tick) is safe.
 - Whether `final.cfs` in the server matches the browser's `gfEst.cfs` closely enough for the travel multiplier. The plan says the effect is small; it is not measured.
+
+---
+
+# Second pass, version 2
+
+Auditor: same independent auditor, fresh read of `analysis/forecast-archive-plan-2026-11-24.md` (version 2) against the code as it is on 2026-11-24. No file changed except this report.
+
+## Verdict
+
+IMPLEMENTATION MAY START, provided the implementer is told the ten points at the end. Three of them are corrections to version 2 that must go into the code: an own try/catch around the whole new block, a synchronous-throw-safe call site, and a fix to the self-contradictory test N8. They are small, local and do not change the design, so they do not need a third plan pass.
+
+## 1. Status of findings 1 to 14
+
+| # | Status | Checked in v2 | Note |
+|---|---|---|---|
+| 1 | RESOLVED | 3.4, 3.5 | The order is right: fetch after the ping, await and write after `finalizeTick`, one absolute deadline. The arithmetic is confirmed in section 2a below. One new gap: see N-1. |
+| 2 | PARTIAL | 3.4 step 5, N8, N9 | The extra flush exists. But it obeys the deadline, so a write skipped because the deadline passed can never be counted. N8 nevertheless asserts that it is counted. The `arch` pool is 4000 ms: a 2 s hung insert plus a 2 s hung health read leaves 0 ms for the health write, so the count is lost there too. See N-3. |
+| 3 | PARTIAL | 3.4 step 2, N5 | `.catch` is attached at creation. It does NOT catch a synchronous throw from the call expression itself, yet N5 requires the synchronous case to pass. See N-2. |
+| 4 | RESOLVED | 2.2 | Scalars copied. Use the same rounding as `tick_log` (`logNum(q, 1)` for flows, `logNum(predictedCFS, 0)` for `fin`). Otherwise live check 10.1 ("equal to the tick row") fails on decimals. |
+| 5 | RESOLVED, one known miss | 5, step 0 | The dry run covers it. One more existing test will break and should be listed now; see N-4. |
+| 6 | RESOLVED by deferral | 11 | Carried to the later task with the live numbers. |
+| 7 | RESOLVED | 0, 11 | Part B-lite removed; the scorer is untouched (5, "NOT touched"). |
+| 8 | RESOLVED by deferral | 11 | |
+| 9 | RESOLVED, with a note | 2.2 `pts`, 2.3 | The UI reads only `p.validTime` (UI:380, 420). The parser's acceptance gate also accepts `time`/`dateTime`/`valid`/`timestamp` (N:138). Store the time that the UI uses (`validTime` only, null otherwise) in `pts`, and keep the raw alternative only if present. Otherwise a point with only `time` is stored with a time the UI never saw. A boolean flow coerces to 1000 or 0 in the UI but is stored as null; negligible. |
+| 10 | PARTIAL | 3.3 | Implementable, but "stream reader, or content-length checked first" leaves the method open, and content-length alone is not a bound (chunked or absent). See 2d. |
+| 11 | RESOLVED, with a new side effect | 3.6 | Hard-coded list of four, negative test P1. New: every hour-3 `tick_log` row gains `aux.prune.nws_fc`; see N-5. |
+| 12 | RESOLVED | 2.1 | Spot-checked: ping S:3346-3354, Difficult Run S:3359-3365, `flushDeferredLogs` S:3372, `runLogHousekeeping` S:3373, `finalizeTick` S:3374. All match. |
+| 13 | RESOLVED | 3.1 | No custom header, no key, no contact detail. |
+| 14 | RESOLVED | 4 | Size range raised to 1.5-2 KB a row. |
+
+## 2. New problems and the checks asked for
+
+### (a) Time arithmetic for the new order
+
+Rules as written: the fetch cap is `min(2000, deadline - now)` at fetch start; every existing step is unchanged; then `await nwsP`; then the write and the health-flush calls, each capped `min(2000, deadline - now)`, inside the 4000 ms `arch` pool. Today's post-ping maximum: Difficult Run 2 s (only if it starts by 20 s), general pool 3 s, tick insert 2 s (S:2365-2366, 2437, 2529-2530).
+
+| Ping ends at | Today, latest end | New, latest end | Why |
+|---|---|---|---|
+| 3 s (early) | about 10 s | about 14 s | The fetch is done by 5 s. Today's chain ends at about 10 s. Then the write (2 s) and the health read (2 s) use up the `arch` pool, and the health write is refused. |
+| 3 s, NWS hangs, DB fast | about 3.5 s | about 5 s | The await waits for the fetch timer (2 s after start). |
+| 19.99 s | about 27.0 s | about 27.0 s | Fetch to 21.99 s. Today's chain ends at 26.99 s, past the deadline, so no write and no flush. The row for the hour is lost and the loss is not counted (N-3). |
+| 21 s | about 26 s (DB slow), 21.3 s (DB fast) | 26 s (DB slow), 25 s (DB fast, NWS hangs) | DB fast: the await runs to 23 s, the write is capped at 2 s to 25 s, and the flush cap is 0, so it is skipped. |
+| 24 s | about 24.3 s | 25 s | Fetch cap 1 s. The write cap is ≤ 0, so it is skipped. |
+| 25 s or later | ping end + up to 5 s | same | Fetch cap ≤ 0: no request (`late_skip`), no write. |
+
+- The latest moment the function can be running is `max(today's latest end, 25 s)` on the same tick.
+- It is never later than today's worst case. Today's worst case is itself unbounded, because time before the ping is unbounded (version 2 says so in 3.5).
+- On a given tick the run can end later than it would today, by at most `min(4 s plus the fetch wait, 25 s minus today's end)`. That is acceptable and is the stated design.
+- An NWS hang does not lengthen the worst case. A hang on the new insert does not either: both are capped by the deadline.
+- One residual effect, not a bug and not new. `timedLogCall` (S:2434-2453) abandons a slow insert without cancelling it. The request can complete later, even during the next invocation if the container is reused. That is true of every log write today; for `nws_fc` it is harmless (unique key per tick).
+
+### (b) Can anything after `finalizeTick` throw out of the handler, change the return value, or leave an unhandled rejection?
+
+- N-1 (fix in code). Version 2 does not say the new block after `finalizeTick` (await, row build, write, flush) runs inside its OWN try/catch. As drawn it sits inside the handler's main `try` (S:3132-3383). Any throw there would:
+  - jump to the catch at S:3384,
+  - send a `/fail` ping after the success ping,
+  - try a second `finalizeTick` (its tick row collides with the existing key and is counted as a duplicate),
+  - return 500 instead of 200.
+  A throw is possible: from `buildNwsFcRecord` on odd data, or from `Date.now` (the existing test harness can make it throw, `truth-dr-handler.test.js:91-100`).
+  - Required: wrap the whole new block exactly like the Difficult Run block (S:3359-3365), catch and swallow, nothing escapes.
+  - Add a mutant: make `buildNwsFcRecord` throw. Expect 200, one ok ping, no fail ping, the same body.
+- N-2 (fix in code). `fetchNwsArchive(t).catch(...)` handles a rejection, not a synchronous throw of the call expression. N5's synchronous arm then reaches the main catch.
+  - Required: declare `fetchNwsArchive` as `async`, so every throw inside it becomes a rejection.
+  - Also put the creation statement, together with the switch check and any `Date.now()` at the call site, in a try/catch whose fallback is `Promise.resolve(<internal_error result>)`.
+  - The fallback object must have the shape that `buildNwsFcRecord` accepts. Version 2's `{ rows: null, why: 'internal_error' }` must yield a row with both gauges marked `internal_error`; test that.
+- With N-1 and N-2, nothing new can change the return value or leave an unhandled rejection. `writeLogRow` and `flushLogHealth` never throw (S:2459-2481, 2487-2514). The new optional argument to `flushLogHealth` must keep that property.
+
+### (c) Is the replay-scalar read truly read-only and safe?
+
+- Read-only if it copies primitives:
+  - `usgsData.data[usgsData.gauges.lf]?.q`, `?.qTime`, the same for `por`,
+  - `prediction?.predictedCFS`,
+  - `out = prediction ? 'predicted' : 'no_prediction'`.
+- `prediction` is in scope at that point: it is declared at S:3215 inside the same `try`.
+- On the success path `usgsData` is non-null (S:3148-3153 throws otherwise). On an ice tick or a no-prediction tick `prediction` is null; `?.` gives null.
+- A missing gauge gives `undefined?.q`, which is safe. `logNum` maps everything that is not a finite number to null (S:2373-2377).
+- It cannot throw if written with optional chaining throughout and run inside the N-1 try.
+- The handler's stamps mutate `prediction` (S:3283-3290) before this point. Reading `predictedCFS` after them is fine; the stamps do not touch it.
+- No reference to these objects may be stored in the row: copy values, not objects. N4's deep-freeze test covers mutation.
+
+### (d) Is the body bound implementable in Node's fetch?
+
+Yes, but only by stream reading. Exactly how:
+1. `const reader = response.body && response.body.getReader();` If there is no body, the gauge gets `shape`.
+2. Loop `const { done, value } = await reader.read()`. Add `value.byteLength` to a counter and push `value` to an array.
+3. When the counter passes `NWS_BODY_MAX`, call `reader.cancel()` (or `controller.abort()`), stop, and set `why: 'shape'`.
+4. On `done`, decode with `new TextDecoder().decode(concat(chunks))` and `JSON.parse` in a try (`parse_error`).
+
+- A `content-length` header may be checked first as a fast reject, but it cannot be the bound, because chunked answers have none.
+- The whole loop sits inside the same race against the one timer. An abort makes a pending `read()` reject, and the race ends at the cap even if it does not.
+- Runtime: the repo pins no Node version for functions (`netlify.toml` has only `node_bundler = "esbuild"`, no `NODE_VERSION`, no `.nvmrc`). Every Netlify default with built-in `fetch` (Node 18 and later) has web-stream bodies, so `getReader()` exists.
+- Test mocks must give `body` as a real `ReadableStream`. The existing handler mocks return `{ ok, json }` without a body, but they never answer an NWS URL (they throw on it), so they are not affected.
+- N3 must include a mock that IGNORES the abort signal and never resolves. Only that proves the race, not the abort, ends the wait.
+
+### (e) Does the kill switch remove every new effect?
+
+Almost. With `NWS_ARCHIVE=off`, the fetch, the write and the extra flush are gone (3.2). Two effects remain:
+- The hour-3 prune still selects `nws_fc` (S:3053 plus the new name). That is one more query a day on the `general` pool, and a new key in `tick_log.aux.prune` (N-5).
+- `SERVER_VERSION` moves to v39.15 in every row; that is intended.
+
+Recommendation: accept the prune and say so in 3.2, or skip the `nws_fc` prune when the switch is off. Either is fine; the doc must not claim "nothing".
+
+### (f) Do the tests prove "every non-log write and every existing log row byte-identical, on, off, hanging, failing"?
+
+Mostly. N7 is the right test, but:
+- N-5. N7 compares on with off, not with today. At UTC hour 3 both arms write `tick_log.aux.prune.nws_fc`, which today's code does not, so "existing rows byte-identical" is false for hour-3 tick rows. Since `aux.prune` is built before `finalizeTick` (S:3373), the new key does land in the tick row. That is a real, small change to an existing row type.
+  - Fix: state it in 5 ("Must NOT change" gets the exception) and in the appendix.
+  - Or keep the tick row as it is by running the `nws_fc` prune after `finalizeTick`, in the new block under the deadline. The second is cleaner and consistent with ruling 1. Recommended.
+- N-4. One more existing test breaks: the `dateThrowAfterPing` arm of `truth-dr-handler.test.js` (`:91-100`, `:155`, `:182-185`). The harness makes the FIRST `Date.now()` after the ping throw. In the new order that is the NWS call site, not the Difficult Run. The Difficult Run then runs, and `assert.equal(iDr, -1)` and `in.dr.why === 'internal_error'` fail. If the throw lands outside an async function, the run returns 500.
+  - Legitimate edit: make the harness throw on the Difficult Run's own call. For example, throw on the second `Date.now()` after the ping, or throw only while the stack contains `fetchDifficultRun`. Keep the intent "a throw at the DR call site is contained".
+  - Add the same style of arm for the NWS call site (this is N-2's test).
+- N7 should include an arm with the ping at 24 s and one at 26 s: deadline partly or fully passed.
+- N7 should also assert the 200 body and the ping sequence exactly (`['ok']`) in every arm, as the Difficult Run A/B test does (`truth-dr-handler.test.js:166-171`).
+- "Byte-identical" can only hold up to the timing fields already excluded (`ms`). That is stated, so acceptable.
+- N-3 (test fix). N8 asserts that a write skipped after 25.1 s is "a budget failure counted in log_health". But the flush obeys the same deadline and cannot run then.
+  - Change N8 to assert that it is NOT counted and that the only record is the missing key; document that a skipped hour is visible only as a gap.
+  - Or give the final flush a small allowance past the deadline. That breaks the 25 s bound, so it is not recommended.
+  - Also note in 3.4 that with the 4000 ms `arch` pool, a hung insert plus a hung health read loses the count. Acceptable, but say it.
+- N-6 (implementation detail, must be explicit). The per-call cap `min(2000, deadline - now)` does not exist in `timedLogCall` today (its cap is `min(LOG_WRITE_CAP_MS, pool remaining)`, S:2437). Version 2 needs an optional `deadline` argument on `timedLogCall` and `writeLogRow`, or a wrapper.
+  - It must be optional and default to today's behaviour.
+  - A test must show that every existing call path (no deadline) gives the same caps and the same results.
+  - It is a change to a shared helper and must be named in the 5 table.
+
+## 3. Final verdict
+
+IMPLEMENTATION MAY START.
+
+Tell the implementer explicitly:
+1. Wrap the entire block after `finalizeTick` (await, build, write, flush, and the `nws_fc` prune if moved there) in its own try/catch that swallows everything, like S:3359-3365 (N-1).
+2. Make `fetchNwsArchive` `async`. Create the promise inside a try/catch with a `Promise.resolve(fallback)` fallback, plus `.catch` on the promise. Read the env switch and any `Date.now()` inside that try (N-2).
+3. Per-call deadline caps need an optional `deadline` on `timedLogCall`/`writeLogRow`, or a wrapper. The default path must be unchanged and tested (N-6).
+4. Body bound by `response.body.getReader()` with a byte counter, `reader.cancel()` past 262144 bytes, all inside the one timer race. `content-length` is a hint only.
+5. Scalars as primitive copies with `?.`, rounded exactly as `tick_log` (`logNum(q, 1)`, `logNum(predictedCFS, 0)`).
+6. `pts` time = `validTime` only (the UI's rule), null otherwise.
+7. Prefer running the `nws_fc` prune after `finalizeTick` under the deadline, so hour-3 tick rows keep today's shape. Otherwise document `aux.prune.nws_fc` as the one change to an existing row (N-5).
+8. Fix N8: a skip after the deadline is NOT counted, only visible as a gap (N-3).
+9. Add the `dateThrowAfterPing` arm of `truth-dr-handler.test.js` to the list of tests that change, with an edit that keeps its intent, and add an NWS call-site twin (N-4).
+10. N3 needs a fetch mock that ignores the abort signal and never settles. N7 needs arms with the ping at 24 s and 26 s and exact body and ping assertions.
+
+The post-implementation audit must look at:
+- that nothing new is reachable from the main catch: source read, plus mutants for a builder throw, a synchronous throw and a rejection;
+- the diff of `timedLogCall`/`writeLogRow`/`flushLogHealth` for default-path identity;
+- the event order (ping, then the DR request, then the existing log writes, then `tick_log`, then `nws_fc`);
+- the end time with everything hanging, at ping times of 3, 19.99, 21 and 24 s: end ≤ max(today's chain, 25 s);
+- the body bound with a stream that never ends and with an over-size stream;
+- that the list of edited existing tests equals the dry-run list and each edit keeps its assertion's intent;
+- that an hour-3 tick row is identical to today's (or the documented exception);
+- that `nws_fc` rounding equals `tick_log`;
+- the kill-switch arm (no NWPS request in the URL log);
+- the docs: no claim that the switch removes "everything" if the prune stays, and the "Not logged" sentence updated.
+
+Still unverified after all of this: the 30 s Netlify limit, real NWPS behaviour from Netlify, the Supabase plan limit, and the first real prune (A3c).
