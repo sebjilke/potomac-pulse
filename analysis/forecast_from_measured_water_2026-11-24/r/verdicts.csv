@@ -1,0 +1,5 @@
+horizon,n_inside,D_est,D_lo,D_hi,cond1,rising_n,rising_worse_by,cond2,rising_signed_R,rising_signed_P,cond3,cond4_applicable,cond4_D_lo,cond4,verdict
+6,102991,1.052805,0.701090,1.396769,0,14996,-2.162377,1,-4.104830,-7.913274,1,0,,,UNCLEAR
+12,72706,1.465304,1.140350,1.796728,1,10436,-2.585290,1,-6.512353,-9.740373,1,0,,,ADDS_INFORMATION
+24,29356,-0.562613,-1.154190,-0.012373,0,3169,0.241724,1,-10.111787,-11.233515,1,1,0.630300,0,ADDS_NOTHING
+overall,,,,,,,,,,,,,,,PROPOSE_STAGE2
