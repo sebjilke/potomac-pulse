@@ -1,0 +1,25 @@
+run: L
+command: node ci_backtest_harness_lag.mjs --in=/Users/sebjilke/Desktop/PotomacPulse/analysis/rising-limb-travel-backtest/hourly_backtest_data_v39.csv --arm=L --gate=new --mode=hybrid --outdir=/Users/sebjilke/Desktop/PotomacPulse/analysis/forecast_from_measured_water_2026-11-24/replay_B
+rows read from CSV: 130416
+simulated whole-hour grid points (incl. drain): 131059
+prediction attempts (one per simulated hour up to the end): 130987
+shadow rows per status:
+  predicted: 128595
+  no_por: 1014
+  no_lf: 439
+  no_truth: 939
+  other: 0
+shadow rows written: 130987
+shadow validated (truth found): 128595
+  of which truth outside production range [500, 500000]: 41
+  truth-dependent hard (Check 2 or 3 fired): 356
+  Check 1 (EF vs truth) fired: 16638   Check 2: 90   Check 3: 271
+learning track: slots stored 23764; hours a new prediction found the slot occupied 105770
+  validations (truth found, in production range): 23688
+  learned: 23651
+  hard-skipped (excluded from learning): 37
+  retries (no truth or truth out of production range at the validation hour): 222
+  dropped, missed 2.5 h window: 76
+  slot still pending at end of run: 0
+learn rows written: 23688
+bin-update rows written: 23651

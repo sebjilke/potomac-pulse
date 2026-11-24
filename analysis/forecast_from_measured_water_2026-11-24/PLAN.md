@@ -2,8 +2,10 @@
 
 Version 2, 2026-11-24. Plan only. No code is written and nothing in the app, the hourly job or the model changes
 under this plan. Version 1 is kept as `PLAN_v1.md`. The independent plan audit is `PLAN_AUDIT.md` (verdict: GO
-WITH CHANGES); the rulings on it are in section 15. **Still needed before any analysis code: the owner's
-confirmation** (CLAUDE.md, "Empirical Analysis Planning Protocol" and "Scientific/Modeling Work").
+WITH CHANGES); the rulings on it are in section 15. **Confirmed by the owner on 2026-11-24: "run stage 1 and
+store forecasts".** The thresholds stay at 1.0 and 0.5 point: he was told they stay unless he says otherwise,
+and he did not change them. The storing of forecasts is a separate task with its own plan
+(`analysis/forecast-archive-plan-2026-11-24.md`).
 
 ## 0. In one minute
 

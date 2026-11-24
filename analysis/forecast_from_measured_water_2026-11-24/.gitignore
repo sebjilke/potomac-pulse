@@ -1,0 +1,7 @@
+# Large files that are rebuilt by the commands in the README files and reports of this folder.
+# Their sizes and SHA-256 values are recorded there.
+replay_B/*.csv
+tools/boot_uniforms.csv
+py/forecasts_*.csv
+r/forecasts_*.csv
+__pycache__/
