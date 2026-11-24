@@ -22,11 +22,22 @@ describe('plain labels in index.html (before the How It Works tab)', () => {
             'aria-label="Little Falls gauge, below Great Falls"',
             'Point of Rocks to Little Falls: ',
             'id="multVal" aria-label="travel time"',
-            '>cfs<', '>ft<br>on the Little Falls gauge scale<',
+            '>cfs<', '>ft<', '>on the Little Falls gauge scale<',
             '>Travel time, Point of Rocks to Great Falls<', '>Travel time, Great Falls to Little Falls<',
             '>Flow band<', '>Adjustment learned from past errors<', '>Display cap (120% of Little Falls)<',
             '>Edwards Ferry check<', '>Estimate from the Edwards Ferry gauge alone<'
         ]) assert.ok(app.includes(t), t);
+    });
+    it('v39.14: the gauge-scale caption is its own line under both numbers, not inside the ft column', () => {
+        // The card (#gf-estimate-display) has text-align:center, so a line that is a direct child of the card is
+        // centred. Inside the two-column row it widened the right column and sat right of centre.
+        assert.ok(!app.includes('ft<br>'), 'the caption no longer shares the unit label');
+        // ft label closes, its column closes, the row closes, then the caption, then the trend line.
+        assert.match(app,
+            />ft<\/div>\s*<\/div>\s*<\/div>\s*(?:<!--[^>]*-->\s*)?<div style="font-size:0\.55rem;color:var\(--text-muted\);">on the Little Falls gauge scale<\/div>\s*<div id="gf-trend"/);
+        const card = app.slice(app.indexOf('id="gf-estimate-display"'), app.indexOf('id="gf-trend"'));
+        assert.match(card, /id="gf-estimate-display"[^>]*text-align:center/, 'the card still centres its text');
+        assert.equal(card.split('on the Little Falls gauge scale').length - 1, 1, 'the caption appears once in the card');
     });
     it('the legend line under the forecast cards is unchanged (PA-10)', () => {
         assert.ok(app.includes('vs now • tap card or graph for details</div>'));
