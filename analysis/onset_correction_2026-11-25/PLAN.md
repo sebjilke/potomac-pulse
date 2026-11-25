@@ -233,3 +233,9 @@ Nothing below changes the confirmed method or its thresholds. Each note is a rul
 **Section 5, regression of the timing run:** the builder compared arm F with a fresh run of the original tool on the same new input. The tool auditor also ran the comparison on the older input against the stored arm F output, as section 5 says. Both are identical.
 
 **Section 5, rows checked:** the three row checks ran on every hour for which the model gave an estimate (129,534 in arm L, 129,549 in arm F), which includes the hours later left out for lack of a truth value.
+
+**After the specification and its review (`ANALYSIS_SPEC.md`, `SPEC_REVIEW.md`), 2026-11-25, before any analyst started:**
+
+- The specification writer listed 27 points this plan had left open. 25 were accepted as written. Two were changed: the tie rule of section 7 (A2) may never pick a candidate that is not itself better than production; and criterion 5 counts as met when the rule lowers no shown value at all. Quarters as bootstrap blocks are computed for every interval, as section 8 reads.
+- The independent review made 20 findings (1 blocker, 4 major, 15 minor). All were accepted. The one with a choice: base R reads about 9% of the long decimals in the files one last digit away from Python. The reviewer showed that this changes no shown value under any rule on any hour. It could move one hour sitting exactly on the 15% line, so both analysts count the hours that close to it (check C15) and report the count. Identical output files stay the aim; agreement within 0.01 is the requirement.
+- Second pass of the review on version 1.1: ready. Three sentences were then reworded (version 1.2, SHA-256 `8485759c0586114eb0c6b8d37e2e83d2f4850a56518753cfb5133fc4a5b10d11`); no value, rule or count changed. The analysts work from version 1.2.
