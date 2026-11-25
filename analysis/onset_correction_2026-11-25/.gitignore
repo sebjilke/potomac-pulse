@@ -2,3 +2,4 @@
 replay_L/*.csv
 replay_F/*.csv
 tools/boot_uniforms.csv
+tools/__pycache__/
