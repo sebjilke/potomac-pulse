@@ -1,0 +1,90 @@
+28c28
+< const { _test } = require('../../netlify/functions/scheduled-update.js');
+---
+> const { _test } = require('../../../netlify/functions/scheduled-update.js');
+34c34,35
+< } = require('../../netlify/functions/shared/model.js');
+---
+>     getGFCorrectionInterpolated, CEILING_RATIO,
+> } = require('../../../netlify/functions/shared/model.js');
+498a500,503
+>     // onset-study additions (appended; blank when not available)
+>     'rawUnc', 'corrUsed', 'corrR', 'corrS', 'corrF',
+>     'd6', 'thr6', 'p6Ts', 'p6Cfs', 'span_h', 'histShort',
+>     'lfCap', 'ageR_h', 'ageS_h',
+517a523,524
+>     const lastLearn = new Map();    // onset study: `${bin}_${state}` -> sim time (ms) of the last updateCorrectionBin call
+>     const onsetChecked = { rows: 0, a_state: 0, a_lookup: 0, b: 0, c: 0 };
+601a609
+>         onsetColumns(r, t, inp, hist, trace, pred);
+608a617,677
+>     }
+> 
+>     // ---- onset study: added columns + row checks (a), (b), (c). Reads only; changes nothing the model or learning sees. ----
+>     function onsetFail(r, what, got, want) {
+>         throw new Error(`ONSET CHECK FAILED ${what} at predTs=${r.predTs}: got ${got}, expected ${want}`);
+>     }
+>     function onsetColumns(r, t, inp, hist, trace, pred) {
+>         r.rawUnc = trace.rawUnc;
+>         r.corrUsed = trace.corr;
+>         r.corrR = getGFCorrectionInterpolated(bins, trace.rawUnc, 'rising');
+>         r.corrS = getGFCorrectionInterpolated(bins, trace.rawUnc, 'steady');
+>         r.corrF = getGFCorrectionInterpolated(bins, trace.rawUnc, 'falling');
+>         r.lfCap = inp.lf.v;
+> 
+>         // State rule inputs, same history array, same current flow, same clock as getFlowState (model.js:466-493)
+>         const cur = inp.por.v;
+>         const sixHoursAgo = t - 6 * HOUR_MS;
+>         let past = null;
+>         if (hist.length >= 8) {
+>             for (const e of hist) { if (e.timestamp <= sixHoursAgo) past = e; }
+>         }
+>         r.histShort = past ? 0 : 1;
+>         r.thr6 = Math.max(100, cur * 0.02);
+>         let rebuilt = 'steady';
+>         if (past) {
+>             r.d6 = cur - past.cfs;
+>             r.p6Ts = iso(past.timestamp);
+>             r.p6Cfs = past.cfs;
+>             r.span_h = (hist[hist.length - 1].timestamp - past.timestamp) / HOUR_MS;
+>             if (Math.abs(r.d6) >= r.thr6) rebuilt = r.d6 > 0 ? 'rising' : 'falling';
+>         }
+>         // (a) state
+>         if (rebuilt !== pred.flowState) onsetFail(r, '(a) state rebuilt from d6/thr6', rebuilt, `model flowState ${pred.flowState}`);
+>         onsetChecked.a_state++;
+>         // (a) second lookup, written differently: greatest timestamp <= t-6h by binary search over the whole PoR series
+>         //     (not the hist array); only valid inside the hist window and when the rule had enough history.
+>         let alt = null;
+>         if (hist.length >= 8) {
+>             const i = bsearchLE(S.por.ep, sixHoursAgo);
+>             if (i >= 0 && S.por.ep[i] >= hist[0].timestamp) alt = { ts: S.por.ep[i], cfs: S.por.val[i] };
+>         }
+>         if (!past !== !alt) onsetFail(r, '(a) past-reading existence (hist scan vs series search)', past ? 'found' : 'none', alt ? 'found' : 'none');
+>         if (past && (alt.ts !== past.timestamp || alt.cfs !== past.cfs)) {
+>             onsetFail(r, '(a) past reading', `${iso(past.timestamp)}@${past.cfs}`, `${iso(alt.ts)}@${alt.cfs}`);
+>         }
+>         onsetChecked.a_lookup++;
+>         // (b)
+>         const byState = { rising: r.corrR, steady: r.corrS, falling: r.corrF };
+>         if (!(pred.flowState in byState)) onsetFail(r, '(b) unknown flowState', pred.flowState, 'rising|steady|falling');
+>         if (byState[pred.flowState] !== r.corrUsed) onsetFail(r, `(b) corr of state ${pred.flowState}`, byState[pred.flowState], `corrUsed ${r.corrUsed}`);
+>         onsetChecked.b++;
+>         // (c)
+>         const base = r.rawUnc - r.corrUsed;
+>         const shown = Math.floor((r.lfCap > 0 ? Math.min(base, CEILING_RATIO * r.lfCap) : base) + 0.5);
+>         if (shown !== pred.predictedCFS) onsetFail(r, '(c) shown value', shown, `predictedCFS ${pred.predictedCFS}`);
+>         onsetChecked.c++;
+>         onsetChecked.rows++;
+>         // cell ages (hours since the rising / steady cell of this hour's flowBin last learned; blank if never)
+>         const lr = lastLearn.get(`${pred.flowBin}_rising`), ls = lastLearn.get(`${pred.flowBin}_steady`);
+>         r.ageR_h = lr === undefined ? null : (t - lr) / HOUR_MS;
+>         r.ageS_h = ls === undefined ? null : (t - ls) / HOUR_MS;
+673a743
+>                         lastLearn.set(cellKey, T);   // onset study: bookkeeping only
+711c781
+<     return { shadowRows, learnRows, binRows, cnt, bins };
+---
+>     return { shadowRows, learnRows, binRows, cnt, bins, onsetChecked };
+775a846,847
+>     console.log(`[onset] CEILING_RATIO used: production export CEILING_RATIO = ${CEILING_RATIO}`);
+>     console.log(`[onset] rows checked: ${res.onsetChecked.rows}; passed (a) state ${res.onsetChecked.a_state}, (a) past-reading lookup ${res.onsetChecked.a_lookup}, (b) ${res.onsetChecked.b}, (c) ${res.onsetChecked.c}`);

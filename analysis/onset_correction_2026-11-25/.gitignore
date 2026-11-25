@@ -1,0 +1,3 @@
+# Large rebuildable replay outputs (regenerate with the commands in replay_README.md; hashes are listed there)
+replay_L/*.csv
+replay_F/*.csv

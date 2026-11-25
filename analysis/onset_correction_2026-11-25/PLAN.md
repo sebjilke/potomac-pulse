@@ -2,7 +2,7 @@
 
 Plan version 2, 2026-11-25. It replaces `PLAN_v1.md` (kept) after the independent audit in `PLAN_AUDIT.md`. The rulings on the audit are in section 16.
 
-Started on the owner's word of 2026-11-25 ("study the onset"). **No analysis code is written before the owner confirms this method.** Owner's confirmation: not yet given.
+Started on the owner's word of 2026-11-25 ("study the onset"). **No analysis code is written before the owner confirms this method.** Owner's confirmation: given on 2026-11-25, after the short version of this plan with its weaknesses, the method, the pass conditions and the thresholds (pass at 0.25 points, fail under 0.10) was put to him. He quoted the recommendation "run it once" and wrote "do it". The method and the thresholds stand as written here.
 
 ## 0. What the owner should know first
 
@@ -215,3 +215,21 @@ Orchestrator: plan, rulings, synthesis. Tool builder, specification writer and b
 | F14. Nine factual corrections | Minor | Accepted, all nine | Sections 2, 3, 5 |
 
 The auditor's strongest argument against running the study (a small best case that does not carry over as measured, and a gap between the two values that is largely noise) is stated to the owner in section 0.
+
+## 17. Notes added after the owner's confirmation
+
+Nothing below changes the confirmed method or its thresholds. Each note is a ruling made before any outcome was computed.
+
+**After the tool audit (`TOOL_AUDIT.md`, verdict "tool fit for use", five minor findings), 2026-11-25:**
+
+| Finding | Ruling |
+|---|---|
+| T1. `span_h`, `ageR_h`, `ageS_h` have no row check, and `lfCap` is checked only where the cap binds | No change to the tool. The auditor recomputed all four columns on every row of both arms by an independent route, with no mismatch. That audit is their evidence |
+| T2. The counts files name the original tool | Noted. Provenance only |
+| T3. The copy's default input path does not exist | Noted. Every run passes the input path |
+| T4. After gaps in the Point of Rocks record, a few rising hours have a state span far from the usual one (arm L: 91 of 16,153 rising hours below 25,000 cfs; arm F: 251 of 18,681) | These hours stay in every population: production behaves the same way on that history, and the rule is defined on the change as the model sees it. Their number is reported, and one sensitivity without them is reported, not judged |
+| T5. The age columns describe only the cells of the hour's own flow range | A note under the table by cell age |
+
+**Section 5, regression of the timing run:** the builder compared arm F with a fresh run of the original tool on the same new input. The tool auditor also ran the comparison on the older input against the stored arm F output, as section 5 says. Both are identical.
+
+**Section 5, rows checked:** the three row checks ran on every hour for which the model gave an estimate (129,534 in arm L, 129,549 in arm F), which includes the hours later left out for lack of a truth value.
