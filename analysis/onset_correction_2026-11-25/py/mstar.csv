@@ -1,0 +1,10 @@
+key,value
+m_star,5.000000
+m_best,5.000000
+m_second,3.000000
+mae_best,7.602047
+mae_second,7.707896
+gap_best_second,0.105849
+tie_rule_used,0
+mae_production,8.507747
+beats_production,1

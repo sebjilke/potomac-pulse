@@ -1,0 +1,9 @@
+rule,role,n,mae,mean_signed,mae_rank
+production,baseline,7052,8.507747,-1.025630,
+handover_m1.5,candidate,7052,8.100574,-0.937811,4
+handover_m2,candidate,7052,7.898789,-0.853419,3
+handover_m3,candidate,7052,7.707896,-0.702978,2
+handover_m5,candidate,7052,7.602047,-0.456758,1
+half_half,control,7052,7.710294,-0.330446,
+mean_of_three,control,7052,7.775914,0.220996,
+steady_always,control,7052,7.736583,0.190749,

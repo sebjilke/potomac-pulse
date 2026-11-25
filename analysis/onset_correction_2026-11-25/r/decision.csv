@@ -1,0 +1,13 @@
+item,result
+crit1_size,1
+crit2_no_harm_by_cell,1
+crit3_stable_time,1
+crit4_stable_season,1
+crit5_lowered,0
+crit6_large_errors,1
+crit7_tied_to_rise,0
+crit8_timing,1
+flag_unclear_cell,0
+flag_not_supported,0
+flag_fail,0
+verdict,UNCLEAR
