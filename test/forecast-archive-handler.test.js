@@ -61,6 +61,7 @@ const okResp = (text) => ({ ok: true, status: 200, headers: { get: () => null },
 const NWS = {
     ok: (lid) => okResp(lid === 'BRKM2' ? BRK : POR),
     hang: () => new Promise(() => {}),
+    hangPor: (lid) => (lid === 'PORM2' ? new Promise(() => {}) : okResp(BRK)), // v39.16: one gauge answers, the other hangs
     http500: () => ({ ok: false, status: 500 }),
     http429: () => ({ ok: false, status: 429 }),
     shape: () => okResp('{"unexpected": true}'),
@@ -348,10 +349,23 @@ describe('N8: the deadline (tick start + 25 s)', () => {
             assert.ok(on.elapsed <= Math.max(off.elapsed, 25000) + 500, `ping ${pingAt}: on ${on.elapsed} off ${off.elapsed}`);
         }
     });
-    it('a hung NWS adds at most about 2 s to a normal tick', async (t) => {
+    it('a hung NWS adds at most about 5 s to a normal tick', async (t) => {
         const off = await runArm(t, { nwsEnv: 'off' });
         const on = await runArm(t, { nws: 'hang' });
-        assert.ok(on.elapsed - off.elapsed <= 2500, `added ${on.elapsed - off.elapsed}`);
+        assert.ok(on.elapsed - off.elapsed <= 5500, `added ${on.elapsed - off.elapsed}`);
+    });
+    // v39.16: the case the cap formula protects. Ping at 22 s leaves 3 s, so the timer is 2 s (not 3 s) and a full
+    // write still fits. With the plain Math.min(NWS_CALL_CAP_MS, left) the wait would run to 25 s and no row would be written.
+    it('late run: ping ends at 22 s and one gauge hangs: the nws_fc row IS written, with the forecast of the gauge that answered', async (t) => {
+        const a = await runArm(t, { nws: 'hangPor', pingAt: 22000 });
+        assert.equal(a.res.statusCode, 200);
+        assert.deepEqual(pings(a.events), ['ok']);
+        assert.equal(a.mem.of('nws_fc').length, 1, 'the row was written');
+        const g = nwsRow(a).g;
+        assert.equal(g.BRKM2.why, null);
+        assert.ok(Array.isArray(g.BRKM2.pts) && g.BRKM2.pts.length > 0, 'the answering gauge keeps its points');
+        assert.equal(g.PORM2.why, 'timeout');
+        assert.ok(a.elapsed <= 25500, `elapsed ${a.elapsed}`);
     });
 });
 

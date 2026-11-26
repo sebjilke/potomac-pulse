@@ -2360,7 +2360,7 @@ async function updateLfResidualAdvisory(client, { runStartMs, pairs, lfCFS }) {
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 // Hand-maintained. The `commit` field on every row is the safety net if this goes stale.
-const SERVER_VERSION = 'v39.15';
+const SERVER_VERSION = 'v39.16';
 const LOG_SCHEMA = 3;
 const OBS_TABLE = 'potomac_observations';
 // Retention in days, by type. Only these four types are ever pruned. log_health is never pruned.
@@ -2376,7 +2376,9 @@ const LOG_FAIL_LIST_MAX = 10;
 // v39.15: the forecast archive. One absolute deadline for every new call: tick start + 25 s.
 const FC_LOG_SCHEMA = 1;
 const NEW_LOG_DEADLINE_MS = 25000;
-const NWS_CALL_CAP_MS = 2000;      // one timer over both requests and both body reads
+const NWS_CALL_CAP_MS = 5000;      // one timer over both requests and both body reads
+const NWS_WRITE_RESERVE_MS = LOG_WRITE_CAP_MS; // v39.16: room kept for one full log write after the Weather Service wait
+const NWS_CALL_CAP_LATE_MS = 2000; // v39.16: the old limit, still used when the run is late
 const NWS_BODY_MAX = 262144;       // bytes; a normal answer is about 2 KB
 const NWS_ARCH_POOL_MS = 4000;     // time budget of the `arch` pool (the nws_fc write and the extra health flush; the nws_fc prune uses the `general` pool)
 const NWS_PTS_MAX = 200;           // points stored per gauge (a normal answer has 12)
@@ -3235,7 +3237,9 @@ async function nwsFetchOne(lid, signal, rec) {
 
 /**
  * Starts both requests together, under ONE real timer and ONE abort controller, capped at
- * min(2000 ms, time left before tickStart + 25 s). `async`, so any throw becomes a rejection.
+ * NWS_CALL_CAP_MS (5000 ms) when a full log write (NWS_WRITE_RESERVE_MS) still fits before tickStart + 25 s
+ * after it; with less time the longest wait that leaves that room, never below min(NWS_CALL_CAP_LATE_MS
+ * (2000 ms), time left). `async`, so any throw becomes a rejection.
  * A gauge that finished before the timer keeps its result; the other gets why 'timeout'.
  * @returns {Promise<{ft:number, ms:number, g:Object}>}
  */
@@ -3244,7 +3248,10 @@ async function fetchNwsArchive(tickStartMs, callAt) {
     const out = { ft, ms: null, g: {} };
     const recs = {};
     for (const [site, lid] of Object.entries(NWS_ARCHIVE_GAUGES)) recs[lid] = { site, http: null, why: null, ms: null };
-    const cap = Math.min(NWS_CALL_CAP_MS, tickStartMs + NEW_LOG_DEADLINE_MS - ft);
+    // v39.16: 5 s when a full log write still fits after it; with less time, the longest wait that leaves
+    // that room, never less than the rule before v39.16 (2 s, or the time left below 2 s).
+    const left = tickStartMs + NEW_LOG_DEADLINE_MS - ft;
+    const cap = Math.min(NWS_CALL_CAP_MS, Math.max(left - NWS_WRITE_RESERVE_MS, Math.min(NWS_CALL_CAP_LATE_MS, left)));
     if (!(cap > 0)) {
         for (const lid of Object.keys(recs)) { recs[lid].why = 'late_skip'; recs[lid].ms = 0; }
         out.ms = 0; out.g = recs;
@@ -3353,7 +3360,7 @@ exports._test = {
     fetchDifficultRun, parseDifficultRun, attachDr, compactSeries, efTrendOfTail,
     confidenceLabel, downgradeLabel, shownLabel, buildConf, cleanDr, DR_URL, DR_CAP_MS, DR_LATE_SKIP_MS,
     // v39.15 forecast archive
-    FC_LOG_SCHEMA, NWS_ARCHIVE_GAUGES, NEW_LOG_DEADLINE_MS, NWS_CALL_CAP_MS, NWS_BODY_MAX, NWS_ARCH_POOL_MS,
+    FC_LOG_SCHEMA, NWS_ARCHIVE_GAUGES, NEW_LOG_DEADLINE_MS, NWS_CALL_CAP_MS, NWS_WRITE_RESERVE_MS, NWS_CALL_CAP_LATE_MS, NWS_BODY_MAX, NWS_ARCH_POOL_MS,
     parseNwsForecastBody, fetchNwsArchive, buildNwsFcRecord, nwsFcInputs, nwsFallback, nwsHooks,
 };
 

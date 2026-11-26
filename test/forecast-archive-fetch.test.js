@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { _test } = require('../netlify/functions/scheduled-update');
-const { fetchNwsArchive, NWS_BODY_MAX } = _test;
+const { fetchNwsArchive, NWS_BODY_MAX, NWS_CALL_CAP_MS } = _test;
 
 const BRK = fs.readFileSync(path.join(__dirname, 'fixtures/nws-brkm2.json'), 'utf8');
 const POR = fs.readFileSync(path.join(__dirname, 'fixtures/nws-porm2.json'), 'utf8');
@@ -90,13 +90,13 @@ describe('N3: fetchNwsArchive', () => {
         const r = await drive(t, () => fetchNwsArchive(T0));
         assert.equal(r.g.BRKM2.why, 'fetch_error'); assert.equal(r.g.PORM2.why, 'fetch_error');
     });
-    it('hang before headers with a mock that IGNORES the abort and never settles: the timer ends the wait at 2000 ms', async (t) => {
+    it('hang before headers with a mock that IGNORES the abort and never settles: the timer ends the wait at the cap (NWS_CALL_CAP_MS)', async (t) => {
         setup(t, both(() => new Promise(() => {})));
         const start = Date.now();
         const r = await drive(t, () => fetchNwsArchive(T0));
-        assert.equal(Date.now() - start, 2000);
+        assert.equal(Date.now() - start, NWS_CALL_CAP_MS);
         assert.equal(r.g.BRKM2.why, 'timeout'); assert.equal(r.g.PORM2.why, 'timeout');
-        assert.equal(r.ms, 2000);
+        assert.equal(r.ms, NWS_CALL_CAP_MS);
     });
     it('the abort signal is fired at the cap', async (t) => {
         let sig;
@@ -108,7 +108,7 @@ describe('N3: fetchNwsArchive', () => {
         setup(t, { BRKM2: () => okResp(BRK), PORM2: () => ({ ok: true, status: 200, headers: { get: () => null }, body: endless() }) });
         const start = Date.now();
         const r = await drive(t, () => fetchNwsArchive(T0));
-        assert.equal(Date.now() - start, 2000);
+        assert.equal(Date.now() - start, NWS_CALL_CAP_MS);
         assert.equal(r.g.BRKM2.why, null); assert.equal(r.g.BRKM2.parsed.n, 12);
         assert.equal(r.g.PORM2.why, 'timeout');
         assert.equal(r.g.PORM2.http, 200);
@@ -184,7 +184,7 @@ describe('N3: fetchNwsArchive', () => {
         t.mock.method(global, 'clearTimeout', (h) => { cleared.push(h); return realClear(h); });
         return { set, cleared };
     }
-    const fetchTimer = (sp) => sp.set.filter(x => x.ms === 2000);
+    const fetchTimer = (sp) => sp.set.filter(x => x.ms === NWS_CALL_CAP_MS);
 
     for (const [name, routes, why] of [
         ['a normal answer', clean(), null],
@@ -207,5 +207,43 @@ describe('N3: fetchNwsArchive', () => {
         const sp = spyTimers(t);
         await drive(t, () => fetchNwsArchive(T0 - 25000));
         assert.equal(sp.set.length, 0);
+    });
+
+    // v39.16 (TODO A3s): the limit is 5 s when a full log write still fits after it, otherwise today's rule.
+    it('the limit is 5000 ms, with the late-run constants beside it', () => {
+        assert.equal(_test.NWS_CALL_CAP_MS, 5000);
+        assert.equal(_test.NWS_WRITE_RESERVE_MS, 2000);
+        assert.equal(_test.NWS_CALL_CAP_LATE_MS, 2000);
+    });
+    it('a request that answers after 3 s is a success with its points', async (t) => {
+        const slow = (text) => () => new Promise(res => { setTimeout(() => res(okResp(text)), 3000); });
+        setup(t, { BRKM2: slow(BRK), PORM2: slow(POR) });
+        const start = Date.now();
+        const r = await drive(t, () => fetchNwsArchive(T0));
+        assert.equal(Date.now() - start, 3000);
+        assert.equal(r.g.BRKM2.why, null); assert.equal(r.g.PORM2.why, null);
+        assert.equal(r.g.BRKM2.http, 200);
+        assert.equal(r.g.BRKM2.parsed.n, 12); assert.equal(r.g.PORM2.parsed.n, 12);
+    });
+    // One case per row of the table in plan section 2: time left before tick start + 25 s, and the timer that results.
+    for (const [leftMs, expected] of [[7000, 5000], [5000, 3000], [4000, 2000], [3000, 2000], [1500, 1500]]) {
+        it(`with ${leftMs} ms left the timer is ${expected} ms`, async (t) => {
+            setup(t, both(() => new Promise(() => {})));
+            const sp = spyTimers(t);
+            const start = Date.now();
+            const r = await drive(t, () => fetchNwsArchive(T0 - 25000 + leftMs));
+            assert.equal(Date.now() - start, expected);
+            assert.equal(sp.set.filter(x => x.ms === expected).length, 1, 'one timer of the expected length');
+            assert.equal(r.g.BRKM2.why, 'timeout'); assert.equal(r.g.PORM2.why, 'timeout');
+            assert.equal(r.g.BRKM2.ms, expected);
+        });
+    }
+    it('with no time left there is no timer and no request (late_skip)', async (t) => {
+        const calls = setup(t, clean());
+        const sp = spyTimers(t);
+        const r = await drive(t, () => fetchNwsArchive(T0 - 25000));
+        assert.equal(calls.length, 0);
+        assert.equal(sp.set.length, 0);
+        assert.equal(r.g.BRKM2.why, 'late_skip'); assert.equal(r.ms, 0);
     });
 });
