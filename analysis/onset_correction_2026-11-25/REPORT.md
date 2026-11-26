@@ -129,3 +129,7 @@ By the plan, the owner decides. Nothing is built from this study.
 ## 11. Files
 
 `PLAN.md`, `PLAN_v1.md`, `PLAN_AUDIT.md`; `tools/replay_onset.mjs`, `replay_README.md`, `TOOL_AUDIT.md`; `ANALYSIS_SPEC.md` (1.2), `ANALYSIS_SPEC_v1.1.md`, `ANALYSIS_SPEC_v1.md`, `SPEC_REVIEW.md`; `tools/make_boot_uniforms.py`, `tools/compare_analysts.py`; `py/`, `r/`; `RESULTS_AUDIT.md`; this report. The large replay outputs and the file of random numbers are rebuilt with the commands in `replay_README.md` and the specification.
+
+## 12. The owner's decision (added 2026-11-26)
+
+"Keep the mix." No change to the app now and no further replay study. One later check of the half-and-half mix on the app's own log, under its own short plan, to be run before about 2026-05-20 (the hourly log is kept 180 days). The rule is frozen as of 2026-11-26: on hours whose state is rising and whose flow range is below 25,000 cfs, correction = 0.5 × steady value + 0.5 × rising value; everything else as in production. The conditions are fixed in that plan before any log row is read. A rise that began on 2026-11-26 supplies the first rising hours.
