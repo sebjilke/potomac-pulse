@@ -216,3 +216,5 @@ Nothing was rejected. The audit's per-event count on the large rises (answer 7) 
 3. **The half-and-half mix is left out** of this study.
 
 A plain yes confirms all three as written.
+
+**Confirmed by the owner on 2026-11-26 (evening, Eastern; 2026-11-27 UTC):** "yes. but only update the plan. dont run yet." All three points stand as written: the benefit measure with rising water first, the thresholds, the mix left out. The method is frozen from here. **The run has not started. It starts only on the owner's word.**
