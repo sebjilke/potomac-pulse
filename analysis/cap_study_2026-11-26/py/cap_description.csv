@@ -1,0 +1,13 @@
+period,group,n,mean_d,lo,hi,label
+design,all,59999,0.350174,0.238466,0.475762,good_job
+design,capped,2137,9.831580,7.322713,12.546304,good_job
+design,capped_rising,1238,10.804583,7.814737,13.790144,good_job
+design,capped_notrising,899,8.491673,4.147148,14.050290,good_job
+design,lf_rising,9885,1.072121,0.643874,1.539397,good_job
+design,rl_large,275,6.661937,-1.315946,16.411099,unclear
+test,all,59448,0.395885,0.253795,0.567843,good_job
+test,capped,2511,9.372585,6.382865,12.710374,good_job
+test,capped_rising,1302,13.712762,8.811801,19.679283,good_job
+test,capped_notrising,1209,4.698548,1.946807,7.702457,good_job
+test,lf_rising,10302,0.951676,0.532245,1.479192,good_job
+test,rl_large,452,14.515907,4.871760,24.491185,good_job

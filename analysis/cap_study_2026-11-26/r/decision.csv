@@ -1,0 +1,11 @@
+item,result
+cond1_rising_off,not_applicable
+cond2_overall,not_applicable
+cond3_high_all,not_applicable
+cond4_high_rising,not_applicable
+cond5_large_rises,not_applicable
+cond6_halves,not_applicable
+cond7_timing_arm_F,not_applicable
+cond8_high_water,not_applicable
+cond9_low_water,not_applicable
+verdict,KEEP

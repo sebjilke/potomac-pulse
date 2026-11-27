@@ -1,0 +1,13 @@
+arm,step,condition,rows_in,rows_dropped,rows_left
+L,0,read,130987,0,130987
+L,1,status_not_predicted,130987,2392,128595
+L,2,burn_in,128595,8751,119844
+L,3,truth_dependent_hard,119844,356,119488
+L,4,truth_out_of_range,119488,41,119447
+L,5,blank_error,119447,0,119447
+F,0,read,130987,0,130987
+F,1,status_not_predicted,130987,2374,128613
+F,2,burn_in,128613,8753,119860
+F,3,truth_dependent_hard,119860,355,119505
+F,4,truth_out_of_range,119505,41,119464
+F,5,blank_error,119464,0,119464
