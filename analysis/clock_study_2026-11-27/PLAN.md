@@ -162,3 +162,5 @@ Nothing was rejected. The auditor's "strongest case against running it" is taken
 3. **The rules with numbers:** a rise counts at a correlation of 0.6; a rise is creek-heavy above a share of 15%; the verdict by four cells as in 4.10.
 
 A plain yes confirms all three as written.
+
+**Confirmed by the owner on 2026-11-27 ("yes").** All three points stand as written. The method is frozen from here. The run starts with step 0 (the Difficult Run record) and the specification.
