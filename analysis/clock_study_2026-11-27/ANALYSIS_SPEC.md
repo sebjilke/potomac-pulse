@@ -76,7 +76,7 @@ Three columns are used: `predTs` (text, fixed form `YYYY-MM-DDTHH:00:00.000Z`, 2
 - `dr_discharge` is empty (no reading) or a number matching `^-?[0-9]+(\.[0-9]+)?$` (cubic feet per second). A value that parses but is zero or below is a **missing hour** in every use (2.3); it is counted (`nonpositive_hours` in `dr_summary.csv`) and does not stop the run.
 - LF line ends, no quotes.
 
-`DR_SHA256: <<PLACEHOLDER: the orchestrator writes the SHA-256 of the file here before the analysts start>>`
+`DR_SHA256: fc35a7fc5440823b04cfb287e52d212cc48eef6e7b69489ec8901f1cea17f4e0` (the file as built on 2026-11-27: 2,879,671 bytes, 130,987 data rows; written here by the orchestrator before any analyst started; no rule of this specification changed with it)
 
 **If the file is absent** (the path does not exist): the Difficult Run check and the creek's part in the creek share are dropped. Concretely: (a) section 11 is not run and `dr_units.csv` holds one marker row (section 17); (b) in section 6 the lower leg uses Seneca and Broad Run only, with gauged drainage `101.0 + 76.1` (177.1), and the whole reach uses Monocacy, Goose Creek, Seneca and Broad Run with gauged drainage `((817.0 + 332.0) + 101.0) + 76.1`; (c) the short end of the clock never uses the Difficult Run rule (section 12); (d) `dr_present` is 0 in `row_accounting.csv`, `dr_summary.csv` and `decision.csv`; (e) check C04 has `n_checked` 0 and `n_violations` 0. Nothing else changes.
 **If the file is present**, it must meet the contract above and its SHA-256 must equal the value written on the line above; a placeholder never matches, so a present file with a placeholder line stops the run at C00 (write `checks.csv` as in section 15). A present file that violates the contract stops the run at C04.
