@@ -4,6 +4,8 @@
 
 **Verdict: KEEP.** Computed mechanically by two blind analysts whose 14 output files are identical byte for byte, rebuilt by a third auditor (`RESULTS_AUDIT.md`: pass with notes). No change to the app follows.
 
+**Note added later on 2026-11-27 (first look, not verified; see `analysis/clock_first_look_2026-11-27/README.md`).** Every figure in this report takes its truth on the app's own clock from Great Falls to Little Falls. On a rise that clock was found to run 9 to 14 hours where the record suggests about 3. If that holds, the verdict KEEP gets firmer (section 8: an earlier truth makes every looser rule look worse), but the figures for the large rises in items 3 and 4 below and in section 7 are probably far too pessimistic about the cap, and the reading by the owner's first weighing that was given to him in conversation is withdrawn. Nothing in this report has been recomputed.
+
 ## 0. In short
 
 1. **The cap does a good job.** On every group of hours where the reading was fixed in advance, in 2020 to 2026, the error is lower with the cap than without it, with the whole interval on that side. In 2012 to 2019 the same holds on five of six groups; on the large rises of those years the reading is unclear.
