@@ -218,3 +218,15 @@ Nothing was rejected. The audit's per-event count on the large rises (answer 7) 
 A plain yes confirms all three as written.
 
 **Confirmed by the owner on 2026-11-26 (evening, Eastern; 2026-11-27 UTC):** "yes. but only update the plan. dont run yet." All three points stand as written: the benefit measure with rising water first, the thresholds, the mix left out. The method is frozen from here. **The run has not started. It starts only on the owner's word.**
+
+## 18. Notes added after the owner's confirmation
+
+The owner started the run on 2026-11-27 ("run it"). These notes record what the specification stage settled. None changes the confirmed method of section 17. Each was fixed before any error of any rule was computed.
+
+1. **MR, "has no estimate".** The orchestrator's own count for section 4.1 treated an earlier hour as having no estimate when its status in the replay was not "predicted". That was narrower than the rule's words: on 70 test hours the earlier row has a full estimate and only its own truth was never found. The specification follows the words: an earlier hour has an estimate when its `rawUnc` and `corrUsed` are present, whatever its status. Corrected counts: MR falls back to production on 120 design and 0 test hours (section 4.1 says 120 and 70) and differs from production in the shown value on 1,903 and 2,122 hours (section 4.1 says 1,903 and 2,121). Found by the specification reviewer (finding 2).
+2. **The truth is rebuilt from the input file for every hour, not only for the timing tables.** The writer and the reviewer each rebuilt it the way the replay tool does and found it equal to the replay's truth on every scored hour (119,447 in the main run, 119,464 in arm F). Reason for using it: R reads 324 of the replay's truth values one unit in the last place differently from Python; the rebuilt truth is identical in both languages. The values are the same. What changes is the consequence of a failing gate: the whole run stops, where section 8 said only the three timing tables would be dropped.
+3. **Arm F is shifted too** in the truth-timing tables, as "the step B table computed three more times" says. The first version of the specification had left its condition unshifted.
+4. **The tie rule of the pick is computed on whole hours:** two candidates are tied when 1,000 times the difference in their badly-off rising hours is at most the number of rising hours. This is "within 0.1 percentage points" made exact, so a hand check of the pick cannot disagree at the sixth decimal.
+5. **With no pick, no rule is named for step B.** The description is then the table of all candidates in the test years.
+6. **A fact for the report:** of the 21 large rises, 20 are upstream-led and one (2026-10-12) is Little-Falls-led. The split of section 5 therefore has a single rise on one side and can say little.
+7. **Documents:** `ANALYSIS_SPEC.md` (the specification; version 1.0 kept as `ANALYSIS_SPEC_v1.0.md`), `SPEC_REVIEW.md` (verdict "ready after changes"; 2 major and 12 minor findings, all accepted).

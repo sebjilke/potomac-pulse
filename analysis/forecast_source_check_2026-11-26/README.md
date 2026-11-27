@@ -26,10 +26,11 @@ No longer source that could be used as it is. The natural candidate (10 days) is
 - `samples/`: for each sample the raw answer for our reach, and the official forecast for Little Falls with the last 48 observed readings.
 - From 2026-11-26 a timer in the working session runs the script every four hours. It ends with that session, and after 7 days at the latest. The samples are committed at the next working session, not one by one, because every push redeploys the app.
 
+**Samples fail while the laptop is asleep.** The timer runs in the working session, and the machine sleeps with the lid closed. The samples of 2026-11-27 09:11 and 12:57 UTC both carry `request failed: The read operation timed out` for the two river-model requests (the machine fell asleep mid-request); only the official forecast was saved. Such lines say nothing about which series were served.
+
 Two earlier observations were made by hand and are not in the CSV: 2026-11-25 16:40 UTC (our reach only) and 2026-11-26 21:36 UTC (eight reaches). Both are described above.
 
 ## Not established
 
-- Why the 10-day series is empty, and whether it ever is served.
-- At which hours the 30-day series is served.
+- At which hours the 10-day and the 30-day series are served. In the two full samples so far they alternated (see the correction above).
 - How good any of the model series is at Little Falls. One day is no basis for that.
