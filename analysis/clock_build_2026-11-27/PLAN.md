@@ -158,3 +158,7 @@ The owner's word: "do both! yes to step 1, and look at the creeks! make sure not
 7. **The check of 3.4 item 7** (NEW not worse than OLD on the central truth) is no longer guaranteed by construction now that the common truths are read at exact times. It stays a stopping check.
 8. **Hours flagged as corrupt data in either run** are left out of the common-truth statistics, the same hours for both runs.
 9. **A correction to section 0, found by the reviewer's second pass.** Section 0 says the old clock is longer than the new one "on all but 109 of 59,746 test hours". That count was made on the formula before the clock was held at 2.0 hours above 20,000 cfs (section 2). For the clock as built, by the reviewer's count: the old clock is not longer than the central clock on 1,439 of the 60,120 test hours with an estimate, 1,433 of them at 20,000 cfs and above; it is not longer than the long end on 3,032 hours, 2,974 of them at 20,000 cfs and above; the short end is always shorter than the old clock. So the argument of section 0 holds below 20,000 cfs. At 20,000 cfs and above the two clocks are close and the new one is often the longer; the report treats that range separately (section 3.3 already has it as its own group).
+
+## 14. Step 1 is done (2026-11-27)
+
+The report is `REPORT.md`; the third audit is `RESULTS_AUDIT.md` (pass with notes). The owner's choice of step 2 is open. Eight of the expectations of section 7 did not hold; the report lists them (its section 8).
