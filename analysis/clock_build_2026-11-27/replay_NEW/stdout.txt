@@ -1,0 +1,4 @@
+[lag] arm=L gate=new mode=hybrid switch=- until=-  rows=130416
+[lag] done L: shadow rows 130987; statuses {"predicted":128625,"no_por":1014,"no_lf":439,"no_truth":909,"other":0}; learn validations 37913
+[onset] CEILING_RATIO used: production export CEILING_RATIO = 1.2
+[onset] rows checked: 129534; passed (a) state 129534, (a) past-reading lookup 129534, (b) 129534, (c) 129534

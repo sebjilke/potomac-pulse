@@ -123,3 +123,13 @@ sampled_utc,reach,series,part,n_points,reference_time,first_valid,last_valid,las
 2026-11-27T22:34:18Z,4710000,mediumRange,,0,,,,,,,,empty
 2026-11-27T22:34:18Z,4710000,mediumRangeBlend,,0,,,,,,,,empty
 2026-11-27T22:34:18Z,4710000,longRange,,0,,,,,,,,empty
+2026-11-28T02:25:22Z,4512772,analysisAssimilation,series,47,2026-11-27T20:00:00Z,2026-11-26T01:00:00Z,2026-11-27T23:00:00Z,-3.4,1559.8499755859375,9870.099609375,ft³/s,
+2026-11-28T02:25:22Z,4512772,shortRange,,0,,,,,,,,empty
+2026-11-28T02:25:22Z,4512772,mediumRange,,0,,,,,,,,empty
+2026-11-28T02:25:22Z,4512772,mediumRangeBlend,,0,,,,,,,,empty
+2026-11-28T02:25:22Z,4512772,longRange,,0,,,,,,,,empty
+2026-11-28T02:25:22Z,4710000,analysisAssimilation,series,47,2026-11-27T20:00:00Z,2026-11-26T01:00:00Z,2026-11-27T23:00:00Z,-3.4,12699.859375,34811.7890625,ft³/s,
+2026-11-28T02:25:22Z,4710000,shortRange,,0,,,,,,,,empty
+2026-11-28T02:25:22Z,4710000,mediumRange,,0,,,,,,,,empty
+2026-11-28T02:25:22Z,4710000,mediumRangeBlend,,0,,,,,,,,empty
+2026-11-28T02:25:22Z,4710000,longRange,,0,,,,,,,,empty

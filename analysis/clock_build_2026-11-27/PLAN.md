@@ -127,3 +127,20 @@ The auditor's "smaller first step" is taken: step 1 is the description, and a lo
 3. **What step 1 reports** (section 3.4), with the badly-low readings on rising water in front.
 
 A plain yes confirms all three as written.
+
+## 11. The owner's confirmation (2026-11-27, 9:40 pm Eastern)
+
+The owner's word: "do both! yes to step 1, and look at the creeks! make sure not to make mistakes again."
+
+- Read as a yes to the three points of section 10 as written: the order of the steps; the clock held inside its measured range (the separate low-water value was not chosen); what step 1 reports. This is the orchestrator's reading of "yes to step 1".
+- Step 1 started at 9:46 pm Eastern. Nothing in the app changes in step 1. Step 2 stays the owner's choice after the report.
+- "Look at the creeks" is a separate piece of work with its own folder, `analysis/creek_look_2026-11-27/`, its own plan and its own audit.
+- On "no mistakes": no number from step 1 is reported as a finding before the tool audit, the two blind analysts and the third auditor agree on it.
+
+## 12. Notes after the tool audit (2026-11-27, 9:57 pm Eastern)
+
+- `TOOL_AUDIT.md`: tool fit for use, no blocker and no defect. Old mode reproduces the existing run byte for byte; the NEW run on disk is what the tool produces; all 129,534 due times, validation hours and truths match the auditor's own recomputation from the input file.
+- **Finding F1, to lead the report:** in both runs the moment that is actually scored is a staircase. Estimates are made on whole hours and the truth is read 11 minutes before the first whole hour at or after the due time. So the scored lag is always a whole number of hours plus 0.82 hours: between 0.18 hours earlier and 0.82 hours later than the formula (0.28 hours later on average in NEW, 0.31 in OLD). This is the original tool's stand-in for the hourly job and is the same in both runs.
+- **Consequence for section 3.2, and a correction of the orchestrator's own instruction:** the three common truths are read at the exact times (the hour of the estimate plus the clock, plus the long end, plus the short end), as section 3.2 says, not on the staircase. The orchestrator's first brief to the specification writer put them on the staircase; that was corrected before the specification was finished. Each run's own truth stays on the staircase and is rebuilt by the analysts as a check of their code.
+- **Finding F2:** columns read at the validation hour differ between the runs, so a paired comparison on the runs' own truths uses only hours with a truth in both runs.
+- **Counts from the tool, confirmed by the auditor** (description, no judgement yet): NEW stores 38,046 estimates for scoring and scores 37,913 (OLD 23,764 and 23,688); 133 miss their 2.5 hour window (OLD 76); 396 retries (OLD 222); 65 skipped by the data checks (OLD 37).

@@ -1,0 +1,79 @@
+--- ../../onset_correction_2026-11-25/tools/replay_onset.mjs	2026-11-25 12:04:47
++++ replay_clock.mjs	2026-11-27 21:48:19
+@@ -52,7 +52,7 @@
+     const a = {
+         arm: 'orig', gate: 'old', mode: 'multi',
+         in: path.join(__dirname, '..', 'hourly_backtest_data_v361.csv'),
+-        out: null, outdir: __dirname, switch: null, until: null,
++        out: null, outdir: __dirname, switch: null, until: null, clock: 'old',
+     };
+     for (const tok of argv) {
+         const m = tok.match(/^--([^=]+)=(.*)$/);
+@@ -60,6 +60,7 @@
+     }
+     if (!['orig', 'F', 'L', 'F0', 'L0'].includes(a.arm)) throw new Error(`bad --arm=${a.arm}`);
+     if (!['old', 'new'].includes(a.gate)) throw new Error(`bad --gate=${a.gate}`);
++    if (!['old', 'new'].includes(a.clock)) throw new Error(`bad --clock=${a.clock}`);
+     if (!['multi', 'single', 'hybrid'].includes(a.mode)) throw new Error(`bad --mode=${a.mode}`);
+     if (a.arm === 'orig' && a.mode === 'hybrid') throw new Error('--arm=orig supports --mode=multi|single only');
+     if (a.arm !== 'orig' && a.mode !== 'hybrid') throw new Error('--arm=F|L|F0|L0 requires --mode=hybrid');
+@@ -502,6 +503,7 @@
+     'd6', 'thr6', 'p6Ts', 'p6Cfs', 'span_h', 'histShort',
+     'lfCap', 'ageR_h', 'ageS_h',
+ ];
++export const CLOCK_COLS = ['clockQ', 'clockHrs'];   // appended in --clock=new only
+ export const LEARN_COLS = [
+     'predTs', 'valHourTs', 'dueTs', 'tauTs', 'arm', 'inputArm', 'cell', 'outcome', 'learned', 'clamped', 'softFlagged',
+     'rawResidualCFS', 'learningErrorCFS', 'emaBefore', 'countBefore', 'emaAfter', 'countAfter',
+@@ -511,7 +513,7 @@
+ 
+ // Core of the hybrid replay. Pure with respect to the filesystem (returns arrays); `predictFn` is injectable for tests.
+ export function runHybrid(rows, opts) {
+-    const { arm: baseArm, gate = 'new', switchMs = null, untilMs = null, predictFn = predictAtSimTime, armLabel = null } = opts;
++    const { arm: baseArm, gate = 'new', switchMs = null, untilMs = null, predictFn = predictAtSimTime, armLabel = null, clock = 'old' } = opts;
+     const S = buildSeries(rows);
+     const armAt = t => (switchMs !== null && t >= switchMs) ? 'F' : baseArm;
+     const label = armLabel || baseArm;
+@@ -604,7 +606,16 @@
+         r.pct = trace.pct; r.deltaOn = trace.deltaOn; r.appliedRatio = trace.ratio; r.decay = trace.decay;
+         r.riseRatePerHr = trace.rate; r.efWeight = pred.efWeight; r.ceilingApplied = pred.ceilingApplied;
+         r.porEstimateCFS = pred.porEstimateCFS; r.efEstimateCFS = pred.efEstimateCFS; r.useTimeShifted = pred.useTimeShifted;
+-        const dueMs = t + pred.travelTimeGFtoLF * HOUR_MS;
++        let dueMs = t + pred.travelTimeGFtoLF * HOUR_MS;
++        if (clock === 'new') {
++            // measured clock: Q = the Little Falls flow passed to makeGFPrediction at this hour (usgsFromInputs: inp.lf.v)
++            const Q = inp.lf ? inp.lf.v : null;
++            if (typeof Q !== 'number' || !Number.isFinite(Q) || !(Q > 0)) throw new Error(`CLOCK: bad Q=${Q} at predTs=${r.predTs}`);
++            const Qc = Math.min(20000, Math.max(1400, Q));
++            const clockHrs = 98.2 * Math.pow(Qc, -0.3935);
++            r.clockQ = Q; r.clockHrs = clockHrs;
++            dueMs = t + clockHrs * HOUR_MS;
++        }
+         r.dueTs = iso(dueMs);
+         onsetColumns(r, t, inp, hist, trace, pred);
+         return {
+@@ -818,9 +829,10 @@
+     const gateSuffix = args.gate === 'old' ? '_gateold' : '';
+     const armLabel = isSwitch ? 'L>F' : args.arm;
+     const res = runHybrid(rows, {
+-        arm: args.arm, gate: args.gate, switchMs: args.switchMs, untilMs: args.untilMs, armLabel,
++        arm: args.arm, gate: args.gate, switchMs: args.switchMs, untilMs: args.untilMs, armLabel, clock: args.clock,
+     });
+     fs.mkdirSync(args.outdir, { recursive: true });
++    const shadowCols = args.clock === 'new' ? SHADOW_COLS.concat(CLOCK_COLS) : SHADOW_COLS;
+     let name, shadowOut = res.shadowRows, extra = {};
+     if (isSwitch) {
+         const d = new Date(args.switchMs).toISOString().slice(0, 10);
+@@ -833,10 +845,10 @@
+             'shadow rows written to file (predTs >= switch)': shadowOut.length,
+             'file rows per status': JSON.stringify(st),
+         };
+-        writeCsv(path.join(args.outdir, `${name}.csv`), SHADOW_COLS, shadowOut);
++        writeCsv(path.join(args.outdir, `${name}.csv`), shadowCols, shadowOut);
+     } else {
+         name = `${args.arm}${gateSuffix}`;
+-        writeCsv(path.join(args.outdir, `shadow_${name}.csv`), SHADOW_COLS, shadowOut);
++        writeCsv(path.join(args.outdir, `shadow_${name}.csv`), shadowCols, shadowOut);
+         writeCsv(path.join(args.outdir, `learn_${name}.csv`), LEARN_COLS, res.learnRows);
+         writeCsv(path.join(args.outdir, `bins_${name}.csv`), BIN_COLS, res.binRows);
+         extra = { 'learn rows written': res.learnRows.length, 'bin-update rows written': res.binRows.length };
