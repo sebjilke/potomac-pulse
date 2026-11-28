@@ -254,3 +254,85 @@ Computed only where a check needed them. Not for the specification; not reviewed
 **Self-report (learning track, learned rows).** Test: OLD 9,809 joined, 15% low 3.364, in band 84.840; NEW 16,346, 2.998, 86.223. Design: OLD 12,231, 2.526, 84.605; NEW 18,925, 2.320, 85.295. Unjoined 0 in all four. With hard-skipped rows included the 15% low share moves by at most 0.01 points.
 
 **Hard flags among central-valid test hours.** OLD flag 233, NEW flag 250.
+
+---
+
+# Second pass on version 1.1
+
+Reviewer: the same independent reviewer, 2026-11-27. File reviewed: `ANALYSIS_SPEC.md` version 1.1, 463 lines of text (464 by the editor's count), SHA-256 `11aa5da6ea84ddb636f9aa68c1ddb39ca7a8f161477b96357f6073903ff274b9` (checked). I compared it with `ANALYSIS_SPEC_v1.0.md`, read version 1.1 in full and recomputed what the changes depend on (scripts `pass2.py`, `pass2b.py` in the scratch folder). Nothing in the repository was changed except this file.
+
+## Verdict: READY AFTER ONE CHANGE (then READY)
+
+All 15 findings were applied, and so were the rulings. The four adaptations are sound. One factual error remains, and it is mine: the text I wrote for F4 ("Known property 2") quotes the plan audit's "all but 109 test hours". That number belongs to the clock before it was held at 2.0 hours above 20,000 cfs. For the clock as built it is wrong. The fix is one paragraph, repeated in three places. Two small wording points follow (S2, S3); neither has to be fixed before the analysts start.
+
+## S1. MAJOR (new, from my own F4 text). "all but 109 test hours" is wrong for the clock as built
+Quoted (preamble, end of section 6, end of 7.2): "all three truths lie on NEW's side of OLD's clock on all but 109 test hours".
+Evidence (`pass2.py`, `pass2b.py`; a fact about the two clocks, not an error of either run): over the 60,120 test estimate hours, OLD's clock (`travelGFtoLF`) is not longer than the central clock on 1,439 hours, and 1,433 of those are at 20,000 cfs and above. It is not longer than the long end on 3,032 hours (2,974 at 20,000 cfs and above). The short end is shorter than OLD's clock on every hour. The 109 of PLAN_AUDIT F1 was counted on the formula before the hold at 20,000 cfs (plan version 1). Above 20,000 cfs OLD's clock falls below 2.0 hours, while the new clock is held at 2.0.
+Replacement text, in all three places: "Known property 2: on all three common truths run NEW has an advantage built into the replay. Its corrections learned against a truth within -0.18 to +0.82 hours of the central truth. OLD's corrections learned against a later and higher river on rises. Below 20,000 cfs all three truths lie on NEW's side of OLD's clock on almost every test hour. At 20,000 cfs and above OLD's clock is the shorter one on many hours: of the 60,120 test estimate hours, OLD's clock is not longer than the central clock on 1,439 (1,433 of them at 20,000 cfs and above) and not longer than the long end on 3,032 (2,974 at 20,000 cfs and above); the short end is always shorter than OLD's clock. In `badly_low_rising.csv` and `common_truth_errors.csv` a lower value for NEW is therefore expected below 20,000 cfs and shows nothing about which clock is right. A higher value for NEW would be informative. In the group `high_20plus` the lean does not hold in the same way. The three truths protect only the readings inside run NEW (section 8)."
+The analysts compute nothing from this paragraph, so it does not stop them. It must be right before the owner reads it.
+
+## S2. MINOR. Section 8, `Y1`: a variable is defined and not used
+Quoted: "Else `h` = `clock` of section 4 (the NEW clock at this hour), the same on all three truths, so that `Y1` is one fixed estimator judged on three truths. `Y1 = floor(L + max(0.0, ((L - L3) / 3.0) * (clock + a)) + 0.5)`".
+The formula uses `clock` and never `h`. Replacement: "Else, with `clock` of section 4 (the NEW clock at this hour; the same on all three truths, so that `Y1` is one fixed estimator judged on three truths): `Y1 = floor(L + max(0.0, ((L - L3) / 3.0) * (clock + a)) + 0.5)`."
+
+## S3. MINOR. Section 1.0, the R hourly map: look-ups outside the vector
+Quoted: "The hourly map is a numeric vector indexed by `epoch_ms / 3600000 - K0h + 1`".
+The F11 text I gave does not say what a look-up outside the vector returns. In R an index of 0 returns an empty vector, a negative index drops elements, and an index past the end returns NA. It also does not say how hours missing from the file are held. On these files such a slip would show in B05, B06 or B11, so it would not pass silently. Replacement (append): "The vector holds NA for hours absent from the file and for blank `lf_discharge`. Every look-up goes through one function that returns missing for an index below 1, above the length, or NA."
+
+## Findings of the first pass
+
+| Finding | Status | Where in 1.1 | Remark |
+|---|---|---|---|
+| F1 | RESOLVED | 14 | `description` = id |
+| F2 | RESOLVED | 9, 10 block 1 (metrics 9 to 11), 10.1, 14 (H01 to H04) | computable, see below |
+| F3 | RESOLVED | 8.1, 8.3, 13.2, U16, U17, 16 (13) | |
+| F4 | PARTIAL | preamble, 6, 7.2 | applied as written, but my text carried the wrong "109" (S1) |
+| F5 | RESOLVED | 8, U14, 16 (12) | wording S2 |
+| F6 | RESOLVED | 14 (B11) | values are mine exactly (below) |
+| F7 | RESOLVED | 17 | |
+| F8 | RESOLVED | 4, 13.3, 14 (I04), 16 (6) | |
+| F9 | RESOLVED | 14 (M05), 2.6, 16 (19) | |
+| F10 | RESOLVED | 2.6, 14 (M06, M07) | |
+| F11 | RESOLVED | 1.0 | completion S3 |
+| F12 | RESOLVED | 2.2, 8.2 | |
+| F13 | RESOLVED | 8.1, 14, 11, 5, 9.1, 3.2, 8 | |
+| F14 | RESOLVED | 15 (2a, 1) | |
+| F15 | RESOLVED | 16 (22) | |
+
+## Rulings on the open points
+
+| Open point | Status | Remark |
+|---|---|---|
+| 2 low water | RESOLVED | 643-hour overlap and the reason recorded |
+| 3 Little Falls rising | RESOLVED | the shift of six hours recorded |
+| 6 hard flags | RESOLVED | either run, all common truths; two-by-two and learning track as before |
+| 7 creek share | RESOLVED | `share_lower`, cut `> 0.15`; the limit sentence added ("almost all" for `share_whole` is fine: 11 of 13) |
+| 12 yardstick | RESOLVED | NEW clock on all three truths, F14 override recorded |
+| 13 holds | RESOLVED | one-sided effect stated |
+| 15 self-report rows | RESOLVED | unchanged, as ruled |
+| 16 correction change | RESOLVED | departure from F6 recorded |
+| 22 | RESOLVED | closed |
+| 25, 26 | RESOLVED | via 8.2 and 15 |
+| all others | RESOLVED | unchanged, as agreed |
+
+## The four adaptations
+
+1. **`direction_by_count`**: renamed in section 5 (both mentions), 13.2 and the text-column list of 15 (2a). No old name `direction` is left as a column name. Sound.
+2. **B11 "tested on the common-truth function only, before the hard-flag rule"**: harmless and clear. It is not needed on these files: none of the six hours is hard-flagged in either file (`truthDependentHard` is `0` in both files on the first five; on 2026-07-20T18 it is `0` in OLD and blank in NEW, where there is no truth). All given values are in range or "none", so the range rule cannot interfere either. `clockQ` in the B11 row is input, not a tested value ("violations over the 6 x 3 values"). That reading is unambiguous.
+3. **H03 blank gives a fail**: sound. A blank p99 means no steps, which would itself be a fault of the machinery. On these files `n_corr_steps` is 60,120 in the test years of each run, so the case does not arise. H02 and H04 are defined for every value (with a zero on OLD's side they fail unless NEW is also zero, which is correct for a stop rule).
+4. **I04**: clear. An hour flagged in both runs counts on both sides, the counts are test, central truth, present and in range, and they match `got <OLD>:<NEW>`.
+
+## Internal consistency
+
+- `checks.csv`: the list in 14 holds U 18, S 12 + 4, G 22 + 2, B01 to B09 9, B11 1, B10 3, H 4, I01 3, I02 to I05 4, M 7 = 89. The ids are unique, the order of work matches the order of the table, and 13.2 and 15 (1) both say 89.
+- `learning_health.csv`: 11 + 12 + 18 = 41 per run, 82. The rate metrics are not in 13.1's integer list, so they are `%.6f`, and 15 (4) types `value` by its regex. Consistent.
+- `row_accounting.csv`: 4 + 18 + 8 + 10 = 40, in 4, 13.3, 13.2 and 15 (1).
+- `new_cap_yardsticks.csv`: 15 columns, 180 rows; `n_low_app` and `n_low_other` fall under `n_*` (integers) and are defined for `n = 0`.
+- Section references checked: 2.6 (b) and (c) name M05 as a stopping guard and M01 to M07; 16 (19) matches M05; the preamble names H01 to H04; U14 uses `clock = 4.0`; U16 and U17 use the new labels.
+- **B11 values**: identical to my table of the first pass, digit for digit, for all six hours and 18 values, including "none" for 2026-07-20T18.
+- **H01 to H04 computable**: H01 and H02 from block 1 of the counts files (integer products below 2^53, exact in R as doubles). H03 from the written `corr_jump_p99` of block 3. H04 from `n_jumps_ge5`. Each uses inputs that exist before the stop rules run.
+- **Leak check**: I searched version 1.1 for every value in my "Numbers seen by the reviewer" (shares, MAE, readings, capped-hour counts, health and self-report values, the hard-flag counts 233 and 250). None is present. The only counts that came from my rulings are structural (the 643-hour group overlap and the creek split), and they compare no run with the other.
+
+## Final statement
+
+READY for the two analysts once S1 is applied. S1 touches only the "Known property 2" paragraph, which the analysts do not compute from, so it can be applied in place without another review. S2 and S3 are recommended wording; they change no rule a careful analyst would apply differently, and B05, B06 and B11 would catch the R slip that S3 guards against.
